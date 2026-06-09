@@ -34,6 +34,10 @@ function browserDevelopmentMode(): boolean {
   return !isElectronRuntime() && !import.meta.env.PROD;
 }
 
+function isLoopbackApiUrl(url: string): boolean {
+  return /^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url.trim());
+}
+
 let loggedApiResolution = false;
 
 function readDesktopBootUrl(): string {
@@ -92,8 +96,8 @@ function resolveBrowserApiUrl(): string {
   // Ignore localStorage so old Electron/dev values such as localhost:4010
   // cannot hijack the live website.
   if (browserProductionMode()) {
-    return fromVite || '';
-
+    if (fromVite && !isLoopbackApiUrl(fromVite)) return fromVite;
+    return '';
   }
 
   // Browser development may still use local overrides when needed.
@@ -116,7 +120,7 @@ export function getApiBaseUrl(): string {
         '[fabric-api] Electron: desktopApiBaseAtBoot -> localStorage -> VITE -> http://127.0.0.1:4010 (HMR or packaged)',
       );
     } else if (browserProductionMode()) {
-      console.info('[fabric-api] Browser production: same-origin requests active; localStorage desktop overrides ignored.');
+      console.info('[fabric-api] Browser production: same-origin requests active; localStorage and loopback VITE overrides ignored.');
     }
   }
 
