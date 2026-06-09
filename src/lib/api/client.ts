@@ -26,6 +26,14 @@ function electronViteDevShell(): boolean {
   return isElectronRuntime() && !import.meta.env.PROD;
 }
 
+function browserProductionMode(): boolean {
+  return !isElectronRuntime() && import.meta.env.PROD;
+}
+
+function browserDevelopmentMode(): boolean {
+  return !isElectronRuntime() && !import.meta.env.PROD;
+}
+
 let loggedApiResolution = false;
 
 function readDesktopBootUrl(): string {
@@ -78,9 +86,22 @@ function resolveElectronDesktopApiUrl(): string {
 }
 
 function resolveBrowserApiUrl(): string {
-  const fromLs = readLocalStorageApiUrl();
-  if (fromLs) return fromLs;
-  return normalizeApiUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
+  const fromVite = normalizeApiUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
+
+  // Production browser mode must route through the current origin + Nginx.
+  // Ignore localStorage so old Electron/dev values such as localhost:4010
+  // cannot hijack the live website.
+  if (browserProductionMode()) {
+    return fromVite || '/api';
+  }
+
+  // Browser development may still use local overrides when needed.
+  if (browserDevelopmentMode()) {
+    const fromLs = readLocalStorageApiUrl();
+    if (fromLs) return fromLs;
+  }
+
+  return fromVite;
 }
 
 export function getApiBaseUrl(): string {
@@ -91,8 +112,10 @@ export function getApiBaseUrl(): string {
     console.info('[fabric-api] عنوان الـ API المستخدم الآن:', resolved || '(فارغ — راجع الإعدادات)');
     if (isElectronRuntime()) {
       console.info(
-        '[fabric-api] Electron: desktopApiBaseAtBoot ← localStorage ← VITE؛ ثم http://127.0.0.1:4010 (HMR أو مُثبَّت)',
+        '[fabric-api] Electron: desktopApiBaseAtBoot -> localStorage -> VITE -> http://127.0.0.1:4010 (HMR or packaged)',
       );
+    } else if (browserProductionMode()) {
+      console.info('[fabric-api] Browser production: same-origin /api active; localStorage desktop overrides ignored.');
     }
   }
 
