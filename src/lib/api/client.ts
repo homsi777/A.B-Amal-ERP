@@ -92,7 +92,8 @@ function resolveBrowserApiUrl(): string {
   // Ignore localStorage so old Electron/dev values such as localhost:4010
   // cannot hijack the live website.
   if (browserProductionMode()) {
-    return fromVite || '/api';
+    return fromVite || '';
+
   }
 
   // Browser development may still use local overrides when needed.
@@ -115,7 +116,7 @@ export function getApiBaseUrl(): string {
         '[fabric-api] Electron: desktopApiBaseAtBoot -> localStorage -> VITE -> http://127.0.0.1:4010 (HMR or packaged)',
       );
     } else if (browserProductionMode()) {
-      console.info('[fabric-api] Browser production: same-origin /api active; localStorage desktop overrides ignored.');
+      console.info('[fabric-api] Browser production: same-origin requests active; localStorage desktop overrides ignored.');
     }
   }
 
