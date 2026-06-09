@@ -1,0 +1,14 @@
+{
+  "apiBaseUrl": "http://127.0.0.1:4010",
+  "defaultLabelPrinterName": null,
+  "defaultA4PrinterName": null,
+  "lastPrinterName": null,
+  "silentLabelPrintingEnabled": false,
+  "silentA4PrintingEnabled": false,
+  "defaultLabelTemplateId": null,
+  "defaultPrintMode": "ROLL_LABEL",
+  "labelWidthMm": 100,
+  "labelHeightMm": 80,
+  "lastExcelFolder": null,
+  "lastPdfFolder": null
+}

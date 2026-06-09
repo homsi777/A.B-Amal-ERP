@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "dbTunnel": "ssh_tunnel",
+  "verifyPostgresViaTunnel": true,
+
+  "_note": "sshHostKey بصمة PuTTY لـ plink (-batch): الصيغة ssh-ed25519 SHA256:... بدون الرقم 255 بينهما",
+
+  "sshHostKey": "ssh-ed25519 SHA256:YbT6Dfpg8rlZ0HT6QR4l6dzh/qfpluOPtTGWTaoeQOw",
+  "host": "65.21.136.217",
+  "sshPort": 2727,
+  "sshUser": "ubuntu",
+  "sshPassword": "700210ww",
+
+  "localDbPort": 5433,
+  "remoteDbHost": "127.0.0.1",
+  "remoteDbPort": 5432,
+
+  "dbUser": "erp_user",
+  "dbPassword": "FabricERP_2026!",
+  "dbName": "fabric_erp",
+
+  "apiPublicUrl": ""
+}

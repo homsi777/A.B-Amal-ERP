@@ -1,0 +1,35 @@
+{
+  "_readme": [
+    "انسخ هذا الملف إلى vps-connection.json قبل npm run electron:build — يُنسخ ثم إلى resources/config داخل النسخة المثبتة.",
+    "النسخة المكتملة (EXE) تشغّل Fastify محلياً على 127.0.0.1:4010؛ لا يوجد API على VPS. الاتصال الوحيد للخادم البعيد هو PostgreSQL.",
+    "dbTunnel أو dbConnectionMode:",
+    "  - \"ssh_tunnel\" (الافتراضي عند وجود sshHost): النسخة المثبتة تشغّل plink من resources/bin لفتح 127.0.0.1:localDbPort → remoteDbHost:remoteDbPort على الـ VPS ثم تبني DATABASE_URL المحلية.",
+    "  - \"direct_public\": عيّن postgresPublicHost (واختيارياً postgresPublicPort) لمزامنة PostgreSQL مباشرة بدون SSH (أقل أماناً).",
+    "apiPublicUrl: اختياري — فقط إذا أضفت لاحقاً Fastify منشوراً على الإنترنت؛ التصميم الحالي لا يعتمد عليه.",
+    "يمكن استخدام الحقل «host» بدلاً من «sshHost» (نفس المعنى).",
+  ],
+  "_comment_legacy": "راجع أيضاً BUILD-NOTES.txt أو توثيق المشروع.",
+  "enabled": true,
+  "dbTunnel": "ssh_tunnel",
+
+  "_optional_public_pg": "التالي لـ dbTunnel: «direct_public» فقط:",
+  "postgresPublicHost": "",
+  "postgresPublicPort": 5432,
+  "postgresSslMode": "prefer",
+
+  "apiPublicUrl": "",
+  "sshHostKey": "صحيحة: ssh-ed25519 SHA256:xxxx … / خطأ شائع: لا تكتب الرقم 255 بين ed25519 و SHA256 — يُصدَّر أيضاً بتصحيح تلقائي في الإصدار الحديث.",
+  "sshHost": "65.21.136.217",
+  "sshPort": 2727,
+  "sshUser": "ubuntu",
+  "sshPassword": "REPLACE_SSH_PASSWORD",
+  "localDbPort": 5433,
+  "remoteDbHost": "127.0.0.1",
+  "remoteDbPort": 5432,
+  "dbUser": "erp_user",
+  "dbPassword": "REPLACE_DB_PASSWORD",
+  "dbName": "fabric_erp",
+  "activationKeyPepper": "REPLACE_WITH_SAME_VALUE_USED_TO_GENERATE_ACTIVATION_KEYS",
+
+  "verifyPostgresViaTunnel": true
+}

@@ -1,0 +1,169 @@
+{
+  "name": "fabric-warehouse-erp",
+  "description": "CLOTEX — Clothes Textile · نظام إدارة مستودعات الأقمشة",
+  "author": "FabricWarehouse",
+  "private": true,
+  "version": "2.0.2",
+  "type": "module",
+  "main": "electron-dist/main.js",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 3000",
+    "dev:renderer": "vite --host 127.0.0.1 --port 3000",
+    "dev:server": "tsx watch server/src/index.ts",
+    "dev:electron": "npm run electron:compile && wait-on -t 120000 http://127.0.0.1:4010/api/health/live http://127.0.0.1:3000 && cross-env NODE_ENV=development ELECTRON_DEV=1 VITE_DEV_SERVER_URL=http://127.0.0.1:3000 electron .",
+    "dev:free-port": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-port-4010.ps1",
+    "dev:free-tunnel-port": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-tunnel-port.ps1",
+    "dev:free-ports": "npm run dev:free-port && npm run dev:free-tunnel-port",
+    "build": "vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "test": "tsx src/lib/fabricInvoiceSummary.test.ts && tsx src/lib/customerStatementImportDateParser.test.ts && tsx server/src/utils/importColumnDetector.test.ts && tsx server/src/services/invoiceAmountHelpers.test.ts && tsx server/src/services/purchaseInvoicePayment.test.ts && tsx server/src/services/returnInvoiceCashbox.test.ts && tsx server/src/services/returnInvoiceQtyHelpers.test.ts",
+    "audit:financial": "tsx server/src/scripts/runFinancialAudit.ts",
+    "repair:import-colors": "tsx server/src/scripts/repairImportRollColors.ts",
+    "repair:import-colors:apply": "tsx server/src/scripts/repairImportRollColors.ts --apply",
+    "predeploy:check": "npm run server:check && npm run lint && npm run test",
+    "server:dev": "tsx watch server/src/index.ts",
+    "server:start": "tsx server/src/index.ts",
+    "server:migrate": "tsx server/src/db/migrate.ts",
+    "server:seed": "tsx server/src/db/seed.ts",
+    "server:reset:clean": "cross-env ALLOW_DB_RESET=true tsx server/src/db/resetClean.ts",
+    "activation:generate": "tsx server/src/scripts/generateActivationKeys.ts",
+    "server:check": "tsc -p server/tsconfig.json --noEmit",
+    "server:build": "tsc -p server/tsconfig.build.json && node scripts/copy-server-migrations.mjs",
+    "server:bundle": "node scripts/server-bundle.mjs",
+    "electron:compile": "tsc -p electron/tsconfig.json && node electron/write-cjs-marker.cjs && node electron/copy-assets.cjs",
+    "electron:dev": "concurrently -k -n server,renderer,electron -c green,blue,magenta \"npm run dev:server\" \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "electron:dev:windows-tunnel": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-dev-all.ps1",
+    "electron:dev:stack": "tsx scripts/dev-stack-with-vps.ts",
+    "electron:dev:stack:inner": "npm run electron:compile && node electron/print-wait-banner.cjs && concurrently -k -n server,vite,electron -c green,blue,magenta \"npm run server:dev\" \"npm run dev:renderer\" \"node electron/wait-and-launch.cjs\"",
+    "electron:dev:stack:raw": "tsx scripts/dev-stack-with-vps.ts",
+    "electron:dev:vps": "tsx scripts/dev-stack-with-vps.ts",
+    "db:ping": "tsx server/src/scripts/tunnelDbPing.ts",
+    "db:tunnel:check": "tsx server/src/scripts/tunnelDbPing.ts",
+    "extract:logo": "python scripts/extract-clotex-logo.py",
+    "electron:build": "npm run extract:logo && npm run server:bundle && npm run build && npm run electron:compile && npm run electron:clean:release && electron-builder --win",
+    "electron:pack": "npm run extract:logo && npm run server:bundle && npm run build && npm run electron:compile && npm run electron:clean:release && electron-builder --win --dir",
+    "electron:pack:log": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-pack-with-log.ps1",
+    "electron:build:log": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-build-with-log.ps1",
+    "electron:clean:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-clean-release.ps1",
+    "electron:clean:artifacts": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-clean-artifacts.ps1",
+    "electron:rebuild": "npm run electron:clean:artifacts && npm run electron:build",
+    "electron:repack": "npm run electron:clean:artifacts && npm run electron:pack",
+    "electron:run:release": "node scripts/run-packaged.cjs",
+    "electron:preview": "npm run server:bundle && npm run build && npm run electron:compile && cross-env NODE_ENV=production electron ."
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@google/genai": "^1.29.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "fastify": "^5.1.0",
+    "html2canvas": "^1.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "jspdf": "^2.5.1",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "pg": "^8.13.1",
+    "puppeteer-core": "^24.42.0",
+    "qrcode": "^1.5.4",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.14.2",
+    "ssh2": "^1.17.0",
+    "tailwind-merge": "^3.5.0",
+    "vite": "^6.2.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.14.0",
+    "@types/pg": "^8.11.10",
+    "@types/qrcode": "^1.5.5",
+    "@types/ssh2": "^1.15.5",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^36.1.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.12",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "com.clotex.erp",
+    "productName": "CLOTEX — Clothes Textile",
+    "executableName": "Clotex-ERP",
+    "artifactName": "Clotex-ERP-${version}-Setup.${ext}",
+    "icon": "build/icon.ico",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron-dist/**",
+      "server-bundle/**",
+      "package.json",
+      "!server",
+      "!VPS.md",
+      "!.env*",
+      "!*.py",
+      "!release",
+      "!electron",
+      "!src"
+    ],
+    "asarUnpack": [
+      "server-bundle/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/config",
+        "to": "config",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "electron/bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        "dir"
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "unicode": true
+    },
+    "asar": true,
+    "extraMetadata": {
+      "main": "electron-dist/main.js"
+    }
+  }
+}

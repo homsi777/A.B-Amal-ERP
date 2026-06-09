@@ -1,0 +1,66 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - img "CLOTEX" [ref=e7]
+      - generic [ref=e8]:
+        - generic [ref=e9]: CLOTEX
+        - generic [ref=e10]: CLOTHES TEXTILE
+    - generic "حالة اتصال الخادم الخلفي (تطوير)" [ref=e13]: متصل بالخادم
+  - main [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - img [ref=e20]
+          - generic [ref=e23]:
+            - heading "مرحباً بعودتك" [level=1] [ref=e24]
+            - paragraph [ref=e25]: سجّل دخولك للمتابعة إلى مستودعك.
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - text: اسم المستخدم
+            - textbox "اسم المستخدم" [ref=e28]:
+              - /placeholder: admin
+          - generic [ref=e29]:
+            - text: كلمة المرور
+            - generic [ref=e30]:
+              - textbox "كلمة المرور" [ref=e31]:
+                - /placeholder: ••••••••
+              - button "إظهار كلمة المرور" [ref=e32]:
+                - img [ref=e33]
+          - button "تسجيل الدخول" [disabled] [ref=e36]:
+            - img [ref=e37]
+            - text: تسجيل الدخول
+        - generic [ref=e40]:
+          - generic [ref=e41]: الدخول إلزامي عند كل تشغيل للتطبيق.
+          - generic [ref=e42]:
+            - img [ref=e43]
+            - text: اتصال آمن مشفّر
+      - paragraph [ref=e46]: تواجه مشكلة في الدخول؟ راجع مسؤول النظام للحصول على بيانات اعتماد صالحة.
+    - generic [ref=e48]:
+      - img "CLOTEX" [ref=e50]
+      - generic [ref=e51]: نظام إدارة مستودعات الأقمشة
+      - heading "أدر مستودع أقمشتك بكفاءة واحترافية" [level=2] [ref=e55]:
+        - text: أدر مستودع أقمشتك
+        - text: بكفاءة واحترافية
+      - paragraph [ref=e56]: منصّة عربية لإدارة الأتواب، فواتير الشراء، الطباعة الصامتة، والتقارير التشغيلية — في مكان واحد، وبذاكرة سحابية موثوقة.
+      - generic [ref=e57]:
+        - generic [ref=e58]:
+          - img [ref=e60]
+          - generic [ref=e70]:
+            - generic [ref=e71]: إدارة الأتواب
+            - generic [ref=e72]: تتبّع كل تواب من الاستلام حتى الصرف.
+        - generic [ref=e73]:
+          - img [ref=e75]
+          - generic [ref=e79]:
+            - generic [ref=e80]: فواتير الشراء
+            - generic [ref=e81]: استيراد ومعاينة فواتير Excel بدقّة.
+        - generic [ref=e82]:
+          - img [ref=e84]
+          - generic [ref=e86]:
+            - generic [ref=e87]: التقارير والمخزون
+            - generic [ref=e88]: لوحات وتقارير لحظية بمؤشرات واضحة.
+        - generic [ref=e89]:
+          - img [ref=e91]
+          - generic [ref=e95]:
+            - generic [ref=e96]: الطباعة الذكية
+            - generic [ref=e97]: ملصقات أتواب صامتة على الطابعة الافتراضية.
+  - contentinfo [ref=e98]: © 2026 CLOTEX — CLOTHES TEXTILE. جميع الحقوق محفوظة.
