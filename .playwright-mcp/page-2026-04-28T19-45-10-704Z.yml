@@ -1,0 +1,141 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - img [ref=e8]
+        - heading "تيكس ماتريكس ERP" [level=1] [ref=e13]
+      - generic [ref=e15]:
+        - generic [ref=e16]: M
+        - paragraph [ref=e18]: مدير النظام
+    - navigation [ref=e19]:
+      - link "الرئيسية" [ref=e20] [cursor=pointer]:
+        - /url: /
+        - img [ref=e21]
+        - generic [ref=e24]: الرئيسية
+      - button "المخزون" [ref=e26]:
+        - img [ref=e27]
+        - generic [ref=e31]: المخزون
+        - img [ref=e32]
+      - button "الفواتير" [ref=e35]:
+        - img [ref=e36]
+        - generic [ref=e39]: الفواتير
+        - img [ref=e40]
+      - button "العملاء والموردون" [ref=e43]:
+        - img [ref=e44]
+        - generic [ref=e49]: العملاء والموردون
+        - img [ref=e50]
+      - button "الخزينة" [ref=e53]:
+        - img [ref=e54]
+        - generic [ref=e57]: الخزينة
+        - img [ref=e58]
+      - button "السندات" [ref=e61]:
+        - img [ref=e62]
+        - generic [ref=e65]: السندات
+        - img [ref=e66]
+      - link "المصاريف" [ref=e68] [cursor=pointer]:
+        - /url: /expenses
+        - img [ref=e69]
+        - generic [ref=e71]: المصاريف
+      - link "الرواتب والأجور" [ref=e72] [cursor=pointer]:
+        - /url: /salaries
+        - img [ref=e73]
+        - generic [ref=e76]: الرواتب والأجور
+      - link "التقارير" [ref=e77] [cursor=pointer]:
+        - /url: /reports
+        - img [ref=e78]
+        - generic [ref=e81]: التقارير
+      - link "شجرة الحسابات" [ref=e82] [cursor=pointer]:
+        - /url: /chart-of-accounts
+        - img [ref=e83]
+        - generic [ref=e88]: شجرة الحسابات
+      - link "دفتر اليومية" [ref=e89] [cursor=pointer]:
+        - /url: /journal
+        - img [ref=e90]
+        - generic [ref=e92]: دفتر اليومية
+      - link "التصنيع" [ref=e93] [cursor=pointer]:
+        - /url: /manufacturing
+        - img [ref=e94]
+        - generic [ref=e96]: التصنيع
+      - link "الشركاء" [ref=e97] [cursor=pointer]:
+        - /url: /partners
+        - img [ref=e98]
+        - generic [ref=e103]: الشركاء
+      - link "الإعدادات العامة" [ref=e104] [cursor=pointer]:
+        - /url: /settings
+        - img [ref=e105]
+        - generic [ref=e108]: الإعدادات العامة
+  - main [ref=e109]:
+    - generic [ref=e110]:
+      - generic [ref=e111]:
+        - generic [ref=e112]:
+          - heading "كشف حساب مورد" [level=2] [ref=e113]
+          - paragraph [ref=e114]: عرض الحركات المالية والاعتماد الدائن والمدين للمطالبات
+        - generic [ref=e115]:
+          - button "تصدير PDF" [ref=e116]:
+            - img [ref=e117]
+            - generic [ref=e120]: تصدير PDF
+          - button "طباعة الكشف" [ref=e121]:
+            - img [ref=e122]
+            - generic [ref=e126]: طباعة الكشف
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - generic [ref=e129]:
+            - generic [ref=e130]: اختر المورد
+            - combobox [ref=e131]:
+              - option "مصنع المنسوجات الذهبية (المنسوجات الذهبية)" [selected]
+          - generic [ref=e132]:
+            - generic [ref=e133]: تاريخ من
+            - generic [ref=e134]:
+              - img [ref=e135]
+              - textbox [ref=e137]: 2023-10-01
+          - generic [ref=e138]:
+            - generic [ref=e139]: تاريخ إلى
+            - generic [ref=e140]:
+              - img [ref=e141]
+              - textbox [ref=e143]: 2023-10-31
+        - generic [ref=e144]:
+          - generic [ref=e145]:
+            - img [ref=e147]
+            - generic [ref=e150]:
+              - heading "المنسوجات الذهبية" [level=3] [ref=e151]
+              - paragraph [ref=e152]: "ممثّل الشركة: مصنع المنسوجات الذهبية | رقم الاتصال: 0112345678"
+          - generic [ref=e153]:
+            - paragraph [ref=e154]: الرصيد النهائي (المطلوب سداده)
+            - paragraph [ref=e155]: 45,000.00$(علينا سداده)
+        - table [ref=e157]:
+          - rowgroup [ref=e158]:
+            - row "التاريخ المرجع البيان مدين (سداد منا) دائن (لصالحهم) الرصيد" [ref=e159]:
+              - columnheader "التاريخ" [ref=e160]
+              - columnheader "المرجع" [ref=e161]
+              - columnheader "البيان" [ref=e162]
+              - columnheader "مدين (سداد منا)" [ref=e163]
+              - columnheader "دائن (لصالحهم)" [ref=e164]
+              - columnheader "الرصيد" [ref=e165]
+          - rowgroup [ref=e166]:
+            - row "2023-10-01 OPEN-002 رصيد افتتاحي - 15,000.00 15,000.00 (دائن لهم)" [ref=e167]:
+              - cell "2023-10-01" [ref=e168]
+              - cell "OPEN-002" [ref=e169]
+              - cell "رصيد افتتاحي" [ref=e170]
+              - cell "-" [ref=e171]
+              - cell "15,000.00" [ref=e172]
+              - cell "15,000.00 (دائن لهم)" [ref=e173]
+            - row "2023-10-21 PAY-402 سند صرف نقدي 15,000.00 - 0.00" [ref=e174]:
+              - cell "2023-10-21" [ref=e175]
+              - cell "PAY-402" [ref=e176]
+              - cell "سند صرف نقدي" [ref=e177]
+              - cell "15,000.00" [ref=e178]
+              - cell "-" [ref=e179]
+              - cell "0.00" [ref=e180]
+            - row "2023-10-25 PUR-882 فاتورة مشتريات - 45,000.00 45,000.00 (دائن لهم)" [ref=e181]:
+              - cell "2023-10-25" [ref=e182]
+              - cell "PUR-882" [ref=e183]
+              - cell "فاتورة مشتريات" [ref=e184]
+              - cell "-" [ref=e185]
+              - cell "45,000.00" [ref=e186]
+              - cell "45,000.00 (دائن لهم)" [ref=e187]
+          - rowgroup [ref=e188]:
+            - row "الإجمالي لفترة الكشف 15,000.00 60,000.00 45,000.00 (مطلوب سداده)" [ref=e189]:
+              - cell "الإجمالي لفترة الكشف" [ref=e190]
+              - cell "15,000.00" [ref=e191]
+              - cell "60,000.00" [ref=e192]
+              - cell "45,000.00 (مطلوب سداده)" [ref=e193]

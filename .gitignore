@@ -1,0 +1,45 @@
+server-dist/
+server-bundle/
+
+node_modules/
+build/
+dist/
+coverage/
+electron-dist/
+release/
+.DS_Store
+*.log
+.env*
+!.env.example
+!server/.env.example
+
+# يحتوي غالباً على أسرار VPS/SSH — لا يُرفع إلى Git
+VPS.md
+
+server/.env
+server/generated/
+
+# Emergency delivery — VPS SSH + DB secrets (copy from vps-connection.example.json)
+electron/config/vps-connection.json
+
+# نسخ احتياطية محلية قد تحتوي على بيانات حساسة
+backups/
+
+# Optional: if plink is placed at repo root by mistake (use electron/bin/plink.exe instead)
+/plink.exe
+
+# Optional portable PuTTY plink next to scripts/electron-dev-all.ps1 (do not commit binary)
+scripts/plink.exe
+
+# Bundled plink for packaged Electron (copy locally before build; see electron/bin/README.txt)
+electron/bin/plink.exe
+
+# Temp VPS automation scripts (not for Git)
+server/_vps_*.py
+server/_test_*.py
+server/_run_all.py
+server/_tunnel_*.py
+server/_setup_*.py
+server/_test_node_pg.mjs
+server/_test_phase2_apis.py
+server/_test_phase3_apis.py

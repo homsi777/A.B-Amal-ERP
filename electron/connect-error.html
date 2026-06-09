@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CLOTEX — اتصال قاعدة البيانات</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Noto Sans Arabic', Tahoma, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 420px;
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 28px;
+      border: 1px solid #334155;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    }
+    h1 { font-size: 1.15rem; font-weight: 700; margin-bottom: 12px; color: #f8fafc; }
+    p { font-size: 0.95rem; line-height: 1.55; color: #cbd5e1; margin-bottom: 20px; }
+    .actions { display: flex; flex-direction: column; gap: 10px; }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff;
+    }
+    .primary:hover { filter: brightness(1.08); }
+    .secondary {
+      background: transparent;
+      color: #94a3b8;
+      border: 1px solid #475569;
+    }
+    .secondary:hover { background: #334155; color: #e2e8f0; }
+    #tech { display: none; margin-top: 16px; padding: 12px; background: #0f172a; border-radius: 8px; font-size: 0.75rem; color: #94a3b8; white-space: pre-wrap; word-break: break-word; direction: ltr; text-align: left; }
+    #tech.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>اختبار PostgreSQL عبر SSH (نجهّز فقط، ليس عنوان الاستخدام اليومي)</h1>
+    <p>هذه النافذة لتشخيص نفق اختياري. التطبيق يعمل عادةً على عنوان Fastify خارجي (HTTPS). لمشاكل الواجهة راجع عنوان API وليس قاعدة البيانات مباشرة.</p>
+    <div class="actions">
+      <button type="button" class="primary" id="retry">إعادة المحاولة</button>
+      <button type="button" class="secondary" id="techBtn">تفاصيل تقنية</button>
+    </div>
+    <pre id="tech"></pre>
+  </div>
+  <script>
+    const retry = document.getElementById('retry');
+    const techBtn = document.getElementById('techBtn');
+    const tech = document.getElementById('tech');
+    retry.addEventListener('click', async () => {
+      if (window.fabricApp && window.fabricApp.retryDeliveryTunnel) {
+        await window.fabricApp.retryDeliveryTunnel();
+      }
+    });
+    techBtn.addEventListener('click', async () => {
+      if (!window.fabricApp || !window.fabricApp.getDeliveryTunnelTechDetails) return;
+      const t = await window.fabricApp.getDeliveryTunnelTechDetails();
+      tech.textContent = t || '(لا توجد تفاصيل)';
+      tech.classList.add('visible');
+    });
+  </script>
+</body>
+</html>

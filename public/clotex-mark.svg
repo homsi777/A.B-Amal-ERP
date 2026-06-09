@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" role="img" aria-label="CLOTEX">
+  <title>CLOTEX</title>
+  <text x="120" y="48" text-anchor="middle"
+        font-family="'Inter','Segoe UI','Helvetica Neue',Arial,sans-serif"
+        font-weight="700" font-size="38" letter-spacing="2"
+        fill="#2C405A">CLOTEX</text>
+  <text x="120" y="68" text-anchor="middle"
+        font-family="'Inter','Segoe UI','Helvetica Neue',Arial,sans-serif"
+        font-weight="500" font-size="10" letter-spacing="4"
+        fill="#5B6B82">CLOTHES TEXTILE</text>
+</svg>

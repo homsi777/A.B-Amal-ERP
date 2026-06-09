@@ -1,0 +1,48 @@
+CLOTEX Electron — تهيئة vps-connection.json قبل npm run electron:build
+===============================================================
+
+1) انسخ vps-connection.example.json إلى اسم الملف: vps-connection.json
+   (الملف الحقيقي غير موجود في Git — يكون في electron/config وقت البناء.)
+
+2) املأ حقلاً واحداً إلزامياً لتوزيع العملاء بدون تشغيل خادم محلي:
+   • apiPublicUrl
+     مثل: https://api.example.com أو https://65.x.x.x:4010 إذا كان عنوانك كذلك (بدون / في النهاية).
+     هو عنوان Fastify على VPS حيث يعمل server/src/index.ts.
+
+3) حقول SSH + كلمات مرور Postgres في هذا الملف اختيارية للاستخدام اليومي:
+   افتراض المشروع: التطبيق المثبت يعتمد HTTPS API فقط. نفق SSH + ضربة Postgres
+   لا يُشَغَّل في الخلفية إلا إذا وضعت:
+     "verifyPostgresViaTunnel": true
+
+4) أضِف electron/bin/plink.exe (من PuTTY) إذا ولّكت verifyPostgresViaTunnel حقاً في exe.
+
+5) بعد التثبيت عند العميل:
+   • السجل اليومي: %AppData%/CLOTEX — Clothes Textile/clotex-main.log (اسم المجلد وفق productName).
+   • إعدادات apiBaseUrl: fabric-erp-settings.json في مجلّده نفسه (يُولَّد تلقائياً).
+
+   كمبيوتر جديد (بيئة نظيفة) وفشل plink بدون ظهور نافذة:
+   يجب ضبط حقل sshHostKey في resources/config/vps-connection.json ضمن مسار التثبيت —
+   المنشور يُشغّل plink بـ -batch؛ بدون هذا الحقل ومفتاح خادم غير «محفوظ»
+   تعطيل الوسيط قبل أن يعمل Fastify فيظهر تعذّر اتصال 127.0.0.1:4010.
+   لتعرف القيمة: من جهاز حيث اتصلت تعاملاً (إن أمكن) افتح PuTTY → نفس IP ومنفذ SSH
+   واقبل المفتاح ثم التقط «Host key fingerprint» بتنسيق putty؛ أو ثبّت OpenSSH وزِد:
+   ssh-keyscan -p <منفذ_SSH> <عنوان> ثم وفِّق المعادلة مع صيغة plink (-hostkey).
+   على جهازك القديم الذي نجح: قد يكون المفتاح مخزَّناً تلقائياً بعد PuTTY/session سابق؛
+   الأجهزة الجديدة لا تحوي هذا السجل قبل أول قبول له.
+
+6) إذا نقرت Setup ولم تظهر أي نافذة:
+   • نفّذ من جديد بعد إعادة البناء؛ المُثبِّت الآن يُسمَّى بأحرف لاتينية فقط
+     release\Clotex-ERP-1.0.0-Setup.exe لتفادي خلل NSIS/Unicode أو مسارات عربية.
+   • بديل فوري: شغّل التطبيق مباشرة من release\win-unpacked\Clotex-ERP.exe (توزيع “محمول”).
+   • جرّب نسخ المُثبِّت إلى مجلد مساره كله إنجليزياً (مثل C:\ClotexBuild\) ثم شغِّله.
+   • راجع “الحماية وفيروس Windows” وأي أداة أمان لم تنعزل وتمنع تشغيل الـ exe.
+   • كليك يمين → تشغيل كمسؤول (إن ظهرت نافذة UAC تأكّد من الموافقة).
+
+7) clotex-server.log: «spawn ENOENT» رغم exists=true غالباً بسبب cwd قديم = ...resources\app.asar (ملف أرشيف وليس مجلداً)،
+     فيرفض إنشاء العملية تحت Windows. الإصدار الحديث يضبّط cwd إلى مجلد التثبيت بجانب Clotex-ERP.exe. أعد electron:build.
+
+8) السيرفر المضمن في الـ EXE لا يعتمد على ESM أو NODE_PATH وقت التشغيل: يُبنى قبل electron:build عبر npm run server:bundle
+
+   إلى server-bundle/index.cjs (esbuild، format cjs)، مع نسخ migrations إلى server-bundle/db/migrations؛
+
+   bcryptjs يدخل داخل server-bundle/index.cjs، ولا يوجد bcrypt native أو asarUnpack خاص به.
