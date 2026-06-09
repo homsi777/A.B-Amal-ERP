@@ -17,7 +17,7 @@ View your app in AI Studio: https://ai.studio/apps/423eaadc-a5fc-4988-b26d-07142
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev `
-
+A.B-Amal-ERP
 npm run lint
 npm run server:check
 npm run test
