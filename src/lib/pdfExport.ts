@@ -399,7 +399,34 @@ function renderAccountStatementHtml(options: {
         page-break-inside: auto !important;
       }
       .account-statement-a4 thead { display: table-header-group !important; }
-      .account-statement-a4 tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+      .account-statement-a4 tbody > tr:not(.statement-invoice-detail-row) {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      .account-statement-a4 tr.statement-invoice-detail-row td {
+        padding: 8px 10px !important;
+        font-size: 12px !important;
+        line-height: 1.55 !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        background: #fff !important;
+        border: 1px solid #e2e8f0 !important;
+        text-align: right !important;
+      }
+      .account-statement-a4 tr.statement-invoice-detail-row .statement-detail-fields {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 6px 18px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        direction: rtl !important;
+        width: 100% !important;
+      }
+      .account-statement-a4 tr.statement-invoice-detail-row .statement-detail-fields span {
+        display: inline-block !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+      }
       .account-statement-a4 th {
         background: #fff !important;
         border: 1px solid #000 !important;
@@ -536,9 +563,12 @@ function renderAccountStatementHtml(options: {
                   .map(
                     (row, idx) => {
                       const isInvoiceRow = row.sourceType === 'SALES_INVOICE' || row.typeLabel === 'فاتورة بيع';
+                      const docNoKey = String(row.documentNo ?? '').trim();
                       const detailRowsFromSourceId = options.invoiceDetailsBySourceId?.[String(row.sourceId ?? '')] ?? [];
                       const detailRowsFromDocumentNo =
-                        options.invoiceDetailsByDocumentNo?.[String(row.documentNo ?? '')] ?? [];
+                        options.invoiceDetailsByDocumentNo?.[docNoKey] ??
+                        options.invoiceDetailsByDocumentNo?.[docNoKey.toUpperCase()] ??
+                        [];
                       const detailRows =
                         isInvoiceRow && (detailRowsFromSourceId.length || detailRowsFromDocumentNo.length)
                           ? detailRowsFromSourceId.length
@@ -550,29 +580,31 @@ function renderAccountStatementHtml(options: {
                           ? ''
                           : detailRows
                               .map(
-                                (detail, detailIdx) => `
-                                  <tr style="background-color: ${detailIdx % 2 === 0 ? '#f8fafc' : '#f1f5f9'};">
-                                    <td colspan="7" style="padding: 10px 12px; border: 1px solid #e2e8f0; font-size: 13px; color:#334155;">
-                                      <span style="display:inline-block; margin-left:12px; font-weight:700; color:#0f172a;">
-                                        رقم الفاتورة: ${safeText(row.documentNo)}
-                                      </span>
-                                      <span style="display:inline-block; margin-left:12px; color:#4338ca; font-weight:700;">
-                                        الخامة: ${safeText(detail.fabricName)}
-                                      </span>
-                                      <span style="display:inline-block; margin-left:12px; color:#7c3aed; font-weight:700;">
-                                        عدد الأتواب: ${safeText(detail.rollsCount.toLocaleString('ar'))}
-                                      </span>
-                                      <span style="display:inline-block; margin-left:12px; color:#0f766e; font-weight:700;">
-                                        إجمالي الأطوال: ${safeText(detail.totalQuantity.toLocaleString('ar'))} م
-                                      </span>
-                                      <span style="display:inline-block; margin-left:12px; color:#1d4ed8; font-weight:700;">
-                                        السعر: ${safeText(currencySymbol(row.currency))} ${safeText(detail.unitPrice.toLocaleString('ar', { maximumFractionDigits: 2 }))} /م
-                                      </span>
-                                      <span style="display:inline-block; color:#047857; font-weight:700;">
-                                        إجمالي المبلغ: ${safeText(
-                                          `${detail.totalAmount.toLocaleString('ar', { maximumFractionDigits: 2 })} ${row.currency}`,
-                                        )}
-                                      </span>
+                                (detail) => `
+                                  <tr class="statement-invoice-detail-row">
+                                    <td colspan="7">
+                                      <div class="statement-detail-fields">
+                                        <span style="color:#0f766e;">
+                                          رقم الفاتورة: ${safeText(row.documentNo)}
+                                        </span>
+                                        <span style="color:#047857;">
+                                          الخامة: ${safeText(detail.fabricName)}
+                                        </span>
+                                        <span style="color:#047857;">
+                                          عدد الأثواب: ${safeText(detail.rollsCount.toLocaleString('ar'))}
+                                        </span>
+                                        <span style="color:#047857;">
+                                          إجمالي الأطوال: ${safeText(detail.totalQuantity.toLocaleString('ar'))} م
+                                        </span>
+                                        <span style="color:#047857;">
+                                          السعر: ${safeText(currencySymbol(row.currency))} ${safeText(detail.unitPrice.toLocaleString('ar', { maximumFractionDigits: 2 }))} /م
+                                        </span>
+                                        <span style="color:#047857;">
+                                          إجمالي المبلغ: ${safeText(
+                                            `${detail.totalAmount.toLocaleString('ar', { maximumFractionDigits: 2 })} ${row.currency}`,
+                                          )}
+                                        </span>
+                                      </div>
                                     </td>
                                   </tr>
                                 `,
