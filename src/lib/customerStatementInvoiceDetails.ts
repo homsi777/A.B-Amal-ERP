@@ -41,7 +41,7 @@ export function groupInvoiceLinesByFabric(invoice: Invoice): StatementFabricGrou
     { rollsCount: number; totalQuantity: number; totalAmount: number; lastUnitPrice: number }
   >();
   for (const item of invoice.items) {
-    const name = extractBaseFabricName(item.fabricName || item.materialName);
+    const name = String(item.fabricName || item.materialName || '').trim() || 'خامة غير محددة';
     const existing = groups.get(name) ?? { rollsCount: 0, totalQuantity: 0, totalAmount: 0, lastUnitPrice: 0 };
     const rollsCount =
       typeof item.rollsCount === 'number' && Number.isFinite(item.rollsCount) && item.rollsCount > 0
@@ -73,7 +73,11 @@ export function buildInvoiceDetailsMaps(invoices: Invoice[]): {
     const groups = groupInvoiceLinesByFabric(invoice);
     invoiceDetailsBySourceId[invoice.id] = groups;
     const docNo = String(invoice.invoiceNumber ?? '').trim();
-    if (docNo) invoiceDetailsByDocumentNo[docNo] = groups;
+    if (docNo) {
+      invoiceDetailsByDocumentNo[docNo] = groups;
+      const docNoUpper = docNo.toUpperCase();
+      if (docNoUpper !== docNo) invoiceDetailsByDocumentNo[docNoUpper] = groups;
+    }
   }
   return { invoiceDetailsBySourceId, invoiceDetailsByDocumentNo };
 }
