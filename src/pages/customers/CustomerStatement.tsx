@@ -17,8 +17,11 @@ import {
   buildFabricRowsFromSaleInvoices,
   collectFabricTypeOptions,
 } from '../../lib/customerStatementFilters';
-import { listSalesInvoices, getSalesInvoice } from '../../lib/api/salesInvoicesApi';
-import { mapSalesInvoiceDetailToInvoice } from '../../lib/invoiceDbMappers';
+import {
+  buildInvoiceDetailsMaps,
+  groupInvoiceLinesByFabric,
+  loadCustomerSaleInvoiceDetails,
+} from '../../lib/customerStatementInvoiceDetails';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import type { Customer, Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
@@ -30,55 +33,6 @@ const PRESET_LABELS: Record<StatementPreset, string> = {
   most_payments: 'أكثر عميل سدّد دفعات (في الفترة)',
   top_buyer_fabric: 'أكثر عميل اشترى خامة محددة',
 };
-
-interface FabricGroup {
-  fabricName: string;
-  rollsCount: number;
-  totalQuantity: number;
-  unitPrice: number;
-  totalAmount: number;
-}
-
-function extractBaseFabricName(rawName: string | undefined): string {
-  const value = String(rawName ?? '').trim();
-  if (!value) return 'خامة غير محددة';
-  const separators = ['·', '|', '،', ',', ' - ', ' — ', ' – '];
-  for (const separator of separators) {
-    if (!value.includes(separator)) continue;
-    const base = value.split(separator)[0]?.trim();
-    if (base) return base;
-  }
-  return value;
-}
-
-function groupInvoiceLinesByFabric(invoice: Invoice): FabricGroup[] {
-  if (!invoice.items || invoice.items.length === 0) return [];
-  const groups = new Map<
-    string,
-    { rollsCount: number; totalQuantity: number; totalAmount: number; lastUnitPrice: number }
-  >();
-  for (const item of invoice.items) {
-    const name = extractBaseFabricName(item.fabricName || item.materialName);
-    const existing = groups.get(name) ?? { rollsCount: 0, totalQuantity: 0, totalAmount: 0, lastUnitPrice: 0 };
-    const rollsCount =
-      typeof item.rollsCount === 'number' && Number.isFinite(item.rollsCount) && item.rollsCount > 0
-        ? item.rollsCount
-        : 1;
-    existing.rollsCount += rollsCount;
-    existing.totalQuantity += Number(item.quantity || 0);
-    const lineTotal = Number(item.total || 0) || Number(item.quantity || 0) * Number(item.unitPrice || 0);
-    existing.totalAmount += lineTotal;
-    existing.lastUnitPrice = Number(item.unitPrice || existing.lastUnitPrice || 0);
-    groups.set(name, existing);
-  }
-  return Array.from(groups.entries()).map(([fabricName, g]) => ({
-    fabricName,
-    rollsCount: g.rollsCount,
-    totalQuantity: g.totalQuantity,
-    unitPrice: g.totalQuantity > 0 ? g.totalAmount / g.totalQuantity : g.lastUnitPrice,
-    totalAmount: g.totalAmount,
-  }));
-}
 
 export const CustomerStatement = () => {
   const { showToast } = useToast();
@@ -262,23 +216,15 @@ export const CustomerStatement = () => {
       return;
     }
     let cancelled = false;
-    setDbSaleInvoicesFromApi([]);
     void (async () => {
       try {
-        const list = await listSalesInvoices({
-          customerId: selectedCustomerId,
-          dateFrom: fromDate,
-          dateTo: toDate,
-          pageSize: 500,
-          documentStatus: 'CONFIRMED',
-        });
-        const details = await Promise.all(
-          list.rows.map((row) => getSalesInvoice(String((row as Record<string, unknown>).id))),
-        );
+        const result = await loadCustomerSaleInvoiceDetails(selectedCustomerId, fromDate, toDate);
         if (cancelled) return;
-        setDbSaleInvoicesFromApi(details.map((d) => mapSalesInvoiceDetailToInvoice(d.data)));
-      } catch {
-        if (!cancelled) setDbSaleInvoicesFromApi([]);
+        setDbSaleInvoicesFromApi(result.invoices);
+      } catch (e) {
+        if (!cancelled) {
+          console.warn('[CustomerStatement] Failed to load sale invoice details', e);
+        }
       }
     })();
     return () => {
@@ -374,21 +320,8 @@ export const CustomerStatement = () => {
   );
 
   const fabricItems = invoiceFabricRows;
-  const invoiceDetailsBySourceId = useMemo(
-    () =>
-      dbSaleInvoicesFromApi.reduce<Record<string, ReturnType<typeof groupInvoiceLinesByFabric>>>((acc, invoice) => {
-        acc[invoice.id] = groupInvoiceLinesByFabric(invoice);
-        return acc;
-      }, {}),
-    [dbSaleInvoicesFromApi],
-  );
-  const invoiceDetailsByDocumentNo = useMemo(
-    () =>
-      dbSaleInvoicesFromApi.reduce<Record<string, ReturnType<typeof groupInvoiceLinesByFabric>>>((acc, invoice) => {
-        const key = String(invoice.invoiceNumber ?? '').trim();
-        if (key) acc[key] = groupInvoiceLinesByFabric(invoice);
-        return acc;
-      }, {}),
+  const { invoiceDetailsBySourceId, invoiceDetailsByDocumentNo } = useMemo(
+    () => buildInvoiceDetailsMaps(dbSaleInvoicesFromApi),
     [dbSaleInvoicesFromApi],
   );
 

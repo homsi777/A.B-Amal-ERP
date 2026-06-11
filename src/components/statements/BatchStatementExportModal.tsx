@@ -14,6 +14,7 @@ import { buildFabricRowsFromSaleInvoices } from '../../lib/customerStatementFilt
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { useToast } from '../NonBlockingToast';
 import { getCustomerStatement, getSupplierStatement } from '../../lib/api/partyStatementsApi';
+import { loadCustomerSaleInvoiceDetails } from '../../lib/customerStatementInvoiceDetails';
 
 type PartyType = 'customer' | 'supplier';
 
@@ -226,6 +227,11 @@ export function BatchStatementExportModal({
               ? statement.customer?.name || (item.party as Customer).name
               : statement.supplier?.name || (item.party as Supplier).company;
 
+          const invoiceDetails =
+            type === 'customer'
+              ? await loadCustomerSaleInvoiceDetails(item.party.id, item.fromDate, item.toDate)
+              : null;
+
           const fileName = `كشف_حساب_${makeSafeFileName(partyName)}_${item.fromDate}_${item.toDate}.pdf`;
           const pdfHtml =
             type === 'customer'
@@ -238,6 +244,8 @@ export function BatchStatementExportModal({
                   openingBalance: statement.openingBalance,
                   rows: statement.rows,
                   totals: statement.totals,
+                  invoiceDetailsBySourceId: invoiceDetails?.invoiceDetailsBySourceId,
+                  invoiceDetailsByDocumentNo: invoiceDetails?.invoiceDetailsByDocumentNo,
                 })
               : renderSupplierAccountStatementPdfHtml({
                   supplierCompany: partyName,
