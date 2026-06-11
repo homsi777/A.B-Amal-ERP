@@ -12,6 +12,7 @@ import { focusNextFormControl } from '../lib/forms/enterNavigation';
 import { useNavigate } from 'react-router-dom';
 import { getCustomerStatement } from '../lib/api/partyStatementsApi';
 import { exportPdfFromHtmlString, renderCustomerAccountStatementPdfHtml } from '../lib/pdfExport';
+import { loadCustomerSaleInvoiceDetails } from '../lib/customerStatementInvoiceDetails';
 import { BRAND } from '../branding';
 import { CustomerStatementImportModal } from '../components/customers/CustomerStatementImportModal';
 import { A4PreviewModal } from '../components/printing/A4PreviewModal';
@@ -312,6 +313,11 @@ export const Customers = () => {
         const statement = res.data;
         const party = statement.customer;
         const partyName = party?.name || customer.name;
+        const invoiceDetails = await loadCustomerSaleInvoiceDetails(
+          customer.id,
+          telegramFromDate,
+          telegramToDate,
+        );
         const pdfHtml = renderCustomerAccountStatementPdfHtml({
           customerName: partyName,
           customerPhone: party?.phone ?? customer.phone ?? null,
@@ -321,6 +327,8 @@ export const Customers = () => {
           openingBalance: statement.openingBalance,
           rows: statement.rows,
           totals: statement.totals,
+          invoiceDetailsBySourceId: invoiceDetails.invoiceDetailsBySourceId,
+          invoiceDetailsByDocumentNo: invoiceDetails.invoiceDetailsByDocumentNo,
         });
         const closing = statement.totals.closingBalance;
         const fileName = `كشف_حساب_${safePdfName(partyName)}_${telegramFromDate}_${telegramToDate}.pdf`;
