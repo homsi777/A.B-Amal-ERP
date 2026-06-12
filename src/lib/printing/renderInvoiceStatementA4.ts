@@ -740,7 +740,7 @@ export function renderInvoiceStatementA4Html(opts: {
 
           <div class="footer">
             <div class="page-no">1 / 1</div>
-            <div>${hideFinancialColumns ? '' : `إجمالي المبلغ: ${formatAr(invoiceFinalTotal)} ${escapeHtml(currency)}`}</div>
+            <div></div>
           </div>
         </div>
       </body>
