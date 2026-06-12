@@ -22,7 +22,7 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 export const useUiPreferences = create<UiPreferencesState>()(
   persist(
     (set) => ({
-      themeId: 'indigo-classic',
+      themeId: 'alamal-denim',
       appearance: 'light',
       arabicFontId: 'cairo',
       fontWeight: 450,

@@ -18,6 +18,8 @@
 | [OBADA_MASTER_SETUP_AND_IMPLEMENTATION_PLAN.md](./OBADA_MASTER_SETUP_AND_IMPLEMENTATION_PLAN.md) | خطة شاملة: **4030**، قاعدة **`obada`**، GitHub، سحابة، ترتيب المراحل |
 | [ENV_OBADA_TEMPLATE.md](./ENV_OBADA_TEMPLATE.md) | قالب إعدادات البيئة |
 | [OBADA_PHASE0_EXECUTION_LOG.md](./OBADA_PHASE0_EXECUTION_LOG.md) | سجل ما نُفّذ في المرحلة 0 و 1 |
+| [OBADA_PHASE2_DELIVERY_UI.md](./OBADA_PHASE2_DELIVERY_UI.md) | المرحلة 2: التسليم + ثيم ALamal (عربي فقط) |
+| [OBADA_VPS_RUNTIME_REPORT.md](./OBADA_VPS_RUNTIME_REPORT.md) | تقرير تشغيل VPS الفعلي |
 
 ---
 

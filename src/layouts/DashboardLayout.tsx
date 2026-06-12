@@ -16,6 +16,7 @@ import {
   PieChart,
   Receipt,
   Settings,
+  Truck,
   Users,
   Wallet,
   X,
@@ -111,6 +112,7 @@ const Topbar = () => {
       ],
     },
     { labelKey: 'orders', to: '/orders', icon: ClipboardList },
+    { labelKey: 'delivery', to: '/delivery', icon: Truck },
     {
       labelKey: 'parties',
       icon: Users,

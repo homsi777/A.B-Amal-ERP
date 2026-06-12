@@ -3,17 +3,17 @@
 
 /* قيم افتراضية قبل تهيئة React — مطابقة ثيم إنديجو / نهاري */
 :root {
-  --ui-accent: #4f46e5;
-  --ui-accent-hover: #4338ca;
-  --ui-accent-muted: #6366f1;
-  --ui-accent-soft-bg: #eef2ff;
-  --ui-accent-soft-bg-strong: #e0e7ff;
-  --ui-accent-border: #c7d2fe;
-  --ui-logo-bg: #4f46e5;
-  --ui-nav-active-bg: #eef2ff;
-  --ui-nav-active-text: #3730a3;
-  --ui-nav-active-border: #c7d2fe;
-  --ui-nav-active-icon: #4f46e5;
+  --ui-accent: #B8956B;
+  --ui-accent-hover: #9A7A52;
+  --ui-accent-muted: #C4A574;
+  --ui-accent-soft-bg: #f8f3ec;
+  --ui-accent-soft-bg-strong: #efe4d4;
+  --ui-accent-border: #dcc9a8;
+  --ui-logo-bg: #8B7355;
+  --ui-nav-active-bg: #f8f3ec;
+  --ui-nav-active-text: #5c4a32;
+  --ui-nav-active-border: #dcc9a8;
+  --ui-nav-active-icon: #8B7355;
   --ui-dropdown-hover-bg: #eef2ff;
   --ui-mobile-accent-border: #4f46e5;
   --surface-header: #ffffff;
