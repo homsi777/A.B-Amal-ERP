@@ -7,7 +7,7 @@ export const healthRoutes: FastifyPluginAsync = async (app) => {
     reply.status(200).send({
       ok: true,
       live: true,
-      service: 'fabric-warehouse-api',
+      service: 'alamal-ab-obada-api',
       time: new Date().toISOString(),
     }),
   );
@@ -25,7 +25,7 @@ export const healthRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.status(healthy ? 200 : 503).send({
       ok: healthy,
-      service: 'fabric-warehouse-api',
+      service: 'alamal-ab-obada-api',
       database,
       time: new Date().toISOString(),
     });

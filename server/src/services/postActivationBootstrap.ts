@@ -102,8 +102,8 @@ async function seedRbacWarehouseTemplate(client: PoolClient, companyId: string):
     showBatchNo: true,
     showContainerNo: true,
     showPurchaseInvoiceNo: true,
-    brandName: 'CLOTEX',
-    subtitle: 'CLOTHES TEXTILE',
+    brandName: 'ALamal-AB',
+    subtitle: 'DENIM & TEXTILE',
   });
   await client.query(
     `INSERT INTO label_templates

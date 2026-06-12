@@ -118,7 +118,7 @@ function readPgTriple(j: Record<string, unknown>): { user: string; password: str
       ? j.dbName
       : typeof j.database_name === 'string'
         ? j.database_name
-        : 'fabric_erp';
+        : 'obada';
   return { user, password, db };
 }
 
@@ -232,7 +232,7 @@ export function loadVpsConnectionFile(configPath: string): VpsConnectionConfig |
       remoteDbPort: Number(j.remoteDbPort ?? 5432),
       dbUser: typeof j.dbUser === 'string' ? j.dbUser : 'erp_user',
       dbPassword: String(j.dbPassword ?? ''),
-      dbName: typeof j.dbName === 'string' ? j.dbName : 'fabric_erp',
+      dbName: typeof j.dbName === 'string' ? j.dbName : 'obada',
       plinkPath: typeof j.plinkPath === 'string' ? j.plinkPath : undefined,
       apiPublicUrl: typeof j.apiPublicUrl === 'string' ? j.apiPublicUrl : undefined,
       sshHostKey: typeof j.sshHostKey === 'string' ? j.sshHostKey : undefined,

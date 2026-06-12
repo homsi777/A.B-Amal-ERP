@@ -232,7 +232,7 @@ export function spawnEmbeddedFastify(opts: {
     throw new Error(msg);
   }
 
-  const port = opts.port ?? 4010;
+  const port = opts.port ?? 4030;
 
   const mergedCors =
     process.env.CORS_ORIGIN_EMBEDDED ??
@@ -255,6 +255,7 @@ export function spawnEmbeddedFastify(opts: {
   const env = {
     ...baseEnv,
     ELECTRON_RUN_AS_NODE: '1',
+    OBADA_EMBEDDED_SERVER: '1',
     CLOTEX_EMBEDDED_SERVER: '1',
     NODE_ENV: 'production',
     PORT: String(port),

@@ -22,7 +22,7 @@ const http = require('node:http');
 // causes the launcher to spin forever waiting for the backend even though
 // the server is up and listening.
 // ليس /api/health — ذلك يعيد 503 بدون Postgres؛ المطلوب هنا هو «وجود عملية Fastify» فقط
-const HEALTH_URL = 'http://127.0.0.1:4010/api/health/live';
+const HEALTH_URL = 'http://127.0.0.1:4030/api/health/live';
 const VITE_URL   = 'http://127.0.0.1:3000';
 const TIMEOUT_MS = 120_000;
 const POLL_MS    = 1_000;
@@ -65,17 +65,17 @@ async function waitFor(label, url) {
       return;
     }
     process.stdout.write(`${tag()} ${DIM}... still waiting for ${label} (${elapsed}s)${RESET}\n`);
-    // Backend: common failure = EADDRINUSE on 4010 while health never comes from our new process
+    // Backend: common failure = EADDRINUSE on 4030 while health never comes from our new process
     if (
       label === 'backend' &&
       !gavePortHint &&
       elapsed >= 12 &&
-      url.includes(':4010')
+      url.includes(':4030')
     ) {
       gavePortHint = true;
       process.stdout.write(
         `${tag()} ${YELLOW}hint:${RESET} ` +
-          `إن سطر [server] يظهر EADDRINUSE فالمنفذ 4010 مشغول — أغلِق EXE أو server قديم، أو نفّذ ` +
+          `إن سطر [server] يظهر EADDRINUSE فالمنفذ 4030 مشغول — أغلِق EXE أو server قديم، أو نفّذ ` +
           `${WHITE}npm run dev:free-port${RESET}\n`,
       );
     }

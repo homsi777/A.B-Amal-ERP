@@ -1,0 +1,912 @@
+{
+  "common.apiLogin": {
+    "ar": "دخول API",
+    "tr": "API girişi",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.cancel": {
+    "ar": "إلغاء",
+    "tr": "iptal",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.language": {
+    "ar": "اللغة",
+    "tr": "dil",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.language.ar": {
+    "ar": "العربية",
+    "tr": "Arapça",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.notifications.openOrders": {
+    "ar": "فتح صفحة الطلبيات",
+    "tr": "Siparişler sayfasını aç",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.notifications.pickupSubtitle": {
+    "ar": "جاهزة للتسليم أو موعد توريد خلال 7 أيام",
+    "tr": "7 gün içinde teslimata veya teslimat randevusuna hazır",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.notifications.pickupTitle": {
+    "ar": "قرب استلام طلبيات العملاء",
+    "tr": "Yakında müşteri siparişlerini almaya başlayacağız",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.notifications.title": {
+    "ar": "تنبيهات استلام طلبيات العملاء",
+    "tr": "Müşteri siparişi alındı ​​uyarıları",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.save": {
+    "ar": "حفظ",
+    "tr": "kaydetmek",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "common.systemAdmin": {
+    "ar": "مدير النظام",
+    "tr": "Sistem yöneticisi",
+    "source": "src/locales/ar/common.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.activeRolls": {
+    "ar": "الأتواب النشطة",
+    "tr": "Aktif iter",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.customers": {
+    "ar": "العملاء",
+    "tr": "Müşteriler",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.paymentVouchers": {
+    "ar": "سندات الصرف",
+    "tr": "Tahvil takası",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.receiptVouchers": {
+    "ar": "سندات القبض",
+    "tr": "Makbuz senetleri",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.suppliers": {
+    "ar": "الموردون",
+    "tr": "Tedarikçiler",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.totalMeters": {
+    "ar": "إجمالي الأمتار",
+    "tr": "Toplam metre",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.totalRolls": {
+    "ar": "إجمالي الأتواب",
+    "tr": "Toplam ödüller",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cards.totalWeightKg": {
+    "ar": "إجمالي الوزن كغ",
+    "tr": "Toplam ağırlık kg",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.cashboxBalances": {
+    "ar": "أرصدة الصناديق",
+    "tr": "Fon bakiyeleri",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.customize": {
+    "ar": "تخصيص",
+    "tr": "Özelleştirmek",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.customizeTitle": {
+    "ar": "تخصيص الوصول السريع",
+    "tr": "Hızlı erişimi özelleştirin",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.damagedRolls": {
+    "ar": "أتواب تالفة / هالك",
+    "tr": "Hasarlı/yok olmuş tabutlar",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.loadError": {
+    "ar": "تعذر تحميل بيانات لوحة التحكم",
+    "tr": "Kontrol paneli verileri yüklenemiyor",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.noActiveCashboxes": {
+    "ar": "لا توجد صناديق نشطة",
+    "tr": "Aktif kutu yok",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.operationalIndicators": {
+    "ar": "مؤشرات تشغيلية",
+    "tr": "Operasyonel göstergeler",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.operations.importBatches": {
+    "ar": "دفعات الاستيراد",
+    "tr": "İthalat ödemeleri",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.operations.inventoryMovements": {
+    "ar": "حركات المخزون",
+    "tr": "Envanter hareketleri",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.operations.returns": {
+    "ar": "المرتجعات",
+    "tr": "İade",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.operations.transfers": {
+    "ar": "النقل بين المستودعات",
+    "tr": "Depolar arası taşıma",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.operations.vouchers": {
+    "ar": "السندات",
+    "tr": "Tahviller",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.operations.warehouses": {
+    "ar": "المستودعات",
+    "tr": "Depolar",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickAccess": {
+    "ar": "وصول سريع",
+    "tr": "Hızlı erişim",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.createItem": {
+    "ar": "إنشاء خامة",
+    "tr": "Bir doku oluşturun",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.customers": {
+    "ar": "العملاء",
+    "tr": "Müşteriler",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.paymentVoucher": {
+    "ar": "سند صرف",
+    "tr": "Kambiyo senedi",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.purchaseInvoice": {
+    "ar": "فاتورة شراء",
+    "tr": "Satın alma faturası",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.receiptVoucher": {
+    "ar": "سند قبض",
+    "tr": "Makbuz kuponu",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.rolls": {
+    "ar": "الأتواب",
+    "tr": "Tövbe edenler",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.safes": {
+    "ar": "الصناديق",
+    "tr": "Kutular",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.salesInvoice": {
+    "ar": "فاتورة بيع",
+    "tr": "Satış faturası",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.suppliers": {
+    "ar": "الموردون",
+    "tr": "Tedarikçiler",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.quickLinks.warehouses": {
+    "ar": "المستودعات",
+    "tr": "Depolar",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.refresh": {
+    "ar": "تحديث",
+    "tr": "güncellemek",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.shortcutsCount": {
+    "ar": "{{count}} اختصار",
+    "tr": "{{count}} Kısaltma",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.subtitle": {
+    "ar": "بيانات تشغيلية مباشرة من قاعدة بيانات المشروع.",
+    "tr": "Doğrudan proje veri tabanından operasyonel veriler.",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "dashboard.title": {
+    "ar": "لوحة التحكم",
+    "tr": "Kontrol Paneli",
+    "source": "src/locales/ar/dashboard.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.activateAria": {
+    "ar": "تفعيل النظام — فتح نافذة التفعيل",
+    "tr": "Sistemi etkinleştirin — Etkinleştirme penceresini açın",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.activateTitle": {
+    "ar": "تفعيل النظام",
+    "tr": "Sistemi etkinleştirin",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.activated": {
+    "ar": "النظام مفعّل",
+    "tr": "Sistem etkinleştirildi",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.activatedAria": {
+    "ar": "النظام مفعّل — فتح تفاصيل التفعيل",
+    "tr": "Sistem etkinleştirildi — etkinleştirme ayrıntılarını açın",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.activatedBadge": {
+    "ar": "مفعّل",
+    "tr": "Etkinleştirildi",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.checking": {
+    "ar": "جاري التحقق من حالة التفعيل…",
+    "tr": "Etkinleştirme durumu kontrol ediliyor...",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.dbError": {
+    "ar": "تعذر التحقق من الاتصال بقاعدة البيانات. لا تدخل مفتاح التفعيل مرة أخرى؛ انتظر عودة الاتصال أو استخدم إعادة الاتصال من شريط الحالة.",
+    "tr": "Veritabanına bağlantı doğrulanamadı. Aktivasyon anahtarını tekrar girmeyin; Bağlantının geri gelmesini bekleyin veya durum çubuğundan Yeniden Bağlan seçeneğini kullanın.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.enterKey": {
+    "ar": "أدخل مفتاح التفعيل لتفعيل النظام قبل تسجيل الدخول.",
+    "tr": "Giriş yapmadan önce sistemi aktif hale getirmek için aktivasyon anahtarını giriniz.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.modalClose": {
+    "ar": "إغلاق النافذة",
+    "tr": "Pencereyi kapat",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.modalCloseBtn": {
+    "ar": "إغلاق",
+    "tr": "kapanış",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.modalTitle": {
+    "ar": "تفعيل النظام",
+    "tr": "Sistemi etkinleştirin",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.notActivated": {
+    "ar": "النظام غير مفعّل",
+    "tr": "Sistem aktif değil",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.readError": {
+    "ar": "تعذر قراءة حالة التفعيل بسبب الاتصال بقاعدة البيانات.",
+    "tr": "Veritabanı bağlantısı nedeniyle etkinleştirme durumu okunamıyor.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.required": {
+    "ar": "يجب تفعيل النظام أولاً قبل تسجيل الدخول. اضغط أيقونة المفتاح أعلى اليسار ثم أدخل مفتاح التفعيل.",
+    "tr": "Giriş yapmadan önce sistemin aktif hale getirilmesi gerekmektedir. Sol üstteki anahtar simgesine tıklayın ve aktivasyon anahtarını girin.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.retry": {
+    "ar": "إعادة التحقق",
+    "tr": "Yeniden doğrula",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.activation.statusError": {
+    "ar": "تعذر التحقق من حالة التفعيل.",
+    "tr": "Etkinleştirme durumu kontrol edilemiyor.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.print.description": {
+    "ar": "ملصقات أتواب صامتة على الطابعة الافتراضية.",
+    "tr": "Varsayılan yazıcıdaki sessiz çıkartmalar.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.print.title": {
+    "ar": "الطباعة الذكية",
+    "tr": "Akıllı baskı",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.purchase.description": {
+    "ar": "استيراد ومعاينة فواتير Excel بدقّة.",
+    "tr": "Excel faturalarını doğru bir şekilde içe aktarın ve önizleyin.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.purchase.title": {
+    "ar": "فواتير الشراء",
+    "tr": "Fatura satın alma",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.reports.description": {
+    "ar": "لوحات وتقارير لحظية بمؤشرات واضحة.",
+    "tr": "Açık göstergelere sahip gerçek zamanlı gösterge tabloları ve raporlar.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.reports.title": {
+    "ar": "التقارير والمخزون",
+    "tr": "Raporlar ve envanter",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.rolls.description": {
+    "ar": "تتبّع كل تواب من الاستلام حتى الصرف.",
+    "tr": "Makbuzdan ödemeye kadar her pişmanlığı takip edin.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.feature.rolls.title": {
+    "ar": "إدارة الأتواب",
+    "tr": "Mezarların yönetimi",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.footerRights": {
+    "ar": "جميع الحقوق محفوظة.",
+    "tr": "Her hakkı saklıdır.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.helpText": {
+    "ar": "تواجه مشكلة في الدخول؟ راجع مسؤول النظام للحصول على بيانات اعتماد صالحة.",
+    "tr": "Giriş yaparken sorun mu yaşıyorsunuz? Geçerli kimlik bilgileri için sistem yöneticinize başvurun.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.heroDescription": {
+    "ar": "منصّة عربية لإدارة الأتواب، فواتير الشراء، الطباعة الصامتة، والتقارير التشغيلية — في مكان واحد، وبذاكرة سحابية موثوقة.",
+    "tr": "Makbuzları, satın alma faturalarını, sessiz yazdırmayı ve operasyonel raporları tek bir yerden ve güvenilir bulut belleğiyle yönetmek için Arapça bir platform.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.heroTitle1": {
+    "ar": "أدر مستودع أقمشتك",
+    "tr": "Kumaş deponuzu yönetin",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.heroTitle2": {
+    "ar": "بكفاءة واحترافية",
+    "tr": "Verimli ve profesyonelce",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.hidePassword": {
+    "ar": "إخفاء كلمة المرور",
+    "tr": "Şifreyi gizle",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.loggingIn": {
+    "ar": "جاري الدخول…",
+    "tr": "Giriş yapılıyor...",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.loginBtn": {
+    "ar": "تسجيل الدخول",
+    "tr": "Giriş yapmak",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.loginFailed": {
+    "ar": "تعذّر تسجيل الدخول. تحقّق من بيانات الاعتماد أو اتصال الخادم.",
+    "tr": "Oturum açılamıyor. Kimlik bilgilerinizi veya sunucu bağlantınızı kontrol edin.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.loginRequiredNote": {
+    "ar": "الدخول إلزامي عند كل تشغيل للتطبيق.",
+    "tr": "Uygulamayı her çalıştırdığınızda oturum açmanız zorunludur.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.password": {
+    "ar": "كلمة المرور",
+    "tr": "şifre",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.secureConnection": {
+    "ar": "اتصال آمن مشفّر",
+    "tr": "Güvenli, şifreli bağlantı",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.showPassword": {
+    "ar": "إظهار كلمة المرور",
+    "tr": "Şifreyi göster",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.username": {
+    "ar": "اسم المستخدم",
+    "tr": "kullanıcı adı",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.welcomeSubtitle": {
+    "ar": "سجّل دخولك للمتابعة إلى مستودعك.",
+    "tr": "Deponuza devam etmek için oturum açın.",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "login.welcomeTitle": {
+    "ar": "مرحباً بعودتك",
+    "tr": "tekrar hoşgeldiniz",
+    "source": "src/locales/ar/login.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.bonds": {
+    "ar": "السندات",
+    "tr": "Tahviller",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.bonds.collection": {
+    "ar": "سندات قبض",
+    "tr": "Makbuz senetleri",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.bonds.payment": {
+    "ar": "سندات صرف",
+    "tr": "Kambiyo senetleri",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.bonds.records": {
+    "ar": "سجل السندات",
+    "tr": "Tahvil kaydı",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.chartOfAccounts": {
+    "ar": "شجرة الحسابات",
+    "tr": "Hesap planı",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.expenses": {
+    "ar": "المصاريف",
+    "tr": "Giderler",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.home": {
+    "ar": "الرئيسية",
+    "tr": "Ev",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory": {
+    "ar": "المخزون",
+    "tr": "Envanter",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.bulkPricing": {
+    "ar": "التسعير الجماعي حسب اسم الخامة",
+    "tr": "Malzemenin ismine göre grup fiyatlandırması",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.categories": {
+    "ar": "تصنيفات الأقمشة",
+    "tr": "Kumaş sınıflandırmaları",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.createItem": {
+    "ar": "إنشاء مادة جديدة",
+    "tr": "Yeni bir malzeme oluştur",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.customLabel": {
+    "ar": "طباعة ستيكر خاص",
+    "tr": "Özel etiket baskısı",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.depreciation": {
+    "ar": "إهلاك مادي",
+    "tr": "Fiziksel amortisman",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.labels": {
+    "ar": "طباعة الاستيكرات",
+    "tr": "Çıkartma yazdırma",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.printJobs": {
+    "ar": "سجل الطباعة",
+    "tr": "Günlüğü yazdır",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.rolls": {
+    "ar": "أتواب الأقمشة",
+    "tr": "Kumaş nevresimler",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.settings": {
+    "ar": "إعدادات المخزون",
+    "tr": "Envanter ayarları",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.transfers": {
+    "ar": "المناقلة بين المستودعات",
+    "tr": "Depolar arası transfer",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.inventory.warehouses": {
+    "ar": "المستودعات",
+    "tr": "Depolar",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.invoices": {
+    "ar": "الفواتير",
+    "tr": "Faturalar",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.invoices.exchange": {
+    "ar": "فواتير الصرف",
+    "tr": "Döviz faturaları",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.invoices.purchases": {
+    "ar": "فواتير الشراء",
+    "tr": "Fatura satın alma",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.invoices.returns": {
+    "ar": "فواتير المرتجعات",
+    "tr": "İade faturaları",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.invoices.sales": {
+    "ar": "فواتير البيع",
+    "tr": "Satış faturaları",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.invoices.statement": {
+    "ar": "كشف فاتورة",
+    "tr": "Fatura ekstresi",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.journal": {
+    "ar": "دفتر اليومية",
+    "tr": "günlük",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.manufacturing": {
+    "ar": "التصنيع",
+    "tr": "Üretme",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.orders": {
+    "ar": "الطلبيات",
+    "tr": "Siparişler",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.parties": {
+    "ar": "العملاء والموردون",
+    "tr": "Müşteriler ve tedarikçiler",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.parties.customerStatement": {
+    "ar": "كشف حساب العملاء",
+    "tr": "Müşteri hesap ekstresi",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.parties.customers": {
+    "ar": "العملاء",
+    "tr": "Müşteriler",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.parties.customersLog": {
+    "ar": "سجل العملاء",
+    "tr": "Müşteri geçmişi",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.parties.supplierStatement": {
+    "ar": "كشف حساب الموردين",
+    "tr": "Tedarikçi hesap ekstresi",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.parties.suppliers": {
+    "ar": "الموردون",
+    "tr": "Tedarikçiler",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.parties.suppliersLog": {
+    "ar": "سجل الموردين",
+    "tr": "Tedarikçi kaydı",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.partners": {
+    "ar": "الشركاء",
+    "tr": "Ortaklar",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.reports": {
+    "ar": "التقارير",
+    "tr": "Raporlar",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.salaries": {
+    "ar": "الرواتب والأجور",
+    "tr": "Maaşlar ve ücretler",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.settings": {
+    "ar": "الإعدادات",
+    "tr": "Ayarlar",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.treasury": {
+    "ar": "الخزينة",
+    "tr": "Hazine",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.treasury.log": {
+    "ar": "سجل حركة الصناديق",
+    "tr": "Fon hareketini kaydedin",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.treasury.profitDetails": {
+    "ar": "كشف الأرباح التفصيلي",
+    "tr": "Ayrıntılı kazanç beyanı",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.treasury.safes": {
+    "ar": "الصناديق",
+    "tr": "Kutular",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  },
+  "nav.treasury.settings": {
+    "ar": "إعدادات الصناديق",
+    "tr": "Kutu ayarları",
+    "source": "src/locales/ar/nav.json",
+    "kind": "locale",
+    "status": "auto"
+  }
+}

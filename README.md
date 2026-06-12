@@ -1,60 +1,51 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# ALamal-AB · Obada
 
-# Run and deploy your AI Studio app
+نظام ERP لجملة الدينيم والأقمشة — مشروع **مستقل** عن CLOTEX.
 
-This contains everything you need to run your app locally.
+| البند | القيمة |
+|-------|--------|
+| منفذ API | **4030** |
+| واجهة التطوير (Vite) | **3030** |
+| قاعدة البيانات | **`obada`** |
+| PM2 (سحابة) | `obada-server` |
 
-View your app in AI Studio: https://ai.studio/apps/423eaadc-a5fc-4988-b26d-071427be05b1
+## الوثائق
 
-## Run Locally
+- `docs/README.md` — فهرس الوثائق
+- `docs/ALAMAL_AB_OBADA_WHOLESALE_REQUIREMENTS.md` — متطلبات المدير
+- `docs/OBADA_MASTER_SETUP_AND_IMPLEMENTATION_PLAN.md` — خطة التنفيذ
+- `docs/ENV_OBADA_TEMPLATE.md` — قالب `.env`
 
-**Prerequisites:**  Node.js
+## إعداد محلي
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev `
-A.B-Amal-ERP
-npm run lint
-npm run server:check
-npm run test
-npm run server:build
-npm run electron:dev
-
-
-
-
-
-
-
-
-
-
-
-
-
-cd ~/ab-amal-erp
-
-# 1) سحب آخر تحديث (إن لم تسحبيه بعد)
-git pull origin main
-
-# 2) بناء الواجهة
+```bash
+cd obada
+npm install
+cp server/.env.example server/.env
+# عدّل DATABASE_URL → .../obada و PORT=4030
+cp .env.example .env
 npx tsx server/src/db/migrate.ts
-npm run build
+npx tsx server/src/db/seed.ts
+npm run dev:server    # API على 4030
+npm run dev           # واجهة على 3030
+```
 
-# 3) استخراج مسار الواجهة من nginx تلقائياً
-FRONTEND_ROOT=$(sudo grep -E '^\s*root ' /etc/nginx/sites-available/clotexerp-org | head -1 | awk '{print $2}' | tr -d ';')
-echo "مسار الواجهة: $FRONTEND_ROOT"
+## النشر على السحابة
 
-# 4) نشر ملفات dist
-sudo rm -rf "${FRONTEND_ROOT}"/*
-sudo cp -r dist/* "${FRONTEND_ROOT}"/
+```bash
+# 1) إنشاء قاعدة (مرة واحدة على VPS)
+psql -U postgres -f scripts/create-obada-database.sql
 
-# 5) إعادة تشغيل الـ backend
-pm2 restart clotexerp-server --update-env
-
-# 6) إعادة تحميل nginx
+# 2) على السيرفر
+cd ~/obada
+git pull origin main
+npm install
+# server/.env: PORT=4030, DATABASE_URL=.../obada
+npx tsx server/src/db/migrate.ts
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
+sudo cp -r dist/* /path/to/obada/nginx/root/
+PORT=4030 pm2 restart obada-server --update-env
 sudo nginx -t && sudo systemctl reload nginx
+```
+
+**لا تشارك CLOTEX** منفذ 4010/4020 ولا قاعدة `fabric_erp`.

@@ -458,7 +458,7 @@ p { margin: 2mm 0; font-size: 10pt; }
             type="url"
             value={apiUrl}
             onChange={(e) => { setApiUrl(e.target.value); setConnStatus('idle'); }}
-            placeholder="http://localhost:4010"
+            placeholder="http://localhost:4030"
             className={`${inputCls} font-mono`}
             dir="ltr"
           />

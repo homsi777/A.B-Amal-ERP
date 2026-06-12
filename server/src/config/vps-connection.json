@@ -17,7 +17,7 @@
 
   "dbUser": "erp_user",
   "dbPassword": "FabricERP_2026!",
-  "dbName": "fabric_erp",
+  "dbName": "obada",
 
   "apiPublicUrl": ""
 }

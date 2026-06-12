@@ -6,7 +6,7 @@ import { z } from 'zod';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Desktop EXE passes env via Electron parent; skip dotenv inside packaged/runtime bundle. */
-if (process.env.CLOTEX_EMBEDDED_SERVER !== '1') {
+if (process.env.OBADA_EMBEDDED_SERVER !== '1' && process.env.CLOTEX_EMBEDDED_SERVER !== '1') {
   loadDotenv({ path: path.resolve(__dirname, '../../.env') });
 }
 
@@ -21,14 +21,14 @@ function parseBoolEnv(val: unknown, defaultVal: boolean): boolean {
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.coerce.number().default(4010),
+  PORT: z.coerce.number().default(4030),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL مطلوب'),
   JWT_SECRET: z.string().min(8).optional(),
   JWT_EXPIRES_IN: z.string().default('7d'),
   CORS_ORIGIN: z.string().default(
-    'http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173',
+    'http://localhost:3030,http://localhost:3000,http://127.0.0.1:3030,http://127.0.0.1:3000',
   ),
-  APP_BASE_URL: z.string().default('http://127.0.0.1:4010'),
+  APP_BASE_URL: z.string().default('http://127.0.0.1:4030'),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   ACTIVATION_KEY_PEPPER: z.string().optional(),
