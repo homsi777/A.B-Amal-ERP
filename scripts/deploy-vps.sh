@@ -28,7 +28,7 @@ OBADA_PUBLIC_HOST="${OBADA_PUBLIC_HOST:-65.21.136.217}"
 OBADA_WEB_PORT="${OBADA_WEB_PORT:-2730}"
 OBADA_API_PORT="${OBADA_API_PORT:-4030}"
 LEGACY_PORTS_RE='(^|:)(4010|4020)([^0-9]|$)'
-OBADA_NGINX_ROOT="${OBADA_NGINX_ROOT:-/var/www/obada}"
+OBADA_NGINX_ROOT="${OBADA_NGINX_ROOT:-/var/www/obada/frontend}"
 OBADA_PM2_NAME="${OBADA_PM2_NAME:-obada-server}"
 OBADA_NGINX_SITE="${OBADA_NGINX_SITE:-obada-vps}"
 OBADA_PUBLIC_URL="http://${OBADA_PUBLIC_HOST}:${OBADA_WEB_PORT}"
@@ -109,13 +109,13 @@ else
   echo ">> تخطي seed"
 fi
 
-# ── 5) نسخ الواجهة إلى /var/www/obada ─────────────────────────────────────
+# ── 5) نسخ الواجهة إلى /var/www/obada/frontend ─────────────────────────────
 if [[ ! -f dist/index.html ]]; then
   echo "خطأ: dist/index.html غير موجود — فشل البناء. نفّذ npm run build يدوياً وراجع الأخطاء."
   exit 1
 fi
 
-echo ">> إنشاء مجلد nginx: $OBADA_NGINX_ROOT (مثال: /var/www/obada) ..."
+echo ">> إنشاء مجلد nginx: $OBADA_NGINX_ROOT ..."
 sudo mkdir -p "$OBADA_NGINX_ROOT"
 sudo rm -rf "${OBADA_NGINX_ROOT:?}"/*
 echo ">> نسخ مخرجات dist/ إلى $OBADA_NGINX_ROOT ..."
