@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { AppSettings } from '../../electron-env.d';
 
-const STORAGE_KEY = 'fabric_erp_desktop_settings_v2';
+const STORAGE_KEY = 'obada_erp_desktop_settings_v2';
 
 const BROWSER_DEFAULTS: AppSettings = {
   apiBaseUrl: '',

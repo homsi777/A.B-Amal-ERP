@@ -1,11 +1,13 @@
-/** عميل HTTP للـ API — لا يحتوي على اعتمادات قاعدة البيانات */
+/** عميل HTTP للـ API — ALamal-AB Obada */
 
-const TOKEN_KEY = 'fabric_erp_api_token';
+import { OBADA_API_LOOPBACK } from '../../projectConfig';
+
+const TOKEN_KEY = 'obada_erp_api_token';
 
 /**
  * LocalStorage key for user-configured API URL (Electron desktop settings page).
  */
-const API_URL_STORAGE_KEY = 'fabric_erp_api_base_url';
+const API_URL_STORAGE_KEY = 'obada_erp_api_base_url';
 
 function normalizeApiUrl(url: string | null | undefined): string {
   if (url == null) return '';
@@ -64,7 +66,7 @@ function readLocalStorageApiUrl(): string {
 /**
  * Electron: persisted settings, then localStorage, then VITE.
  * Packaged production falls back to loopback bundled API.
- * Electron + Vite HMR falls back to local dev Fastify (4010).
+ * Electron + Vite HMR falls back to local dev Fastify (4030).
  */
 function resolveElectronDesktopApiUrl(): string {
   const ordered = [
@@ -79,11 +81,11 @@ function resolveElectronDesktopApiUrl(): string {
   if (firstNonEmpty) return firstNonEmpty;
 
   if (pack) {
-    return 'http://127.0.0.1:4010';
+    return OBADA_API_LOOPBACK;
   }
 
   if (electronViteDevShell()) {
-    return 'http://127.0.0.1:4010';
+    return OBADA_API_LOOPBACK;
   }
 
   return '';
@@ -93,7 +95,7 @@ function resolveBrowserApiUrl(): string {
   const fromVite = normalizeApiUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
 
   // Production browser mode must route through the current origin + Nginx.
-  // Ignore localStorage so old Electron/dev values such as localhost:4010
+  // Ignore localStorage so old Electron/dev values such as localhost:4030
   // cannot hijack the live website.
   if (browserProductionMode()) {
     if (fromVite && !isLoopbackApiUrl(fromVite)) return fromVite;
@@ -114,10 +116,10 @@ export function getApiBaseUrl(): string {
 
   if (typeof window !== 'undefined' && !loggedApiResolution) {
     loggedApiResolution = true;
-    console.info('[fabric-api] عنوان الـ API المستخدم الآن:', resolved || '(فارغ — راجع الإعدادات)');
+    console.info('[obada-api] عنوان الـ API المستخدم الآن:', resolved || '(فارغ — راجع الإعدادات)');
     if (isElectronRuntime()) {
       console.info(
-        '[fabric-api] Electron: desktopApiBaseAtBoot -> localStorage -> VITE -> http://127.0.0.1:4010 (HMR or packaged)',
+        `[obada-api] Electron: desktopApiBaseAtBoot -> localStorage -> VITE -> ${OBADA_API_LOOPBACK} (HMR or packaged)`,
       );
     } else if (browserProductionMode()) {
       console.info('[fabric-api] Browser production: same-origin requests active; localStorage and loopback VITE overrides ignored.');
@@ -221,7 +223,7 @@ export async function apiFetch<T>(
       ? ' أضِف حقلاً صالحًا لـ apiPublicUrl في ملف vps-connection.json قبل بناء النسخة المثبتة.'
       : '';
     throw new ApiRequestError(
-      `لم يُضبط عنوان خادم CLOTEX API (المتصفح أو المثبت).${hint}`,
+      `لم يُضبط عنوان خادم ALamal-AB API (المتصفح أو المثبت).${hint}`,
       0,
       { ok: false, code: 'NETWORK' },
     );
@@ -264,7 +266,7 @@ export async function apiFetch<T>(
       );
     }
     throw new ApiRequestError(
-      `تعذّر الاتصال بخادم CLOTEX على العنوان ${base}. قد يكون الخادم غير متاح، عنوان apiPublicUrl خاطئ، مشكلة إنترنت، شهادة SSL، أو سياسات CORS تمنع الطلب.`,
+      `تعذّر الاتصال بخادم ALamal-AB على العنوان ${base}. قد يكون الخادم غير متاح، عنوان apiPublicUrl خاطئ، مشكلة إنترنت، شهادة SSL، أو سياسات CORS تمنع الطلب.`,
       0,
       { ok: false, code: 'NETWORK' },
     );

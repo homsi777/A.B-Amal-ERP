@@ -34,6 +34,6 @@ export const useUiPreferences = create<UiPreferencesState>()(
       setLetterSpacingEm: (letterSpacingEm) =>
         set({ letterSpacingEm: clamp(letterSpacingEm, -0.04, 0.09) })
     }),
-    { name: 'fabric-erp-ui-preferences', version: 1 }
+    { name: 'obada-erp-ui-preferences', version: 1 }
   )
 );

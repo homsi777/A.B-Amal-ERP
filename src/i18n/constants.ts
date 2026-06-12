@@ -1,4 +1,4 @@
-export const LANGUAGE_STORAGE_KEY = 'fabric-erp-language';
+export const LANGUAGE_STORAGE_KEY = 'obada-erp-language';
 
 export type AppLanguage = 'ar' | 'tr';
 

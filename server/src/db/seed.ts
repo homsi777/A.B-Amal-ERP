@@ -31,20 +31,20 @@ async function main() {
 
     await client.query(
       `UPDATE companies
-          SET code = 'CLOTEX-MAIN',
-              name = 'CLOTEX',
+          SET code = 'ALAMAL-MAIN',
+              name = 'ALamal-AB',
               updated_at = now()
         WHERE code = 'TEXTILE-MAIN'`,
     );
 
     await client.query(
       `INSERT INTO companies (code, name, base_currency_code)
-       VALUES ('CLOTEX-MAIN', 'CLOTEX', 'USD')
+       VALUES ('ALAMAL-MAIN', 'ALamal-AB', 'USD')
        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, updated_at = now()`,
     );
 
     const company = await client.query<{ id: string }>(
-      `SELECT id FROM companies WHERE code = 'CLOTEX-MAIN'`,
+      `SELECT id FROM companies WHERE code = 'ALAMAL-MAIN'`,
     );
     const companyId = company.rows[0].id;
 
@@ -174,8 +174,8 @@ async function main() {
         showBatchNo: true,
         showContainerNo: true,
         showPurchaseInvoiceNo: true,
-        brandName: 'CLOTEX',
-        subtitle: 'CLOTHES TEXTILE',
+        brandName: 'ALamal-AB',
+        subtitle: 'DENIM & TEXTILE',
       });
       await client.query(
         `INSERT INTO label_templates

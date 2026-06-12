@@ -99,13 +99,13 @@ export const StartupConnectionBanner: React.FC = () => {
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[10000] rtl text-right px-4 py-3 shadow-md border-b border-amber-900/30 bg-amber-50 text-slate-900 text-sm leading-relaxed">
-      <strong className="block text-amber-950 mb-1">تحذير اتصال — خادم CLOTEX</strong>
+      <strong className="block text-amber-950 mb-1">تحذير اتصال — خادم ALamal-AB</strong>
       <p className="mb-2">
-        تعذّر الاتصال بخادم CLOTEX على العنوان:&nbsp;
+        تعذّر الاتصال بخادم ALamal-AB على العنوان:&nbsp;
         <code className="bg-white/70 px-1 rounded-sm text-xs break-all">{apiAddr}</code>
       </p>
       <ul className="text-xs text-slate-700 mb-2 list-disc pr-5 space-y-1">
-        <li>التطبيق يشغّل خادم API محليّاً على هذا الجهاز؛ تحقَّق أن المنفذ 4010 متاح وليس مستخدماً من برنامج آخر.</li>
+        <li>التطبيق يشغّل خادم API محليّاً على هذا الجهاز؛ تحقَّق أن المنفذ 4030 متاح وليس مستخدماً من برنامج آخر.</li>
         <li>الاتصال بقاعدة PostgreSQL على الـ VPS عبر SSH: راجع كلمة مرور SSH و sshHostKey وملف clotex-main.log أو clotex-server.log ضمن مجلّد بيانات التطبيق.</li>
         <li>اختبر شبكة الإنترنت وإعدادات VPS وملفات resources/config بعد التثبيت.</li>
       </ul>

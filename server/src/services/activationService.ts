@@ -94,12 +94,12 @@ async function getDefaultCompanyId(): Promise<string | null> {
 
 /**
  * يضمن وجود شركة افتراضية قبل التفعيل من شاشة الدخول (بدون seed كامل).
- * يطابق إدراج البذرة: CLOTEX-MAIN / CLOTEX.
+ * يطابق إدراج البذرة: ALAMAL-MAIN / ALamal-AB.
  */
 async function ensureDefaultCompanyForActivation(): Promise<string> {
   const row = await getPool().query<{ id: string }>(
     `INSERT INTO companies (code, name, base_currency_code)
-     VALUES ('CLOTEX-MAIN', 'CLOTEX', 'USD')
+     VALUES ('ALAMAL-MAIN', 'ALamal-AB', 'USD')
      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, updated_at = now()
      RETURNING id`,
   );

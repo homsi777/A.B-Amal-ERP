@@ -1,6 +1,6 @@
 {
-  "name": "CLOTEX — Clothes Textile · نظام إدارة مستودعات الأقمشة",
-  "description": "CLOTEX (Clothes Textile) — نظام ERP متكامل لإدارة مستودعات الأقمشة، يشمل المخزون بالباركود (QR)، المبيعات، المشتريات، والمحاسبة.",
+  "name": "ALamal-AB Obada · الامل.AB — نظام إدارة جملة الأقمشة",
+  "description": "ALamal-AB (Alamal Trading) — نظام ERP لجملة الدينيم والأقمشة: مخزون أتواب، مبيعات بالعدد، تسليم وتفنيد، مشتريات من الصين.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

@@ -49,14 +49,14 @@ import {
   getOrCreateEmbeddedJwtSecret,
 } from './embedded-backend';
 
-app.setAppUserModelId('com.clotex.erp');
+app.setAppUserModelId('com.alamal.ab.obada');
 
 function resolveAppIconPath(): string | undefined {
   const candidates = [
     path.join(__dirname, '..', 'build', 'icon.ico'),
-    path.join(__dirname, '..', 'dist', 'clotex-logo.png'),
+    path.join(__dirname, '..', 'dist', 'alamal-logo.png'),
     path.join(process.cwd(), 'build', 'icon.ico'),
-    path.join(process.cwd(), 'public', 'clotex-logo.png'),
+    path.join(process.cwd(), 'public', 'alamal-logo.png'),
   ];
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
@@ -90,7 +90,7 @@ console.log(
 // ─── Settings persistence ────────────────────────────────────────────────────
 
 function getSettingsPath(): string {
-  return path.join(app.getPath('userData'), 'fabric-erp-settings.json');
+  return path.join(app.getPath('userData'), 'obada-erp-settings.json');
 }
 
 function loadSettings(): AppSettings {
@@ -128,7 +128,7 @@ function appendMainLog(line: string): void {
 }
 
 /** Packaged desktop talks to bundled Fastify — never a remote HTTP API in this deployment model. */
-const LOCAL_EMBEDDED_API = 'http://127.0.0.1:4010';
+const LOCAL_EMBEDDED_API = 'http://127.0.0.1:4030';
 
 function bootstrapPackagedEmbeddedApi(): void {
   if (!app.isPackaged) return;
@@ -1070,7 +1070,7 @@ function createMainWindow(): void {
     minWidth: 1200,
     minHeight: 760,
     icon: resolveAppIconPath(),
-    title: 'CLOTEX — Clothes Textile · نظام إدارة مستودعات الأقمشة',
+    title: 'ALamal-AB · الامل.AB — نظام إدارة جملة الأقمشة',
     /** في الإنتاج المعبأ تظهر النافذة مبكراً؛ في التطوير ننتظر الجاهزية لتجنب وميض فاضِ */
     show: !isDev,
     webPreferences: {
