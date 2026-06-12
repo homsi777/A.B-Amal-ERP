@@ -106,7 +106,7 @@ export const Login = () => {
   return (
     <div
       dir={pageDir}
-      className="relative min-h-screen w-full overflow-hidden bg-[#0b0820] text-slate-100"
+      className="relative min-h-screen w-full overflow-x-hidden bg-[#0b0820] text-slate-100"
     >
       {/* ── Activation entry (top-left) ───────────────────────────────────── */}
       <button
@@ -183,7 +183,7 @@ export const Login = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <LanguageSwitcher />
+          <LanguageSwitcher variant="dark" />
           <div className="hidden md:block">
             <div className="rounded-full bg-white/5 px-1 py-1 backdrop-blur-md ring-1 ring-white/10">
               <BackendConnectionBadge />
