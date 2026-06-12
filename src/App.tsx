@@ -117,6 +117,8 @@ import { Partners } from './pages/Partners';
 import { SystemSettings } from './pages/SystemSettings';
 import { DesktopSettings } from './pages/settings/DesktopSettings';
 import { CustomerOrdersPage } from './pages/orders/CustomerOrdersPage';
+import { DeliveryQueue } from './pages/delivery/DeliveryQueue';
+import { DeliveryFulfillment } from './pages/delivery/DeliveryFulfillment';
 import { ThemeApplier } from './theme/ThemeApplier';
 import { Login } from './pages/Login';
 import { RequireAuth } from './components/RequireAuth';
@@ -181,6 +183,9 @@ export default function App() {
             <Route path="invoices/statement/:id" element={<InvoiceStatement />} />
 
             <Route path="orders" element={<CustomerOrdersPage />} />
+
+            <Route path="delivery" element={<DeliveryQueue />} />
+            <Route path="delivery/:id" element={<DeliveryFulfillment />} />
 
             <Route path="treasury" element={<Safes />} />
             <Route path="treasury/safes" element={<Safes />} />

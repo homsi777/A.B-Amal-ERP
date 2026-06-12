@@ -1,6 +1,11 @@
 /** تعريف ثيمات الواجهة — مصدر واحد للمتغيرات المطبَّقة على document.documentElement */
 
-export type ThemePresetId = 'indigo-classic' | 'ocean-teal' | 'amber-warm' | 'ruby-professional';
+export type ThemePresetId =
+  | 'alamal-denim'
+  | 'indigo-classic'
+  | 'ocean-teal'
+  | 'amber-warm'
+  | 'ruby-professional';
 
 export type AppearanceMode = 'light' | 'dark';
 
@@ -25,6 +30,11 @@ export const THEME_META: Record<
   ThemePresetId,
   { labelAr: string; descriptionAr: string; previewGradient: string }
 > = {
+  'alamal-denim': {
+    labelAr: 'ALamal — دينيم وذهبي',
+    descriptionAr: 'هوية Obada الافتراضية — ألوان العلامة للجملة والدينيم.',
+    previewGradient: 'linear-gradient(135deg, #8B7355 0%, #B8956B 45%, #f5efe6 100%)',
+  },
   'indigo-classic': {
     labelAr: 'كلاسيكي إنديجو',
     descriptionAr: 'الأسلوب الحالي للمشروع — هادئ واحترافي.',
@@ -49,6 +59,60 @@ export const THEME_META: Record<
 
 /** متغيرات CSS للثيمات — لا تُستخدم أسماء Tailwind الفعلية لتجنّب كسر الشجرة عند التعديل */
 export const THEME_CSS_VARS: Record<ThemePresetId, Record<AppearanceMode, Record<string, string>>> = {
+  'alamal-denim': {
+    light: {
+      '--ui-accent': '#B8956B',
+      '--ui-accent-hover': '#9A7A52',
+      '--ui-accent-muted': '#C4A574',
+      '--ui-accent-soft-bg': '#f8f3ec',
+      '--ui-accent-soft-bg-strong': '#efe4d4',
+      '--ui-accent-border': '#dcc9a8',
+      '--ui-logo-bg': '#8B7355',
+      '--ui-nav-active-bg': '#f8f3ec',
+      '--ui-nav-active-text': '#5c4a32',
+      '--ui-nav-active-border': '#dcc9a8',
+      '--ui-nav-active-icon': '#8B7355',
+      '--ui-dropdown-hover-bg': '#f8f3ec',
+      '--ui-mobile-accent-border': '#B8956B',
+      '--surface-header': '#ffffff',
+      '--surface-muted-nav': '#faf8f5',
+      '--surface-mobile-shell': '#faf8f5',
+      '--border-default': '#e8dfd2',
+      '--border-subtle': '#f3ede4',
+      '--page-bg': '#faf8f5',
+      '--text-primary': '#1a1612',
+      '--text-muted': '#6b5d4d',
+      '--text-heading': '#2d2419',
+      '--scrollbar-track': '#f3ede4',
+      '--scrollbar-thumb': '#c9b89a',
+    },
+    dark: {
+      '--ui-accent': '#C4A574',
+      '--ui-accent-hover': '#D4B88A',
+      '--ui-accent-muted': '#B8956B',
+      '--ui-accent-soft-bg': 'rgba(184, 149, 107, 0.2)',
+      '--ui-accent-soft-bg-strong': 'rgba(184, 149, 107, 0.32)',
+      '--ui-accent-border': 'rgba(196, 165, 116, 0.42)',
+      '--ui-logo-bg': '#8B7355',
+      '--ui-nav-active-bg': 'rgba(184, 149, 107, 0.24)',
+      '--ui-nav-active-text': '#f5efe6',
+      '--ui-nav-active-border': 'rgba(196, 165, 116, 0.35)',
+      '--ui-nav-active-icon': '#dcc9a8',
+      '--ui-dropdown-hover-bg': 'rgba(184, 149, 107, 0.16)',
+      '--ui-mobile-accent-border': '#C4A574',
+      '--surface-header': '#1a1612',
+      '--surface-muted-nav': '#0f0d0a',
+      '--surface-mobile-shell': '#0f0d0a',
+      '--border-default': '#3d3428',
+      '--border-subtle': '#2a231c',
+      '--page-bg': '#0f0d0a',
+      '--text-primary': '#f5efe6',
+      '--text-muted': '#a89882',
+      '--text-heading': '#faf8f5',
+      '--scrollbar-track': '#2a231c',
+      '--scrollbar-thumb': '#5c4a32',
+    },
+  },
   'indigo-classic': {
     light: {
       '--ui-accent': '#4f46e5',

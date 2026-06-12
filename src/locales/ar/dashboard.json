@@ -1,6 +1,6 @@
 {
   "title": "لوحة التحكم",
-  "subtitle": "بيانات تشغيلية مباشرة من قاعدة بيانات المشروع.",
+  "subtitle": "جملة الدينيم والأقمشة — بيانات تشغيلية مباشرة من قاعدة Obada.",
   "refresh": "تحديث",
   "loadError": "تعذر تحميل بيانات لوحة التحكم",
   "quickAccess": "وصول سريع",
@@ -14,7 +14,8 @@
   "quickLinks.createItem": "إنشاء خامة",
   "quickLinks.rolls": "الأتواب",
   "quickLinks.warehouses": "المستودعات",
-  "quickLinks.salesInvoice": "فاتورة بيع",
+  "quickLinks.salesInvoice": "فاتورة بيع (جملة)",
+  "quickLinks.delivery": "قسم التسليم",
   "quickLinks.purchaseInvoice": "فاتورة شراء",
   "quickLinks.receiptVoucher": "سند قبض",
   "quickLinks.paymentVoucher": "سند صرف",

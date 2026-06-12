@@ -96,3 +96,41 @@ export function arAccountingCreditSide(): string {
 export function arAccountingDebitSide(): string {
   return 'مدين';
 }
+
+/** Obada wholesale — قسم التسليم والتفنيد */
+export const AR_WHOLESALE = {
+  deliverySection: 'التسليم',
+  deliveryQueue: 'طلبات بانتظار التسليم',
+  deliveryFulfillment: 'تنفيذ التسليم',
+  tafnid: 'تفنيد',
+  tafnidAction: 'تفنيد الأطوال',
+  rollUnit: 'توب',
+  rollsCount: 'عدد الأتواب',
+  rollLength: 'طول التوب',
+  supplierRollNo: 'رقم توب المورد',
+  systemBarcode: 'باركود النظام',
+  warehouseReceipt: 'إيصال مستودع',
+  confirmDelivery: 'تأكيد التسليم',
+  pendingDelivery: 'بانتظار التسليم',
+  inDelivery: 'قيد التسليم',
+  fulfilled: 'تم التسليم',
+  confirmedSale: 'بيع مؤكد — بانتظار المستودع',
+  chinaImport: 'استيراد قائمة تعبئة صينية',
+  wholesaleSales: 'بيع جملة (بالتوب)',
+} as const;
+
+export type ObadaDeliveryStatus =
+  | 'CONFIRMED_SALE'
+  | 'IN_DELIVERY'
+  | 'FULFILLED'
+  | 'DRAFT';
+
+export function arDeliveryStatus(status: ObadaDeliveryStatus | string | null | undefined): string {
+  if (!status) return '—';
+  const s = String(status).toUpperCase();
+  if (s === 'CONFIRMED_SALE' || s === 'CONFIRMED') return AR_WHOLESALE.confirmedSale;
+  if (s === 'IN_DELIVERY' || s === 'PENDING_DELIVERY') return AR_WHOLESALE.pendingDelivery;
+  if (s === 'FULFILLED' || s === 'COMPLETED') return AR_WHOLESALE.fulfilled;
+  if (s === 'DRAFT') return 'مسودة';
+  return status;
+}
