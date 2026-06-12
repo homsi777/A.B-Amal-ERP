@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   LogIn,
@@ -16,38 +17,14 @@ import {
 import { loginApi } from '../lib/api/authApi';
 import { ApiRequestError } from '../lib/api/client';
 import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { BRAND } from '../branding';
 import { ActivationKeyInput } from '../components/activation/ActivationKeyInput';
 import { getActivationStatus, type ActivationStatusDto } from '../lib/api/activationApi';
 
-const features: Array<{
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  title: string;
-  description: string;
-}> = [
-  {
-    icon: Boxes,
-    title: 'إدارة الأتواب',
-    description: 'تتبّع كل تواب من الاستلام حتى الصرف.',
-  },
-  {
-    icon: ShoppingCart,
-    title: 'فواتير الشراء',
-    description: 'استيراد ومعاينة فواتير Excel بدقّة.',
-  },
-  {
-    icon: BarChart3,
-    title: 'التقارير والمخزون',
-    description: 'لوحات وتقارير لحظية بمؤشرات واضحة.',
-  },
-  {
-    icon: Printer,
-    title: 'الطباعة الذكية',
-    description: 'ملصقات أتواب صامتة على الطابعة الافتراضية.',
-  },
-];
-
 export const Login = () => {
+  const { t, i18n } = useTranslation('login');
+  const pageDir = i18n.language === 'tr' ? 'ltr' : 'rtl';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [username, setUsername] = useState('');
@@ -61,13 +38,23 @@ export const Login = () => {
   const [activationModalOpen, setActivationModalOpen] = useState(false);
   const activationModalTitleId = useId();
 
+  const features = useMemo(
+    () => [
+      { icon: Boxes, titleKey: 'feature.rolls.title', descriptionKey: 'feature.rolls.description' },
+      { icon: ShoppingCart, titleKey: 'feature.purchase.title', descriptionKey: 'feature.purchase.description' },
+      { icon: BarChart3, titleKey: 'feature.reports.title', descriptionKey: 'feature.reports.description' },
+      { icon: Printer, titleKey: 'feature.print.title', descriptionKey: 'feature.print.description' },
+    ],
+    [],
+  );
+
   const loadActivationStatus = async () => {
     try {
       setActivationStatusError('');
       setActivationStatus(await getActivationStatus());
     } catch (err) {
       setActivationStatus(null);
-      setActivationStatusError(err instanceof Error ? err.message : 'تعذر التحقق من حالة التفعيل.');
+      setActivationStatusError(err instanceof Error ? err.message : t('activation.statusError'));
     } finally {
       setActivationChecked(true);
     }
@@ -106,7 +93,7 @@ export const Login = () => {
       const msg =
         err instanceof ApiRequestError
           ? err.message
-          : 'تعذّر تسجيل الدخول. تحقّق من بيانات الاعتماد أو اتصال الخادم.';
+          : t('loginFailed');
       setError(msg);
     } finally {
       setLoading(false);
@@ -118,7 +105,7 @@ export const Login = () => {
 
   return (
     <div
-      dir="rtl"
+      dir={pageDir}
       className="relative min-h-screen w-full overflow-hidden bg-[#0b0820] text-slate-100"
     >
       {/* ── Activation entry (top-left) ───────────────────────────────────── */}
@@ -132,8 +119,8 @@ export const Login = () => {
               ? 'border-emerald-400/45 bg-emerald-500/[0.12] text-emerald-100 shadow-emerald-900/20'
               : 'border-amber-400/45 bg-amber-500/[0.12] text-amber-100 shadow-amber-900/25'
         }`}
-        title={isActivated ? 'النظام مفعّل' : 'تفعيل النظام'}
-        aria-label={isActivated ? 'النظام مفعّل — فتح تفاصيل التفعيل' : 'تفعيل النظام — فتح نافذة التفعيل'}
+        title={isActivated ? t('activation.activated') : t('activation.activateTitle')}
+        aria-label={isActivated ? t('activation.activatedAria') : t('activation.activateAria')}
       >
         {!activationChecked ? (
           <Loader2 className="h-5 w-5 shrink-0 animate-spin opacity-90" aria-hidden />
@@ -142,7 +129,7 @@ export const Login = () => {
         )}
         {activationChecked && isActivated && (
           <span className="hidden text-[11px] font-bold tracking-wide sm:inline" dir="ltr">
-            مفعّل
+            {t('activation.activatedBadge')}
           </span>
         )}
         {activationChecked && !isActivated && (
@@ -195,9 +182,12 @@ export const Login = () => {
             </div>
           </div>
         </div>
-        <div className="hidden md:block">
-          <div className="rounded-full bg-white/5 px-1 py-1 backdrop-blur-md ring-1 ring-white/10">
-            <BackendConnectionBadge />
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <div className="hidden md:block">
+            <div className="rounded-full bg-white/5 px-1 py-1 backdrop-blur-md ring-1 ring-white/10">
+              <BackendConnectionBadge />
+            </div>
           </div>
         </div>
       </header>
@@ -214,8 +204,8 @@ export const Login = () => {
                 <LogIn className="h-5 w-5 text-white" strokeWidth={2.4} />
               </div>
               <div>
-                <h1 className="text-2xl font-black text-white">مرحباً بعودتك</h1>
-                <p className="text-sm text-slate-300">سجّل دخولك للمتابعة إلى مستودعك.</p>
+                <h1 className="text-2xl font-black text-white">{t('welcomeTitle')}</h1>
+                <p className="text-sm text-slate-300">{t('welcomeSubtitle')}</p>
               </div>
             </div>
 
@@ -224,7 +214,7 @@ export const Login = () => {
                 role="status"
                 className="mb-4 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-[13px] text-slate-300"
               >
-                جاري التحقق من حالة التفعيل…
+                {t('activation.checking')}
               </div>
             )}
 
@@ -233,7 +223,7 @@ export const Login = () => {
                 role="alert"
                 className="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-[13px] leading-relaxed text-rose-200"
               >
-                تعذر التحقق من الاتصال بقاعدة البيانات. لا تدخل مفتاح التفعيل مرة أخرى؛ انتظر عودة الاتصال أو استخدم إعادة الاتصال من شريط الحالة.
+                {t('activation.dbError')}
               </div>
             )}
 
@@ -242,8 +232,7 @@ export const Login = () => {
                 role="alert"
                 className="mb-4 rounded-xl border border-amber-400/25 bg-amber-500/[0.08] px-3 py-2.5 text-[13px] leading-relaxed text-amber-100"
               >
-                يجب تفعيل النظام أولاً قبل تسجيل الدخول. اضغط أيقونة المفتاح أعلى اليسار ثم أدخل مفتاح
-                التفعيل.
+                {t('activation.required')}
               </div>
             )}
 
@@ -253,7 +242,7 @@ export const Login = () => {
                   htmlFor="username"
                   className={`text-[13px] font-medium ${canLogin ? 'text-slate-200' : 'text-slate-500'}`}
                 >
-                  اسم المستخدم
+                  {t('username')}
                 </label>
                 <input
                   id="username"
@@ -275,7 +264,7 @@ export const Login = () => {
                   htmlFor="password"
                   className={`text-[13px] font-medium ${canLogin ? 'text-slate-200' : 'text-slate-500'}`}
                 >
-                  كلمة المرور
+                  {t('password')}
                 </label>
                 <div className="relative">
                   <input
@@ -296,7 +285,7 @@ export const Login = () => {
                     onClick={() => setShowPassword((v) => !v)}
                     disabled={!canLogin}
                     className="absolute inset-y-0 left-2 flex items-center justify-center rounded-lg px-2 text-slate-400 transition hover:text-white disabled:pointer-events-none disabled:opacity-40"
-                    aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                    aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                     tabIndex={canLogin ? 0 : -1}
                   >
                     {showPassword ? (
@@ -327,23 +316,23 @@ export const Login = () => {
                 ) : (
                   <LogIn className="h-5 w-5" />
                 )}
-                {loading ? 'جاري الدخول…' : 'تسجيل الدخول'}
+                {loading ? t('loggingIn') : t('loginBtn')}
               </button>
             </form>
 
             <div className="mt-6 flex items-center justify-between text-[12px] text-slate-400">
               <span className="text-slate-500">
-                الدخول إلزامي عند كل تشغيل للتطبيق.
+                {t('loginRequiredNote')}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                اتصال آمن مشفّر
+                {t('secureConnection')}
               </span>
             </div>
           </div>
 
           <p className="mt-5 text-center text-[12px] text-slate-400 lg:text-start">
-            تواجه مشكلة في الدخول؟ راجع مسؤول النظام للحصول على بيانات اعتماد صالحة.
+            {t('helpText')}
           </p>
         </section>
 
@@ -368,15 +357,14 @@ export const Login = () => {
             </span>
 
             <h2 className="mt-6 text-4xl font-black leading-[1.15] text-white sm:text-5xl">
-              أدر مستودع أقمشتك
+              {t('heroTitle1')}
               <br />
               <span className="bg-gradient-to-l from-indigo-300 via-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
-                بكفاءة واحترافية
+                {t('heroTitle2')}
               </span>
             </h2>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-300">
-              منصّة عربية لإدارة الأتواب، فواتير الشراء، الطباعة الصامتة، والتقارير
-              التشغيلية — في مكان واحد، وبذاكرة سحابية موثوقة.
+              {t('heroDescription')}
             </p>
 
             <div className="mt-10 grid gap-3">
@@ -384,7 +372,7 @@ export const Login = () => {
                 const Icon = feature.icon;
                 return (
                   <div
-                    key={feature.title}
+                    key={feature.titleKey}
                     className="group flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-indigo-400/30 hover:bg-white/[0.07]"
                   >
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500/30 to-violet-600/30 text-indigo-200 ring-1 ring-inset ring-white/10 group-hover:text-white">
@@ -392,10 +380,10 @@ export const Login = () => {
                     </div>
                     <div className="min-w-0">
                       <div className="text-[15px] font-bold text-white">
-                        {feature.title}
+                        {t(feature.titleKey)}
                       </div>
                       <div className="text-[12.5px] text-slate-400">
-                        {feature.description}
+                        {t(feature.descriptionKey)}
                       </div>
                     </div>
                   </div>
@@ -408,7 +396,7 @@ export const Login = () => {
 
       {/* ── Footer line ───────────────────────────────────────────────────── */}
       <footer className="relative z-10 px-8 pb-6 text-center text-[11.5px] text-slate-500">
-        © {new Date().getFullYear()} {BRAND.copyrightHolder} — {BRAND.tagline}. جميع الحقوق محفوظة.
+        © {new Date().getFullYear()} {BRAND.copyrightHolder} — {BRAND.tagline}. {t('footerRights')}
       </footer>
 
       {/* ── Activation modal ──────────────────────────────────────────────── */}
@@ -420,7 +408,7 @@ export const Login = () => {
           <button
             type="button"
             className="absolute inset-0 bg-slate-950/75 backdrop-blur-[3px]"
-            aria-label="إغلاق النافذة"
+            aria-label={t('activation.modalClose')}
             onClick={() => setActivationModalOpen(false)}
           />
           <div
@@ -436,14 +424,14 @@ export const Login = () => {
                   <KeyRound className="h-5 w-5 text-indigo-100" />
                 </div>
                 <h2 id={activationModalTitleId} className="text-lg font-black text-white">
-                  تفعيل النظام
+                  {t('activation.modalTitle')}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setActivationModalOpen(false)}
                 className="rounded-lg p-2 text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/80"
-                aria-label="إغلاق"
+                aria-label={t('activation.modalCloseBtn')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -452,14 +440,14 @@ export const Login = () => {
             {activationStatusError ? (
               <div className="space-y-4">
                 <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-[13px] font-bold text-rose-100">
-                  تعذر قراءة حالة التفعيل بسبب الاتصال بقاعدة البيانات.
+                  {t('activation.readError')}
                 </div>
                 <button
                   type="button"
                   onClick={loadActivationStatus}
                   className="w-full rounded-xl border border-white/15 bg-white/[0.06] py-2.5 text-sm font-bold text-white transition hover:bg-white/[0.1]"
                 >
-                  إعادة التحقق
+                  {t('activation.retry')}
                 </button>
               </div>
             ) : activationStatus?.active ? (
@@ -467,7 +455,7 @@ export const Login = () => {
                 <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/[0.1] px-3 py-2.5 text-[13px] font-bold text-emerald-100">
                   <span className="inline-flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-emerald-300" />
-                    النظام مفعّل
+                    {t('activation.activated')}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-[13px] text-slate-300">
@@ -484,16 +472,16 @@ export const Login = () => {
                   onClick={() => setActivationModalOpen(false)}
                   className="w-full rounded-xl border border-white/15 bg-white/[0.06] py-2.5 text-sm font-bold text-white transition hover:bg-white/[0.1]"
                 >
-                  إغلاق
+                  {t('activation.modalCloseBtn')}
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="rounded-xl border border-amber-400/25 bg-amber-500/[0.08] px-3 py-2.5 text-[13px] text-amber-100">
-                  النظام غير مفعّل
+                  {t('activation.notActivated')}
                 </div>
                 <p className="text-[13px] leading-relaxed text-slate-400">
-                  أدخل مفتاح التفعيل لتفعيل النظام قبل تسجيل الدخول.
+                  {t('activation.enterKey')}
                 </p>
                 <ActivationKeyInput
                   compact

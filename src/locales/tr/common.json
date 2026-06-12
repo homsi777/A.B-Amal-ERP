@@ -1,0 +1,11 @@
+{
+  "language": "Dil",
+  "language.ar": "العربية",
+  "language.tr": "Türkçe",
+  "notifications.title": "Müşteri sipariş teslim uyarıları",
+  "notifications.pickupTitle": "Müşteri sipariş teslimine yakın",
+  "notifications.pickupSubtitle": "Teslime hazır veya 7 gün içinde tedarik tarihi",
+  "notifications.openOrders": "Siparişler sayfasını aç",
+  "apiLogin": "API Girişi",
+  "systemAdmin": "Sistem Yöneticisi"
+}

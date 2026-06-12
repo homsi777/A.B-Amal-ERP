@@ -26,7 +26,9 @@ import { ar } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import type { CustomerOrder } from '../types';
 import { ORDER_STATUS_LABELS } from '../pages/orders/orderStatusUi';
+import { useTranslation } from 'react-i18next';
 import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { BRAND } from '../branding';
 
@@ -48,7 +50,17 @@ function selectNearPickupOrders(orders: CustomerOrder[]): CustomerOrder[] {
   });
 }
 
+type NavSubItem = { labelKey: string; to: string };
+type NavItem =
+  | { labelKey: string; to: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }
+  | {
+      labelKey: string;
+      icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+      subItems: NavSubItem[];
+    };
+
 const Topbar = () => {
+  const { t } = useTranslation(['nav', 'common']);
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
@@ -68,76 +80,76 @@ const Topbar = () => {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [notifyOpen]);
 
-  const navItems = [
-    { label: 'الرئيسية', to: '/', icon: Home },
+  const navItems: NavItem[] = [
+    { labelKey: 'home', to: '/', icon: Home },
     {
-      label: 'المخزون',
+      labelKey: 'inventory',
       icon: Package,
       subItems: [
-        { label: 'إنشاء مادة جديدة', to: '/inventory/create' },
-        { label: 'أتواب الأقمشة', to: '/inventory' },
-        { label: 'تصنيفات الأقمشة', to: '/inventory/categories' },
-        { label: 'طباعة الاستيكرات', to: '/inventory/labels' },
-        { label: 'طباعة ستيكر خاص', to: '/inventory/custom-label' },
-        { label: 'سجل الطباعة', to: '/inventory/print-jobs' },
-        { label: 'إعدادات المخزون', to: '/inventory/settings' },
-        { label: 'التسعير الجماعي حسب اسم الخامة', to: '/inventory/bulk-pricing' },
-        { label: 'المستودعات', to: '/inventory/warehouses' },
-        { label: 'المناقلة بين المستودعات', to: '/inventory/transfers' },
-        { label: 'إهلاك مادي', to: '/inventory/depreciation' },
+        { labelKey: 'inventory.createItem', to: '/inventory/create' },
+        { labelKey: 'inventory.rolls', to: '/inventory' },
+        { labelKey: 'inventory.categories', to: '/inventory/categories' },
+        { labelKey: 'inventory.labels', to: '/inventory/labels' },
+        { labelKey: 'inventory.customLabel', to: '/inventory/custom-label' },
+        { labelKey: 'inventory.printJobs', to: '/inventory/print-jobs' },
+        { labelKey: 'inventory.settings', to: '/inventory/settings' },
+        { labelKey: 'inventory.bulkPricing', to: '/inventory/bulk-pricing' },
+        { labelKey: 'inventory.warehouses', to: '/inventory/warehouses' },
+        { labelKey: 'inventory.transfers', to: '/inventory/transfers' },
+        { labelKey: 'inventory.depreciation', to: '/inventory/depreciation' },
       ],
     },
     {
-      label: 'الفواتير',
+      labelKey: 'invoices',
       icon: FileText,
       subItems: [
-        { label: 'فواتير البيع', to: '/invoices/sales' },
-        { label: 'فواتير الشراء', to: '/invoices/purchases' },
-        { label: 'فواتير الصرف', to: '/invoices/exchange' },
-        { label: 'فواتير المرتجعات', to: '/invoices/returns' },
-        { label: 'كشف فاتورة', to: '/invoices/statement' },
+        { labelKey: 'invoices.sales', to: '/invoices/sales' },
+        { labelKey: 'invoices.purchases', to: '/invoices/purchases' },
+        { labelKey: 'invoices.exchange', to: '/invoices/exchange' },
+        { labelKey: 'invoices.returns', to: '/invoices/returns' },
+        { labelKey: 'invoices.statement', to: '/invoices/statement' },
       ],
     },
-    { label: 'الطلبيات', to: '/orders', icon: ClipboardList },
+    { labelKey: 'orders', to: '/orders', icon: ClipboardList },
     {
-      label: 'العملاء والموردون',
+      labelKey: 'parties',
       icon: Users,
       subItems: [
-        { label: 'العملاء', to: '/customers' },
-        { label: 'الموردون', to: '/suppliers' },
-        { label: 'سجل العملاء', to: '/customers/log' },
-        { label: 'سجل الموردين', to: '/suppliers/log' },
-        { label: 'كشف حساب العملاء', to: '/customers/statement' },
-        { label: 'كشف حساب الموردين', to: '/suppliers/statement' },
+        { labelKey: 'parties.customers', to: '/customers' },
+        { labelKey: 'parties.suppliers', to: '/suppliers' },
+        { labelKey: 'parties.customersLog', to: '/customers/log' },
+        { labelKey: 'parties.suppliersLog', to: '/suppliers/log' },
+        { labelKey: 'parties.customerStatement', to: '/customers/statement' },
+        { labelKey: 'parties.supplierStatement', to: '/suppliers/statement' },
       ],
     },
     {
-      label: 'الخزينة',
+      labelKey: 'treasury',
       icon: Wallet,
       subItems: [
-        { label: 'الصناديق', to: '/treasury/safes' },
-        { label: 'سجل حركة الصناديق', to: '/treasury/log' },
-        { label: 'كشف الأرباح التفصيلي', to: '/treasury/profit-details' },
-        { label: 'إعدادات الصناديق', to: '/treasury/settings' },
+        { labelKey: 'treasury.safes', to: '/treasury/safes' },
+        { labelKey: 'treasury.log', to: '/treasury/log' },
+        { labelKey: 'treasury.profitDetails', to: '/treasury/profit-details' },
+        { labelKey: 'treasury.settings', to: '/treasury/settings' },
       ],
     },
     {
-      label: 'السندات',
+      labelKey: 'bonds',
       icon: Receipt,
       subItems: [
-        { label: 'سندات صرف', to: '/bonds/payment' },
-        { label: 'سندات قبض', to: '/bonds/collection' },
-        { label: 'سجل السندات', to: '/bonds/records' },
+        { labelKey: 'bonds.payment', to: '/bonds/payment' },
+        { labelKey: 'bonds.collection', to: '/bonds/collection' },
+        { labelKey: 'bonds.records', to: '/bonds/records' },
       ],
     },
-    { label: 'المصاريف', to: '/expenses', icon: CreditCard },
-    { label: 'الرواتب والأجور', to: '/salaries', icon: Briefcase },
-    { label: 'التقارير', to: '/reports', icon: PieChart },
-    { label: 'شجرة الحسابات', to: '/chart-of-accounts', icon: Network },
-    { label: 'دفتر اليومية', to: '/journal', icon: BookOpen },
-    { label: 'التصنيع', to: '/manufacturing', icon: Factory },
-    { label: 'الشركاء', to: '/partners', icon: Handshake },
-    { label: 'الإعدادات', to: '/settings', icon: Settings },
+    { labelKey: 'expenses', to: '/expenses', icon: CreditCard },
+    { labelKey: 'salaries', to: '/salaries', icon: Briefcase },
+    { labelKey: 'reports', to: '/reports', icon: PieChart },
+    { labelKey: 'chartOfAccounts', to: '/chart-of-accounts', icon: Network },
+    { labelKey: 'journal', to: '/journal', icon: BookOpen },
+    { labelKey: 'manufacturing', to: '/manufacturing', icon: Factory },
+    { labelKey: 'partners', to: '/partners', icon: Handshake },
+    { labelKey: 'settings', to: '/settings', icon: Settings },
   ];
 
   const isRouteActive = (to?: string) => {
@@ -146,11 +158,12 @@ const Topbar = () => {
     return location.pathname === to || location.pathname.startsWith(`${to}/`);
   };
 
-  const isParentActive = (item: typeof navItems[number]) => {
+  const isParentActive = (item: NavItem) => {
     if ('subItems' in item && item.subItems) {
       return item.subItems.some((sub) => isRouteActive(sub.to));
     }
-    return isRouteActive(item.to);
+    if ('to' in item) return isRouteActive(item.to);
+    return false;
   };
 
   const parentBtn = (parentActive: boolean) =>
@@ -204,12 +217,13 @@ const Topbar = () => {
           </div>
         </div>
         <div className="order-2 flex items-center justify-center gap-3 md:order-1 md:justify-self-start">
+          <LanguageSwitcher />
           <div ref={notifyRef} className="relative">
             <button
               type="button"
               onClick={() => setNotifyOpen((v) => !v)}
               className="relative p-2 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)] hover:text-[var(--text-heading)] transition border border-transparent hover:border-[var(--border-default)]"
-              title="تنبيهات استلام طلبيات العملاء"
+              title={t('notifications.title')}
               aria-expanded={notifyOpen}
               aria-haspopup="true"
             >
@@ -223,9 +237,9 @@ const Topbar = () => {
             {notifyOpen && (
               <div className="absolute end-0 mt-2 w-[min(100vw-2rem,22rem)] rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-xl z-[120] overflow-hidden">
                 <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
-                  <p className="text-sm font-bold text-[var(--text-heading)]">قرب استلام طلبيات العملاء</p>
+                  <p className="text-sm font-bold text-[var(--text-heading)]">{t('notifications.pickupTitle')}</p>
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    جاهزة للتسليم أو موعد توريد خلال 7 أيام
+                    {t('notifications.pickupSubtitle')}
                   </p>
                 </div>
                 <div className="max-h-72 overflow-y-auto">
@@ -268,7 +282,7 @@ const Topbar = () => {
                       className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
                       onClick={() => setNotifyOpen(false)}
                     >
-                      فتح صفحة الطلبيات
+                      {t('notifications.openOrders')}
                     </Link>
                   </div>
                 )}
@@ -279,7 +293,7 @@ const Topbar = () => {
             to="/login"
             className="hidden md:inline text-xs font-bold text-[var(--ui-accent)] hover:underline px-1"
           >
-            دخول API
+            {t('apiLogin')}
           </Link>
           <BackendConnectionBadge />
           <div className="hidden sm:flex items-center gap-3">
@@ -287,7 +301,7 @@ const Topbar = () => {
               M
             </div>
             <div className="text-sm">
-              <p className="font-medium text-[var(--text-heading)]">مدير النظام</p>
+              <p className="font-medium text-[var(--text-heading)]">{t('systemAdmin')}</p>
             </div>
           </div>
           <button
@@ -310,15 +324,15 @@ const Topbar = () => {
               <div key={idx} className="relative group shrink-0">
                 <button type="button" className={parentBtn(parentActive)}>
                   <item.icon className={`w-4 h-4 ${parentIcon(parentActive)}`} strokeWidth={2} />
-                  <span>{item.label}</span>
+                  <span>{t(item.labelKey, { ns: 'nav' })}</span>
                   <ChevronDown className={chevronCls(parentActive)} />
                 </button>
-                <div className="absolute right-0 mt-1 w-56 bg-[var(--surface-header)] border border-[var(--border-default)] shadow-xl rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] flex flex-col py-1">
+                <div className="absolute end-0 mt-1 w-56 bg-[var(--surface-header)] border border-[var(--border-default)] shadow-xl rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] flex flex-col py-1">
                   {item.subItems.map((sub, sIdx) => {
                     const isActive = isRouteActive(sub.to);
                     return (
                       <Link key={sIdx} to={sub.to} className={subLinkCls(isActive)}>
-                        {sub.label}
+                        {t(sub.labelKey, { ns: 'nav' })}
                       </Link>
                     );
                   })}
@@ -327,10 +341,12 @@ const Topbar = () => {
             );
           }
 
+          if (!('to' in item)) return null;
+
           return (
             <Link key={idx} to={item.to} className={linkTopCls(parentActive)}>
               <item.icon className={`w-4 h-4 ${parentIcon(parentActive)}`} strokeWidth={2} />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey, { ns: 'nav' })}</span>
             </Link>
           );
         })}
@@ -362,7 +378,7 @@ const Topbar = () => {
                       className={`w-5 h-5 ${parentActive ? 'text-[var(--ui-nav-active-icon)]' : 'text-[var(--ui-accent-muted)]'}`}
                       strokeWidth={2}
                     />
-                    <span>{item.label}</span>
+                    <span>{t(item.labelKey, { ns: 'nav' })}</span>
                   </div>
                   <div className="flex flex-col py-2 bg-[var(--surface-header)]">
                     {item.subItems.map((sub, sIdx) => {
@@ -372,13 +388,13 @@ const Topbar = () => {
                           key={sIdx}
                           to={sub.to}
                           onClick={() => setMobileMenuOpen(false)}
-                          className={`px-10 py-2.5 text-sm transition-colors border-r-2 ${
+                          className={`px-10 py-2.5 text-sm transition-colors border-s-2 ${
                             isActive
                               ? `bg-[var(--ui-accent-soft-bg)] text-[var(--ui-accent)] font-bold border-[var(--ui-mobile-accent-border)]`
                               : 'text-[var(--text-muted)] border-transparent hover:bg-[var(--border-subtle)]'
                           }`}
                         >
-                          {sub.label}
+                          {t(sub.labelKey, { ns: 'nav' })}
                         </Link>
                       );
                     })}
@@ -386,6 +402,8 @@ const Topbar = () => {
                 </div>
               );
             }
+
+            if (!('to' in item)) return null;
 
             return (
               <Link
@@ -399,7 +417,7 @@ const Topbar = () => {
                 }`}
               >
                 <item.icon className={`w-5 h-5 ${parentActive ? 'text-[var(--ui-nav-active-icon)]' : ''}`} strokeWidth={2} />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey, { ns: 'nav' })}</span>
               </Link>
             );
           })}
