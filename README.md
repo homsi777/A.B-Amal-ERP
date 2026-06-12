@@ -37,10 +37,11 @@ npm run dev           # واجهة على 3030
 السكربت ينشئ تلقائياً **`/var/www/obada`** وينسخ إليه مخرجات `dist/` — لا حاجة لإنشاء المجلد يدوياً.
 
 ```bash
-cd ~/obada && chmod +x scripts/deploy-vps.sh && ./scripts/deploy-vps.sh
+cd ~/obada && ./scripts/deploy-vps.sh
 ```
 
-السكربت يجلب آخر نسخة من GitHub تلقائياً (`server/.env` لا يُمس).
+السكربت يجلب آخر نسخة من GitHub تلقائياً (`server/.env` لا يُمس).  
+**أول مرة فقط:** `chmod +x scripts/deploy-vps.sh`
 
 يفتح النظام على: **`http://65.21.136.217:2830`** (وليس 2730 — ذلك لـ CLOTEX)  
 API داخلي: **`127.0.0.1:4030`** (عبر nginx `/api`)
