@@ -600,7 +600,7 @@ function renderAccountStatementHtml(options: {
                         )}</td>
                         <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">${safeText(
                           row.description,
-                        )}${row.notes ? `<div style="font-size: 12px; color:#64748b; margin-top: 4px;">${safeText(String(row.notes))}</div>` : ''}</td>
+                        )}${row.notes && !/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(String(row.notes)) ? `<div style="font-size: 12px; color:#64748b; margin-top: 4px;">${safeText(String(row.notes))}</div>` : ''}</td>
                         <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0; color:#2563eb; font-weight:700;">${fmt(
                           row.debit,
                         )}</td>
