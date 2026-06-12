@@ -94,6 +94,7 @@ interface InvoiceFormItem {
   printBarcode: string;
   qualityGrade: string;
   internalRollId: string;
+  fabricItemId: string;
   rawQrPayload: string;
   rawBarcodePayload: string;
 }
@@ -141,6 +142,7 @@ const emptyItem = (): InvoiceFormItem => ({
   printBarcode: '',
   qualityGrade: '',
   internalRollId: '',
+  fabricItemId: '',
   rawQrPayload: '',
   rawBarcodePayload: '',
 });
@@ -819,6 +821,7 @@ export const InvoiceForm = () => {
          title: name,
          subtitle: design,
          stock: {
+           item_id: item.id,
            id: item.id,
            item_name: name,
            internal_code: design,
@@ -1210,6 +1213,7 @@ export const InvoiceForm = () => {
                 line.rawBarcodePayload,
               ]) || line.printBarcode,
               internalRollId: stock.id || stock.internalRollId || line.internalRollId,
+              fabricItemId: stock.item_id || stock.itemId || stock.fabricItemId || line.fabricItemId,
             };
         return sanitizeInvoiceFormItemBarcode(updated);
       });
@@ -2009,14 +2013,17 @@ export const InvoiceForm = () => {
       const fabricRollId = uuidRe.test(rollRaw) ? rollRaw : null;
       const quantity = numberValue(item.length);
       const unitPrice = Math.max(0, numberValue(item.price));
+      const itemIdRaw = String(item.fabricItemId || '').trim();
+      const fabricItemId = uuidRe.test(itemIdRaw) ? itemIdRaw : null;
       const desc =
         [item.materialName, item.dsamNumber, item.colorName].filter((p) => String(p).trim()).join(' · ') ||
         `سطر ${index + 1}`;
       return {
-        fabricRollId,
+        fabricRollId: isSales ? null : fabricRollId,
+        fabricItemId,
         description: desc,
         quantity,
-        unit: 'meter' as const,
+        unit: (isSales ? 'roll' : 'meter') as 'roll' | 'meter',
         unitPrice,
         lineDiscount: 0,
         lineTax: 0,
@@ -2024,6 +2031,7 @@ export const InvoiceForm = () => {
         metadata: {
           materialName: item.materialName,
           fabricName: item.materialName,
+          fabricItemId: fabricItemId || undefined,
           designCode: item.dsamNumber,
           colorCode: item.colorCode,
           colorName: item.colorName,
@@ -2639,7 +2647,7 @@ export const InvoiceForm = () => {
                   <th className="p-3 font-bold min-w-[120px]">كود الخامة</th>
                   <th className="p-3 font-bold min-w-[130px]">اللون</th>
                   <th className="p-3 font-bold min-w-[120px]">كود اللون</th>
-                  <th className="p-3 font-bold w-24">متر</th>
+                  <th className="p-3 font-bold w-24">{isSales ? 'عدد الأتواب' : 'متر'}</th>
                   <th className="hidden p-3 font-bold w-24">العرض CM</th>
                   <th className="hidden p-3 font-bold w-20">GSM</th>
                   <th className="p-3 font-bold w-24">وزن KG</th>

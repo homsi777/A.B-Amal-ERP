@@ -7,7 +7,7 @@ export interface SalesInvoiceLinePayload {
   warehouseId?: string | null;
   description?: string;
   quantity: number;
-  unit: 'meter' | 'yard';
+  unit: 'meter' | 'yard' | 'roll';
   unitPrice: number;
   lineDiscount?: number;
   lineTax?: number;

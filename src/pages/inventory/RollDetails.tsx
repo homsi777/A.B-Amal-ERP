@@ -465,8 +465,8 @@ export const RollDetails = () => {
         {/* Roll Info */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
           <h3 className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">معلومات الثوب</h3>
-          <DataRow label="الباركود" value={<span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{roll.barcode}</span>} />
-          <DataRow label="رقم الثوب" value={roll.roll_no} />
+          <DataRow label="باركود النظام" value={<span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{roll.barcode}</span>} />
+          <DataRow label="رقم توب المورد" value={roll.roll_no || roll.supplier_roll_ref} />
           <DataRow label="الحالة" value={<StatusBadge status={roll.status} />} />
           <DataRow label="الخامة" value={roll.item_name} />
           <DataRow label="الكود الداخلي" value={<span className="font-mono">{roll.internal_code}</span>} />
