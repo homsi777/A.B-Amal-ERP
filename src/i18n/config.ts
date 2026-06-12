@@ -1,9 +1,11 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import arCommon from '../locales/ar/common.json';
+import arDashboard from '../locales/ar/dashboard.json';
 import arLogin from '../locales/ar/login.json';
 import arNav from '../locales/ar/nav.json';
 import trCommon from '../locales/tr/common.json';
+import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
 import trNav from '../locales/tr/nav.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
@@ -15,11 +17,13 @@ void i18n.use(initReactI18next).init({
   resources: {
     ar: {
       common: arCommon,
+      dashboard: arDashboard,
       login: arLogin,
       nav: arNav,
     },
     tr: {
       common: trCommon,
+      dashboard: trDashboard,
       login: trLogin,
       nav: trNav,
     },
@@ -27,7 +31,7 @@ void i18n.use(initReactI18next).init({
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'login', 'nav'],
+  ns: ['common', 'dashboard', 'login', 'nav'],
   interpolation: {
     escapeValue: false,
   },
