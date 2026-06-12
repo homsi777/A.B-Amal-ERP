@@ -147,33 +147,33 @@ async function ensureCategoryNode(
   client: PoolClient,
   companyId: string,
   parentId: string | null,
-  code: string,
   name: string,
-  level: number,
 ): Promise<string> {
-  const byCode = await client.query<{ id: string; parent_id: string | null }>(
-    `SELECT id, parent_id FROM fabric_categories
-     WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
+  const byName = await client.query<{ id: string }>(
+    `SELECT id FROM fabric_categories
+     WHERE company_id=$1 AND parent_id IS NOT DISTINCT FROM $2
+       AND lower(trim(name))=lower(trim($3))
      LIMIT 1`,
-    [companyId, code],
+    [companyId, parentId, name],
   );
-  if (byCode.rows.length) return byCode.rows[0].id;
+  if (byName.rows.length) return byName.rows[0].id;
 
   try {
     const ins = await client.query<{ id: string }>(
       `INSERT INTO fabric_categories (company_id, parent_id, code, name, is_active)
-       VALUES ($1,$2,$3,$4,true)
+       VALUES ($1,$2,$3,$3,true)
        RETURNING id`,
-      [companyId, parentId, code, name],
+      [companyId, parentId, name],
     );
     return ins.rows[0].id;
   } catch (e: unknown) {
     if ((e as { code?: string }).code !== '23505') throw e;
     const again = await client.query<{ id: string }>(
       `SELECT id FROM fabric_categories
-       WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
+       WHERE company_id=$1 AND parent_id IS NOT DISTINCT FROM $2
+         AND lower(trim(name))=lower(trim($3))
        LIMIT 1`,
-      [companyId, code],
+      [companyId, parentId, name],
     );
     if (!again.rows.length) throw e;
     return again.rows[0].id;
@@ -193,10 +193,10 @@ async function ensureFabricCategoryChain(
   const cName = colorName || 'لون غير محدد';
   const cCode = colorCode || cName;
 
-  const l1 = await ensureCategoryNode(client, companyId, null, `L1_${slugCode(mName)}`, mName, 1);
-  const l2 = await ensureCategoryNode(client, companyId, l1, `L2_${slugCode(dCode)}`, dCode, 2);
-  const l3 = await ensureCategoryNode(client, companyId, l2, `L3_${slugCode(cName)}`, cName, 3);
-  await ensureCategoryNode(client, companyId, l3, `L4_${slugCode(cCode)}`, cCode, 4);
+  const l1 = await ensureCategoryNode(client, companyId, null, mName);
+  const l2 = await ensureCategoryNode(client, companyId, l1, dCode);
+  const l3 = await ensureCategoryNode(client, companyId, l2, cName);
+  await ensureCategoryNode(client, companyId, l3, cCode);
 }
 
 async function resolveWarehouseForPurchaseInvoice(
