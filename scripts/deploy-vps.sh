@@ -108,11 +108,25 @@ else
   echo ">> تخطي seed"
 fi
 
-# ── 5) نسخ الواجهة ────────────────────────────────────────────────────────
-echo ">> نسخ dist إلى $OBADA_NGINX_ROOT ..."
+# ── 5) نسخ الواجهة إلى /var/www/obada ─────────────────────────────────────
+if [[ ! -f dist/index.html ]]; then
+  echo "خطأ: dist/index.html غير موجود — فشل البناء. نفّذ npm run build يدوياً وراجع الأخطاء."
+  exit 1
+fi
+
+echo ">> إنشاء مجلد nginx: $OBADA_NGINX_ROOT (مثال: /var/www/obada) ..."
 sudo mkdir -p "$OBADA_NGINX_ROOT"
 sudo rm -rf "${OBADA_NGINX_ROOT:?}"/*
-sudo cp -r dist/* "$OBADA_NGINX_ROOT"/
+echo ">> نسخ مخرجات dist/ إلى $OBADA_NGINX_ROOT ..."
+sudo cp -a dist/. "$OBADA_NGINX_ROOT"/
+if id www-data >/dev/null 2>&1; then
+  sudo chown -R www-data:www-data "$OBADA_NGINX_ROOT"
+fi
+if [[ ! -f "$OBADA_NGINX_ROOT/index.html" ]]; then
+  echo "خطأ: لم يُنسخ index.html إلى $OBADA_NGINX_ROOT — تحقق من صلاحيات sudo."
+  exit 1
+fi
+echo ">> تم النسخ: $(find "$OBADA_NGINX_ROOT" -type f | wc -l) ملف(ات) في $OBADA_NGINX_ROOT"
 
 # ── 6) PM2 — API داخلي ─────────────────────────────────────────────────────
 echo ">> PM2 ($OBADA_PM2_NAME) على المنفذ $OBADA_API_PORT ..."
