@@ -142,9 +142,9 @@ const ensureCategory = async (
           if (existingByCodeSameParent) return existingByCodeSameParent;
         }
 
-        // No existing record found - proceed to insert
-        const finalCode = c || n || `CAT-${level}`;
+        // No existing record found - proceed to insert (code = name so the UI hides it)
         const finalName = n || c || `CAT-${level}`;
+        const finalCode = finalName;
 
         let row: DbCategory;
         try {
