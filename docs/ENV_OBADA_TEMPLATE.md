@@ -12,8 +12,8 @@ DATABASE_URL=postgresql://erp_user:YOUR_PASSWORD@127.0.0.1:5433/obada?sslmode=di
 JWT_SECRET=CHANGE_ME_OBADA_ONLY_MIN_32_CHARS
 JWT_EXPIRES_IN=7d
 
-CORS_ORIGIN=http://65.21.136.217:2730
-APP_BASE_URL=http://65.21.136.217:2730
+CORS_ORIGIN=http://65.21.136.217:2830
+APP_BASE_URL=http://65.21.136.217:2830
 
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
@@ -33,9 +33,10 @@ VITE_API_BASE_URL=http://127.0.0.1:4030
 
 **السحابة (بدون دومين):**
 ```env
-CORS_ORIGIN=http://65.21.136.217:2730
-APP_BASE_URL=http://65.21.136.217:2730
+CORS_ORIGIN=http://65.21.136.217:2830
+APP_BASE_URL=http://65.21.136.217:2830
 ```
-الواجهة للمتصفح: `http://65.21.136.217:2730` — nginx يوجّه `/api` إلى `127.0.0.1:4030`.
+الواجهة للمتصفح: `http://65.21.136.217:2830` — nginx يوجّه `/api` إلى `127.0.0.1:4030`.  
+**لا تستخدم 2730** — ذلك منفذ CLOTEX (مشروع الشحن القديم).
 
 **نشر دفعة واحدة:** `./scripts/deploy-vps.sh`

@@ -34,7 +34,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  apiBaseUrl: 'http://127.0.0.1:4010',
+  apiBaseUrl: 'http://127.0.0.1:4030',
   defaultLabelPrinterName: null,
   defaultA4PrinterName: null,
   lastPrinterName: null,

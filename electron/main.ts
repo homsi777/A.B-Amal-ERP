@@ -8,7 +8,7 @@
  *  - webSecurity: true       — no mixed content, CSP respected
  *  - Renderer has no VPS/DB secrets; packaged flow passes DATABASE_URL/JWT_SECRET to the child Fastify process only (in-memory).
  *
- * Packaged EXE: embedded Fastify (single-file server-bundle/index.cjs) + local API on 127.0.0.1:4010;
+ * Packaged EXE: embedded Fastify (single-file server-bundle/index.cjs) + local API on 127.0.0.1:4030;
  * Postgres on VPS via SSH/plink tunnel or optional public host (see vps-connection.json).
  */
 
