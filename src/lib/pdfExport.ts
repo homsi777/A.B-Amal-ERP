@@ -359,6 +359,13 @@ function renderAccountStatementHtml(options: {
   invoiceDetailsByDocumentNo?: Record<string, AccountStatementInvoiceDetail[]>;
   saleInvoices?: Invoice[];
 }) {
+  console.log('[pdfRender] renderAccountStatementHtml called:', {
+    rows: options.rows.length,
+    saleInvoices: options.saleInvoices?.length ?? 0,
+    mapSourceIdKeys: Object.keys(options.invoiceDetailsBySourceId ?? {}).length,
+    mapDocNoKeys: Object.keys(options.invoiceDetailsByDocumentNo ?? {}).length,
+    salesRows: options.rows.filter(r => r.sourceType === 'SALES_INVOICE' || r.type === 'SALES_INVOICE').length,
+  });
   const fmt = (n: number) => n.toLocaleString('ar', { maximumFractionDigits: 2 });
   const currencySymbol = (code: string) => {
     const normalized = String(code ?? '').trim().toUpperCase();

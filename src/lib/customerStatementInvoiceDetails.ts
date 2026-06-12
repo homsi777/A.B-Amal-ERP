@@ -36,31 +36,23 @@ export function extractBaseFabricName(rawName: string | undefined): string {
 
 export function groupInvoiceLinesByFabric(invoice: Invoice): StatementFabricGroup[] {
   if (!invoice.items || invoice.items.length === 0) return [];
-  const groups = new Map<
-    string,
-    { rollsCount: number; totalQuantity: number; totalAmount: number; lastUnitPrice: number }
-  >();
-  for (const item of invoice.items) {
+  return invoice.items.map((item) => {
     const name = String(item.fabricName || item.materialName || '').trim() || 'خامة غير محددة';
-    const existing = groups.get(name) ?? { rollsCount: 0, totalQuantity: 0, totalAmount: 0, lastUnitPrice: 0 };
     const rollsCount =
       typeof item.rollsCount === 'number' && Number.isFinite(item.rollsCount) && item.rollsCount > 0
         ? item.rollsCount
         : 1;
-    existing.rollsCount += rollsCount;
-    existing.totalQuantity += Number(item.quantity || 0);
-    const lineTotal = Number(item.total || 0) || Number(item.quantity || 0) * Number(item.unitPrice || 0);
-    existing.totalAmount += lineTotal;
-    existing.lastUnitPrice = Number(item.unitPrice || existing.lastUnitPrice || 0);
-    groups.set(name, existing);
-  }
-  return Array.from(groups.entries()).map(([fabricName, g]) => ({
-    fabricName,
-    rollsCount: g.rollsCount,
-    totalQuantity: g.totalQuantity,
-    unitPrice: g.totalQuantity > 0 ? g.totalAmount / g.totalQuantity : g.lastUnitPrice,
-    totalAmount: g.totalAmount,
-  }));
+    const quantity = Number(item.quantity || 0);
+    const lineTotal = Number(item.total || 0) || quantity * Number(item.unitPrice || 0);
+    const unitPrice = Number(item.unitPrice || (quantity > 0 ? lineTotal / quantity : 0));
+    return {
+      fabricName: name,
+      rollsCount,
+      totalQuantity: quantity,
+      unitPrice,
+      totalAmount: lineTotal,
+    };
+  });
 }
 
 export function isStatementSalesInvoiceRow(row: {
@@ -111,10 +103,20 @@ export function resolveInvoiceDetailRowsForStatementRow(
     (sourceId ? maps?.invoiceDetailsBySourceId?.[sourceId] : undefined) ??
     (docNo ? maps?.invoiceDetailsByDocumentNo?.[docNo] : undefined) ??
     (docNo ? maps?.invoiceDetailsByDocumentNo?.[docNo.toUpperCase()] : undefined);
-  if (fromMap?.length) return fromMap;
+  if (fromMap?.length) {
+    console.log('[pdfDetails] row', docNo, 'found', fromMap.length, 'details from map');
+    return fromMap;
+  }
 
   const invoice = findSaleInvoiceForStatementRow(row, invoices);
-  return invoice ? groupInvoiceLinesByFabric(invoice) : [];
+  if (invoice) {
+    const groups = groupInvoiceLinesByFabric(invoice);
+    console.log('[pdfDetails] row', docNo, 'found', groups.length, 'details from direct lookup');
+    return groups;
+  }
+
+  console.warn('[pdfDetails] row', docNo, 'sourceId:', sourceId, 'sourceType:', row.sourceType, '→ NO details found. invoices count:', invoices.length, 'map keys:', Object.keys(maps?.invoiceDetailsBySourceId ?? {}).length);
+  return [];
 }
 
 export function buildInvoiceDetailsMaps(invoices: Invoice[]): {
@@ -165,12 +167,14 @@ export async function loadCustomerSaleInvoiceDetails(
   fromDate: string,
   toDate: string,
 ): Promise<CustomerSaleInvoiceDetailsResult> {
+  console.log('[invoiceDetails] loading for customer', customerId, 'from', fromDate, 'to', toDate);
   const rows = await fetchAllSalesInvoiceListRows({
     customerId,
     dateFrom: fromDate,
     dateTo: toDate,
     documentStatus: 'CONFIRMED',
   });
+  console.log('[invoiceDetails] listSalesInvoices returned', rows.length, 'rows');
 
   const detailResults = await Promise.allSettled(
     rows.map((row) => getSalesInvoice(String((row as Record<string, unknown>).id))),
@@ -182,15 +186,18 @@ export async function loadCustomerSaleInvoiceDetails(
     const rowId = String((rows[i] as Record<string, unknown>).id ?? '');
     if (result.status === 'fulfilled') {
       try {
-        invoices.push(mapSalesInvoiceDetailToInvoice(result.value.data));
+        const inv = mapSalesInvoiceDetailToInvoice(result.value.data);
+        console.log('[invoiceDetails] mapped invoice', inv.id, 'invoiceNo:', inv.invoiceNumber, 'items:', inv.items?.length ?? 0);
+        invoices.push(inv);
       } catch (e) {
-        console.warn('[customerStatement] Failed to map sales invoice detail', rowId, e);
+        console.warn('[invoiceDetails] Failed to map sales invoice detail', rowId, e);
       }
     } else {
-      console.warn('[customerStatement] Failed to fetch sales invoice detail', rowId, result.reason);
+      console.warn('[invoiceDetails] Failed to fetch sales invoice detail', rowId, result.reason);
     }
   }
 
+  console.log('[invoiceDetails] total invoices loaded:', invoices.length, 'with items:', invoices.reduce((s, inv) => s + (inv.items?.length ?? 0), 0));
   const { invoiceDetailsBySourceId, invoiceDetailsByDocumentNo } = buildInvoiceDetailsMaps(invoices);
   return { invoices, invoiceDetailsBySourceId, invoiceDetailsByDocumentNo };
 }
