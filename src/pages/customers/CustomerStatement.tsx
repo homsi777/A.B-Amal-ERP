@@ -220,10 +220,13 @@ export const CustomerStatement = () => {
       try {
         const result = await loadCustomerSaleInvoiceDetails(selectedCustomerId, fromDate, toDate);
         if (cancelled) return;
+        console.log('[CustomerStatement] loaded', result.invoices.length, 'invoices with details');
         setDbSaleInvoicesFromApi(result.invoices);
       } catch (e) {
         if (!cancelled) {
-          console.warn('[CustomerStatement] Failed to load sale invoice details', e);
+          console.error('[CustomerStatement] FAILED to load sale invoice details:', e);
+          setDbSaleInvoicesFromApi([]);
+          showToast({ type: 'warning', message: 'تعذر تحميل تفاصيل الفواتير. التفاصيل لن تظهر في PDF.' });
         }
       }
     })();
@@ -616,6 +619,7 @@ export const CustomerStatement = () => {
   };
 
   const statementPrintHtml = useMemo(() => {
+    console.log('[CustomerStatement] recomputing statementPrintHtml, dbSaleInvoicesFromApi:', dbSaleInvoicesFromApi.length, 'accountStatement rows:', accountStatement?.rows?.length ?? 0);
     if (accountStatement?.customer) {
       return renderCustomerAccountStatementPdfHtml({
         customerName: accountStatement.customer.name,
