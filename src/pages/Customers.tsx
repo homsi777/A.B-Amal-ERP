@@ -329,6 +329,7 @@ export const Customers = () => {
           totals: statement.totals,
           invoiceDetailsBySourceId: invoiceDetails.invoiceDetailsBySourceId,
           invoiceDetailsByDocumentNo: invoiceDetails.invoiceDetailsByDocumentNo,
+          saleInvoices: invoiceDetails.invoices,
         });
         const closing = statement.totals.closingBalance;
         const fileName = `كشف_حساب_${safePdfName(partyName)}_${telegramFromDate}_${telegramToDate}.pdf`;

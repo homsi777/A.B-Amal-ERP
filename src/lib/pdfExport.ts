@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { BRAND } from '../branding';
+import type { Invoice } from '../types';
+import { resolveInvoiceDetailRowsForStatementRow } from './customerStatementInvoiceDetails';
 
 /** CLOTEX brand header reused across all PDF statements. */
 const renderBrandHeaderHtml = (): string => `
@@ -322,6 +324,7 @@ type AccountStatementRow = {
   notes?: string | null;
   sourceId?: string;
   sourceType?: string;
+  type?: string;
 };
 
 type AccountStatementInvoiceDetail = {
@@ -354,6 +357,7 @@ function renderAccountStatementHtml(options: {
   currency: string;
   invoiceDetailsBySourceId?: Record<string, AccountStatementInvoiceDetail[]>;
   invoiceDetailsByDocumentNo?: Record<string, AccountStatementInvoiceDetail[]>;
+  saleInvoices?: Invoice[];
 }) {
   const fmt = (n: number) => n.toLocaleString('ar', { maximumFractionDigits: 2 });
   const currencySymbol = (code: string) => {
@@ -562,19 +566,14 @@ function renderAccountStatementHtml(options: {
               : options.rows
                   .map(
                     (row, idx) => {
-                      const isInvoiceRow = row.sourceType === 'SALES_INVOICE' || row.typeLabel === 'فاتورة بيع';
-                      const docNoKey = String(row.documentNo ?? '').trim();
-                      const detailRowsFromSourceId = options.invoiceDetailsBySourceId?.[String(row.sourceId ?? '')] ?? [];
-                      const detailRowsFromDocumentNo =
-                        options.invoiceDetailsByDocumentNo?.[docNoKey] ??
-                        options.invoiceDetailsByDocumentNo?.[docNoKey.toUpperCase()] ??
-                        [];
-                      const detailRows =
-                        isInvoiceRow && (detailRowsFromSourceId.length || detailRowsFromDocumentNo.length)
-                          ? detailRowsFromSourceId.length
-                            ? detailRowsFromSourceId
-                            : detailRowsFromDocumentNo
-                          : [];
+                      const detailRows = resolveInvoiceDetailRowsForStatementRow(
+                        row,
+                        options.saleInvoices ?? [],
+                        {
+                          invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
+                          invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
+                        },
+                      );
                       const detailsHtml =
                         detailRows.length === 0
                           ? ''
@@ -662,6 +661,7 @@ export function renderCustomerAccountStatementPdfHtml(data: {
   totals: AccountStatementTotals;
   invoiceDetailsBySourceId?: Record<string, AccountStatementInvoiceDetail[]>;
   invoiceDetailsByDocumentNo?: Record<string, AccountStatementInvoiceDetail[]>;
+  saleInvoices?: Invoice[];
 }) {
   const closing = data.totals.closingBalance;
   const closingLabel = closing >= 0 ? 'مدين' : 'دائن';
@@ -681,6 +681,7 @@ export function renderCustomerAccountStatementPdfHtml(data: {
     currency: data.rows[0]?.currency ?? 'USD',
     invoiceDetailsBySourceId: data.invoiceDetailsBySourceId,
     invoiceDetailsByDocumentNo: data.invoiceDetailsByDocumentNo,
+    saleInvoices: data.saleInvoices,
   });
 }
 
