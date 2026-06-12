@@ -63,6 +63,60 @@ export function groupInvoiceLinesByFabric(invoice: Invoice): StatementFabricGrou
   }));
 }
 
+export function isStatementSalesInvoiceRow(row: {
+  sourceType?: string;
+  typeLabel?: string;
+  type?: string;
+}): boolean {
+  return (
+    row.sourceType === 'SALES_INVOICE' ||
+    row.sourceType === 'INVOICE' ||
+    row.typeLabel === 'فاتورة بيع' ||
+    row.type === 'SALES_INVOICE'
+  );
+}
+
+export function findSaleInvoiceForStatementRow(
+  row: { sourceId?: string; documentNo?: string },
+  invoices: Invoice[],
+): Invoice | null {
+  const sourceId = String(row.sourceId ?? '').trim();
+  if (sourceId) {
+    const byId = invoices.find((inv) => inv.id === sourceId);
+    if (byId) return byId;
+  }
+  const docNo = String(row.documentNo ?? '').trim();
+  if (!docNo) return null;
+  const docUpper = docNo.toUpperCase();
+  return (
+    invoices.find((inv) => String(inv.invoiceNumber ?? '').trim() === docNo) ??
+    invoices.find((inv) => String(inv.invoiceNumber ?? '').trim().toUpperCase() === docUpper) ??
+    null
+  );
+}
+
+export function resolveInvoiceDetailRowsForStatementRow(
+  row: { sourceId?: string; documentNo?: string; sourceType?: string; typeLabel?: string; type?: string },
+  invoices: Invoice[],
+  maps?: {
+    invoiceDetailsBySourceId?: InvoiceDetailsBySourceId;
+    invoiceDetailsByDocumentNo?: InvoiceDetailsByDocumentNo;
+  },
+): StatementFabricGroup[] {
+  if (!isStatementSalesInvoiceRow(row)) return [];
+
+  const sourceId = String(row.sourceId ?? '').trim();
+  const docNo = String(row.documentNo ?? '').trim();
+  const fromMap =
+    (sourceId ? maps?.invoiceDetailsBySourceId?.[sourceId] : undefined) ??
+    (docNo ? maps?.invoiceDetailsByDocumentNo?.[docNo] : undefined) ??
+    (docNo ? maps?.invoiceDetailsByDocumentNo?.[docNo.toUpperCase()] : undefined);
+  if (fromMap?.length) return fromMap;
+
+  const invoice = findSaleInvoiceForStatementRow(row, invoices);
+  return invoice ? groupInvoiceLinesByFabric(invoice) : [];
+}
+
 export function buildInvoiceDetailsMaps(invoices: Invoice[]): {
   invoiceDetailsBySourceId: InvoiceDetailsBySourceId;
   invoiceDetailsByDocumentNo: InvoiceDetailsByDocumentNo;

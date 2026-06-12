@@ -246,6 +246,7 @@ export function BatchStatementExportModal({
                   totals: statement.totals,
                   invoiceDetailsBySourceId: invoiceDetails?.invoiceDetailsBySourceId,
                   invoiceDetailsByDocumentNo: invoiceDetails?.invoiceDetailsByDocumentNo,
+                  saleInvoices: invoiceDetails?.invoices,
                 })
               : renderSupplierAccountStatementPdfHtml({
                   supplierCompany: partyName,

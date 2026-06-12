@@ -584,6 +584,7 @@ export const CustomerStatement = () => {
           totals: accountStatement.totals,
           invoiceDetailsBySourceId: invoiceDetailsBySourceId,
           invoiceDetailsByDocumentNo,
+          saleInvoices: dbSaleInvoicesFromApi,
         });
         await exportPdfFromHtmlString(pdfHtml, `كشف_حساب_${accountStatement.customer.name}_${fromDate}_${toDate}`, {
           orientation: 'portrait',
@@ -614,7 +615,7 @@ export const CustomerStatement = () => {
     }
   };
 
-  const buildStatementPrintHtml = () => {
+  const statementPrintHtml = useMemo(() => {
     if (accountStatement?.customer) {
       return renderCustomerAccountStatementPdfHtml({
         customerName: accountStatement.customer.name,
@@ -627,6 +628,7 @@ export const CustomerStatement = () => {
         totals: accountStatement.totals,
         invoiceDetailsBySourceId,
         invoiceDetailsByDocumentNo,
+        saleInvoices: dbSaleInvoicesFromApi,
       });
     }
     if (!selectedCustomer) return '';
@@ -641,7 +643,21 @@ export const CustomerStatement = () => {
       balance: { amount: balance.amount, type: balance.type },
       hideFinancialColumns,
     });
-  };
+  }, [
+    accountStatement,
+    selectedCustomer,
+    fromDate,
+    toDate,
+    invoiceDetailsBySourceId,
+    invoiceDetailsByDocumentNo,
+    dbSaleInvoicesFromApi,
+    fabricItems,
+    totals,
+    balance,
+    hideFinancialColumns,
+  ]);
+
+  const buildStatementPrintHtml = () => statementPrintHtml;
 
   const statementPrintFileName = `كشف_حساب_${selectedCustomer?.name || accountStatement?.customer?.name || 'عميل'}_${fromDate}_${toDate}.pdf`;
 
@@ -681,6 +697,7 @@ export const CustomerStatement = () => {
           totals: accountStatement.totals,
           invoiceDetailsBySourceId: invoiceDetailsBySourceId,
           invoiceDetailsByDocumentNo,
+          saleInvoices: dbSaleInvoicesFromApi,
         });
         await sendTelegramAccountStatementPdf({
           partyType: 'customer',
@@ -806,7 +823,7 @@ export const CustomerStatement = () => {
       <A4PreviewModal
         open={printPreviewOpen}
         title="طباعة كشف حساب A4"
-        html={buildStatementPrintHtml()}
+        html={statementPrintHtml}
         pageSize="A4"
         defaultFileName={statementPrintFileName}
         onClose={() => setPrintPreviewOpen(false)}
