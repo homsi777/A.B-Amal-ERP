@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -21,17 +22,17 @@ import { getDashboardSummary, type DashboardSummary } from '../lib/api/reportsAp
 
 const defaultLinkIds = ['create_item', 'inventory', 'warehouses', 'sales', 'purchases', 'bonds_in', 'bonds_out'];
 
-const quickLinks = [
-  { id: 'create_item', label: 'إنشاء خامة', path: '/inventory/create', icon: PlusCircle, color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' },
-  { id: 'inventory', label: 'الأتواب', path: '/inventory', icon: Package, color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
-  { id: 'warehouses', label: 'المستودعات', path: '/inventory/warehouses', icon: Layers, color: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100' },
-  { id: 'sales', label: 'فاتورة بيع', path: '/invoices/sales', icon: ShoppingCart, color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
-  { id: 'purchases', label: 'فاتورة شراء', path: '/invoices/purchases', icon: FileText, color: 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100' },
-  { id: 'bonds_in', label: 'سند قبض', path: '/bonds/collection', icon: ArrowDownToLine, color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
-  { id: 'bonds_out', label: 'سند صرف', path: '/bonds/payment', icon: ArrowUpFromLine, color: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' },
-  { id: 'customers', label: 'العملاء', path: '/customers', icon: Users, color: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100' },
-  { id: 'suppliers', label: 'الموردون', path: '/suppliers', icon: TrendingUp, color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' },
-  { id: 'safes', label: 'الصناديق', path: '/treasury/safes', icon: Wallet, color: 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100' },
+const quickLinkDefs = [
+  { id: 'create_item', labelKey: 'quickLinks.createItem', path: '/inventory/create', icon: PlusCircle, color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' },
+  { id: 'inventory', labelKey: 'quickLinks.rolls', path: '/inventory', icon: Package, color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
+  { id: 'warehouses', labelKey: 'quickLinks.warehouses', path: '/inventory/warehouses', icon: Layers, color: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100' },
+  { id: 'sales', labelKey: 'quickLinks.salesInvoice', path: '/invoices/sales', icon: ShoppingCart, color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
+  { id: 'purchases', labelKey: 'quickLinks.purchaseInvoice', path: '/invoices/purchases', icon: FileText, color: 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100' },
+  { id: 'bonds_in', labelKey: 'quickLinks.receiptVoucher', path: '/bonds/collection', icon: ArrowDownToLine, color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
+  { id: 'bonds_out', labelKey: 'quickLinks.paymentVoucher', path: '/bonds/payment', icon: ArrowUpFromLine, color: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' },
+  { id: 'customers', labelKey: 'quickLinks.customers', path: '/customers', icon: Users, color: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100' },
+  { id: 'suppliers', labelKey: 'quickLinks.suppliers', path: '/suppliers', icon: TrendingUp, color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' },
+  { id: 'safes', labelKey: 'quickLinks.safes', path: '/treasury/safes', icon: Wallet, color: 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100' },
 ];
 
 function numberValue(value: unknown): number {
@@ -39,18 +40,21 @@ function numberValue(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function fmtNumber(value: unknown, digits = 0): string {
-  return numberValue(value).toLocaleString('ar-SY', {
+function fmtNumber(value: unknown, locale: string, digits = 0): string {
+  return numberValue(value).toLocaleString(locale, {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
 }
 
-function fmtMoney(value: unknown, currency = 'USD'): string {
-  return `${fmtNumber(value, 2)} ${currency}`;
+function fmtMoney(value: unknown, locale: string, currency = 'USD'): string {
+  return `${fmtNumber(value, locale, 2)} ${currency}`;
 }
 
 export const Dashboard = () => {
+  const { t, i18n } = useTranslation(['dashboard', 'common']);
+  const numberLocale = i18n.language === 'tr' ? 'tr-TR' : 'ar-SY';
+
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +70,7 @@ export const Dashboard = () => {
       setSummary(res.data);
     } catch (e) {
       setSummary(null);
-      setError(e instanceof Error ? e.message : 'تعذر تحميل بيانات لوحة التحكم');
+      setError(e instanceof Error ? e.message : t('loadError'));
     } finally {
       setLoading(false);
     }
@@ -85,30 +89,33 @@ export const Dashboard = () => {
     void loadSummary();
   }, []);
 
-  const activeLinks = quickLinks.filter((link) => selectedLinkIds.includes(link.id));
+  const activeLinks = quickLinkDefs.filter((link) => selectedLinkIds.includes(link.id));
 
   const cards = useMemo(() => {
     const d = summary;
     return [
-      { label: 'العملاء', value: fmtNumber(d?.customers_count), icon: Users, bg: 'bg-indigo-50', color: 'text-indigo-700' },
-      { label: 'الموردون', value: fmtNumber(d?.suppliers_count), icon: TrendingUp, bg: 'bg-orange-50', color: 'text-orange-700' },
-      { label: 'إجمالي الأتواب', value: fmtNumber(d?.fabric_rolls_count), icon: Package, bg: 'bg-cyan-50', color: 'text-cyan-700' },
-      { label: 'الأتواب النشطة', value: fmtNumber(d?.active_fabric_rolls_count), icon: Package, bg: 'bg-emerald-50', color: 'text-emerald-700' },
-      { label: 'إجمالي الأمتار', value: fmtNumber(d?.total_roll_length_m, 2), icon: Layers, bg: 'bg-blue-50', color: 'text-blue-700' },
-      { label: 'إجمالي الوزن كغ', value: fmtNumber(d?.total_roll_weight_kg, 2), icon: Layers, bg: 'bg-slate-50', color: 'text-slate-700' },
-      { label: 'سندات القبض', value: fmtMoney(d?.receipt_total), icon: ArrowDownToLine, bg: 'bg-green-50', color: 'text-green-700' },
-      { label: 'سندات الصرف', value: fmtMoney(d?.payment_total), icon: ArrowUpFromLine, bg: 'bg-rose-50', color: 'text-rose-700' },
+      { key: 'cards.customers', value: fmtNumber(d?.customers_count, numberLocale), icon: Users, bg: 'bg-indigo-50', color: 'text-indigo-700' },
+      { key: 'cards.suppliers', value: fmtNumber(d?.suppliers_count, numberLocale), icon: TrendingUp, bg: 'bg-orange-50', color: 'text-orange-700' },
+      { key: 'cards.totalRolls', value: fmtNumber(d?.fabric_rolls_count, numberLocale), icon: Package, bg: 'bg-cyan-50', color: 'text-cyan-700' },
+      { key: 'cards.activeRolls', value: fmtNumber(d?.active_fabric_rolls_count, numberLocale), icon: Package, bg: 'bg-emerald-50', color: 'text-emerald-700' },
+      { key: 'cards.totalMeters', value: fmtNumber(d?.total_roll_length_m, numberLocale, 2), icon: Layers, bg: 'bg-blue-50', color: 'text-blue-700' },
+      { key: 'cards.totalWeightKg', value: fmtNumber(d?.total_roll_weight_kg, numberLocale, 2), icon: Layers, bg: 'bg-slate-50', color: 'text-slate-700' },
+      { key: 'cards.receiptVouchers', value: fmtMoney(d?.receipt_total, numberLocale), icon: ArrowDownToLine, bg: 'bg-green-50', color: 'text-green-700' },
+      { key: 'cards.paymentVouchers', value: fmtMoney(d?.payment_total, numberLocale), icon: ArrowUpFromLine, bg: 'bg-rose-50', color: 'text-rose-700' },
     ];
-  }, [summary]);
+  }, [summary, numberLocale]);
 
-  const operations = [
-    { label: 'المستودعات', value: fmtNumber(summary?.warehouses_count), path: '/inventory/warehouses' },
-    { label: 'دفعات الاستيراد', value: fmtNumber(summary?.purchase_import_batches_count), path: '/purchases/import-batches' },
-    { label: 'حركات المخزون', value: fmtNumber(summary?.inventory_movements_count), path: '/reports' },
-    { label: 'السندات', value: fmtNumber(summary?.vouchers_count), path: '/bonds/records' },
-    { label: 'المرتجعات', value: fmtNumber(summary?.return_invoices_count), path: '/invoices/returns' },
-    { label: 'النقل بين المستودعات', value: fmtNumber(summary?.transfers_count), path: '/inventory/transfers' },
-  ];
+  const operations = useMemo(
+    () => [
+      { key: 'operations.warehouses', value: fmtNumber(summary?.warehouses_count, numberLocale), path: '/inventory/warehouses' },
+      { key: 'operations.importBatches', value: fmtNumber(summary?.purchase_import_batches_count, numberLocale), path: '/purchases/import-batches' },
+      { key: 'operations.inventoryMovements', value: fmtNumber(summary?.inventory_movements_count, numberLocale), path: '/reports' },
+      { key: 'operations.vouchers', value: fmtNumber(summary?.vouchers_count, numberLocale), path: '/bonds/records' },
+      { key: 'operations.returns', value: fmtNumber(summary?.return_invoices_count, numberLocale), path: '/invoices/returns' },
+      { key: 'operations.transfers', value: fmtNumber(summary?.transfers_count, numberLocale), path: '/inventory/transfers' },
+    ],
+    [summary, numberLocale],
+  );
 
   const cashRows = summary?.total_cash_by_currency ?? [];
   const damagedRolls = numberValue(summary?.damaged_or_waste_rolls_count);
@@ -123,8 +130,8 @@ export const Dashboard = () => {
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-black text-slate-950">لوحة التحكم</h2>
-          <p className="mt-1 text-sm text-slate-500">بيانات تشغيلية مباشرة من قاعدة بيانات المشروع.</p>
+          <h2 className="text-2xl font-black text-slate-950">{t('title')}</h2>
+          <p className="mt-1 text-sm text-slate-500">{t('subtitle')}</p>
         </div>
         <button
           type="button"
@@ -133,7 +140,7 @@ export const Dashboard = () => {
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          تحديث
+          {t('refresh')}
         </button>
       </div>
 
@@ -147,8 +154,10 @@ export const Dashboard = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-black text-slate-900">وصول سريع</h3>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">{activeLinks.length} اختصار</span>
+            <h3 className="text-lg font-black text-slate-900">{t('quickAccess')}</h3>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">
+              {t('shortcutsCount', { count: activeLinks.length })}
+            </span>
           </div>
           <button
             type="button"
@@ -159,14 +168,14 @@ export const Dashboard = () => {
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-bold text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
           >
             <Settings className="h-4 w-4" />
-            تخصيص
+            {t('customize')}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           {activeLinks.map((link) => (
             <Link key={link.id} to={link.path} className={`flex flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center shadow-sm transition ${link.color}`}>
               <link.icon className="h-6 w-6" />
-              <span className="text-sm font-black">{link.label}</span>
+              <span className="text-sm font-black">{t(link.labelKey)}</span>
             </Link>
           ))}
         </div>
@@ -174,12 +183,12 @@ export const Dashboard = () => {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
-          <div key={card.label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div key={card.key} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className={`rounded-2xl p-4 ${card.bg}`}>
               <card.icon className={`h-6 w-6 ${card.color}`} />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-500">{card.label}</p>
+              <p className="text-sm font-bold text-slate-500">{t(card.key)}</p>
               <p className="mt-1 text-2xl font-black text-slate-950">{loading ? '...' : card.value}</p>
             </div>
           </div>
@@ -188,11 +197,11 @@ export const Dashboard = () => {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
-          <h3 className="mb-4 text-lg font-black text-slate-900">مؤشرات تشغيلية</h3>
+          <h3 className="mb-4 text-lg font-black text-slate-900">{t('operationalIndicators')}</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {operations.map((item) => (
-              <Link key={item.label} to={item.path} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 transition hover:border-indigo-200 hover:bg-indigo-50">
-                <span className="font-bold text-slate-700">{item.label}</span>
+              <Link key={item.key} to={item.path} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 transition hover:border-indigo-200 hover:bg-indigo-50">
+                <span className="font-bold text-slate-700">{t(item.key)}</span>
                 <span className="font-mono text-lg font-black text-slate-950">{loading ? '...' : item.value}</span>
               </Link>
             ))}
@@ -201,15 +210,15 @@ export const Dashboard = () => {
 
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-lg font-black text-slate-900">أرصدة الصناديق</h3>
+            <h3 className="mb-4 text-lg font-black text-slate-900">{t('cashboxBalances')}</h3>
             {cashRows.length === 0 ? (
-              <div className="rounded-xl bg-slate-50 p-4 text-center text-sm font-bold text-slate-500">لا توجد صناديق نشطة</div>
+              <div className="rounded-xl bg-slate-50 p-4 text-center text-sm font-bold text-slate-500">{t('noActiveCashboxes')}</div>
             ) : (
               <div className="space-y-2">
                 {cashRows.map((row) => (
                   <div key={row.currency_code} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
                     <span className="font-black text-slate-700">{row.currency_code}</span>
-                    <span className="font-mono text-lg font-black text-emerald-700">{fmtMoney(row.total, row.currency_code)}</span>
+                    <span className="font-mono text-lg font-black text-emerald-700">{fmtMoney(row.total, numberLocale, row.currency_code)}</span>
                   </div>
                 ))}
               </div>
@@ -220,8 +229,8 @@ export const Dashboard = () => {
             <div className="flex items-center gap-3">
               <AlertTriangle className={`h-6 w-6 ${damagedRolls > 0 ? 'text-rose-600' : 'text-emerald-600'}`} />
               <div>
-                <p className="text-sm font-bold text-slate-600">أتواب تالفة / هالك</p>
-                <p className={`text-2xl font-black ${damagedRolls > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{loading ? '...' : fmtNumber(damagedRolls)}</p>
+                <p className="text-sm font-bold text-slate-600">{t('damagedRolls')}</p>
+                <p className={`text-2xl font-black ${damagedRolls > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{loading ? '...' : fmtNumber(damagedRolls, numberLocale)}</p>
               </div>
             </div>
           </div>
@@ -234,27 +243,27 @@ export const Dashboard = () => {
             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4">
               <h3 className="flex items-center gap-2 text-lg font-black text-slate-800">
                 <Settings className="h-5 w-5 text-indigo-600" />
-                تخصيص الوصول السريع
+                {t('customizeTitle')}
               </h3>
               <button type="button" onClick={() => setIsSettingsOpen(false)} className="rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
                 <X className="h-6 w-6" />
               </button>
             </div>
             <div className="grid max-h-[60vh] grid-cols-1 gap-3 overflow-y-auto p-5 sm:grid-cols-2">
-              {quickLinks.map((link) => {
+              {quickLinkDefs.map((link) => {
                 const selected = tempSelected.includes(link.id);
                 return (
                   <button
                     key={link.id}
                     type="button"
                     onClick={() => setTempSelected((prev) => (prev.includes(link.id) ? prev.filter((id) => id !== link.id) : [...prev, link.id]))}
-                    className={`flex items-center justify-between rounded-xl border p-3 text-right transition ${
+                    className={`flex items-center justify-between rounded-xl border p-3 text-start transition ${
                       selected ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <span className="flex items-center gap-3 font-black">
                       <link.icon className="h-5 w-5" />
-                      {link.label}
+                      {t(link.labelKey)}
                     </span>
                     {selected && <Check className="h-5 w-5 text-indigo-600" />}
                   </button>
@@ -263,10 +272,10 @@ export const Dashboard = () => {
             </div>
             <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50 p-4">
               <button type="button" onClick={() => setIsSettingsOpen(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-white">
-                إلغاء
+                {t('cancel', { ns: 'common' })}
               </button>
               <button type="button" onClick={handleSaveSettings} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-black text-white hover:bg-indigo-700">
-                حفظ
+                {t('save', { ns: 'common' })}
               </button>
             </div>
           </div>

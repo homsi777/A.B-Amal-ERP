@@ -7,5 +7,7 @@
   "notifications.pickupSubtitle": "جاهزة للتسليم أو موعد توريد خلال 7 أيام",
   "notifications.openOrders": "فتح صفحة الطلبيات",
   "apiLogin": "دخول API",
-  "systemAdmin": "مدير النظام"
+  "systemAdmin": "مدير النظام",
+  "cancel": "إلغاء",
+  "save": "حفظ"
 }

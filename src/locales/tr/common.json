@@ -7,5 +7,7 @@
   "notifications.pickupSubtitle": "Teslime hazır veya 7 gün içinde tedarik tarihi",
   "notifications.openOrders": "Siparişler sayfasını aç",
   "apiLogin": "API Girişi",
-  "systemAdmin": "Sistem Yöneticisi"
+  "systemAdmin": "Sistem Yöneticisi",
+  "cancel": "İptal",
+  "save": "Kaydet"
 }
