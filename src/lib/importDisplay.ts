@@ -17,6 +17,10 @@ export function displayImportedColorName(name?: string | null): string {
   return String(name ?? '').trim();
 }
 
+const PLACEHOLDER_COLOR_CODES = new Set(['#000000', '#000', '000000']);
+
 export function displayImportedColorCode(code?: string | null): string {
-  return String(code ?? '').trim();
+  const trimmed = String(code ?? '').trim();
+  if (!trimmed || PLACEHOLDER_COLOR_CODES.has(trimmed.toLowerCase())) return '';
+  return trimmed;
 }

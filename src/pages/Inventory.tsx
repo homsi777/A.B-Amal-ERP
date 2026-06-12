@@ -24,6 +24,7 @@ import {
   displayImportedColorCode,
   displayImportedItemCode,
 } from '../lib/importDisplay';
+import { rollColorSwatch } from '../lib/colorDisplay';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -1142,6 +1143,7 @@ return (
                 const isSelected = selectedRollIds.has(roll.id);
                 const canSelect = roll.status !== 'INACTIVE';
                 const colorName = roll.color_name_ar || roll.color_name_tr || '';
+                const colorSwatch = rollColorSwatch(roll);
                 const colorCodeDisplay = displayImportedColorCode(roll.color_code);
                 const itemCodeDisplay = displayImportedItemCode(roll);
                 return (
@@ -1189,10 +1191,10 @@ return (
                     </td>
                     <td className="py-2.5 px-4 text-slate-700">
                       <div className="flex items-center gap-2">
-                        {roll.hex_color && (
+                        {colorSwatch && (
                           <span
-                            className="inline-block w-3 h-3 rounded-full border border-slate-200"
-                            style={{ backgroundColor: roll.hex_color }}
+                            className="inline-block w-3 h-3 rounded-full border border-slate-200 shrink-0"
+                            style={{ backgroundColor: colorSwatch }}
                           />
                         )}
                         <span>{colorName || '—'}</span>

@@ -8,7 +8,7 @@ import type { AdHocLabelInput } from '../../components/labels/LabelCard';
 import { ApiRequestError, getApiBaseUrl, getStoredToken } from '../../lib/api/client';
 import { createFabricItem, listFabricItems, updateFabricItem } from '../../lib/api/fabricItemsApi';
 import { createFabricRoll } from '../../lib/api/fabricRollsApi';
-import { createFabricColor, listFabricColors } from '../../lib/api/fabricColorsApi';
+import { createFabricColor, listFabricColors, type ApiFabricColor } from '../../lib/api/fabricColorsApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { getCategoryTree, type ApiCategory } from '../../lib/api/fabricCategoriesApi';
 import { resolveFabricClassification } from '../../lib/api/fabricClassificationApi';
@@ -36,6 +36,70 @@ function normalizeText(value: string): string {
 
 function getCategoryValue(category: ApiCategory | null, fallback = ''): string {
   return (category?.name || category?.code || fallback).trim();
+}
+
+function isPlaceholderColorCode(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  return !trimmed || trimmed === '#000000' || trimmed === '#000' || trimmed === '000000';
+}
+
+function resolveColorFields(params: {
+  selectedColor: ApiCategory | null;
+  selectedColorCode: ApiCategory | null;
+  manualColorName: string;
+  manualColorCode: string;
+}): { colorName: string; colorCode: string } {
+  const colorName = getCategoryValue(params.selectedColor, params.manualColorName.trim());
+  let colorCode = '';
+  if (params.selectedColorCode) {
+    colorCode = getCategoryValue(params.selectedColorCode, '');
+  } else if (params.selectedColor) {
+    colorCode = getCategoryValue(params.selectedColor, '');
+  } else if (!isPlaceholderColorCode(params.manualColorCode)) {
+    colorCode = params.manualColorCode.trim();
+  } else if (colorName) {
+    colorCode = colorName;
+  }
+  return { colorName, colorCode };
+}
+
+function findMatchingFabricColor(
+  colors: ApiFabricColor[],
+  colorCode: string,
+  colorName: string,
+): ApiFabricColor | undefined {
+  const code = colorCode.trim();
+  const name = colorName.trim();
+  if (!code && !name) return undefined;
+
+  const exact = colors.find(
+    (color) => sameText(color.color_code, code) && sameText(color.name_ar, name),
+  );
+  if (exact) return exact;
+
+  if (name && code && !isPlaceholderColorCode(code)) return undefined;
+  if (name) return colors.find((color) => sameText(color.name_ar, name));
+  if (code && !isPlaceholderColorCode(code)) {
+    return colors.find((color) => sameText(color.color_code, code));
+  }
+  return undefined;
+}
+
+async function ensureFabricColorId(colorName: string, colorCode: string): Promise<string | null> {
+  if (!colorName && !colorCode) return null;
+  const resolvedColorCode = colorCode || colorName;
+  const resolvedColorName = colorName || colorCode;
+  const searchTerm = resolvedColorName || resolvedColorCode;
+  const listed = (await listFabricColors({ search: searchTerm, pageSize: 100 })).data;
+  let apiColor = findMatchingFabricColor(listed, resolvedColorCode, resolvedColorName);
+  if (!apiColor) {
+    apiColor = await createFabricColor({
+      name_ar: resolvedColorName,
+      color_code: resolvedColorCode,
+      notes: 'تم إنشاؤه تلقائياً من شاشة إنشاء مادة جديدة.',
+    });
+  }
+  return apiColor.id;
 }
 
 function sameText(a: string | null | undefined, b: string): boolean {
@@ -274,6 +338,10 @@ export const CreateItem = () => {
         return;
       }
     } else {
+      if (!catL1Id || !catL2Id || !catL3Id || !catL4Id) {
+        setSaveError('يرجى اختيار اسم الخامة وكود الخامة ولون الخامة وكود اللون من شجرة التصنيفات.');
+        return;
+      }
       if (!warehouseId) {
         setSaveError('المستودع مطلوب.');
         return;
@@ -299,11 +367,12 @@ export const CreateItem = () => {
     const selectedColor = findCategoryById(categoryApiTree, catL3Id);
     const selectedColorCode = findCategoryById(categoryApiTree, catL4Id);
     const materialCodeValue = getCategoryValue(selectedMaterialCode, fabricCode.trim() || barcode.trim() || name.trim());
-    const colorNameValue = getCategoryValue(selectedColor, colorName.trim());
-    const colorCodeValue = getCategoryValue(
+    const { colorName: colorNameValue, colorCode: colorCodeValue } = resolveColorFields({
+      selectedColor,
       selectedColorCode,
-      colorCode.trim() && (colorNameValue || colorCode.trim() !== '#000000') ? colorCode.trim() : '',
-    );
+      manualColorName: colorName,
+      manualColorCode: colorCode,
+    });
     const lotNumberValue = lotNumber.trim();
 
     const payload = {
@@ -436,23 +505,7 @@ export const CreateItem = () => {
             }
           }
 
-          let colorId: string | null = null;
-          const shouldAttachColor = Boolean(colorNameValue || colorCodeValue);
-          if (shouldAttachColor) {
-            const resolvedColorCode = colorCodeValue || colorNameValue;
-            const resolvedColorName = colorNameValue || colorCodeValue;
-            let apiColor = (await listFabricColors({ search: resolvedColorCode, pageSize: 100 })).data.find(
-              (color) => sameText(color.color_code, resolvedColorCode) || sameText(color.name_ar, resolvedColorName),
-            );
-            if (!apiColor) {
-              apiColor = await createFabricColor({
-                name_ar: resolvedColorName,
-                color_code: resolvedColorCode,
-                notes: 'تم إنشاؤه تلقائياً من شاشة إنشاء مادة جديدة.',
-              });
-            }
-            colorId = apiColor.id;
-          }
+          const colorId = await ensureFabricColorId(colorNameValue, colorCodeValue);
 
           resolved = {
             itemId: apiItem.id,
@@ -494,23 +547,7 @@ export const CreateItem = () => {
           }
         }
 
-        let colorId: string | null = null;
-        const shouldAttachColor = Boolean(colorNameValue || colorCodeValue);
-        if (shouldAttachColor) {
-          const resolvedColorCode = colorCodeValue || colorNameValue;
-          const resolvedColorName = colorNameValue || colorCodeValue;
-          let apiColor = (await listFabricColors({ search: resolvedColorCode, pageSize: 100 })).data.find(
-            (color) => sameText(color.color_code, resolvedColorCode) || sameText(color.name_ar, resolvedColorName),
-          );
-          if (!apiColor) {
-            apiColor = await createFabricColor({
-              name_ar: resolvedColorName,
-              color_code: resolvedColorCode,
-              notes: 'تم إنشاؤه تلقائياً من شاشة إنشاء مادة جديدة.',
-            });
-          }
-          colorId = apiColor.id;
-        }
+        const colorId = await ensureFabricColorId(colorNameValue, colorCodeValue);
 
         resolved = {
           itemId: apiItem.id,
@@ -662,10 +699,17 @@ export const CreateItem = () => {
 
   const l3Node = catL3Id ? findCategoryById(categoryApiTree, catL3Id) : null;
   const l4Node = catL4Id ? findCategoryById(categoryApiTree, catL4Id) : null;
-  const swatchColor =
-    l4Node && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(l4Node.code.trim())
-      ? l4Node.code.trim()
-      : '#e5e7eb';
+  const swatchColor = (() => {
+    const l4Code = l4Node?.code?.trim() ?? '';
+    if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(l4Code) && !isPlaceholderColorCode(l4Code)) return l4Code;
+    const label = l3Node?.name?.trim() || l4Node?.name?.trim() || '';
+    if (!label) return '#e5e7eb';
+    let hash = 0;
+    for (let i = 0; i < label.length; i += 1) {
+      hash = label.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return `hsl(${Math.abs(hash) % 360}, 55%, 45%)`;
+  })();
 
   return (
     <div className="max-w-5xl mx-auto space-y-6" dir="rtl">
