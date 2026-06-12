@@ -42,6 +42,7 @@ cd ~/ab-amal-erp
 git pull origin main
 
 # 2) بناء الواجهة
+npx tsx server/src/db/migrate.ts
 npm run build
 
 # 3) استخراج مسار الواجهة من nginx تلقائياً
