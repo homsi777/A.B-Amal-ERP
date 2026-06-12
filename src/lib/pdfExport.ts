@@ -403,34 +403,7 @@ function renderAccountStatementHtml(options: {
         page-break-inside: auto !important;
       }
       .account-statement-a4 thead { display: table-header-group !important; }
-      .account-statement-a4 tbody > tr:not(.statement-invoice-detail-row) {
-        break-inside: avoid !important;
-        page-break-inside: avoid !important;
-      }
-      .account-statement-a4 tr.statement-invoice-detail-row td {
-        padding: 8px 10px !important;
-        font-size: 12px !important;
-        line-height: 1.55 !important;
-        white-space: normal !important;
-        word-wrap: break-word !important;
-        background: #fff !important;
-        border: 1px solid #e2e8f0 !important;
-        text-align: right !important;
-      }
-      .account-statement-a4 tr.statement-invoice-detail-row .statement-detail-fields {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 6px 18px !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        direction: rtl !important;
-        width: 100% !important;
-      }
-      .account-statement-a4 tr.statement-invoice-detail-row .statement-detail-fields span {
-        display: inline-block !important;
-        font-weight: 700 !important;
-        white-space: nowrap !important;
-      }
+      .account-statement-a4 tr { break-inside: avoid !important; page-break-inside: avoid !important; }
       .account-statement-a4 th {
         background: #fff !important;
         border: 1px solid #000 !important;
@@ -580,30 +553,28 @@ function renderAccountStatementHtml(options: {
                           : detailRows
                               .map(
                                 (detail) => `
-                                  <tr class="statement-invoice-detail-row">
-                                    <td colspan="7">
-                                      <div class="statement-detail-fields">
-                                        <span style="color:#0f766e;">
-                                          رقم الفاتورة: ${safeText(row.documentNo)}
-                                        </span>
-                                        <span style="color:#047857;">
-                                          الخامة: ${safeText(detail.fabricName)}
-                                        </span>
-                                        <span style="color:#047857;">
-                                          عدد الأثواب: ${safeText(detail.rollsCount.toLocaleString('ar'))}
-                                        </span>
-                                        <span style="color:#047857;">
-                                          إجمالي الأطوال: ${safeText(detail.totalQuantity.toLocaleString('ar'))} م
-                                        </span>
-                                        <span style="color:#047857;">
-                                          السعر: ${safeText(currencySymbol(row.currency))} ${safeText(detail.unitPrice.toLocaleString('ar', { maximumFractionDigits: 2 }))} /م
-                                        </span>
-                                        <span style="color:#047857;">
-                                          إجمالي المبلغ: ${safeText(
-                                            `${detail.totalAmount.toLocaleString('ar', { maximumFractionDigits: 2 })} ${row.currency}`,
-                                          )}
-                                        </span>
-                                      </div>
+                                  <tr style="background:#fff;">
+                                    <td colspan="7" style="padding:8px 12px; border:1px solid #e2e8f0; font-size:13px; line-height:1.6; color:#334155; text-align:right; direction:rtl;">
+                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#0f766e;">
+                                        رقم الفاتورة: ${safeText(row.documentNo)}
+                                      </span>
+                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
+                                        الخامة: ${safeText(detail.fabricName)}
+                                      </span>
+                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
+                                        عدد الأثواب: ${safeText(detail.rollsCount.toLocaleString('ar'))}
+                                      </span>
+                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
+                                        إجمالي الأطوال: ${safeText(detail.totalQuantity.toLocaleString('ar'))} م
+                                      </span>
+                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
+                                        السعر: ${safeText(currencySymbol(row.currency))} ${safeText(detail.unitPrice.toLocaleString('ar', { maximumFractionDigits: 2 }))} /م
+                                      </span>
+                                      <span style="display:inline-block; font-weight:700; color:#047857;">
+                                        إجمالي المبلغ: ${safeText(
+                                          `${detail.totalAmount.toLocaleString('ar', { maximumFractionDigits: 2 })} ${row.currency}`,
+                                        )}
+                                      </span>
                                     </td>
                                   </tr>
                                 `,
