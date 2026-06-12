@@ -1,0 +1,11 @@
+{
+  "language": "اللغة",
+  "language.ar": "العربية",
+  "language.tr": "Türkçe",
+  "notifications.title": "تنبيهات استلام طلبيات العملاء",
+  "notifications.pickupTitle": "قرب استلام طلبيات العملاء",
+  "notifications.pickupSubtitle": "جاهزة للتسليم أو موعد توريد خلال 7 أيام",
+  "notifications.openOrders": "فتح صفحة الطلبيات",
+  "apiLogin": "دخول API",
+  "systemAdmin": "مدير النظام"
+}
