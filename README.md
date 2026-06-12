@@ -30,22 +30,22 @@ npm run dev:server    # API على 4030
 npm run dev           # واجهة على 3030
 ```
 
-## النشر على السحابة
+## النشر على السحابة (أمر واحد)
+
+**مرة واحدة:** قاعدة `obada` + ملف `server/.env` (انظر `docs/ENV_OBADA_TEMPLATE.md`)
 
 ```bash
-# 1) إنشاء قاعدة (مرة واحدة على VPS)
-psql -U postgres -f scripts/create-obada-database.sql
-
-# 2) على السيرفر
 cd ~/obada
-git pull origin main
-npm install
-# server/.env: PORT=4030, DATABASE_URL=.../obada
-npx tsx server/src/db/migrate.ts
-NODE_OPTIONS="--max-old-space-size=1024" npm run build
-sudo cp -r dist/* /path/to/obada/nginx/root/
-PORT=4030 pm2 restart obada-server --update-env
-sudo nginx -t && sudo systemctl reload nginx
+chmod +x scripts/deploy-vps.sh
+./scripts/deploy-vps.sh
+```
+
+يفتح النظام على: **`http://65.21.136.217:2730`**  
+API داخلي: **`127.0.0.1:4030`** (عبر nginx `/api`)
+
+**تحديث لاحق (بدون seed):**
+```bash
+OBADA_SKIP_SEED=1 ./scripts/deploy-vps.sh
 ```
 
 **لا تشارك CLOTEX** منفذ 4010/4020 ولا قاعدة `fabric_erp`.
