@@ -4,7 +4,13 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ArrowRight, Printer, Ruler, Truck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getDeliveryDetail, type DeliveryLineDraft } from '../../lib/api/deliveryApi';
+import {
+  confirmDeliveryFulfillment,
+  getDeliveryDetail,
+  saveDeliveryTafnid,
+  type DeliveryLineDraft,
+} from '../../lib/api/deliveryApi';
+import { ApiRequestError } from '../../lib/api/client';
 import { TafnidModal } from '../../components/delivery/TafnidModal';
 import { AR_WHOLESALE, arDeliveryStatus } from '../../lib/i18n/arTerminology';
 import { useToast } from '../../components/NonBlockingToast';
@@ -18,6 +24,7 @@ export function DeliveryFulfillment() {
   const [header, setHeader] = useState<Awaited<ReturnType<typeof getDeliveryDetail>>['header'] | null>(null);
   const [lines, setLines] = useState<DeliveryLineDraft[]>([]);
   const [tafnidOpen, setTafnidOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -36,14 +43,49 @@ export function DeliveryFulfillment() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const onSaveTafnid = (updated: DeliveryLineDraft[]) => {
-    setLines(updated);
-    setTafnidOpen(false);
-    showToast({ type: 'success', message: 'تم حفظ أطوال التفنيد محلياً — ربط الخادم قادم' });
+  const onSaveTafnid = async (updated: DeliveryLineDraft[]) => {
+    if (!id) return;
+    const missing = updated.some((ln) => ln.tafnidLength == null || ln.tafnidLength <= 0);
+    if (missing) {
+      showToast({ type: 'warning', message: 'أدخل طول التفنيد لكل بند' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveDeliveryTafnid(id, updated);
+      setLines(updated);
+      setTafnidOpen(false);
+      showToast({ type: 'success', message: 'تم حفظ التفنيد' });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'تعذر حفظ التفنيد',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const onConfirmDelivery = () => {
-    showToast({ type: 'warning', message: t('confirmPending') });
+  const onConfirmDelivery = async () => {
+    if (!id) return;
+    const missing = lines.some((ln) => ln.tafnidLength == null || ln.tafnidLength <= 0);
+    if (missing) {
+      showToast({ type: 'warning', message: 'أكمل التفنيد قبل تأكيد التسليم' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await confirmDeliveryFulfillment(id);
+      showToast({ type: 'success', message: 'تم التسليم وخصم المخزون' });
+      setHeader((prev) => (prev ? { ...prev, deliveryStatus: 'FULFILLED' } : prev));
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'تعذر تأكيد التسليم',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -108,8 +150,9 @@ export function DeliveryFulfillment() {
         <div className="mt-6 flex flex-wrap gap-2">
           <button
             type="button"
+            disabled={saving || header.deliveryStatus === 'FULFILLED'}
             onClick={() => setTafnidOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]"
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)] disabled:opacity-50"
           >
             <Ruler className="h-4 w-4" />
             {AR_WHOLESALE.tafnidAction}
@@ -124,8 +167,9 @@ export function DeliveryFulfillment() {
           </button>
           <button
             type="button"
-            onClick={onConfirmDelivery}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--ui-accent-border)] bg-[var(--ui-accent-soft-bg)] px-4 py-2 text-sm font-medium text-[var(--ui-nav-active-text)]"
+            disabled={saving || header.deliveryStatus === 'FULFILLED'}
+            onClick={() => void onConfirmDelivery()}
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--ui-accent-border)] bg-[var(--ui-accent-soft-bg)] px-4 py-2 text-sm font-medium text-[var(--ui-nav-active-text)] disabled:opacity-50"
           >
             {t('confirmDelivery')}
           </button>

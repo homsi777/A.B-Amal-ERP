@@ -7,7 +7,7 @@ type Props = {
   open: boolean;
   lines: DeliveryLineDraft[];
   onClose: () => void;
-  onSave: (lines: DeliveryLineDraft[]) => void;
+  onSave: (lines: DeliveryLineDraft[]) => void | Promise<void>;
 };
 
 export function TafnidModal({ open, lines, onClose, onSave }: Props) {
@@ -89,7 +89,7 @@ export function TafnidModal({ open, lines, onClose, onSave }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => onSave(draft)}
+            onClick={() => void onSave(draft)}
             className="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]"
           >
             حفظ التفنيد

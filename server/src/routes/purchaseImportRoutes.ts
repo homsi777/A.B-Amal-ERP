@@ -26,6 +26,7 @@ import {
   buildPurchaseLineMetadataFromImport,
   ensureFabricCategoryChainFromImport,
 } from '../utils/purchaseImportMaterialCodes.js';
+import { expandChinaPackingListIfNeeded } from '../utils/chinaPackingListExpand.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
 
@@ -522,10 +523,21 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 400, 'لا يمكن تنفيذ العملية بدون سعر صرف', 'VALIDATION');
     }
 
+    // توسيع قوائم التعبئة الصينية (أعمدة متوازية ROLL | LENGTH | LOT)
+    let workHeaders = headers;
+    let workRows = rows;
+    let chinaSourceType: string | null = null;
+    const chinaExpanded = expandChinaPackingListIfNeeded(headers, rows, extractedMetadata as Record<string, unknown>);
+    if (chinaExpanded) {
+      workHeaders = chinaExpanded.headers;
+      workRows = chinaExpanded.rows;
+      chinaSourceType = chinaExpanded.sourceType;
+    }
+
     // Detect columns
-    let colMap = detectColumnMap(headers);
-    colMap = inferColumnMapFromData(headers, rows, colMap);
-    const lengthUnit = detectLengthUnit(headers, colMap);
+    let colMap = detectColumnMap(workHeaders);
+    colMap = inferColumnMapFromData(workHeaders, workRows, colMap);
+    const lengthUnit = detectLengthUnit(workHeaders, colMap);
 
     // Validate and collect rows
     const barcodesInFile = new Set<string>();
@@ -536,21 +548,24 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       result: RowValidationResult;
     }[] = [];
 
-    for (let i = 0; i < rows.length; i++) {
-      const rawRow = rows[i];
+    for (let i = 0; i < workRows.length; i++) {
+      const rawRow = workRows[i];
       // Skip completely empty rows
       const nonEmpty = rawRow.filter(v => v !== null && v !== undefined && String(v).trim() !== '');
       if (nonEmpty.length === 0) continue;
 
       const rawData: Record<string, unknown> = {};
-      headers.forEach((h, idx) => { rawData[h] = rawRow[idx]; });
+      workHeaders.forEach((h, idx) => { rawData[h] = rawRow[idx]; });
 
       const nd = normalizeRow(rawRow, colMap);
       coerceNormalizedRowNumbers(nd);
+      if (chinaSourceType && cleanString((nd as any).rollNo) && !cleanString((nd as any).supplierRollRef)) {
+        (nd as any).supplierRollRef = cleanString((nd as any).rollNo);
+      }
       if (!cleanString((nd as any).barcode)) {
         const v0 = rawRow[0];
         const b0 = cleanString(v0);
-        if (b0 && /^\d{6,20}$/.test(b0)) (nd as any).barcode = b0;
+        if (b0 && /^\d{6,20}$/.test(b0) && !chinaSourceType) (nd as any).barcode = b0;
       }
       if (lengthUnit === 'yard') {
         const y = cleanNumber((nd as any).lengthM);
@@ -605,8 +620,11 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       headerRowIndex: headerRowIndex ?? 0,
       preTableRows,
       warnings: metadataWarnings,
+      sourceType: chinaSourceType ?? 'PURCHASE_INVOICE',
+      chinaPackingExpanded: Boolean(chinaSourceType),
     };
-    const detectedColumns = Array.from(colMap.entries()).map(([idx, field]) => ({ col: headers[idx], field }));
+    const detectedColumns = Array.from(colMap.entries()).map(([idx, field]) => ({ col: workHeaders[idx], field }));
+    const batchSourceType = chinaSourceType ?? 'PURCHASE_INVOICE';
 
     const client = await pool.connect();
     try {
@@ -620,7 +638,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
             total_length_m, total_actual_weight_kg, total_calculated_weight_kg,
             invoice_no, supplier_invoice_no, invoice_date, currency_code, exchange_rate_to_usd, notes,
             import_mode, extracted_metadata, detected_columns, created_by_user_id)
-         VALUES ($1,$2,$3,$4,'PURCHASE_INVOICE',$5,$6,$7,'PREVIEWED',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+         VALUES ($1,$2,$3,$4,$25,$5,$6,$7,'PREVIEWED',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
          RETURNING *`,
         [
           companyId, supplierId, warehouseId, defaultLocationId ?? null,
@@ -637,6 +655,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           JSON.stringify(batchMetadata),
           JSON.stringify(detectedColumns),
           userId,
+          batchSourceType,
         ],
       );
       const batch = batchRow.rows[0];
@@ -1061,9 +1080,26 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           }
         }
 
-        // Generate or use barcode
+        // باركود نظام دائماً لقوائم الصين؛ وإلا توليد عند الغياب
+        const batchRow = batch as Record<string, unknown>;
+        const batchMeta = batchRow.extracted_metadata as Record<string, unknown> | string | null;
+        let parsedBatchMeta: Record<string, unknown> = {};
+        try {
+          parsedBatchMeta =
+            typeof batchMeta === 'string'
+              ? (JSON.parse(batchMeta) as Record<string, unknown>)
+              : (batchMeta as Record<string, unknown>) ?? {};
+        } catch {
+          parsedBatchMeta = {};
+        }
+        const isChinaImport =
+          String(batchRow.source_type ?? parsedBatchMeta.sourceType ?? '') === 'CHINA_PACKING_LIST';
+
         let barcode = cleanString(nd.barcode);
-        if (!barcode) barcode = await generateBarcode(client, companyId);
+        if (!barcode || isChinaImport) barcode = await generateBarcode(client, companyId);
+
+        const supplierRollRef =
+          cleanString(nd.supplierRollRef) || cleanString(nd.rollNo) || null;
 
         const lengthM = cleanNumber(nd.lengthM) ?? 0;
         const widthCm = cleanNumber(nd.widthCm);
@@ -1102,7 +1138,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
             cleanString(nd.batchNo) || null,
             cleanString(nd.containerNo) || null,
             invoiceNoFinal,
-            cleanString(nd.supplierRollRef) || null,
+            supplierRollRef,
             cleanString(nd.notes) || null,
             id,
             userId,

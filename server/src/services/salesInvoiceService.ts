@@ -22,7 +22,7 @@ export const invoiceLineSchema = z.object({
   warehouseId: z.string().uuid().optional().nullable(),
   description: z.string().optional().default(''),
   quantity: z.coerce.number().nonnegative(),
-  unit: z.enum(['meter', 'yard']).default('meter'),
+  unit: z.enum(['meter', 'yard', 'roll']).default('meter'),
   unitPrice: z.coerce.number().nonnegative(),
   lineDiscount: z.coerce.number().nonnegative().default(0),
   lineTax: z.coerce.number().nonnegative().default(0),
@@ -610,7 +610,10 @@ export async function confirmSalesInvoice(
 
   const linesForCogs: { quantityMeters: number; unitCostPerMeter: number | null }[] = [];
 
-  for (const ln of lines.rows) {
+  /** Obada جملة: خصم المخزون عند التسليم والتفنيد وليس عند تأكيد الفاتورة */
+  const deferStockToDelivery = true;
+
+  if (!deferStockToDelivery) for (const ln of lines.rows) {
     const rollId = ln.fabric_roll_id as string | null;
     if (!rollId) continue;
 
@@ -829,6 +832,7 @@ export async function confirmSalesInvoice(
   await client.query(
     `UPDATE sales_invoices SET
        document_status='CONFIRMED',
+       delivery_status=COALESCE(delivery_status, 'IN_DELIVERY'),
        confirmed_at=now(),
        remaining_amount=$3,
        payment_status=$4,
