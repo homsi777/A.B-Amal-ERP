@@ -14,6 +14,32 @@ function normalizeApiUrl(url: string | null | undefined): string {
   return String(url).trim().replace(/\/+$/, '');
 }
 
+/**
+ * Paths in this app already start with `/api/...`.
+ * If VITE_API_BASE_URL was set to `/api` (common VPS mistake), requests become `/api/api/...`.
+ * Empty base = same-origin `/api/...` through nginx.
+ */
+function normalizeApiBaseForRequest(base: string): string {
+  const normalized = normalizeApiUrl(base);
+  if (!normalized) return '';
+  if (normalized === '/api') return '';
+  if (/^https?:\/\//i.test(normalized) && normalized.endsWith('/api')) {
+    return normalized.slice(0, -4);
+  }
+  return normalized;
+}
+
+export function joinApiUrl(base: string, path: string): string {
+  if (path.startsWith('http')) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedBase = normalizeApiBaseForRequest(base);
+  if (!normalizedBase) return normalizedPath;
+  if (normalizedPath.startsWith('/api/') && normalizedBase.endsWith('/api')) {
+    return normalizedPath;
+  }
+  return `${normalizedBase}${normalizedPath}`;
+}
+
 function isElectronRuntime(): boolean {
   return typeof window !== 'undefined' && Boolean(window.fabricApp?.isElectron);
 }
@@ -241,7 +267,7 @@ export async function apiFetch<T>(
     }
   }
 
-  const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
+  const url = joinApiUrl(base, path);
 
   let response: Response;
   const timeoutMs = options.timeoutMs ?? 45_000;

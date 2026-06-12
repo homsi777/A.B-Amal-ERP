@@ -38,4 +38,13 @@ APP_BASE_URL=http://65.21.136.217:2730
 ```
 الواجهة للمتصفح: `http://65.21.136.217:2730` — nginx يوجّه `/api` إلى `127.0.0.1:4030`.
 
+**بناء الواجهة على VPS** — انسخ `.env.production.example` إلى `.env.production`:
+
+```env
+VITE_API_BASE_URL=
+VITE_APP_BASE_URL=http://65.21.136.217:2730
+```
+
+لا تستخدم `VITE_API_BASE_URL=/api` (يسبب `/api/api/...`). راجع `docs/OBADA_VPS_RUNTIME_REPORT.md`.
+
 **نشر دفعة واحدة:** `./scripts/deploy-vps.sh`

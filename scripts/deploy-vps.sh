@@ -12,10 +12,15 @@
 #      CORS_ORIGIN=http://65.21.136.217:2730
 #      APP_BASE_URL=http://65.21.136.217:2730
 #
+# ملاحظة NAT (Proxmox):
+#   المتصفح يفتح :2730 لكن التوجيه الخارجي قد يصل داخلياً إلى :3000
+#   لذلك يُنشأ أيضاً obada-ip-3000 (default_server للـ IP فقط)
+#
 # متغيرات اختيارية:
 #   OBADA_SKIP_GIT_PULL=1     تخطي git pull
-#   OBADA_SKIP_SEED=1       تخطي seed (تحديث لاحق)
-#   OBADA_SKIP_NGINX=1      تخطي إعداد nginx
+#   OBADA_SKIP_SEED=1         تخطي seed (تحديث لاحق)
+#   OBADA_SKIP_NGINX=1        تخطي إعداد nginx بالكامل
+#   OBADA_SKIP_NGINX_NAT=1    تخطي obada-ip-3000 فقط
 # =============================================================================
 
 set -euo pipefail
@@ -31,7 +36,21 @@ LEGACY_PORTS_RE='(^|:)(4010|4020)([^0-9]|$)'
 OBADA_NGINX_ROOT="${OBADA_NGINX_ROOT:-/var/www/obada/frontend}"
 OBADA_PM2_NAME="${OBADA_PM2_NAME:-obada-server}"
 OBADA_NGINX_SITE="${OBADA_NGINX_SITE:-obada-vps}"
+OBADA_NGINX_SITE_NAT="${OBADA_NGINX_SITE_NAT:-obada-ip-3000}"
+OBADA_NAT_INTERNAL_PORT="${OBADA_NAT_INTERNAL_PORT:-3000}"
 OBADA_PUBLIC_URL="http://${OBADA_PUBLIC_HOST}:${OBADA_WEB_PORT}"
+
+render_nginx_site() {
+  local template="$1"
+  local output="$2"
+  sed \
+    -e "s|WEB_PORT|$OBADA_WEB_PORT|g" \
+    -e "s|NAT_PORT|$OBADA_NAT_INTERNAL_PORT|g" \
+    -e "s|PUBLIC_HOST|$OBADA_PUBLIC_HOST|g" \
+    -e "s|API_PORT|$OBADA_API_PORT|g" \
+    -e "s|NGINX_ROOT|$OBADA_NGINX_ROOT|g" \
+    "$template" > "$output"
+}
 
 echo "=============================================="
 echo " ALamal-AB Obada — نشر VPS"
@@ -90,9 +109,12 @@ fi
 echo ">> npm install..."
 npm install
 
-# ── 3) بناء الواجهة (نفس المنشأ عبر nginx /api) ───────────────────────────
-echo ">> إعداد .env للبناء..."
-printf 'VITE_API_BASE_URL=\n' > .env
+# ── 3) بناء الواجهة (same-origin /api عبر nginx — لا تضف /api في VITE) ─────
+echo ">> إعداد .env.production للبناء..."
+cat > .env.production <<EOF
+VITE_API_BASE_URL=
+VITE_APP_BASE_URL=${OBADA_PUBLIC_URL}
+EOF
 
 echo ">> npm run build..."
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
@@ -157,32 +179,33 @@ fi
 
 # ── 7) nginx ───────────────────────────────────────────────────────────────
 if [[ "${OBADA_SKIP_NGINX:-0}" != "1" ]]; then
-  echo ">> إعداد nginx ($OBADA_NGINX_SITE)..."
-  TEMPLATE="$ROOT/scripts/nginx/obada-vps.conf"
-  TARGET="/etc/nginx/sites-available/$OBADA_NGINX_SITE"
-  TMP="$(mktemp)"
+  echo ">> إعداد nginx ($OBADA_NGINX_SITE) على المنفذ $OBADA_WEB_PORT ..."
+  TMP_VPS="$(mktemp)"
+  render_nginx_site "$ROOT/scripts/nginx/obada-vps.conf" "$TMP_VPS"
+  sudo cp "$TMP_VPS" "/etc/nginx/sites-available/$OBADA_NGINX_SITE"
+  rm -f "$TMP_VPS"
+  sudo ln -sf "/etc/nginx/sites-available/$OBADA_NGINX_SITE" "/etc/nginx/sites-enabled/$OBADA_NGINX_SITE"
 
-  sed \
-    -e "s|WEB_PORT|$OBADA_WEB_PORT|g" \
-    -e "s|PUBLIC_HOST|$OBADA_PUBLIC_HOST|g" \
-    -e "s|API_PORT|$OBADA_API_PORT|g" \
-    -e "s|NGINX_ROOT|$OBADA_NGINX_ROOT|g" \
-    "$TEMPLATE" > "$TMP"
-
-  sudo cp "$TMP" "$TARGET"
-  rm -f "$TMP"
-  sudo ln -sf "$TARGET" "/etc/nginx/sites-enabled/$OBADA_NGINX_SITE"
-
-  echo ">> تعطيل مواقع nginx الأخرى على المنفذ $OBADA_WEB_PORT (إن وُجدت)..."
+  echo ">> تعطيل مواقع nginx الأخرى على المنفذ $OBADA_WEB_PORT فقط (لا نلمس :3000/abooerp)..."
   for site in /etc/nginx/sites-enabled/*; do
     [[ -f "$site" ]] || continue
     base="$(basename "$site")"
     [[ "$base" == "$OBADA_NGINX_SITE" ]] && continue
     if grep -q "listen[[:space:]]\+${OBADA_WEB_PORT}\b" "$site" 2>/dev/null; then
-      echo "   تعطيل $base (كان يستمع على $OBADA_WEB_PORT — غالباً CLOTEX)"
+      echo "   تعطيل $base (تعارض على $OBADA_WEB_PORT)"
       sudo rm -f "$site"
     fi
   done
+
+  if [[ "${OBADA_SKIP_NGINX_NAT:-0}" != "1" ]]; then
+    echo ">> إعداد nginx NAT ($OBADA_NGINX_SITE_NAT) على المنفذ $OBADA_NAT_INTERNAL_PORT ..."
+    echo "   (Proxmox: ${OBADA_PUBLIC_HOST}:${OBADA_WEB_PORT} -> internal :${OBADA_NAT_INTERNAL_PORT})"
+    TMP_NAT="$(mktemp)"
+    render_nginx_site "$ROOT/scripts/nginx/obada-ip-3000.conf" "$TMP_NAT"
+    sudo cp "$TMP_NAT" "/etc/nginx/sites-available/$OBADA_NGINX_SITE_NAT"
+    rm -f "$TMP_NAT"
+    sudo ln -sf "/etc/nginx/sites-available/$OBADA_NGINX_SITE_NAT" "/etc/nginx/sites-enabled/$OBADA_NGINX_SITE_NAT"
+  fi
 
   sudo nginx -t
   sudo systemctl reload nginx
@@ -203,6 +226,15 @@ if curl -sf "${OBADA_PUBLIC_URL}/api/health/live" | head -c 200; then
   echo ""
 else
   echo "فشل — تحقق: sudo nginx -T | grep -A3 'listen ${OBADA_WEB_PORT}'"
+fi
+
+if [[ "${OBADA_SKIP_NGINX:-0}" != "1" ]] && [[ "${OBADA_SKIP_NGINX_NAT:-0}" != "1" ]]; then
+  echo ">> تحقق NAT داخلي (:${OBADA_NAT_INTERNAL_PORT} للـ IP)..."
+  if curl -sf -H "Host: ${OBADA_PUBLIC_HOST}" "http://127.0.0.1:${OBADA_NAT_INTERNAL_PORT}/api/health/live" | head -c 200; then
+    echo ""
+  else
+    echo "فشل — راجع /etc/nginx/sites-available/${OBADA_NGINX_SITE_NAT}"
+  fi
 fi
 
 if [[ -f "$OBADA_NGINX_ROOT/index.html" ]]; then
