@@ -1,7 +1,7 @@
 {
   "_readme": [
     "انسخ هذا الملف إلى vps-connection.json قبل npm run electron:build — يُنسخ ثم إلى resources/config داخل النسخة المثبتة.",
-    "النسخة المكتملة (EXE) تشغّل Fastify محلياً على 127.0.0.1:4010؛ لا يوجد API على VPS. الاتصال الوحيد للخادم البعيد هو PostgreSQL.",
+    "النسخة المكتملة (EXE) تشغّل Fastify محلياً على 127.0.0.1:4030؛ لا يوجد API على VPS. الاتصال الوحيد للخادم البعيد هو PostgreSQL.",
     "dbTunnel أو dbConnectionMode:",
     "  - \"ssh_tunnel\" (الافتراضي عند وجود sshHost): النسخة المثبتة تشغّل plink من resources/bin لفتح 127.0.0.1:localDbPort → remoteDbHost:remoteDbPort على الـ VPS ثم تبني DATABASE_URL المحلية.",
     "  - \"direct_public\": عيّن postgresPublicHost (واختيارياً postgresPublicPort) لمزامنة PostgreSQL مباشرة بدون SSH (أقل أماناً).",
