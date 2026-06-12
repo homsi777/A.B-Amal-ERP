@@ -34,7 +34,7 @@ npm run dev           # واجهة على 3030
 
 **مرة واحدة:** قاعدة `obada` + ملف `server/.env` (انظر `docs/ENV_OBADA_TEMPLATE.md`)
 
-السكربت ينشئ تلقائياً **`/var/www/obada`** وينسخ إليه مخرجات `dist/` — لا حاجة لإنشاء المجلد يدوياً.
+السكربت ينشئ تلقائياً **`/var/www/obada/frontend`** وينسخ إليه مخرجات `dist/` — نفس نمط abooerp و clotex.
 
 ```bash
 cd ~/obada && ./scripts/deploy-vps.sh
