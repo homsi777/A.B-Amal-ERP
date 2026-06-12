@@ -9,9 +9,8 @@
 # قبل التشغيل مرة واحدة:
 #   1) قاعدة obada جاهزة على PostgreSQL
 #   2) ملف server/.env مضبوط (PORT=4030, DATABASE_URL, JWT_SECRET, ...)
-#      CORS_ORIGIN=http://65.21.136.217:2830
-#      APP_BASE_URL=http://65.21.136.217:2830
-#      ملاحظة: 2730 = CLOTEX (الشحن القديم) — Obada يستخدم 2830 افتراضياً
+#      CORS_ORIGIN=http://65.21.136.217:2730
+#      APP_BASE_URL=http://65.21.136.217:2730
 #
 # متغيرات اختيارية:
 #   OBADA_SKIP_GIT_PULL=1     تخطي git pull
@@ -26,7 +25,7 @@ cd "$ROOT"
 
 # ── إعدادات Obada (عدّل هنا إن لزم) ─────────────────────────────────────────
 OBADA_PUBLIC_HOST="${OBADA_PUBLIC_HOST:-65.21.136.217}"
-OBADA_WEB_PORT="${OBADA_WEB_PORT:-2830}"
+OBADA_WEB_PORT="${OBADA_WEB_PORT:-2730}"
 OBADA_API_PORT="${OBADA_API_PORT:-4030}"
 LEGACY_PORTS_RE='(^|:)(4010|4020)([^0-9]|$)'
 OBADA_NGINX_ROOT="${OBADA_NGINX_ROOT:-/var/www/obada}"
@@ -212,10 +211,6 @@ if [[ -f "$OBADA_NGINX_ROOT/index.html" ]]; then
   else
     echo "تحذير: index.html لا يحتوي ALamal-AB — قد يكون nginx يوجّه لمجلد خاطئ."
   fi
-fi
-
-if [[ "$OBADA_WEB_PORT" == "2730" ]]; then
-  echo "تحذير: المنفذ 2730 يخص CLOTEX عادةً — استخدم 2830: OBADA_WEB_PORT=2830 ./scripts/deploy-vps.sh"
 fi
 
 echo "=============================================="
