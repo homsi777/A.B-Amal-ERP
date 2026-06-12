@@ -77,12 +77,14 @@ if grep -E "$LEGACY_PORTS_RE" server/.env 2>/dev/null | grep -v '^#'; then
   echo "تحذير: ما زال هناك 4010/4020 في server/.env — راجع الملف يدوياً."
 fi
 
-# ── 1) جلب التحديثات ───────────────────────────────────────────────────────
+# ── 1) جلب التحديثات (GitHub مصدر الحقيقة — لا يُحفظ server/.env) ─────────
 if [[ "${OBADA_SKIP_GIT_PULL:-0}" != "1" ]] && [[ -d .git ]]; then
-  echo ">> git pull..."
-  git pull origin main || git pull
+  echo ">> مزامنة GitHub (fetch + reset --hard origin/main)..."
+  git fetch origin main
+  git reset --hard origin/main
+  chmod +x scripts/deploy-vps.sh
 else
-  echo ">> تخطي git pull"
+  echo ">> تخطي مزامنة git"
 fi
 
 # ── 2) الحزم ───────────────────────────────────────────────────────────────
