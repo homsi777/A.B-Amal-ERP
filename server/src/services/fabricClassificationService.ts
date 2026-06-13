@@ -101,8 +101,8 @@ export async function resolveFabricClassification(
       level4CategoryId,
     );
 
-    const materialCode = c2.name.trim() || c2.code.trim();
-    const colorCodeVal = c4.name.trim() || c4.code.trim();
+    const materialCode = c2.code.trim() || c2.name.trim();
+    const colorCodeVal = c4.code.trim() || c4.name.trim();
 
     // ── fabric_item linked to level-1 material-name category ───────────────
     let itemRow = await client.query<{ id: string; internal_code: string }>(

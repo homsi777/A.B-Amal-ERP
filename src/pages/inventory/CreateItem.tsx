@@ -13,6 +13,7 @@ import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { getCategoryTree, type ApiCategory } from '../../lib/api/fabricCategoriesApi';
 import { resolveFabricClassification } from '../../lib/api/fabricClassificationApi';
 import { buildRollQrPayload } from '../../lib/labels/buildRollQrPayload';
+import { getCategoryCode, getCategoryLabel } from '../../lib/fabricCategoryValues';
 
 const INVENTORY_SHOW_ITEM_IMAGE_KEY = 'inventory_show_item_image_upload';
 const INVENTORY_LOW_STOCK_THRESHOLD_KEY = 'inventory_low_stock_threshold';
@@ -40,7 +41,7 @@ function normalizeText(value: string): string {
 }
 
 function getCategoryValue(category: ApiCategory | null, fallback = ''): string {
-  return (category?.name || category?.code || fallback).trim();
+  return getCategoryLabel(category, fallback);
 }
 
 function isPlaceholderColorCode(value: string): boolean {
@@ -54,12 +55,12 @@ function resolveColorFields(params: {
   manualColorName: string;
   manualColorCode: string;
 }): { colorName: string; colorCode: string } {
-  const colorName = getCategoryValue(params.selectedColor, params.manualColorName.trim());
+  const colorName = getCategoryLabel(params.selectedColor, params.manualColorName.trim());
   let colorCode = '';
   if (params.selectedColorCode) {
-    colorCode = getCategoryValue(params.selectedColorCode, '');
+    colorCode = getCategoryCode(params.selectedColorCode, '');
   } else if (params.selectedColor) {
-    colorCode = getCategoryValue(params.selectedColor, '');
+    colorCode = getCategoryCode(params.selectedColor, '');
   } else if (!isPlaceholderColorCode(params.manualColorCode)) {
     colorCode = params.manualColorCode.trim();
   } else if (colorName) {
@@ -371,7 +372,10 @@ export const CreateItem = () => {
     const selectedMaterialCode = findCategoryById(categoryApiTree, catL2Id);
     const selectedColor = findCategoryById(categoryApiTree, catL3Id);
     const selectedColorCode = findCategoryById(categoryApiTree, catL4Id);
-    const materialCodeValue = getCategoryValue(selectedMaterialCode, fabricCode.trim() || barcode.trim() || name.trim());
+    const materialCodeValue = getCategoryCode(
+      selectedMaterialCode,
+      fabricCode.trim() || barcode.trim() || name.trim(),
+    );
     const { colorName: colorNameValue, colorCode: colorCodeValue } = resolveColorFields({
       selectedColor,
       selectedColorCode,
