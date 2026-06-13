@@ -119,6 +119,8 @@ export type InvoiceFormLineDraft = {
   colorCode: string;
   colorName: string;
   length: string;
+  rollQty: string;
+  lengthUnit: 'meter' | 'yard';
   widthCm: string;
   gsm: string;
   weight: string;
@@ -141,7 +143,20 @@ export function buildInvoiceFormLineDraftsFromDbLines(lines: Record<string, unkn
     const supplierBarcode = stringFromMeta(meta, ['supplierBarcode', 'barcode']);
     const printBarcode = stringFromMeta(meta, ['printBarcode']);
     const rollId = l.fabric_roll_id != null ? String(l.fabric_roll_id).trim() : '';
-    const lengthM = lineQuantityToDisplayMeters(l);
+    const unit = l.unit === 'yard' ? 'yard' : l.unit === 'roll' ? 'roll' : 'meter';
+    const qty = numFromDb(l.quantity);
+    let length = '';
+    let rollQty = '';
+    let lengthUnit: 'meter' | 'yard' = 'meter';
+    if (unit === 'roll') {
+      rollQty = qty > 0 ? String(qty) : '';
+    } else if (unit === 'yard') {
+      length = qty > 0 ? String(qty) : '';
+      lengthUnit = 'yard';
+    } else {
+      length = qty > 0 ? String(qty) : '';
+      lengthUnit = 'meter';
+    }
     const priceNum = numFromDb(l.unit_price);
     return {
       materialName,
@@ -149,7 +164,9 @@ export function buildInvoiceFormLineDraftsFromDbLines(lines: Record<string, unkn
       rollNo,
       colorCode: stringFromMeta(meta, ['colorCode']),
       colorName: stringFromMeta(meta, ['colorName']),
-      length: lengthM > 0 ? String(lengthM) : '',
+      length,
+      rollQty,
+      lengthUnit,
       widthCm: optionalNumFromDb(meta.widthCm) != null ? String(meta.widthCm) : '',
       gsm: optionalNumFromDb(meta.gsm) != null ? String(meta.gsm) : '',
       weight:

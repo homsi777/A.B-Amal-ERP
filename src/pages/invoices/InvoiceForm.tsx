@@ -85,6 +85,8 @@ interface InvoiceFormItem {
   colorCode: string;
   colorName: string;
   length: string;
+  rollQty: string;
+  lengthUnit: 'meter' | 'yard';
   widthCm: string;
   gsm: string;
   weight: string;
@@ -133,6 +135,8 @@ const emptyItem = (): InvoiceFormItem => ({
   colorCode: '',
   colorName: '',
   length: '',
+  rollQty: '',
+  lengthUnit: 'meter',
   widthCm: '',
   gsm: '',
   weight: '',
@@ -292,8 +296,18 @@ const isEmptyInvoiceItem = (item: InvoiceFormItem) =>
   !item.colorCode.trim() &&
   !item.colorName.trim() &&
   !item.length.trim() &&
+  !item.rollQty.trim() &&
   !item.weight.trim() &&
   !item.price.trim();
+
+function computeInvoiceLineTotal(item: InvoiceFormItem, salesMode: boolean): number {
+  const price = numberValue(item.price);
+  if (salesMode) {
+    return numberValue(item.rollQty) * price;
+  }
+  const len = numberValue(item.length);
+  return len * price;
+}
 
 const isCompleteSupplierQrPayload = (value: string) => {
   if (!value.includes('|')) return false;
@@ -942,9 +956,12 @@ export const InvoiceForm = () => {
           colorCode: item.colorCode,
           colorName: item.colorName,
           rollNo: item.rollNo,
-          lengthMeters: item.length,
+          lengthMeters: isSales ? 0 : numberValue(item.length),
+          quantity: isSales ? numberValue(item.rollQty) : numberValue(item.length),
+          rollsCount: isSales ? numberValue(item.rollQty) : 1,
           weightKg: item.weight,
           pricePerMeter: item.price,
+          lineTotal: computeInvoiceLineTotal(item, isSales),
         })),
       ),
     [items],
@@ -956,6 +973,10 @@ export const InvoiceForm = () => {
 
   const handleRemoveItem = (id: number) => {
     setItems((prev) => prev.filter((item) => item.id !== id).map(sanitizeInvoiceFormItemBarcode));
+  };
+
+  const updateItemLengthUnit = (id: number, lengthUnit: 'meter' | 'yard') => {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, lengthUnit } : item)));
   };
 
   const updateItem = (id: number, field: keyof InvoiceFormItem, value: string) => {
@@ -1214,6 +1235,7 @@ export const InvoiceForm = () => {
               ]) || line.printBarcode,
               internalRollId: stock.id || stock.internalRollId || line.internalRollId,
               fabricItemId: stock.item_id || stock.itemId || stock.fabricItemId || line.fabricItemId,
+              rollQty: line.rollQty || '1',
             };
         return sanitizeInvoiceFormItemBarcode(updated);
       });
@@ -1674,9 +1696,10 @@ export const InvoiceForm = () => {
     );
   };
 
-  const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price') => {
+  const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price' | 'rollQty') => {
     const value = numberValue(item[field]);
-    if (field === 'length' && value <= 0) return 'الطول يجب أن يكون أكبر من صفر';
+    if (field === 'rollQty' && isSales && value <= 0) return 'العدد يجب أن يكون أكبر من صفر';
+    if (field === 'length' && !isSales && value <= 0) return 'الطول يجب أن يكون أكبر من صفر';
     if (field === 'price' && value < 0) return 'السعر لا يمكن أن يكون سالبا';
     if (field === 'weight' && value < 0) return 'الوزن لا يمكن أن يكون سالبا';
     return '';
@@ -1709,7 +1732,9 @@ export const InvoiceForm = () => {
 
   const activeItems = items.filter((item) => !isEmptyInvoiceItem(item));
   const hasValidationErrors = activeItems.some(
-    (item) => getItemError(item, 'length') || getItemError(item, 'price') || getItemError(item, 'weight'),
+    (item) =>
+      getItemError(item, 'price') ||
+      (isSales ? getItemError(item, 'rollQty') : getItemError(item, 'length')),
   );
 
   const mergeRollIntoApiRolls = (r: FabricRollDto) => {
@@ -2011,19 +2036,56 @@ export const InvoiceForm = () => {
     const apiLines = activeItems.map((item, index) => {
       const rollRaw = String(item.internalRollId || '').trim();
       const fabricRollId = uuidRe.test(rollRaw) ? rollRaw : null;
-      const quantity = numberValue(item.length);
       const unitPrice = Math.max(0, numberValue(item.price));
       const itemIdRaw = String(item.fabricItemId || '').trim();
       const fabricItemId = uuidRe.test(itemIdRaw) ? itemIdRaw : null;
       const desc =
         [item.materialName, item.dsamNumber, item.colorName].filter((p) => String(p).trim()).join(' · ') ||
         `سطر ${index + 1}`;
+
+      if (isSales) {
+        const quantity = numberValue(item.rollQty);
+        return {
+          fabricRollId: null,
+          fabricItemId,
+          description: desc,
+          quantity,
+          unit: 'roll' as const,
+          unitPrice,
+          lineDiscount: 0,
+          lineTax: 0,
+          lineTotal: lineRound2(quantity * unitPrice),
+          metadata: {
+            materialName: item.materialName,
+            fabricName: item.materialName,
+            fabricItemId: fabricItemId || undefined,
+            designCode: item.dsamNumber,
+            colorCode: item.colorCode,
+            colorName: item.colorName,
+            lengthM: numberValue(item.length) || undefined,
+            lengthUnit: item.lengthUnit,
+            barcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
+            supplierBarcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
+            printBarcode: item.printBarcode || printableShortBarcode(item.supplierBarcode) || printableShortBarcode(item.rawBarcodePayload) || '',
+            rollNo: item.rollNo,
+            rollNumber: item.rollNo,
+            weightKg: Math.max(0, numberValue(item.weight)),
+            widthCm: Math.max(0, numberValue(item.widthCm)),
+            gsm: Math.max(0, numberValue(item.gsm)),
+            rawQrPayload: item.rawQrPayload || undefined,
+            rawBarcodePayload: item.rawBarcodePayload || undefined,
+          },
+        };
+      }
+
+      const quantity = numberValue(item.length);
+      const unit = item.lengthUnit === 'yard' ? ('yard' as const) : ('meter' as const);
       return {
-        fabricRollId: isSales ? null : fabricRollId,
+        fabricRollId,
         fabricItemId,
         description: desc,
         quantity,
-        unit: (isSales ? 'roll' : 'meter') as 'roll' | 'meter',
+        unit,
         unitPrice,
         lineDiscount: 0,
         lineTax: 0,
@@ -2088,7 +2150,7 @@ export const InvoiceForm = () => {
       remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
       status: status === 'draft' ? ('unpaid' as const) : paymentStatus,
       items: activeItems.map((item, index) => {
-        const quantity = numberValue(item.length);
+        const quantity = isSales ? numberValue(item.rollQty) : numberValue(item.length);
         const unitPrice = Math.max(0, numberValue(item.price));
         return {
           fabricId: item.materialName || item.rollNo || `LINE-${index + 1}`,
@@ -2642,23 +2704,21 @@ export const InvoiceForm = () => {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border border-slate-200">
                   <th className="p-3 font-bold w-12 text-center">#</th>
-                  <th className="p-3 font-bold min-w-[160px]">الباركود</th>
-                  <th className="p-3 font-bold min-w-[220px]">الخامة</th>
-                  <th className="p-3 font-bold min-w-[120px]">كود الخامة</th>
-                  <th className="p-3 font-bold min-w-[130px]">اللون</th>
-                  <th className="p-3 font-bold min-w-[120px]">كود اللون</th>
-                  <th className="p-3 font-bold w-24">{isSales ? 'عدد الأتواب' : 'متر'}</th>
-                  <th className="hidden p-3 font-bold w-24">العرض CM</th>
-                  <th className="hidden p-3 font-bold w-20">GSM</th>
-                  <th className="p-3 font-bold w-24">وزن KG</th>
-                  <th className="p-3 font-bold w-32">الإجمالي</th>
+                  <th className="p-3 font-bold min-w-[140px]">باركورد</th>
+                  <th className="p-3 font-bold min-w-[220px]">اسم التوب</th>
+                  <th className="p-3 font-bold w-20">عدد</th>
+                  <th className="p-3 font-bold min-w-[120px]">متر/يارد</th>
+                  <th className="p-3 font-bold w-28">سعر</th>
+                  <th className="p-3 font-bold w-28">مجموع</th>
                   <th className="p-3 font-bold w-12 text-center"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, index) => {
                   const lengthError = getItemError(item, 'length');
-                  const weightError = getItemError(item, 'weight');
+                  const rollQtyError = getItemError(item, 'rollQty');
+                  const priceError = getItemError(item, 'price');
+                  const lineTotal = computeInvoiceLineTotal(item, isSales);
                   return (
                     <tr key={item.id} data-invoice-item-row className="border-b border-x border-slate-200">
                       <td className="p-2 text-center font-bold text-slate-400">{index + 1}</td>
@@ -2669,7 +2729,7 @@ export const InvoiceForm = () => {
                             type="text"
                             data-invoice-field-index={0}
                             autoComplete="off"
-                            placeholder="امسح الباركود هنا"
+                            placeholder="امسح الباركود"
                             value={item.supplierBarcode}
                             onChange={(e) => {
                               const raw = e.target.value || '';
@@ -2718,7 +2778,7 @@ export const InvoiceForm = () => {
                             type="text"
                             data-invoice-field-index={1}
                             autoComplete="off"
-                            placeholder="اكتب اسم الخامة"
+                            placeholder="اسم التوب / الخامة"
                             value={item.materialName}
                             onFocus={(e) => {
                               materialSuggestInputRef.current = e.currentTarget;
@@ -2826,19 +2886,81 @@ export const InvoiceForm = () => {
                               }
                               handleInvoiceLineEnter(e, item);
                             }}
-                            className="w-full bg-white border border-slate-200 rounded pr-9 pl-2 py-1.5 focus:outline-none focus:border-indigo-500 shadow-sm"
+                            className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500 shadow-sm"
                           />
                         </div>
                       </td>
-                      <td className="p-2"><input data-invoice-field-index={2} type="text" value={item.dsamNumber} onChange={(e) => updateItem(item.id, 'dsamNumber', e.target.value)} onBlur={() => warnIfDuplicateLine(item.id)} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} className={`${inputClass()} font-mono text-xs`} dir="ltr" /></td>
-                      <td className="p-2"><input data-invoice-field-index={3} type="text" value={item.colorName} onChange={(e) => updateItem(item.id, 'colorName', e.target.value)} onBlur={() => warnIfDuplicateLine(item.id)} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} className={inputClass()} /></td>
-                      <td className="p-2"><input data-invoice-field-index={4} type="text" value={item.colorCode} onChange={(e) => updateItem(item.id, 'colorCode', e.target.value)} onBlur={() => warnIfDuplicateLine(item.id)} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} className={`${inputClass()} font-mono text-xs`} dir="ltr" placeholder="#000" /></td>
-                      <td className="p-2"><input data-invoice-field-index={5} type="number" min="0.01" value={item.length} onChange={(e) => updateItem(item.id, 'length', e.target.value)} onBlur={(e) => { if (isSales) { void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, { field: 'length', lengthInput: e.currentTarget.value, toastOnSuccess: true, toastOnError: false }); } }} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} title={lengthError} className={inputClass(Boolean(lengthError))} /></td>
-                      <td className="hidden p-2"><input type="number" min="0" value={item.widthCm} onChange={(e) => updateItem(item.id, 'widthCm', e.target.value)} className={inputClass()} /></td>
-                      <td className="hidden p-2"><input type="number" min="0" value={item.gsm} onChange={(e) => updateItem(item.id, 'gsm', e.target.value)} className={inputClass()} /></td>
-                      <td className="p-2"><input data-invoice-field-index={6} type="number" min="0" value={item.weight} onChange={(e) => updateItem(item.id, 'weight', e.target.value)} onBlur={(e) => { if (isSales) { void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, { field: 'weight', weightInput: e.currentTarget.value, toastOnSuccess: true, toastOnError: false }); } }} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} title={weightError} className={inputClass(Boolean(weightError))} /></td>
-                      <td className="p-2 font-bold text-slate-700 bg-slate-50 text-center font-mono text-xs">{(numberValue(item.length) * numberValue(item.price)).toFixed(2)}</td>
-                      <td className="hidden p-2"><input type="text" value={item.rollNo} onChange={(e) => updateItem(item.id, 'rollNo', e.target.value)} className={`${inputClass()} font-mono text-xs`} dir="ltr" /></td>
+                      <td className="p-2">
+                        <input
+                          data-invoice-field-index={2}
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.rollQty}
+                          onChange={(e) => updateItem(item.id, 'rollQty', e.target.value)}
+                          onKeyDown={(e) => handleInvoiceLineEnter(e, item)}
+                          title={rollQtyError}
+                          placeholder={isSales ? 'عدد الأتواب' : '1'}
+                          className={inputClass(Boolean(rollQtyError))}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <div className="flex items-center gap-1">
+                          <input
+                            data-invoice-field-index={3}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.length}
+                            onChange={(e) => updateItem(item.id, 'length', e.target.value)}
+                            onBlur={(e) => {
+                              if (isSales) {
+                                void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, {
+                                  field: 'length',
+                                  lengthInput: e.currentTarget.value,
+                                  toastOnSuccess: true,
+                                  toastOnError: false,
+                                });
+                              }
+                            }}
+                            onKeyDown={(e) => handleInvoiceLineEnter(e, item)}
+                            title={lengthError}
+                            placeholder={isSales ? 'اختياري' : 'الطول'}
+                            className={`${inputClass(Boolean(lengthError))} min-w-[4.5rem]`}
+                          />
+                          <select
+                            value={item.lengthUnit}
+                            onChange={(e) => updateItemLengthUnit(item.id, e.target.value as 'meter' | 'yard')}
+                            className="rounded border border-slate-200 bg-white px-1 py-1.5 text-xs"
+                          >
+                            <option value="meter">م</option>
+                            <option value="yard">ي</option>
+                          </select>
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        <input
+                          data-invoice-field-index={4}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.price}
+                          onChange={(e) => updateItem(item.id, 'price', e.target.value)}
+                          onKeyDown={(e) => handleInvoiceLineEnter(e, item)}
+                          title={priceError}
+                          className={inputClass(Boolean(priceError))}
+                        />
+                      </td>
+                      <td className="p-2 font-bold text-slate-700 bg-slate-50 text-center font-mono text-xs">
+                        {lineTotal.toFixed(2)}
+                      </td>
+                      <td className="hidden p-2">
+                        <input type="text" value={item.dsamNumber} readOnly className="hidden" />
+                        <input type="text" value={item.colorName} readOnly className="hidden" />
+                        <input type="text" value={item.colorCode} readOnly className="hidden" />
+                        <input type="number" value={item.weight} readOnly className="hidden" />
+                        <input type="text" value={item.rollNo} readOnly className="hidden" />
+                      </td>
                       <td className="p-2 text-center">
                         <button onClick={() => handleRemoveItem(item.id)} disabled={items.length === 1} className="text-slate-400 hover:text-rose-500 disabled:opacity-30 transition p-1">
                           <Trash2 className="w-4 h-4" />
@@ -2851,9 +2973,6 @@ export const InvoiceForm = () => {
               <tfoot className="bg-slate-50 font-bold border-t border-slate-300 text-slate-700">
                 <tr>
                   <td colSpan={6} className="p-3 text-left">المجموع:</td>
-                  <td className="p-3 font-mono">{summary.totals.totalMeters.toFixed(2)}</td>
-                  <td colSpan={2}></td>
-                  <td className="p-3 font-mono">{summary.totals.totalKg.toFixed(2)} كغ</td>
                   <td className="p-3 font-mono text-indigo-700">{money(totalAmount, currency)}</td>
                   <td></td>
                 </tr>
