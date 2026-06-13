@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, FileUp, Loader2, Save, Ship, Calculator, Upload } from 'lucide-react';
+import { ArrowRight, FileUp, Loader2, Save, Ship, Calculator, Upload, Wrench } from 'lucide-react';
 import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import {
+  autoRepairImportBatch,
   confirmImportBatch,
   listImportRows,
   previewPurchaseExcelImport,
@@ -40,6 +41,8 @@ export const ImportExcel = () => {
   const [confirmResult, setConfirmResult] = useState<{ invoiceId?: string | null; invoiceNo?: string | null } | null>(null);
   const [issueRows, setIssueRows] = useState<PurchaseImportRowDto[]>([]);
   const [issueRowsTotal, setIssueRowsTotal] = useState(0);
+  const [autoRepair, setAutoRepair] = useState(true);
+  const [repairSummary, setRepairSummary] = useState<string[]>([]);
 
   const [basePrice, setBasePrice] = useState('');
   const [priceUnit, setPriceUnit] = useState<'meter' | 'yard'>('meter');
@@ -129,10 +132,17 @@ export const ImportExcel = () => {
         exchangeRateToUsd: currencyCode === 'USD' ? 1 : undefined,
         notes: notes.trim() || null,
         importMode: 'CREATE_MISSING_MASTER_DATA',
+        autoRepair,
       });
       setPreview(summary);
+      setRepairSummary([]);
       setStep('preview');
-      if (summary.warnCount > 0 || (summary.metadataWarnings?.length ?? 0) > 0) {
+      if (summary.autoRepairedRows && summary.autoRepairedRows > 0) {
+        showToast({
+          type: 'warning',
+          message: `تم إصلاح ${summary.autoRepairedRows} صف تلقائياً — راجع التحذيرات قبل الترحيل`,
+        });
+      } else if (summary.warnCount > 0 || (summary.metadataWarnings?.length ?? 0) > 0) {
         showToast({ type: 'warning', message: 'تمت المعاينة مع بعض التحذيرات — راجع الملخص قبل التسعير' });
       } else {
         showToast({ type: 'success', message: 'تم تحليل الملف بنجاح' });
@@ -171,6 +181,48 @@ export const ImportExcel = () => {
       showToast({
         type: 'error',
         message: e instanceof ApiRequestError ? e.message : 'تعذر حفظ التسعير',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAutoRepair = async () => {
+    if (!preview?.batchId) return;
+    setLoading(true);
+    try {
+      const result = await autoRepairImportBatch(preview.batchId);
+      setPreview((prev) =>
+        prev
+          ? {
+              ...prev,
+              validCount: result.validCount,
+              warnCount: result.warnCount,
+              errorCount: result.errorCount,
+              totalLengthM: result.totalLengthM,
+              totalActualWeightKg: result.totalActualWeightKg,
+              totalCalculatedWeightKg: result.totalCalculatedWeightKg,
+              verificationTotal: result.verificationTotal,
+            }
+          : prev,
+      );
+      setRepairSummary(result.repairSummary);
+      if (result.errorCount === 0) {
+        showToast({
+          type: 'success',
+          message: `تم الإصلاح — ${result.repairedRows} صف. لا توجد أخطاء متبقية.`,
+        });
+      } else {
+        showToast({
+          type: 'warning',
+          message: `تم إصلاح ${result.repairedRows} صف — يبقى ${result.errorCount} خطأ يحتاج تدخلاً يدوياً`,
+          durationMs: 10000,
+        });
+      }
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'تعذر الإصلاح التلقائي',
       });
     } finally {
       setLoading(false);
@@ -221,6 +273,7 @@ export const ImportExcel = () => {
     setConfirmResult(null);
     setIssueRows([]);
     setIssueRowsTotal(0);
+    setRepairSummary([]);
     setFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -321,6 +374,22 @@ export const ImportExcel = () => {
               <label className="text-xs font-bold text-slate-700">ملاحظات</label>
               <input value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="اختياري" />
             </div>
+            <div className="md:col-span-2">
+              <label className="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={autoRepair}
+                  onChange={(e) => setAutoRepair(e.target.checked)}
+                  className="mt-1 rounded border-slate-300"
+                />
+                <span>
+                  <span className="font-bold">إصلاح تلقائي عند المعاينة</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">
+                    يملأ الحقول الفارغة من بيانات الملف، ويحل تكرار الباركود/السيريال مع الإبقاء على رقم التوب الأصلي
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
           <button
             type="button"
@@ -367,11 +436,22 @@ export const ImportExcel = () => {
             )}
             {(preview.errorCount ?? 0) > 0 && (
               <div className="rounded-lg border border-red-300 bg-red-50 p-4 space-y-3">
-                <div className="font-bold text-red-900">
-                  صفوف بها أخطاء — يجب إصلاحها قبل الترحيل ({issueRowsTotal || preview.errorCount})
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-bold text-red-900">
+                    صفوف بها أخطاء — يجب إصلاحها قبل الترحيل ({issueRowsTotal || preview.errorCount})
+                  </div>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => void handleAutoRepair()}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+                    محاولة إصلاح تلقائي
+                  </button>
                 </div>
                 <p className="text-sm text-red-800">
-                  صحّح الملف في Excel ثم اضغط «رفع ملف آخر» أو أعد المعاينة. الأخطاء الشائعة: باركود/رقم توب مكرر، طول غير صالح.
+                  يمكنك الضغط «إصلاح تلقائي» لملء الفراغات وحل تكرار الباركود، أو صحّح الملف في Excel ثم أعد المعاينة.
                 </p>
                 <div className="max-h-64 overflow-y-auto rounded border border-red-200 bg-white">
                   <table className="w-full text-sm text-right">
@@ -406,6 +486,14 @@ export const ImportExcel = () => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+            {repairSummary.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-1 max-h-40 overflow-y-auto">
+                <div className="font-bold">ملخص الإصلاح التلقائي</div>
+                {repairSummary.map((line) => (
+                  <div key={line}>• {line}</div>
+                ))}
               </div>
             )}
           </div>

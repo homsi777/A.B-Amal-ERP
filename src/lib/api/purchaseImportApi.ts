@@ -143,6 +143,7 @@ export interface ImportPreviewSummary {
   detectedColumns: { col: string; field: string }[];
   extractedMetadata?: ExtractedImportMetadata | null;
   metadataWarnings?: string[];
+  autoRepairedRows?: number;
 }
 
 export interface ImportConfirmResult {
@@ -187,6 +188,19 @@ export interface ImportPricingPayload {
   otherCost?: number;
 }
 
+export interface ImportAutoRepairResult {
+  batchId: string;
+  validCount: number;
+  warnCount: number;
+  errorCount: number;
+  repairedRows: number;
+  repairSummary: string[];
+  totalLengthM: number;
+  totalActualWeightKg: number;
+  totalCalculatedWeightKg: number;
+  verificationTotal: number;
+}
+
 export interface PreviewOptions {
   supplierId: string;
   warehouseId: string;
@@ -197,6 +211,7 @@ export interface PreviewOptions {
   notes?: string | null;
   exchangeRateToUsd?: number | null;
   importMode?: ImportMode;
+  autoRepair?: boolean;
 }
 
 export interface ImportRowsFilters {
@@ -449,6 +464,7 @@ export async function previewPurchaseExcelImport(
         notes: options.notes ?? null,
         exchangeRateToUsd: options.exchangeRateToUsd ?? null,
         importMode: options.importMode ?? 'MATCH_ONLY',
+        autoRepair: options.autoRepair ?? false,
       }),
       timeoutMs: 120_000,
     },
@@ -488,6 +504,14 @@ export async function saveImportPricing(
       method: 'POST',
       body: JSON.stringify(payload),
     },
+  );
+  return res.data;
+}
+
+export async function autoRepairImportBatch(batchId: string): Promise<ImportAutoRepairResult> {
+  const res = await apiFetch<{ ok: boolean; data: ImportAutoRepairResult }>(
+    `/api/purchases/import/${batchId}/auto-repair`,
+    { method: 'POST', timeoutMs: 120_000 },
   );
   return res.data;
 }
