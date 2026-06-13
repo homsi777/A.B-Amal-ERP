@@ -530,6 +530,8 @@ export const InvoiceForm = () => {
     routeInvoiceId && EDIT_INVOICE_ID_RE.test(routeInvoiceId) && location.pathname.includes('/edit')
       ? routeInvoiceId
       : undefined;
+  /** فاتورة بيع جديدة: إخفاء ملخص التفنيد حسب الخامة */
+  const hideMaterialSummarySection = isSales && !editInvoiceId;
 
   const { customers, suppliers, inventory } = useStore();
 
@@ -1843,7 +1845,7 @@ export const InvoiceForm = () => {
 
     e.preventDefault();
 
-    if (summaryOpen) {
+    if (summaryOpen && !hideMaterialSummarySection) {
       const pricePm = numberValue(item.price);
       const gr = summary.groups.find(
         (g) =>
@@ -2981,6 +2983,7 @@ export const InvoiceForm = () => {
           </div>
         </div>
 
+        {!hideMaterialSummarySection && (
         <section className="rounded-xl border border-slate-200 bg-slate-50">
           <button type="button" onClick={() => setSummaryOpen(!summaryOpen)} className="w-full flex items-center justify-between px-5 py-4 text-right">
             <div>
@@ -3049,6 +3052,7 @@ export const InvoiceForm = () => {
             </div>
           )}
         </section>
+        )}
 
         <hr className="border-slate-100" />
 
