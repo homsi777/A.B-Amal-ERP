@@ -26,6 +26,7 @@ import {
   applyPurchaseImportMaterialCodes,
   buildPurchaseLineMetadataFromImport,
   ensureFabricCategoryChainFromImport,
+  resolveImportMaterialCode,
 } from '../utils/purchaseImportMaterialCodes.js';
 import { expandChinaPackingListIfNeeded } from '../utils/chinaPackingListExpand.js';
 
@@ -495,6 +496,13 @@ function applyChinaImportMetadata(
     (nd as Record<string, unknown>).colorNameTr = `LOT-${lot.toUpperCase()}`;
     (nd as Record<string, unknown>).colorCode = lot.toUpperCase();
   }
+}
+
+function importAmountToUsd(amount: number, currencyCode: string, exchangeRateToUsd: number): number {
+  const ccy = String(currencyCode || 'USD').trim().toUpperCase();
+  const rate = ccy === 'USD' ? 1 : exchangeRateToUsd;
+  if (!Number.isFinite(amount) || !Number.isFinite(rate) || rate <= 0) return 0;
+  return Math.round((amount / rate) * 100) / 100;
 }
 
 async function resolveImportRollBarcode(
@@ -1152,6 +1160,15 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
 
     if (batch.status === 'CONFIRMED') return sendError(reply, 409, 'الدفعة مؤكَّدة مسبقاً.', 'ALREADY_CONFIRMED');
     if (batch.status === 'CANCELLED') return sendError(reply, 400, 'الدفعة ملغاة ولا يمكن تأكيدها.', 'CANCELLED');
+    if (batch.status === 'CONFIRMING' || batch.status === 'FAILED') {
+      await pool.query(
+        `UPDATE purchase_import_batches
+         SET status='VALIDATED', error_message=NULL, failed_at=NULL, updated_at=now()
+         WHERE id=$1 AND company_id=$2 AND status IN ('CONFIRMING','FAILED')`,
+        [id, companyId],
+      );
+      (batch as { status: string }).status = 'VALIDATED';
+    }
     if (batch.error_count > 0) return sendError(reply, 400, 'يوجد صفوف بها أخطاء. صحِّح الملف أو أزل الصفوف الخاطئة.', 'HAS_ERRORS');
     if (batch.warning_count > 0 && !allowWarnings) {
       return sendError(reply, 400, 'يوجد صفوف بها تحذيرات. أرسل allowWarnings=true للمتابعة.', 'HAS_WARNINGS');
@@ -1235,6 +1252,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       const lineRowIds: string[] = [];
       const lineRollIds: string[] = [];
       const lineInputs: Array<Record<string, unknown>> = [];
+      const categoryChainCache = new Set<string>();
 
       for (const row of rowsToImport.rows) {
         const nd = row.normalized_data as NormalizedRowData;
@@ -1281,7 +1299,16 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         if (!itemId) continue; // skip if still no item
 
         await applyPurchaseImportMaterialCodes(client, companyId, itemId, nd);
-        await ensureFabricCategoryChainFromImport(client, companyId, nd);
+        const categoryKey = [
+          cleanString(nd.materialName),
+          resolveImportMaterialCode(nd),
+          cleanString(nd.colorName) || cleanString(nd.colorNameTr),
+          cleanString(nd.colorCode) || cleanString(nd.supplierColorCode),
+        ].join('|');
+        if (!categoryChainCache.has(categoryKey)) {
+          await ensureFabricCategoryChainFromImport(client, companyId, nd);
+          categoryChainCache.add(categoryKey);
+        }
 
         const colorResolved = await resolveFabricColorForImport(
           client,
@@ -1471,7 +1498,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         await confirmPurchaseInvoice(client, companyId, userId, createdPurchaseInvoiceId, { skipStockMovement: true });
 
         if (landingCostTotalBatch > 0) {
-          const landingUsd = Math.round(landingCostTotalBatch * exchangeRateToUsd * 100) / 100;
+          const landingUsd = importAmountToUsd(landingCostTotalBatch, ccy, exchangeRateToUsd);
           await postImportLandingCostsToGl(client, {
             companyId,
             batchId: id,
@@ -1572,7 +1599,15 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'VALIDATION') return sendError(reply, 400, err.message || ArabicErrors.validation, 'VALIDATION');
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || 'حالة غير صالحة', 'INVALID_STATE');
-      throw e;
+      if (err.code === 'GL_CONFIG' || err.code === 'GL_UNBALANCED') {
+        return sendError(reply, 409, err.message || 'إعداد الحسابات العامة غير مكتمل', err.code);
+      }
+      return sendError(
+        reply,
+        500,
+        err.message || ArabicErrors.server,
+        'IMPORT_CONFIRM_FAILED',
+      );
     } finally {
       client.release();
     }
