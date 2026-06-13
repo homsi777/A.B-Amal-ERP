@@ -1,5 +1,16 @@
 const AUTO_INTERNAL_CODE_PREFIX = 'IMP-AUTO-';
 
+/** يُعرض في المخزون بدل الحقول الفارغة (اللون، كود اللون، …). */
+export const EMPTY_INVENTORY_FIELD = '0';
+
+const EMPTY_INVENTORY_SENTINELS = new Set(['', 'بدون لون']);
+
+export function displayOptionalInventoryField(value?: string | null): string {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed || EMPTY_INVENTORY_SENTINELS.has(trimmed)) return EMPTY_INVENTORY_FIELD;
+  return trimmed;
+}
+
 /** كود الخامة كما في Excel: فارغ إن لم يُذكر في الملف. */
 export function displayImportedItemCode(roll: {
   internal_code?: string | null;
@@ -12,15 +23,17 @@ export function displayImportedItemCode(roll: {
   return internal;
 }
 
-/** اللون / كود اللون — لا نعرض قيمة مكان الأخرى. */
+/** اللون — لا نعرض قيمة مكان الأخرى. */
 export function displayImportedColorName(name?: string | null): string {
-  return String(name ?? '').trim();
+  return displayOptionalInventoryField(name);
 }
 
 const PLACEHOLDER_COLOR_CODES = new Set(['#000000', '#000', '000000']);
 
 export function displayImportedColorCode(code?: string | null): string {
   const trimmed = String(code ?? '').trim();
-  if (!trimmed || PLACEHOLDER_COLOR_CODES.has(trimmed.toLowerCase())) return '';
+  if (!trimmed || PLACEHOLDER_COLOR_CODES.has(trimmed.toLowerCase())) {
+    return EMPTY_INVENTORY_FIELD;
+  }
   return trimmed;
 }

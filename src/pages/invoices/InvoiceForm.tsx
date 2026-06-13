@@ -2520,7 +2520,11 @@ export const InvoiceForm = () => {
                   ? 'فاتورة مبيعات جديدة'
                   : 'فاتورة مشتريات جديدة'}
             </h2>
-            <p className="text-slate-500 mt-1">إدخال تفاصيل قطع الأقمشة وتجميعها حسب الخامة والتصميم والسعر</p>
+            <p className="text-slate-500 mt-1 text-sm">
+              {isSales
+                ? 'تسجيل بيع بالجملة — باركود، عدد الأتواب، السعر، والمجموع'
+                : 'إدخال تفاصيل قطع الأقمشة وتجميعها حسب الخامة والتصميم والسعر'}
+            </p>
           </div>
         </div>
 
@@ -2541,91 +2545,157 @@ export const InvoiceForm = () => {
       </div>
 
       <div
-        className={`bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-8 ${editBlocked || draftLoading ? 'pointer-events-none opacity-50' : ''}`}
+        className={`bg-white rounded-xl border border-slate-200 shadow-sm ${isSales ? 'p-4 space-y-4' : 'p-6 space-y-8'} ${editBlocked || draftLoading ? 'pointer-events-none opacity-50' : ''}`}
         data-enter-scope
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">رقم الفاتورة</label>
-            <input
-              type="text"
-              value={invoiceNumber}
-              readOnly
-              onKeyDown={focusNextFormControl}
-              className={`w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-600 focus:outline-none ${
-                invoiceNumber === INVOICE_NUMBER_PENDING_LABEL || invoiceNumber === INVOICE_NUMBER_MISSING_LABEL
-                  ? 'text-sm font-sans text-slate-500'
-                  : 'font-mono'
-              }`}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">التاريخ</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} onKeyDown={focusNextFormControl} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">المستودع</label>
-            <select value={warehouse} onChange={(e) => setWarehouse(e.target.value)} onKeyDown={focusNextFormControl} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500">
-              <option value="main">المستودع الرئيسي</option>
-              <option value="sub">مستودع الجملة</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">{isSales ? 'العميل' : 'المورد'}</label>
-            <div className="relative">
-              <SmartPartySearch
-                options={partyOptions}
-                selectedId={partyId}
-                onSelect={setPartyId}
-                onEnterFallback={focusNextFormControl}
-                placeholder={isSales ? 'اكتب أول حرف من اسم العميل أو رقم الهاتف' : 'اكتب أول حرف من اسم المورد أو رقم الهاتف'}
-                emptyLabel={isSales ? 'اختر عميلا من النتائج' : 'اختر موردا من النتائج'}
-              />
+        <div className={isSales ? 'space-y-3' : undefined}>
+          <div
+            className={
+              isSales
+                ? 'grid grid-cols-2 md:grid-cols-4 gap-3'
+                : 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6'
+            }
+          >
+            <div className="space-y-1.5">
+              <label className={`font-bold text-slate-700 ${isSales ? 'text-xs' : 'text-sm'}`}>رقم الفاتورة</label>
               <input
-                type="search"
-                value=""
-                onChange={() => undefined}
+                type="text"
+                value={invoiceNumber}
+                readOnly
                 onKeyDown={focusNextFormControl}
-                placeholder={isSales ? 'بحث باسم العميل أو الهاتف أو البريد' : 'بحث باسم المورد أو الهاتف أو البريد'}
-                className="hidden"
+                className={`w-full bg-slate-50 border border-slate-200 rounded-lg px-3 ${isSales ? 'py-1.5 text-sm' : 'px-4 py-2'} text-slate-600 focus:outline-none ${
+                  invoiceNumber === INVOICE_NUMBER_PENDING_LABEL || invoiceNumber === INVOICE_NUMBER_MISSING_LABEL
+                    ? 'text-sm font-sans text-slate-500'
+                    : 'font-mono'
+                }`}
               />
-              <select value={partyId} onChange={(e) => setPartyId(e.target.value)} onKeyDown={focusNextFormControl} className="hidden">
-                <option value="">-- نقدي سريع --</option>
-                {isSales
-                  ? partyOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)
-                  : partyOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+            </div>
+            <div className="space-y-1.5">
+              <label className={`font-bold text-slate-700 ${isSales ? 'text-xs' : 'text-sm'}`}>التاريخ</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                onKeyDown={focusNextFormControl}
+                className={`w-full bg-white border border-slate-200 rounded-lg px-3 text-slate-900 focus:outline-none focus:border-indigo-500 ${isSales ? 'py-1.5 text-sm' : 'px-4 py-2'}`}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className={`font-bold text-slate-700 ${isSales ? 'text-xs' : 'text-sm'}`}>المستودع</label>
+              <select
+                value={warehouse}
+                onChange={(e) => setWarehouse(e.target.value)}
+                onKeyDown={focusNextFormControl}
+                className={`w-full bg-white border border-slate-200 rounded-lg px-3 text-slate-900 focus:outline-none focus:border-indigo-500 ${isSales ? 'py-1.5 text-sm' : 'px-4 py-2'}`}
+              >
+                <option value="main">المستودع الرئيسي</option>
+                <option value="sub">مستودع الجملة</option>
               </select>
-              {partyId && selectedParty && (
-                <div className={`absolute -bottom-5 right-2 text-xs font-bold font-mono px-1 ${balanceColor}`}>
-                  {partyStatementBalanceLoading ? 'جاري تحميل الرصيد...' : `الرصيد السابق: ${Math.abs(partyBalance).toFixed(2)} (${balanceText})`}
+            </div>
+            <div className={`space-y-1.5 ${isSales && partyId ? 'pb-5' : ''}`}>
+              <label className={`font-bold text-slate-700 ${isSales ? 'text-xs' : 'text-sm'}`}>{isSales ? 'العميل' : 'المورد'}</label>
+              <div className="relative">
+                <SmartPartySearch
+                  options={partyOptions}
+                  selectedId={partyId}
+                  onSelect={setPartyId}
+                  onEnterFallback={focusNextFormControl}
+                  placeholder={isSales ? 'اكتب أول حرف من اسم العميل أو رقم الهاتف' : 'اكتب أول حرف من اسم المورد أو رقم الهاتف'}
+                  emptyLabel={isSales ? 'اختر عميلا من النتائج' : 'اختر موردا من النتائج'}
+                />
+                <input
+                  type="search"
+                  value=""
+                  onChange={() => undefined}
+                  onKeyDown={focusNextFormControl}
+                  placeholder={isSales ? 'بحث باسم العميل أو الهاتف أو البريد' : 'بحث باسم المورد أو الهاتف أو البريد'}
+                  className="hidden"
+                />
+                <select value={partyId} onChange={(e) => setPartyId(e.target.value)} onKeyDown={focusNextFormControl} className="hidden">
+                  <option value="">-- نقدي سريع --</option>
+                  {isSales
+                    ? partyOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)
+                    : partyOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                </select>
+                {partyId && selectedParty && (
+                  <div className={`absolute -bottom-5 right-2 text-xs font-bold font-mono px-1 ${balanceColor}`}>
+                    {partyStatementBalanceLoading ? 'جاري تحميل الرصيد...' : `الرصيد السابق: ${Math.abs(partyBalance).toFixed(2)} (${balanceText})`}
+                  </div>
+                )}
+              </div>
+            </div>
+            {!isSales ? (
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">العملة</label>
+                <select value={currency} onChange={(e) => setCurrency(e.target.value)} onKeyDown={focusNextFormControl} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500">
+                  {SUPPORTED_CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.nameAr} ({c.code})
+                    </option>
+                  ))}
+                </select>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-600">سعر الصرف مقابل الدولار</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={String(currency || 'USD').trim().toUpperCase() === 'USD' ? '1' : exchangeRateToUsd}
+                    disabled={String(currency || 'USD').trim().toUpperCase() === 'USD'}
+                    onChange={(e) => setExchangeRateToUsd(e.target.value)}
+                    onKeyDown={focusNextFormControl}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-mono text-left"
+                    dir="ltr"
+                  />
+                  <div className="text-xs text-slate-500">عدد وحدات العملة مقابل 1 دولار أمريكي</div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">العملة</label>
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)} onKeyDown={focusNextFormControl} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500">
-              {SUPPORTED_CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.nameAr} ({c.code})
-                </option>
-              ))}
-            </select>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-600">سعر الصرف مقابل الدولار</label>
-              <input
-                type="number"
-                step="0.000001"
-                value={String(currency || 'USD').trim().toUpperCase() === 'USD' ? '1' : exchangeRateToUsd}
-                disabled={String(currency || 'USD').trim().toUpperCase() === 'USD'}
-                onChange={(e) => setExchangeRateToUsd(e.target.value)}
-                onKeyDown={focusNextFormControl}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-mono text-left"
-                dir="ltr"
-              />
-              <div className="text-xs text-slate-500">عدد وحدات العملة مقابل 1 دولار أمريكي</div>
+
+          {isSales ? (
+            <div className="grid grid-cols-2 md:grid-cols-12 gap-3 items-end">
+              <div className="col-span-1 md:col-span-3 space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">العملة</label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  onKeyDown={focusNextFormControl}
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-500"
+                >
+                  {SUPPORTED_CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.nameAr} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-1 md:col-span-2 space-y-1.5">
+                <label className="text-xs font-bold text-slate-600">سعر الصرف</label>
+                <input
+                  type="number"
+                  step="0.000001"
+                  value={String(currency || 'USD').trim().toUpperCase() === 'USD' ? '1' : exchangeRateToUsd}
+                  disabled={String(currency || 'USD').trim().toUpperCase() === 'USD'}
+                  onChange={(e) => setExchangeRateToUsd(e.target.value)}
+                  onKeyDown={focusNextFormControl}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 font-mono text-left"
+                  dir="ltr"
+                  title="عدد وحدات العملة مقابل 1 دولار أمريكي"
+                />
+              </div>
+              <div className="col-span-2 md:col-span-7 space-y-1.5">
+                <label className="text-xs font-bold text-slate-600">ملاحظات الفاتورة</label>
+                <textarea
+                  value={headerNotes}
+                  onChange={(e) => setHeaderNotes(e.target.value)}
+                  onKeyDown={focusNextFormControl}
+                  rows={1}
+                  className={`${inputClass()} min-h-0 resize-y text-sm py-1.5 max-h-16 w-full`}
+                  placeholder="اختياري"
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         {!isSales ? (
@@ -2642,17 +2712,19 @@ export const InvoiceForm = () => {
           </div>
         ) : null}
 
-        <div className="space-y-1 max-w-md">
-          <label className="text-xs font-bold text-slate-600">ملاحظات الفاتورة</label>
-          <textarea
-            value={headerNotes}
-            onChange={(e) => setHeaderNotes(e.target.value)}
-            onKeyDown={focusNextFormControl}
-            rows={1}
-            className={`${inputClass()} min-h-0 resize-y text-sm py-1.5 max-h-20`}
-            placeholder="اختياري"
-          />
-        </div>
+        {!isSales ? (
+          <div className="space-y-1 max-w-md">
+            <label className="text-xs font-bold text-slate-600">ملاحظات الفاتورة</label>
+            <textarea
+              value={headerNotes}
+              onChange={(e) => setHeaderNotes(e.target.value)}
+              onKeyDown={focusNextFormControl}
+              rows={1}
+              className={`${inputClass()} min-h-0 resize-y text-sm py-1.5 max-h-20`}
+              placeholder="اختياري"
+            />
+          </div>
+        ) : null}
 
         {!isSales && (
         <section className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 space-y-3">
