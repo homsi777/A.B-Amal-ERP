@@ -1032,6 +1032,7 @@ export const CreateItem = () => {
                   </div>
 
                   {!HIDE_FABRIC_COLOR_UI && (
+                  <>
                   <div className="space-y-3">
                     <label className="block text-sm font-bold text-slate-700">لون الخامة</label>
                     <select
@@ -1080,6 +1081,7 @@ export const CreateItem = () => {
                       </select>
                     </div>
                   </div>
+                  </>
                   )}
                 </>
               )}
@@ -1097,6 +1099,7 @@ export const CreateItem = () => {
                     />
                   </div>
                   {!HIDE_FABRIC_COLOR_UI && (
+                  <>
                   <div className="space-y-3">
                     <label className="block text-sm font-bold text-slate-700">لون الخامة (مرجعي)</label>
                     <input
@@ -1116,6 +1119,7 @@ export const CreateItem = () => {
                       dir="ltr"
                     />
                   </div>
+                  </>
                   )}
                 </>
               )}

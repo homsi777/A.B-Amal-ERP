@@ -1701,8 +1701,11 @@ export const InvoiceForm = () => {
   };
 
   const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price' | 'rollQty' | 'materialName') => {
-    const value = field === 'materialName' ? item.materialName.trim() : numberValue(item[field]);
-    if (field === 'materialName' && wholesaleSalesUi && !value) return 'اسم الخامة مطلوب';
+    if (field === 'materialName') {
+      if (wholesaleSalesUi && !item.materialName.trim()) return 'اسم الخامة مطلوب';
+      return '';
+    }
+    const value = numberValue(item[field]);
     if (field === 'rollQty' && isSales && value <= 0) return 'العدد يجب أن يكون أكبر من صفر';
     if (field === 'length' && !isSales && value <= 0) return 'الطول يجب أن يكون أكبر من صفر';
     if (field === 'price' && value < 0) return 'السعر لا يمكن أن يكون سالبا';
