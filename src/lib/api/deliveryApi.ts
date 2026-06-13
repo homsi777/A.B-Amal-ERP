@@ -117,7 +117,36 @@ export async function confirmDeliveryFulfillment(invoiceId: string): Promise<voi
   await apiFetch(`/api/delivery/${invoiceId}/fulfill`, { method: 'POST' });
 }
 
+export type DeliveryNotificationItem = {
+  id: string;
+  invoiceNo: string;
+  customerName: string;
+};
+
+export type DeliveryNotifications = {
+  pendingTafnid: number;
+  pendingManagerApproval: number;
+  tafnidQueue: DeliveryNotificationItem[];
+  approvalQueue: DeliveryNotificationItem[];
+};
+
+export async function fetchDeliveryNotifications(): Promise<DeliveryNotifications> {
+  const res = await apiFetch<{
+    ok: boolean;
+    pendingTafnid: number;
+    pendingManagerApproval: number;
+    tafnidQueue: DeliveryNotificationItem[];
+    approvalQueue: DeliveryNotificationItem[];
+  }>('/api/delivery/notifications');
+  return {
+    pendingTafnid: Number(res.pendingTafnid ?? 0) || 0,
+    pendingManagerApproval: Number(res.pendingManagerApproval ?? 0) || 0,
+    tafnidQueue: res.tafnidQueue ?? [],
+    approvalQueue: res.approvalQueue ?? [],
+  };
+}
+
 export async function countPendingDeliveryApprovals(): Promise<number> {
-  const res = await apiFetch<{ ok: boolean; total: number }>('/api/delivery/pending-approvals');
-  return Number(res.total ?? 0) || 0;
+  const res = await fetchDeliveryNotifications();
+  return res.pendingManagerApproval;
 }

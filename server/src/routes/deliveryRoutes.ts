@@ -8,6 +8,7 @@ import {
   confirmDeliveryFulfillment,
   countPendingManagerApprovals,
   getDeliveryDetail,
+  getDeliveryNotifications,
   listDeliveryQueue,
   saveDeliveryTafnid,
   saveTafnidSchema,
@@ -31,6 +32,13 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const pool = getPool();
     const total = await countPendingManagerApprovals(pool, companyId);
     return reply.send({ ok: true, total });
+  });
+
+  app.get('/notifications', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const pool = getPool();
+    const data = await getDeliveryNotifications(pool, companyId);
+    return reply.send({ ok: true, ...data });
   });
 
   app.get('/:invoiceId', { preHandler: authenticateRequest }, async (req, reply) => {

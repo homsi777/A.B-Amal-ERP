@@ -32,8 +32,11 @@ import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { BRAND } from '../branding';
-import { countPendingDeliveryApprovals } from '../lib/api/deliveryApi';
+import { fetchDeliveryNotifications, type DeliveryNotifications } from '../lib/api/deliveryApi';
+import { fetchMe, type AuthUser } from '../lib/api/authApi';
+import { canFulfillDelivery, canSaveDeliveryTafnid } from '../lib/deliveryPermissions';
 import { AR_WHOLESALE } from '../lib/i18n/arTerminology';
+import { displayStoredInvoiceNo } from '../lib/invoiceDbMappers';
 
 /** أيام حتى موعد التوريد المتوقع (تاريخ محلي) */
 function daysUntilSupply(expectedDate: string): number {
@@ -73,22 +76,45 @@ const Topbar = () => {
   const customers = useStore((s) => s.customers);
 
   const pickupAlerts = useMemo(() => selectNearPickupOrders(customerOrders), [customerOrders]);
-  const [deliveryPendingCount, setDeliveryPendingCount] = useState(0);
-  const notifyTotal = pickupAlerts.length + deliveryPendingCount;
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNotifications>({
+    pendingTafnid: 0,
+    pendingManagerApproval: 0,
+    tafnidQueue: [],
+    approvalQueue: [],
+  });
+
+  const showWarehouseAlerts = canSaveDeliveryTafnid(authUser);
+  const showManagerAlerts = canFulfillDelivery(authUser);
+  const warehouseAlertCount = showWarehouseAlerts ? deliveryNotes.pendingTafnid : 0;
+  const managerAlertCount = showManagerAlerts ? deliveryNotes.pendingManagerApproval : 0;
+  const deliveryAlertCount = warehouseAlertCount + managerAlertCount;
+  const notifyTotal = pickupAlerts.length + deliveryAlertCount;
+
+  useEffect(() => {
+    void fetchMe().then(setAuthUser).catch(() => setAuthUser(null));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      void countPendingDeliveryApprovals()
-        .then((n) => {
-          if (!cancelled) setDeliveryPendingCount(n);
+      void fetchDeliveryNotifications()
+        .then((data) => {
+          if (!cancelled) setDeliveryNotes(data);
         })
         .catch(() => {
-          if (!cancelled) setDeliveryPendingCount(0);
+          if (!cancelled) {
+            setDeliveryNotes({
+              pendingTafnid: 0,
+              pendingManagerApproval: 0,
+              tafnidQueue: [],
+              approvalQueue: [],
+            });
+          }
         });
     };
     load();
-    const timer = window.setInterval(load, 60_000);
+    const timer = window.setInterval(load, 15_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -257,33 +283,56 @@ const Topbar = () => {
             {notifyOpen && (
               <div className="absolute end-0 mt-2 w-[min(100vw-2rem,22rem)] rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-xl z-[120] overflow-hidden">
                 <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
-                  <p className="text-sm font-bold text-[var(--text-heading)]">{t('notifications.pickupTitle')}</p>
+                  <p className="text-sm font-bold text-[var(--text-heading)]">التنبيهات</p>
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    {t('notifications.pickupSubtitle')}
+                    طلبات التسليم والتفنيد وطلبات العملاء
                   </p>
                 </div>
                 <div className="max-h-72 overflow-y-auto">
-                  {pickupAlerts.length === 0 && deliveryPendingCount === 0 ? (
+                  {pickupAlerts.length === 0 && deliveryAlertCount === 0 ? (
                     <p className="px-4 py-6 text-sm text-center text-[var(--text-muted)]">لا توجد تنبيهات حالياً</p>
                   ) : (
                     <ul className="divide-y divide-[var(--border-subtle)]">
-                      {deliveryPendingCount > 0 ? (
-                        <li>
+                      {showWarehouseAlerts && deliveryNotes.tafnidQueue.map((row) => (
+                        <li key={`tafnid-${row.id}`}>
                           <Link
-                            to="/delivery"
+                            to={`/delivery/${row.id}`}
                             className="block px-4 py-3 hover:bg-[var(--border-subtle)] transition text-right"
                             onClick={() => setNotifyOpen(false)}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <span className="font-semibold text-[var(--ui-accent)] text-sm">تسليم الجملة</span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 whitespace-nowrap">
-                                {deliveryPendingCount}
+                              <span className="font-mono font-semibold text-[var(--ui-accent)] text-sm">
+                                {displayStoredInvoiceNo(row.invoiceNo)}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-900 whitespace-nowrap">
+                                تفنيد
                               </span>
                             </div>
-                            <p className="text-xs text-[var(--text-heading)] mt-1">{AR_WHOLESALE.tafnidSaved}</p>
+                            <p className="text-xs text-[var(--text-heading)] mt-1">{row.customerName}</p>
+                            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{AR_WHOLESALE.pendingTafnid}</p>
                           </Link>
                         </li>
-                      ) : null}
+                      ))}
+                      {showManagerAlerts && deliveryNotes.approvalQueue.map((row) => (
+                        <li key={`approve-${row.id}`}>
+                          <Link
+                            to={`/delivery/${row.id}`}
+                            className="block px-4 py-3 hover:bg-[var(--border-subtle)] transition text-right"
+                            onClick={() => setNotifyOpen(false)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="font-mono font-semibold text-[var(--ui-accent)] text-sm">
+                                {displayStoredInvoiceNo(row.invoiceNo)}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 whitespace-nowrap">
+                                موافقة
+                              </span>
+                            </div>
+                            <p className="text-xs text-[var(--text-heading)] mt-1">{row.customerName}</p>
+                            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{AR_WHOLESALE.tafnidSaved}</p>
+                          </Link>
+                        </li>
+                      ))}
                       {pickupAlerts.slice(0, 12).map((o) => {
                         const c = customers.find((x) => x.id === o.customerId);
                         return (
@@ -312,15 +361,15 @@ const Topbar = () => {
                     </ul>
                   )}
                 </div>
-                {(pickupAlerts.length > 0 || deliveryPendingCount > 0) && (
-                  <div className="px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
-                    {deliveryPendingCount > 0 ? (
+                {(pickupAlerts.length > 0 || deliveryAlertCount > 0) && (
+                  <div className="px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted-nav)] space-y-1">
+                    {deliveryAlertCount > 0 ? (
                       <Link
                         to="/delivery"
                         className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
                         onClick={() => setNotifyOpen(false)}
                       >
-                        فتح قسم التسليم
+                        فتح قسم التسليم ({deliveryAlertCount})
                       </Link>
                     ) : null}
                     {pickupAlerts.length > 0 ? (
@@ -391,10 +440,18 @@ const Topbar = () => {
 
           if (!('to' in item)) return null;
 
+          const isDelivery = item.to === '/delivery';
+          const deliveryBadge = isDelivery && deliveryAlertCount > 0 ? deliveryAlertCount : 0;
+
           return (
-            <Link key={idx} to={item.to} className={linkTopCls(parentActive)}>
+            <Link key={idx} to={item.to} className={`${linkTopCls(parentActive)} relative`}>
               <item.icon className={`w-4 h-4 ${parentIcon(parentActive)}`} strokeWidth={2} />
               <span>{t(item.labelKey, { ns: 'nav' })}</span>
+              {deliveryBadge > 0 ? (
+                <span className="absolute -top-1 start-0 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center">
+                  {deliveryBadge > 99 ? '99+' : deliveryBadge}
+                </span>
+              ) : null}
             </Link>
           );
         })}

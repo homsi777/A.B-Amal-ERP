@@ -14,6 +14,7 @@ import {
 import { listCashboxes } from '../lib/api/cashboxesApi';
 import { displayStoredInvoiceNo, mapSalesListRowToInvoice, type ListedSaleInvoice } from '../lib/invoiceDbMappers';
 import { arInvoicePaymentStatusCode, arDocumentStatus } from '../lib/i18n/arTerminology';
+import { WHOLESALE_SALES_MODE } from '../lib/inventoryUiConfig';
 import { useToast } from '../components/NonBlockingToast';
 import { ApiRequestError } from '../lib/api/client';
 
@@ -75,7 +76,12 @@ export const Sales = () => {
 
   const runConfirm = async (id: string, cashboxId?: string | null) => {
     await confirmSalesInvoice(id, cashboxId ? { cashboxId } : {});
-    showToast({ type: 'success', message: 'تم تأكيد فاتورة المبيعات' });
+    showToast({
+      type: 'success',
+      message: WHOLESALE_SALES_MODE
+        ? 'تم تأكيد الفاتورة — ظهرت في قسم التسليم لأمين المستودع'
+        : 'تم تأكيد فاتورة المبيعات',
+    });
     setConfirmTargetId(null);
     setConfirmCashboxId('');
     void refresh();
@@ -84,7 +90,9 @@ export const Sales = () => {
   const handleConfirm = async (id: string) => {
     if (
       !window.confirm(
-        'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟',
+        WHOLESALE_SALES_MODE
+          ? 'سيتم تأكيد الفاتورة وإرسالها لقسم التسليم. لن يُخصم المخزون حتى يفنّد أمين المستودع ويوافق المدير. هل تريد المتابعة؟'
+          : 'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟',
       )
     ) {
       return;
@@ -183,7 +191,10 @@ export const Sales = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">المبيعات</h2>
-          <p className="text-slate-500 mt-1">إدارة فواتير المبيعات</p>
+          <p className="text-slate-500 mt-1">
+            إدارة فواتير المبيعات
+            {WHOLESALE_SALES_MODE ? ' — المسودة لا تظهر في التسليم حتى التأكيد' : ''}
+          </p>
         </div>
         <Link
           to="/invoices/sales/new"
@@ -303,8 +314,9 @@ export const Sales = () => {
                                 disabled={confirmBusy}
                                 onClick={() => void handleConfirm(invoice.id)}
                                 className="text-white font-medium bg-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-700 transition text-xs disabled:opacity-50"
+                                title={WHOLESALE_SALES_MODE ? 'بعد التأكيد تظهر في قسم التسليم' : undefined}
                               >
-                                تأكيد
+                                {WHOLESALE_SALES_MODE ? 'تأكيد وإرسال للتسليم' : 'تأكيد'}
                               </button>
                               <button
                                 type="button"

@@ -154,6 +154,87 @@ export async function countPendingManagerApprovals(db: DbQuery, companyId: strin
   return r.rows[0]?.total ?? 0;
 }
 
+export async function countPendingWarehouseTafnid(db: DbQuery, companyId: string): Promise<number> {
+  const r = await db.query<{ total: number }>(
+    `SELECT COUNT(*)::int AS total FROM sales_invoices si
+     WHERE si.company_id=$1
+       AND si.document_status='CONFIRMED'
+       AND si.delivery_status='IN_DELIVERY'`,
+    [companyId],
+  );
+  return r.rows[0]?.total ?? 0;
+}
+
+export type DeliveryNotificationRow = {
+  id: string;
+  invoiceNo: string;
+  customerName: string;
+};
+
+export async function listPendingWarehouseTafnid(
+  db: DbQuery,
+  companyId: string,
+  limit = 8,
+): Promise<DeliveryNotificationRow[]> {
+  const r = await db.query<{ id: string; invoice_no: string; customer_name: string }>(
+    `SELECT si.id, si.invoice_no, c.name AS customer_name
+     FROM sales_invoices si
+     INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
+     WHERE si.company_id=$1
+       AND si.document_status='CONFIRMED'
+       AND si.delivery_status='IN_DELIVERY'
+     ORDER BY si.confirmed_at DESC NULLS LAST, si.created_at DESC
+     LIMIT $2`,
+    [companyId, limit],
+  );
+  return r.rows.map((row) => ({
+    id: row.id,
+    invoiceNo: String(row.invoice_no),
+    customerName: String(row.customer_name),
+  }));
+}
+
+export async function listPendingManagerApprovals(
+  db: DbQuery,
+  companyId: string,
+  limit = 8,
+): Promise<DeliveryNotificationRow[]> {
+  const r = await db.query<{ id: string; invoice_no: string; customer_name: string }>(
+    `SELECT si.id, si.invoice_no, c.name AS customer_name
+     FROM sales_invoices si
+     INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
+     WHERE si.company_id=$1
+       AND si.document_status='CONFIRMED'
+       AND si.delivery_status='TAFNID_SAVED'
+     ORDER BY si.updated_at DESC
+     LIMIT $2`,
+    [companyId, limit],
+  );
+  return r.rows.map((row) => ({
+    id: row.id,
+    invoiceNo: String(row.invoice_no),
+    customerName: String(row.customer_name),
+  }));
+}
+
+export async function getDeliveryNotifications(
+  db: DbQuery,
+  companyId: string,
+): Promise<{
+  pendingTafnid: number;
+  pendingManagerApproval: number;
+  tafnidQueue: DeliveryNotificationRow[];
+  approvalQueue: DeliveryNotificationRow[];
+}> {
+  const [pendingTafnid, pendingManagerApproval, tafnidQueue, approvalQueue] = await Promise.all([
+    countPendingWarehouseTafnid(db, companyId),
+    countPendingManagerApprovals(db, companyId),
+    listPendingWarehouseTafnid(db, companyId),
+    listPendingManagerApprovals(db, companyId),
+  ]);
+  return { pendingTafnid, pendingManagerApproval, tafnidQueue, approvalQueue };
+}
+
 export async function getDeliveryDetail(
   db: DbQuery,
   companyId: string,
