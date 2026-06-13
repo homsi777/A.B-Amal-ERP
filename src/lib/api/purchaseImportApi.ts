@@ -140,6 +140,9 @@ export interface ImportPricingResult {
   landingCostTotal: number;
   landingPerMeter: number;
   finalUnitCost: number;
+  supplierInvoiceTotal: number;
+  inventoryValueTotal: number;
+  /** ذمة المورد فقط (سعر الشراء × الأطوال) */
   invoiceTotal: number;
   totalLengthM: number;
 }
