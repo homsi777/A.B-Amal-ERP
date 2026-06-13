@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   BookOpen,
@@ -21,6 +22,10 @@ import {
   Wallet,
   X,
   Bell,
+  Ruler,
+  ClipboardCheck,
+  ChevronLeft,
+  Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -38,6 +43,7 @@ import { RouteAccessGuard } from '../components/RouteAccessGuard';
 import { canFulfillDelivery, canSaveDeliveryTafnid } from '../lib/deliveryPermissions';
 import { AR_WHOLESALE } from '../lib/i18n/arTerminology';
 import { displayStoredInvoiceNo } from '../lib/invoiceDbMappers';
+import { useAnchoredPopoverStyle } from '../lib/useAnchoredPopoverStyle';
 
 /** أيام حتى موعد التوريد المتوقع (تاريخ محلي) */
 function daysUntilSupply(expectedDate: string): number {
@@ -91,6 +97,8 @@ const Topbar = () => {
   const managerAlertCount = showManagerAlerts ? deliveryNotes.pendingManagerApproval : 0;
   const deliveryAlertCount = warehouseAlertCount + managerAlertCount;
   const notifyTotal = pickupAlerts.length + deliveryAlertCount;
+  const hasAlerts = notifyTotal > 0;
+  const notifyPanelStyle = useAnchoredPopoverStyle(notifyRef, notifyOpen, 400);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,54 +272,91 @@ const Topbar = () => {
             />
           </div>
         </div>
-        <div className="order-2 flex items-center justify-center gap-3 md:order-1 md:justify-self-start">
+        <div className="order-2 flex items-center justify-center gap-3 md:order-1 md:justify-self-start overflow-visible">
           <LanguageSwitcher />
-          <div ref={notifyRef} className="relative">
+          <div ref={notifyRef} className="relative shrink-0">
             <button
               type="button"
               onClick={() => setNotifyOpen((v) => !v)}
-              className="relative p-2 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)] hover:text-[var(--text-heading)] transition border border-transparent hover:border-[var(--border-default)]"
+              className={`relative rounded-xl p-2.5 transition border ${
+                notifyOpen
+                  ? 'border-amber-300 bg-amber-50 text-amber-700'
+                  : 'border-transparent text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)] hover:text-[var(--text-heading)] hover:border-[var(--border-default)]'
+              } ${hasAlerts && !notifyOpen ? 'notify-bell-glow bg-amber-50/80 text-amber-700 border-amber-200/80' : ''}`}
               title={t('notifications.title')}
               aria-expanded={notifyOpen}
               aria-haspopup="true"
             >
-              <Bell className="w-5 h-5" strokeWidth={2} />
-              {notifyTotal > 0 && (
-                <span className="absolute top-1 end-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">
+              <Bell className={`w-5 h-5 ${hasAlerts ? 'text-amber-600' : ''}`} strokeWidth={2} />
+              {hasAlerts && (
+                <span className="notify-badge-pulse absolute -top-0.5 -start-0.5 min-w-[20px] h-5 px-1 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-[10px] font-bold text-white flex items-center justify-center shadow-md ring-2 ring-white">
                   {notifyTotal > 99 ? '99+' : notifyTotal}
                 </span>
               )}
             </button>
-            {notifyOpen && (
-              <div className="absolute end-0 mt-2 w-[min(100vw-2rem,22rem)] rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-xl z-[120] overflow-hidden">
-                <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
-                  <p className="text-sm font-bold text-[var(--text-heading)]">التنبيهات</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    طلبات التسليم والتفنيد وطلبات العملاء
-                  </p>
+            {notifyOpen && notifyPanelStyle && createPortal(
+              <div
+                style={notifyPanelStyle}
+                className={`flex flex-col rounded-2xl border border-amber-200/90 bg-[var(--surface-header)] overflow-hidden backdrop-blur-sm ${
+                  hasAlerts ? 'notify-panel-glow' : 'shadow-2xl ring-1 ring-black/5'
+                }`}
+                role="dialog"
+                aria-label={t('notifications.title')}
+                dir="rtl"
+              >
+                <div className="relative px-4 py-4 border-b border-amber-100/90 bg-gradient-to-l from-amber-50/90 via-amber-50/40 to-[var(--surface-header)]">
+                  <div className="flex items-start gap-3">
+                    <div className={`shrink-0 rounded-xl p-2.5 ${hasAlerts ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-300/40' : 'bg-[var(--surface-muted-nav)] text-[var(--text-muted)]'}`}>
+                      <Bell className="w-5 h-5" strokeWidth={2.25} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-black text-[var(--text-heading)]">التنبيهات</p>
+                        {hasAlerts && (
+                          <span className="notify-badge-pulse shrink-0 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                            {notifyTotal}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
+                        طلبات التسليم والتفنيد وطلبات العملاء
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="max-h-72 overflow-y-auto">
-                  {pickupAlerts.length === 0 && deliveryAlertCount === 0 ? (
-                    <p className="px-4 py-6 text-sm text-center text-[var(--text-muted)]">لا توجد تنبيهات حالياً</p>
+                <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar overscroll-contain">
+                  {!hasAlerts ? (
+                    <div className="px-4 py-10 text-center">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
+                        <Bell className="h-5 w-5" />
+                      </div>
+                      <p className="text-sm text-[var(--text-muted)]">لا توجد تنبيهات حالياً</p>
+                    </div>
                   ) : (
-                    <ul className="divide-y divide-[var(--border-subtle)]">
+                    <ul className="space-y-2 p-3">
                       {showWarehouseAlerts && deliveryNotes.tafnidQueue.map((row) => (
                         <li key={`tafnid-${row.id}`}>
                           <Link
                             to={`/delivery/${row.id}`}
-                            className="block px-4 py-3 hover:bg-[var(--border-subtle)] transition text-right"
+                            className="notify-item-glow group flex items-start gap-3 rounded-xl border border-sky-200/70 bg-gradient-to-l from-sky-50/80 to-white/60 px-3 py-3 shadow-sm transition hover:border-sky-300 hover:shadow-md hover:shadow-sky-100/80"
                             onClick={() => setNotifyOpen(false)}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-mono font-semibold text-[var(--ui-accent)] text-sm">
-                                {displayStoredInvoiceNo(row.invoiceNo)}
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-900 whitespace-nowrap">
-                                تفنيد
-                              </span>
+                            <div className="shrink-0 rounded-lg bg-sky-500 p-2 text-white shadow-sm shadow-sky-300/50">
+                              <Ruler className="h-4 w-4" />
                             </div>
-                            <p className="text-xs text-[var(--text-heading)] mt-1">{row.customerName}</p>
-                            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{AR_WHOLESALE.pendingTafnid}</p>
+                            <div className="min-w-0 flex-1 text-right">
+                              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-900 border border-sky-200/80">
+                                  تفنيد
+                                </span>
+                                <span className="font-mono text-sm font-bold text-[var(--ui-accent)] break-all">
+                                  {displayStoredInvoiceNo(row.invoiceNo)}
+                                </span>
+                              </div>
+                              <p className="text-xs font-semibold text-[var(--text-heading)] leading-snug">{row.customerName}</p>
+                              <p className="mt-1 text-[11px] text-sky-800/80">{AR_WHOLESALE.pendingTafnid}</p>
+                            </div>
+                            <ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-sky-400 opacity-60 transition group-hover:opacity-100" />
                           </Link>
                         </li>
                       ))}
@@ -319,19 +364,25 @@ const Topbar = () => {
                         <li key={`approve-${row.id}`}>
                           <Link
                             to={`/delivery/${row.id}`}
-                            className="block px-4 py-3 hover:bg-[var(--border-subtle)] transition text-right"
+                            className="notify-item-glow group flex items-start gap-3 rounded-xl border border-amber-200/80 bg-gradient-to-l from-amber-50/90 to-white/60 px-3 py-3 shadow-sm transition hover:border-amber-300 hover:shadow-md hover:shadow-amber-100/80"
                             onClick={() => setNotifyOpen(false)}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-mono font-semibold text-[var(--ui-accent)] text-sm">
-                                {displayStoredInvoiceNo(row.invoiceNo)}
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 whitespace-nowrap">
-                                موافقة
-                              </span>
+                            <div className="shrink-0 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 p-2 text-white shadow-sm shadow-amber-300/50">
+                              <ClipboardCheck className="h-4 w-4" />
                             </div>
-                            <p className="text-xs text-[var(--text-heading)] mt-1">{row.customerName}</p>
-                            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{AR_WHOLESALE.tafnidSaved}</p>
+                            <div className="min-w-0 flex-1 text-right">
+                              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200/80">
+                                  موافقة
+                                </span>
+                                <span className="font-mono text-sm font-bold text-[var(--ui-accent)] break-all">
+                                  {displayStoredInvoiceNo(row.invoiceNo)}
+                                </span>
+                              </div>
+                              <p className="text-xs font-semibold text-[var(--text-heading)] leading-snug">{row.customerName}</p>
+                              <p className="mt-1 text-[11px] text-amber-900/75">{AR_WHOLESALE.tafnidSaved}</p>
+                            </div>
+                            <ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-amber-500 opacity-60 transition group-hover:opacity-100" />
                           </Link>
                         </li>
                       ))}
@@ -341,21 +392,29 @@ const Topbar = () => {
                           <li key={o.id}>
                             <Link
                               to="/orders"
-                              className="block px-4 py-3 hover:bg-[var(--border-subtle)] transition text-right"
+                              className="notify-item-glow group flex items-start gap-3 rounded-xl border border-violet-200/60 bg-gradient-to-l from-violet-50/50 to-white/60 px-3 py-3 shadow-sm transition hover:border-violet-300 hover:shadow-md"
                               onClick={() => setNotifyOpen(false)}
                             >
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="font-mono font-semibold text-[var(--ui-accent)] text-sm">{o.orderNumber}</span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 whitespace-nowrap">
-                                  {ORDER_STATUS_LABELS[o.status]}
-                                </span>
+                              <div className="shrink-0 rounded-lg bg-violet-500 p-2 text-white shadow-sm">
+                                <Package className="h-4 w-4" />
                               </div>
-                              <p className="text-xs text-[var(--text-heading)] mt-1">{c?.name ?? 'عميل'}</p>
-                              {o.expectedDate && (
-                                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                                  متوقع التوريد: {format(new Date(o.expectedDate), 'PP', { locale: ar })}
-                                </p>
-                              )}
+                              <div className="min-w-0 flex-1 text-right">
+                                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-900 border border-violet-200/80">
+                                    {ORDER_STATUS_LABELS[o.status]}
+                                  </span>
+                                  <span className="font-mono text-sm font-bold text-[var(--ui-accent)] break-all">
+                                    {o.orderNumber}
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-[var(--text-heading)] leading-snug">{c?.name ?? 'عميل'}</p>
+                                {o.expectedDate && (
+                                  <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                                    متوقع التوريد: {format(new Date(o.expectedDate), 'PP', { locale: ar })}
+                                  </p>
+                                )}
+                              </div>
+                              <ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-violet-400 opacity-60 transition group-hover:opacity-100" />
                             </Link>
                           </li>
                         );
@@ -363,21 +422,22 @@ const Topbar = () => {
                     </ul>
                   )}
                 </div>
-                {(pickupAlerts.length > 0 || deliveryAlertCount > 0) && (
-                  <div className="px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted-nav)] space-y-1">
+                {hasAlerts && (
+                  <div className="shrink-0 border-t border-amber-100/80 bg-gradient-to-l from-amber-50/50 to-[var(--surface-muted-nav)] px-3 py-3 space-y-1.5">
                     {deliveryAlertCount > 0 ? (
                       <Link
                         to="/delivery"
-                        className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
+                        className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-[var(--ui-accent)] to-sky-600 px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-sky-200/50 transition hover:brightness-105"
                         onClick={() => setNotifyOpen(false)}
                       >
+                        <Sparkles className="h-3.5 w-3.5" />
                         فتح قسم التسليم ({deliveryAlertCount})
                       </Link>
                     ) : null}
                     {pickupAlerts.length > 0 ? (
                       <Link
                         to="/orders"
-                        className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
+                        className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-2 rounded-lg hover:bg-[var(--ui-accent-soft-bg)]"
                         onClick={() => setNotifyOpen(false)}
                       >
                         {t('notifications.openOrders')}
@@ -385,7 +445,8 @@ const Topbar = () => {
                     ) : null}
                   </div>
                 )}
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
           <Link
