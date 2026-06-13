@@ -68,16 +68,20 @@ export function calculateFabricWeightKg(lengthMeters: number, widthCm: number, g
   return roundMoney((safeLength * safeWidthMeters * safeGsm) / 1000);
 }
 
-export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[]): FabricInvoiceSummary {
+export function calculateFabricInvoiceSummary(
+  lines: FabricInvoiceSummaryLine[],
+  opts?: { pendingAmountUntilTafnid?: boolean },
+): FabricInvoiceSummary {
+  const pendingAmount = opts?.pendingAmountUntilTafnid === true;
   const groupsByKey = new Map<string, FabricInvoiceSummaryGroup & { colorKeys: Set<string> }>();
 
   lines.forEach((line) => {
     const materialName = normalizeName(line.materialName ?? line.fabricName);
     const designCode = normalizeName(line.designCode ?? line.designName ?? line.dsamNumber);
     const pricePerMeter = Math.max(0, toNumber(line.pricePerMeter ?? line.price ?? line.unitPrice));
-    const totalMeters = Math.max(0, toNumber(line.lengthMeters ?? line.length ?? line.quantity));
+    const totalMeters = Math.max(0, toNumber(line.lengthMeters ?? line.length ?? (pendingAmount ? 0 : line.quantity)));
     const totalKg = Math.max(0, toNumber(line.weightKg ?? line.weight));
-    const explicitTotal = toNumber(line.lineTotal ?? line.total);
+    const explicitTotal = pendingAmount ? 0 : toNumber(line.lineTotal ?? line.total);
     const totalAmount = explicitTotal > 0 ? explicitTotal : totalMeters * pricePerMeter;
     const key = `${materialName}|||${designCode}|||${pricePerMeter}`;
     const group = groupsByKey.get(key) ?? {

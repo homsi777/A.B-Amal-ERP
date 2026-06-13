@@ -301,14 +301,17 @@ const isEmptyInvoiceItem = (item: InvoiceFormItem) =>
   !item.weight.trim() &&
   !item.price.trim();
 
-function computeInvoiceLineTotal(item: InvoiceFormItem, salesMode: boolean): number {
+function computeInvoiceLineTotal(item: InvoiceFormItem, salesMode: boolean, wholesalePendingTafnid = false): number {
   const price = numberValue(item.price);
+  if (salesMode && wholesalePendingTafnid) return 0;
   if (salesMode) {
     return numberValue(item.rollQty) * price;
   }
   const len = numberValue(item.length);
   return len * price;
 }
+
+const WHOLESALE_PENDING_TOTAL_LABEL = 'بعد التفنيد';
 
 const isCompleteSupplierQrPayload = (value: string) => {
   if (!value.includes('|')) return false;
@@ -960,15 +963,16 @@ export const InvoiceForm = () => {
           colorCode: item.colorCode,
           colorName: item.colorName,
           rollNo: item.rollNo,
-          lengthMeters: isSales ? 0 : numberValue(item.length),
+          lengthMeters: isSales && wholesaleSalesUi ? 0 : isSales ? 0 : numberValue(item.length),
           quantity: isSales ? numberValue(item.rollQty) : numberValue(item.length),
           rollsCount: isSales ? numberValue(item.rollQty) : 1,
           weightKg: item.weight,
           pricePerMeter: item.price,
-          lineTotal: computeInvoiceLineTotal(item, isSales),
+          lineTotal: computeInvoiceLineTotal(item, isSales, wholesaleSalesUi),
         })),
+        { pendingAmountUntilTafnid: wholesaleSalesUi && isSales },
       ),
-    [items],
+    [items, isSales, wholesaleSalesUi],
   );
 
   const handleAddItem = () => {
@@ -1937,8 +1941,8 @@ export const InvoiceForm = () => {
     advanceInvoiceLineFocus(e, item);
   };
 
-  const totalAmount = summary.totals.totalAmount;
-  const finalTotalAmount = Math.max(0, totalAmount - numberValue(discount));
+  const totalAmount = wholesaleSalesUi && isSales ? 0 : summary.totals.totalAmount;
+  const finalTotalAmount = wholesaleSalesUi && isSales ? 0 : Math.max(0, totalAmount - numberValue(discount));
 
   const handleSave = async (status: 'draft' | 'final') => {
     if (editBlocked || draftLoading) return;
@@ -2024,7 +2028,8 @@ export const InvoiceForm = () => {
       }
     }
 
-    const paidAmount = saleType === 'cash' ? finalTotalAmount : numberValue(paymentAmount);
+    const paidAmount =
+      wholesaleSalesUi && isSales ? 0 : saleType === 'cash' ? finalTotalAmount : numberValue(paymentAmount);
 
     if (!partyId || !uuidRe.test(partyId)) {
       showToast({
@@ -2060,6 +2065,7 @@ export const InvoiceForm = () => {
 
       if (isSales) {
         const quantity = numberValue(item.rollQty);
+        const lineTotal = wholesaleSalesUi ? 0 : lineRound2(quantity * unitPrice);
         return {
           fabricRollId: null,
           fabricItemId,
@@ -2069,7 +2075,7 @@ export const InvoiceForm = () => {
           unitPrice,
           lineDiscount: 0,
           lineTax: 0,
-          lineTotal: lineRound2(quantity * unitPrice),
+          lineTotal,
           metadata: {
             materialName: item.materialName,
             fabricName: item.materialName,
@@ -2079,6 +2085,8 @@ export const InvoiceForm = () => {
             colorName: item.colorName,
             lengthM: numberValue(item.length) || undefined,
             lengthUnit: item.lengthUnit,
+            pricingUnit: wholesaleSalesUi ? 'meter' : 'roll',
+            pendingTafnidPricing: wholesaleSalesUi || undefined,
             barcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
             supplierBarcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
             printBarcode: item.printBarcode || printableShortBarcode(item.supplierBarcode) || printableShortBarcode(item.rawBarcodePayload) || '',
@@ -2773,7 +2781,7 @@ export const InvoiceForm = () => {
                   <th className="p-3 font-bold min-w-[220px]">اسم التوب</th>
                   <th className="p-3 font-bold w-20">عدد</th>
                   {!wholesaleSalesUi ? <th className="p-3 font-bold min-w-[120px]">متر/يارد</th> : null}
-                  <th className="p-3 font-bold w-28">سعر</th>
+                  <th className="p-3 font-bold w-28">{wholesaleSalesUi ? 'سعر المتر' : 'سعر'}</th>
                   <th className="p-3 font-bold w-28">مجموع</th>
                   <th className="p-3 font-bold w-12 text-center"></th>
                 </tr>
@@ -2784,7 +2792,7 @@ export const InvoiceForm = () => {
                   const rollQtyError = getItemError(item, 'rollQty');
                   const materialError = wholesaleSalesUi ? getItemError(item, 'materialName') : '';
                   const priceError = getItemError(item, 'price');
-                  const lineTotal = computeInvoiceLineTotal(item, isSales);
+                  const lineTotal = computeInvoiceLineTotal(item, isSales, wholesaleSalesUi);
                   const materialFieldIndex = wholesaleSalesUi ? 0 : 1;
                   const rollQtyFieldIndex = wholesaleSalesUi ? 1 : 2;
                   const lengthFieldIndex = 3;
@@ -3025,11 +3033,16 @@ export const InvoiceForm = () => {
                           onChange={(e) => updateItem(item.id, 'price', e.target.value)}
                           onKeyDown={(e) => handleInvoiceLineEnter(e, item)}
                           title={priceError}
+                          placeholder={wholesaleSalesUi ? 'سعر المتر' : undefined}
                           className={inputClass(Boolean(priceError))}
                         />
                       </td>
                       <td className="p-2 font-bold text-slate-700 bg-slate-50 text-center font-mono text-xs">
-                        {lineTotal.toFixed(2)}
+                        {wholesaleSalesUi && isSales ? (
+                          <span className="text-amber-700">{WHOLESALE_PENDING_TOTAL_LABEL}</span>
+                        ) : (
+                          lineTotal.toFixed(2)
+                        )}
                       </td>
                       <td className="hidden p-2">
                         <input type="text" value={item.dsamNumber} readOnly className="hidden" />
@@ -3050,7 +3063,13 @@ export const InvoiceForm = () => {
               <tfoot className="bg-slate-50 font-bold border-t border-slate-300 text-slate-700">
                 <tr>
                   <td colSpan={6} className="p-3 text-left">المجموع:</td>
-                  <td className="p-3 font-mono text-indigo-700">{money(totalAmount, currency)}</td>
+                  <td className="p-3 font-mono text-indigo-700">
+                    {wholesaleSalesUi && isSales ? (
+                      <span className="text-amber-700">{WHOLESALE_PENDING_TOTAL_LABEL}</span>
+                    ) : (
+                      money(totalAmount, currency)
+                    )}
+                  </td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -3110,7 +3129,13 @@ export const InvoiceForm = () => {
                             dir="ltr"
                           />
                         </td>
-                        <td className="p-3 font-mono font-bold text-indigo-700">{money(group.totalAmount, currency)}</td>
+                        <td className="p-3 font-mono font-bold text-indigo-700">
+                          {wholesaleSalesUi && isSales ? (
+                            <span className="text-amber-700">{WHOLESALE_PENDING_TOTAL_LABEL}</span>
+                          ) : (
+                            money(group.totalAmount, currency)
+                          )}
+                        </td>
                         <td className="p-3 font-mono">{group.totalKg.toFixed(2)}</td>
                       </tr>
                     ))}
@@ -3121,7 +3146,12 @@ export const InvoiceForm = () => {
                 <SummaryStat label="إجمالي الرولات" value={summary.totals.rollCount.toString()} />
                 <SummaryStat label="إجمالي الأمتار" value={summary.totals.totalMeters.toFixed(2)} />
                 <SummaryStat label="إجمالي الوزن" value={summary.totals.totalKg.toFixed(2)} />
-                <SummaryStat label={`إجمالي ${currency}`} value={money(summary.totals.totalAmount, currency)} />
+                <SummaryStat
+                  label={`إجمالي ${currency}`}
+                  value={
+                    wholesaleSalesUi && isSales ? WHOLESALE_PENDING_TOTAL_LABEL : money(summary.totals.totalAmount, currency)
+                  }
+                />
                 <SummaryStat label="عدد المجموعات" value={summary.totals.groupCount.toString()} />
               </div>
             </div>
@@ -3168,7 +3198,13 @@ export const InvoiceForm = () => {
           <div className="w-full md:w-1/3 bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
             <div className="flex justify-between items-center text-sm mb-2 border-b border-slate-100 pb-2">
               <span className="text-slate-600">إجمالي المواد</span>
-              <span className="font-bold font-mono">{money(totalAmount, currency)}</span>
+              <span className="font-bold font-mono">
+                {wholesaleSalesUi && isSales ? (
+                  <span className="text-amber-700">{WHOLESALE_PENDING_TOTAL_LABEL}</span>
+                ) : (
+                  money(totalAmount, currency)
+                )}
+              </span>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-500">قيمة الحسم الممنوح</label>
@@ -3177,8 +3213,15 @@ export const InvoiceForm = () => {
             <div className="space-y-1 pt-3 border-t border-slate-100">
               <label className="text-xs font-bold text-indigo-700">الإجمالي النهائي للمطالبة</label>
               <div className="w-full bg-indigo-50 border border-indigo-200 rounded px-3 py-2 text-indigo-900 font-bold text-lg text-left font-mono" dir="ltr">
-                {money(finalTotalAmount, currency)}
+                {wholesaleSalesUi && isSales ? (
+                  <span className="text-amber-800">{WHOLESALE_PENDING_TOTAL_LABEL}</span>
+                ) : (
+                  money(finalTotalAmount, currency)
+                )}
               </div>
+              {wholesaleSalesUi && isSales ? (
+                <p className="text-xs text-amber-800">يُحسب الإجمالي بعد تفنيد الأتواب في قسم التسليم (أمتار × سعر المتر).</p>
+              ) : null}
             </div>
           </div>
         </div>
