@@ -34,6 +34,7 @@ import {
   mergeSheetTotalsMetadata,
   stripTrailingSummaryRows,
 } from '../utils/importSheetMetadata.js';
+import { applyImportAutoRepairs } from '../utils/importAutoRepair.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ const previewSchema = z.object({
   headers: z.array(z.string()),
   // rows[][]: array of row arrays (each row is array of cell values)
   rows: z.array(z.array(z.unknown())).max(5000, 'الملف يحتوي على أكثر من 5000 صف'),
+  autoRepair: z.boolean().optional().default(false),
 });
 
 const confirmSchema = z.object({
@@ -474,6 +476,23 @@ function inferFabricFamilyFromFileName(fileName: string): string {
   return 'مستورد';
 }
 
+function extractRepairMetadata(
+  metadata: Record<string, unknown>,
+  fileName?: string,
+): { fileMaterialName?: string; fileDesignCode?: string; fileWidthCmAvg?: number } {
+  const fabricFamily =
+    cleanString(metadata.fabricFamily) ||
+    (fileName ? inferFabricFamilyFromFileName(fileName) : '') ||
+    undefined;
+  const designCode = cleanString(metadata.materialName);
+  const widthCmAvg = Number(metadata.widthCmAvg);
+  return {
+    fileMaterialName: fabricFamily || designCode,
+    fileDesignCode: designCode || undefined,
+    fileWidthCmAvg: Number.isFinite(widthCmAvg) && widthCmAvg > 0 ? widthCmAvg : undefined,
+  };
+}
+
 function applyChinaImportMetadata(
   nd: NormalizedRowData,
   metadata: Record<string, unknown>,
@@ -579,6 +598,168 @@ function buildImportIssuesMessage(
   return examples ? `${head} ${examples}` : head;
 }
 
+type BatchRepairResult = {
+  validCount: number;
+  warnCount: number;
+  errorCount: number;
+  repairedRows: number;
+  repairSummary: string[];
+  totalLengthM: number;
+  totalActualWt: number;
+  totalCalcWt: number;
+  verificationTotal: number;
+};
+
+async function repairAndRevalidateImportBatch(
+  pool: import('pg').Pool,
+  batch: {
+    id: string;
+    company_id: string;
+    supplier_id: string;
+    warehouse_id: string;
+    default_location_id: string | null;
+    import_mode: string;
+    file_name: string;
+    extracted_metadata: unknown;
+  },
+): Promise<BatchRepairResult> {
+  const meta =
+    typeof batch.extracted_metadata === 'object' && batch.extracted_metadata
+      ? (batch.extracted_metadata as Record<string, unknown>)
+      : {};
+  const repairMeta = extractRepairMetadata(meta, batch.file_name);
+
+  const rowsResult = await pool.query<{
+    id: string;
+    row_no: number;
+    normalized_data: NormalizedRowData;
+  }>(
+    `SELECT id, row_no, normalized_data
+     FROM purchase_import_rows
+     WHERE batch_id=$1 AND company_id=$2
+     ORDER BY row_no ASC`,
+    [batch.id, batch.company_id],
+  );
+
+  const barcodesInFile = new Set<string>();
+  let repairedRows = 0;
+  const repairSummary: string[] = [];
+  const updates: Array<{
+    id: string;
+    nd: NormalizedRowData;
+    result: RowValidationResult;
+  }> = [];
+
+  for (const row of rowsResult.rows) {
+    let nd = (row.normalized_data ?? {}) as NormalizedRowData;
+    const { nd: repairedNd, notes } = await applyImportAutoRepairs(nd, {
+      rowNo: row.row_no,
+      companyId: batch.company_id,
+      batchId: batch.id,
+      ...repairMeta,
+      barcodesInFile,
+      pool,
+    });
+    nd = repairedNd;
+    if (notes.length) {
+      repairedRows++;
+      for (const n of notes) {
+        const msg = `سطر ${row.row_no}: ${n.message}`;
+        if (repairSummary.length < 40) repairSummary.push(msg);
+      }
+    }
+
+    const result = await validateAndMatchRow(
+      nd,
+      batch.company_id,
+      batch.warehouse_id,
+      batch.default_location_id,
+      batch.supplier_id,
+      batch.import_mode,
+      barcodesInFile,
+      pool,
+    );
+    if (notes.length) {
+      result.warnings.push(...notes.map((n) => `[إصلاح تلقائي] ${n.message}`));
+      if (result.status === 'VALID' && notes.length) result.status = 'WARNING';
+    }
+    updates.push({ id: row.id, nd, result });
+  }
+
+  const validCount = updates.filter((u) => u.result.status === 'VALID').length;
+  const warnCount = updates.filter((u) => u.result.status === 'WARNING').length;
+  const errorCount = updates.filter((u) => u.result.status === 'ERROR').length;
+  const totalLengthM = updates.reduce((s, u) => s + (cleanNumber(u.nd.lengthM) ?? 0), 0);
+  const totalActualWt = updates.reduce((s, u) => s + (cleanNumber(u.nd.actualWeightKg) ?? 0), 0);
+  const totalCalcWt = updates.reduce((s, u) => {
+    const lm = cleanNumber(u.nd.lengthM);
+    const wc = cleanNumber(u.nd.widthCm);
+    const gs = cleanNumber(u.nd.gsm);
+    return s + (calcWeight(lm, wc, gs) ?? 0);
+  }, 0);
+  const verificationTotal = updates.filter(
+    (u) => u.result.status !== 'ERROR' && !!cleanString(u.nd.barcode),
+  ).length;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const { id, nd, result } of updates) {
+      await client.query(
+        `UPDATE purchase_import_rows
+         SET normalized_data=$1, status=$2, errors=$3, warnings=$4,
+             matched_item_id=$5, matched_color_id=$6, matched_variant_id=$7
+         WHERE id=$8 AND company_id=$9`,
+        [
+          JSON.stringify(nd),
+          result.status,
+          JSON.stringify(result.errors),
+          JSON.stringify(result.warnings),
+          result.matchedItemId,
+          result.matchedColorId,
+          result.matchedVariantId,
+          id,
+          batch.company_id,
+        ],
+      );
+    }
+    await client.query(
+      `UPDATE purchase_import_batches
+       SET valid_count=$1, warning_count=$2, error_count=$3,
+           total_length_m=$4, total_actual_weight_kg=$5, total_calculated_weight_kg=$6
+       WHERE id=$7 AND company_id=$8`,
+      [
+        validCount,
+        warnCount,
+        errorCount,
+        totalLengthM,
+        totalActualWt,
+        totalCalcWt,
+        batch.id,
+        batch.company_id,
+      ],
+    );
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  return {
+    validCount,
+    warnCount,
+    errorCount,
+    repairedRows,
+    repairSummary,
+    totalLengthM,
+    totalActualWt,
+    totalCalcWt,
+    verificationTotal,
+  };
+}
+
 async function resolveImportRollBarcode(
   client: import('pg').PoolClient,
   companyId: string,
@@ -652,6 +833,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       extractedMetadata,
       headers,
       rows,
+      autoRepair,
     } = parsed.data;
 
     const pool = getPool();
@@ -736,6 +918,9 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       result: RowValidationResult;
     }[] = [];
 
+    const repairMeta = extractRepairMetadata(mergedExtractedMetadata as Record<string, unknown>, fileName);
+    let autoRepairedRows = 0;
+
     for (let i = 0; i < workRows.length; i++) {
       const rawRow = workRows[i];
       // Skip completely empty rows
@@ -767,10 +952,32 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       if (chinaSourceType) {
         applyChinaImportMetadata(nd, mergedExtractedMetadata as Record<string, unknown>, fileName);
       }
+
+      let repairNotes: string[] = [];
+      if (autoRepair) {
+        const repaired = await applyImportAutoRepairs(nd, {
+          rowNo: i + 2,
+          companyId,
+          batchId: 'preview',
+          ...repairMeta,
+          barcodesInFile,
+          pool,
+        });
+        Object.assign(nd, repaired.nd);
+        if (repaired.notes.length) {
+          autoRepairedRows++;
+          repairNotes = repaired.notes.map((n) => n.message);
+        }
+      }
+
       const result = await validateAndMatchRow(
         nd, companyId, warehouseId, defaultLocationId ?? null,
         supplierId ?? null, importMode, barcodesInFile, pool,
       );
+      if (repairNotes.length && result.status !== 'ERROR') {
+        result.warnings.push(...repairNotes.map((m) => `[إصلاح تلقائي] ${m}`));
+        if (result.status === 'VALID') result.status = 'WARNING';
+      }
       rowResults.push({ rowNo: i + 2, rawData, nd, result });  // +2 because row 1 is header
     }
 
@@ -902,6 +1109,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           detectedColumns,
           extractedMetadata: batchMetadata,
           metadataWarnings,
+          autoRepairedRows: autoRepair ? autoRepairedRows : undefined,
         },
       });
     } catch (e: unknown) {
@@ -1004,6 +1212,62 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     ]);
 
     return reply.send({ ok: true, data: rows.rows, total: cnt.rows[0].total, page, pageSize });
+  });
+
+  // ── C2. Auto-repair batch rows ─────────────────────────────────────────────
+  app.post('/:id/auto-repair', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+
+    const batchRow = await pool.query<{
+      id: string;
+      company_id: string;
+      supplier_id: string;
+      warehouse_id: string;
+      default_location_id: string | null;
+      import_mode: string;
+      file_name: string;
+      extracted_metadata: unknown;
+      status: string;
+    }>(
+      `SELECT id, company_id, supplier_id, warehouse_id, default_location_id,
+              import_mode, file_name, extracted_metadata, status
+       FROM purchase_import_batches
+       WHERE id=$1 AND company_id=$2`,
+      [id, companyId],
+    );
+    if (!batchRow.rows.length) return sendError(reply, 404, 'الدفعة غير موجودة', 'NOT_FOUND');
+    const batch = batchRow.rows[0];
+    if (batch.status === 'CONFIRMED') {
+      return sendError(reply, 409, 'الدفعة مؤكَّدة — لا يمكن إصلاحها تلقائياً.', 'ALREADY_CONFIRMED');
+    }
+    if (batch.status === 'CANCELLED') {
+      return sendError(reply, 400, 'الدفعة ملغاة.', 'CANCELLED');
+    }
+
+    try {
+      const result = await repairAndRevalidateImportBatch(pool, batch);
+      return reply.send({
+        ok: true,
+        data: {
+          batchId: batch.id,
+          validCount: result.validCount,
+          warnCount: result.warnCount,
+          errorCount: result.errorCount,
+          repairedRows: result.repairedRows,
+          repairSummary: result.repairSummary,
+          totalLengthM: parseFloat(result.totalLengthM.toFixed(3)),
+          totalActualWeightKg: parseFloat(result.totalActualWt.toFixed(3)),
+          totalCalculatedWeightKg: parseFloat(result.totalCalcWt.toFixed(3)),
+          verificationTotal: result.verificationTotal,
+        },
+      });
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      app.log.error({ err, batchId: id }, 'purchase import auto-repair failed');
+      return sendError(reply, 500, err.message || 'تعذر الإصلاح التلقائي', 'INTERNAL');
+    }
   });
 
   // ── D. Scan verify (optional) ──────────────────────────────────────────────
