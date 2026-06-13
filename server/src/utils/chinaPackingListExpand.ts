@@ -88,7 +88,9 @@ export function expandChinaPackingListIfNeeded(
       const rollNo = cellStr(row[t.rollIdx]);
       const length = row[t.lengthIdx];
       const lot = cellStr(row[t.lotIdx]);
-      if (!rollNo && cellNum(length) == null) continue;
+      const lenM = cellNum(length);
+      if (!rollNo) continue;
+      if (lenM == null || lenM <= 0 || lenM > 200) continue;
       outRows.push([rollNo, length, lot]);
     }
   }

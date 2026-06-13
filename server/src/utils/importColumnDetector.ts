@@ -153,8 +153,9 @@ const ALIAS_MAP: AliasMap = {
   'partino': 'rollNo',
   'rollno': 'rollNo',
   'rollnumber': 'rollNo',
-  'lot': 'rollNo',
-  'lotnumber': 'rollNo',
+  'lot': 'batchNo',
+  'lotnumber': 'batchNo',
+  'اللوط': 'batchNo',
   'topartino': 'rollNo',
   'talepno': 'rollNo',
 

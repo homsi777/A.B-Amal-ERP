@@ -128,6 +128,32 @@ export interface ImportConfirmResult {
   purchaseInvoiceNo?: string | null;
 }
 
+export interface ImportPricingResult {
+  batchId: string;
+  purchaseBaseUnitPrice: number;
+  priceUnit: 'meter' | 'yard';
+  freightCost: number;
+  customsCost: number;
+  clearanceCost: number;
+  internalShippingCost: number;
+  otherCost: number;
+  landingCostTotal: number;
+  landingPerMeter: number;
+  finalUnitCost: number;
+  invoiceTotal: number;
+  totalLengthM: number;
+}
+
+export interface ImportPricingPayload {
+  purchaseBaseUnitPrice: number;
+  priceUnit?: 'meter' | 'yard';
+  freightCost?: number;
+  customsCost?: number;
+  clearanceCost?: number;
+  internalShippingCost?: number;
+  otherCost?: number;
+}
+
 export interface PreviewOptions {
   supplierId: string;
   warehouseId: string;
@@ -332,6 +358,20 @@ export async function listImportRows(
     `/api/purchases/import/${batchId}/rows${qs}`,
   );
   return { data: res.data, total: res.total };
+}
+
+export async function saveImportPricing(
+  batchId: string,
+  payload: ImportPricingPayload,
+): Promise<ImportPricingResult> {
+  const res = await apiFetch<{ ok: boolean; data: ImportPricingResult }>(
+    `/api/purchases/import/${batchId}/pricing`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
+  return res.data;
 }
 
 export async function confirmImportBatch(
