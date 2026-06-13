@@ -439,8 +439,9 @@ export function renderInvoiceStatementA4Html(opts: {
             margin: 0 0 4px;
           }
           .brand-logo {
-            height: 145px;
+            height: 110px;
             width: auto;
+            max-width: 220px;
             object-fit: contain;
           }
           .title {

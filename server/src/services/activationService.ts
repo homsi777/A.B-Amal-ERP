@@ -99,7 +99,7 @@ async function getDefaultCompanyId(): Promise<string | null> {
 async function ensureDefaultCompanyForActivation(): Promise<string> {
   const row = await getPool().query<{ id: string }>(
     `INSERT INTO companies (code, name, base_currency_code)
-     VALUES ('ALAMAL-MAIN', 'ALamal-AB', 'USD')
+     VALUES ('ALAMAL-MAIN', 'Alamal Trading', 'USD')
      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, updated_at = now()
      RETURNING id`,
   );

@@ -200,22 +200,17 @@ const Topbar = () => {
   return (
     <header className="bg-[var(--surface-header)] border-b border-[var(--border-default)] shadow-sm sticky top-0 z-50 transition-colors duration-300">
       <div className="grid grid-cols-1 gap-3 px-6 py-3 border-b border-[var(--border-subtle)] relative z-20 bg-[var(--surface-header)] md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
-        <div className="order-1 flex items-center justify-center gap-3 md:order-2">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-white ring-1 ring-[var(--border-default)] shadow-sm transition-colors duration-300">
+        <div className="order-1 flex items-center justify-center md:order-2">
+          <div
+            className="rounded-xl px-3 py-1.5 shadow-sm ring-1 ring-black/10"
+            style={{ backgroundColor: BRAND.logoBg }}
+          >
             <img
               src={BRAND.logoPng}
               alt={BRAND.name}
-              className="h-9 w-9 object-contain"
+              className="h-12 w-auto max-w-[11rem] object-contain"
               draggable={false}
             />
-          </div>
-          <div className="leading-tight">
-            <h1 className="text-2xl font-bold tracking-wider text-[var(--text-heading)]">
-              {BRAND.name}
-            </h1>
-            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-[var(--text-muted)]">
-              {BRAND.tagline}
-            </span>
           </div>
         </div>
         <div className="order-2 flex items-center justify-center gap-3 md:order-1 md:justify-self-start">

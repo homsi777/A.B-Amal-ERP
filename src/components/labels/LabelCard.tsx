@@ -116,7 +116,7 @@ const DEFAULT_CONFIG: Required<LabelConfig> = {
   quality: '1',
 };
 
-const THERMAL_LOGO_FILTER = 'grayscale(1) brightness(0.55) contrast(1000%)';
+const THERMAL_LOGO_FILTER = 'none';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -262,7 +262,7 @@ export const LabelCard: React.FC<LabelCardProps> = ({
           <img
             src={BRAND.logoInline}
             alt={BRAND.name}
-            style={{ height: '22mm', width: 'auto', maxWidth: '78mm', objectFit: 'contain', display: 'block', margin: '0 auto', filter: THERMAL_LOGO_FILTER }}
+            style={{ height: '24mm', width: 'auto', maxWidth: '78mm', objectFit: 'contain', display: 'block', margin: '0 auto', filter: THERMAL_LOGO_FILTER }}
           />
         ) : (
           <div style={{ height: '22mm' }} aria-hidden="true" />
@@ -750,15 +750,14 @@ ${lblBoxCss}
   border-bottom: 0.25mm solid #000;
 }
 .brand-logo {
-  height: 22mm;
+  height: 24mm;
   width: auto;
   max-width: 78mm;
   object-fit: contain;
   display: block;
   margin: 0 auto;
-  filter: ${THERMAL_LOGO_FILTER};
 }
-.brand-empty { height: 22mm; }
+.brand-empty { height: 24mm; }
 .brand-mark { font-size: 5.8mm; font-weight: 900; letter-spacing: 0.65mm; line-height: 1.05; }
 .brand-tag  { font-size: 2.4mm; letter-spacing: 0.45mm; color: #222; margin-top: 0.25mm; }
 

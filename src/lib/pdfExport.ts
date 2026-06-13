@@ -4,19 +4,11 @@ import { BRAND } from '../branding';
 import type { Invoice } from '../types';
 import { resolveInvoiceDetailRowsForStatementRow } from './customerStatementInvoiceDetails';
 
-/** CLOTEX brand header reused across all PDF statements. */
+/** Alamal Trading brand header reused across all PDF statements. */
 const renderBrandHeaderHtml = (): string => `
   <div dir="rtl" style="text-align:center;margin:0 0 4px;font-family:Arial,sans-serif;">
-    <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
-      <img src="${BRAND.logoInline}" alt="${BRAND.name}" style="height:145px;width:auto;object-fit:contain;" />
-      <div style="display:none;line-height:1.05;">
-        <div style="font-size:20px;font-weight:800;letter-spacing:0.5px;color:${BRAND.primaryColor};">${BRAND.name}</div>
-        <div style="font-size:10px;letter-spacing:1.5px;color:${BRAND.primaryColorSoft};margin-top:4px;">${BRAND.tagline}</div>
-      </div>
-    </div>
-    <div style="display:none;text-align:right;font-size:10px;font-weight:700;color:${BRAND.primaryColor};line-height:1.5;">
-      <div style="font-size:11px;font-weight:800;">${BRAND.descriptionAr}</div>
-      <div style="color:${BRAND.primaryColorSoft};font-weight:600;">إدارة مستودعات الأقمشة</div>
+    <div style="display:flex;align-items:center;justify-content:center;">
+      <img src="${BRAND.logoInline}" alt="${BRAND.name}" style="height:110px;width:auto;max-width:220px;object-fit:contain;" />
     </div>
   </div>
 `;
@@ -867,8 +859,9 @@ export function renderVoucherA5Html(data: {
           margin-bottom: 8px;
         }
         .header-logo img {
-          height: 40px;
+          height: 56px;
           width: auto;
+          max-width: 140px;
           object-fit: contain;
         }
         .voucher-title {

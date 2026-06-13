@@ -166,21 +166,16 @@ export const Login = () => {
 
       {/* ── Top utility bar ───────────────────────────────────────────────── */}
       <header className="relative z-10 flex items-center justify-between px-8 py-5">
-        <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-md">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-white shadow-lg shadow-indigo-500/20">
-            <img
-              src={BRAND.logoPng}
-              alt={BRAND.name}
-              className="h-10 w-10 object-contain"
-              draggable={false}
-            />
-          </div>
-          <div className="text-[13px] leading-tight">
-            <div className="font-bold text-white tracking-wider">{BRAND.name}</div>
-            <div className="text-[10px] uppercase text-slate-300 tracking-[0.2em]">
-              {BRAND.tagline}
-            </div>
-          </div>
+        <div
+          className="flex items-center rounded-2xl border border-white/10 px-4 py-2 backdrop-blur-md"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+        >
+          <img
+            src={BRAND.logoPng}
+            alt={BRAND.name}
+            className="h-11 w-auto max-w-[10rem] object-contain"
+            draggable={false}
+          />
         </div>
         <div className="flex items-center gap-2">
           <LanguageSwitcher variant="dark" />
@@ -339,11 +334,14 @@ export const Login = () => {
         {/* ── Right: brand identity + feature highlights ──────────────────── */}
         <section className="order-1 lg:order-2">
           <div className="relative max-w-xl lg:ms-auto">
-            <div className="mb-7 inline-flex items-center gap-4 rounded-2xl bg-white px-6 py-5 shadow-2xl shadow-indigo-950/40 ring-1 ring-white/10">
+            <div
+              className="mb-7 inline-flex rounded-2xl px-6 py-4 shadow-2xl shadow-black/40 ring-1 ring-white/10"
+              style={{ backgroundColor: BRAND.logoBg }}
+            >
               <img
                 src={BRAND.logoPng}
                 alt={BRAND.name}
-                className="h-20 w-auto select-none"
+                className="h-40 w-auto max-w-[16rem] select-none object-contain"
                 draggable={false}
               />
             </div>
