@@ -61,6 +61,16 @@ const scanVerifySchema = z.object({
   barcode: z.string().min(1),
 });
 
+const pricingSchema = z.object({
+  purchaseBaseUnitPrice: z.coerce.number().nonnegative(),
+  priceUnit: z.enum(['meter', 'yard']).default('meter'),
+  freightCost: z.coerce.number().nonnegative().default(0),
+  customsCost: z.coerce.number().nonnegative().default(0),
+  clearanceCost: z.coerce.number().nonnegative().default(0),
+  internalShippingCost: z.coerce.number().nonnegative().default(0),
+  otherCost: z.coerce.number().nonnegative().default(0),
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 interface NormalizedRowData extends Partial<Record<NormalizedField, string | number | null>> {}
@@ -449,6 +459,52 @@ async function validateAndMatchRow(
   return { status, errors, warnings, matchedItemId, matchedColorId, matchedVariantId, normalizedData: nd, willCreateItem, willCreateColor, willCreateVariant };
 }
 
+function applyChinaImportMetadata(
+  nd: NormalizedRowData,
+  metadata: Record<string, unknown>,
+): void {
+  const mat = cleanString(metadata.materialName);
+  if (mat && !cleanString(nd.materialName)) {
+    (nd as Record<string, unknown>).materialName = mat;
+  }
+  if (mat && !cleanString(nd.supplierMaterialCode)) {
+    (nd as Record<string, unknown>).supplierMaterialCode = mat;
+  }
+  const widthAvg = Number(metadata.widthCmAvg);
+  if (Number.isFinite(widthAvg) && widthAvg > 0 && cleanNumber(nd.widthCm) == null) {
+    (nd as Record<string, unknown>).widthCm = widthAvg;
+  }
+  const lot = cleanString(nd.batchNo);
+  if (lot && !cleanString(nd.colorNameTr) && /^[A-Z]$/i.test(lot)) {
+    (nd as Record<string, unknown>).colorNameTr = `LOT-${lot.toUpperCase()}`;
+    (nd as Record<string, unknown>).colorCode = lot.toUpperCase();
+  }
+}
+
+function buildLandingCostNotes(
+  baseUnitPrice: number,
+  extras: {
+    freight: number;
+    customs: number;
+    clearance: number;
+    internalShipping: number;
+    other: number;
+  },
+  finalUnitCost: number,
+  totalLengthM: number,
+): string {
+  const extraTotal =
+    extras.freight + extras.customs + extras.clearance + extras.internalShipping + extras.other;
+  return [
+    'استيراد قائمة تعبئة صينية',
+    `سعر الشراء: ${baseUnitPrice.toFixed(4)} /م`,
+    `شحن: ${extras.freight.toFixed(2)} | جمارك: ${extras.customs.toFixed(2)} | تخليص: ${extras.clearance.toFixed(2)}`,
+    `شحن داخلي: ${extras.internalShipping.toFixed(2)} | أجور أخرى: ${extras.other.toFixed(2)}`,
+    `تكاليف إضافية: ${extraTotal.toFixed(2)} على ${totalLengthM.toFixed(2)} م`,
+    `تكلفة نهائية: ${finalUnitCost.toFixed(4)} /م`,
+  ].join(' | ');
+}
+
 // ─── Route plugin ─────────────────────────────────────────────────────────────
 
 export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
@@ -570,6 +626,9 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       if (lengthUnit === 'yard') {
         const y = cleanNumber((nd as any).lengthM);
         if (y != null) (nd as any).lengthM = Math.round(y * 0.9144 * 1000) / 1000;
+      }
+      if (chinaSourceType) {
+        applyChinaImportMetadata(nd, extractedMetadata as Record<string, unknown>);
       }
       const result = await validateAndMatchRow(
         nd, companyId, warehouseId, defaultLocationId ?? null,
@@ -884,6 +943,138 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
+  // ── D. Pricing & landing costs ─────────────────────────────────────────────
+  app.post('/:id/pricing', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const parsed = pricingSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const {
+      purchaseBaseUnitPrice,
+      priceUnit,
+      freightCost,
+      customsCost,
+      clearanceCost,
+      internalShippingCost,
+      otherCost,
+    } = parsed.data;
+
+    const pool = getPool();
+    const batchRow = await pool.query<{
+      id: string;
+      status: string;
+      total_length_m: string;
+      notes: string | null;
+    }>(
+      'SELECT id, status, total_length_m, notes FROM purchase_import_batches WHERE id=$1 AND company_id=$2',
+      [id, companyId],
+    );
+    if (!batchRow.rows.length) return sendError(reply, 404, 'الدفعة غير موجودة', 'NOT_FOUND');
+    const batch = batchRow.rows[0];
+    if (batch.status === 'CONFIRMED') return sendError(reply, 409, 'الدفعة مؤكَّدة مسبقاً.', 'ALREADY_CONFIRMED');
+    if (batch.status === 'CANCELLED') return sendError(reply, 400, 'الدفعة ملغاة.', 'CANCELLED');
+
+    const totalLengthM = Number(batch.total_length_m);
+    if (!Number.isFinite(totalLengthM) || totalLengthM <= 0) {
+      return sendError(reply, 400, 'لا يمكن حساب التكلفة بدون أطوال صالحة', 'VALIDATION');
+    }
+
+    const basePerMeter =
+      priceUnit === 'yard'
+        ? purchaseBaseUnitPrice / 0.9144
+        : purchaseBaseUnitPrice;
+    const landingTotal = freightCost + customsCost + clearanceCost + internalShippingCost + otherCost;
+    const landingPerMeter = landingTotal / totalLengthM;
+    const finalUnitCost = Math.round((basePerMeter + landingPerMeter) * 1_000_000) / 1_000_000;
+    const invoiceTotal = Math.round(finalUnitCost * totalLengthM * 100) / 100;
+
+    const landingNote = buildLandingCostNotes(
+      basePerMeter,
+      {
+        freight: freightCost,
+        customs: customsCost,
+        clearance: clearanceCost,
+        internalShipping: internalShippingCost,
+        other: otherCost,
+      },
+      finalUnitCost,
+      totalLengthM,
+    );
+    const mergedNotes = [cleanString(batch.notes), landingNote].filter(Boolean).join('\n');
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE purchase_import_batches SET
+           purchase_base_unit_price=$3,
+           freight_cost=$4,
+           customs_cost=$5,
+           clearance_cost=$6,
+           internal_shipping_cost=$7,
+           other_cost=$8,
+           landing_cost_total=$9,
+           final_unit_cost=$10,
+           notes=$11,
+           status='VALIDATED',
+           updated_at=now()
+         WHERE id=$1 AND company_id=$2`,
+        [
+          id,
+          companyId,
+          basePerMeter,
+          freightCost,
+          customsCost,
+          clearanceCost,
+          internalShippingCost,
+          otherCost,
+          landingTotal,
+          finalUnitCost,
+          mergedNotes || null,
+        ],
+      );
+
+      const rows = await client.query<{ id: string; normalized_data: NormalizedRowData }>(
+        `SELECT id, normalized_data FROM purchase_import_rows
+         WHERE batch_id=$1 AND company_id=$2 AND status IN ('VALID','WARNING')`,
+        [id, companyId],
+      );
+      for (const row of rows.rows) {
+        const nd = { ...(row.normalized_data ?? {}) } as NormalizedRowData;
+        (nd as Record<string, unknown>).unitCost = finalUnitCost;
+        await client.query(
+          `UPDATE purchase_import_rows SET normalized_data=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
+          [row.id, companyId, JSON.stringify(nd)],
+        );
+      }
+
+      await client.query('COMMIT');
+      return reply.send({
+        ok: true,
+        data: {
+          batchId: id,
+          purchaseBaseUnitPrice: basePerMeter,
+          priceUnit,
+          freightCost,
+          customsCost,
+          clearanceCost,
+          internalShippingCost,
+          otherCost,
+          landingCostTotal: landingTotal,
+          landingPerMeter: Math.round(landingPerMeter * 1_000_000) / 1_000_000,
+          finalUnitCost,
+          invoiceTotal,
+          totalLengthM,
+        },
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
   // ── E. Confirm import ─────────────────────────────────────────────────────
   app.post('/:id/confirm', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
@@ -958,6 +1149,21 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     if (ccy === 'USD') exchangeRateToUsd = 1;
     if (!Number.isFinite(exchangeRateToUsd) || exchangeRateToUsd <= 0) {
       return sendError(reply, 400, 'لا يمكن تنفيذ العملية بدون سعر صرف', 'VALIDATION');
+    }
+
+    const batchExtras = batch as {
+      final_unit_cost?: string | null;
+      total_length_m?: string | null;
+      purchase_base_unit_price?: string | null;
+      freight_cost?: string | null;
+      customs_cost?: string | null;
+      clearance_cost?: string | null;
+      internal_shipping_cost?: string | null;
+      other_cost?: string | null;
+    };
+    const finalUnitCostBatch = Number(batchExtras.final_unit_cost);
+    if (!Number.isFinite(finalUnitCostBatch) || finalUnitCostBatch <= 0) {
+      return sendError(reply, 400, 'يرجى إدخال التسعير وتكاليف الاستيراد قبل الحفظ والترحيل', 'PRICING_REQUIRED');
     }
 
     const invoiceNotes = cleanString(batch.notes) || null;
@@ -1106,7 +1312,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         const gsm = cleanNumber(nd.gsm);
         const actualWt = cleanNumber(nd.actualWeightKg);
         const calcWt = calcWeight(lengthM, widthCm, gsm);
-        const unitCost = cleanNumber(nd.unitCost);
+        const unitCost = cleanNumber(nd.unitCost) ?? finalUnitCostBatch;
 
         // Create fabric_roll
         const rollRow = await client.query(
