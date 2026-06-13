@@ -43,7 +43,7 @@ export const ImportBatches = () => {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-4">
-          <Link to="/purchases" className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+          <Link to="/invoices/purchases" className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
             <ArrowRight className="w-5 h-5" />
           </Link>
           <div>
