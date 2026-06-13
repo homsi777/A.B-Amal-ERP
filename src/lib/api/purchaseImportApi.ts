@@ -245,6 +245,12 @@ const HEADER_KEYWORDS = [
 ].map(normalizeHeaderValue);
 
 function findHeaderRow(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 25); i++) {
+    const values = (rows[i] ?? []).map(normalizeHeaderValue).filter(Boolean);
+    const rollHeaders = values.filter((v) => v.includes('rollno') || v === 'roll').length;
+    if (rollHeaders >= 2) return i;
+  }
+
   const limit = Math.min(rows.length, 20);
   let bestIndex = 0;
   let bestScore = 0;
@@ -275,9 +281,10 @@ function isImportSummaryRow(row: unknown[]): boolean {
   const joined = row.map((c) => String(c ?? '').trim()).filter(Boolean).join(' ');
   if (!joined) return false;
   const upper = joined.toUpperCase();
-  if (/^(TOTAL|GRAND\s+TOTAL|SUB\s*TOTAL|SUMMARY)\b/.test(upper)) return true;
+  if (/^(TOTAL|GRAND\s+TOTAL|SUB\s*TOTAL|SUMMARY|TTY)\b/.test(upper)) return true;
   if (/TOTAL\s+SHIPPED/i.test(upper)) return true;
-  if (/\bTOTAL\b/.test(upper) && (/\bROLLS?\b/.test(upper) || /\bMTS?\b/.test(upper) || /\bMETERS?\b/.test(upper))) return true;
+  if (/^\d+\s+ROLS?\s*\/\s*[\d,.]+\s*M\b/i.test(joined)) return true;
+  if (/\bTOTAL\b/.test(upper) && (/\bROLLS?\b/.test(upper) || /\bROLS?\b/.test(upper) || /\bMTS?\b/.test(upper) || /\bMETERS?\b/.test(upper))) return true;
   return false;
 }
 
@@ -320,6 +327,19 @@ function matchTotalsInText(text: string, source: 'footer' | 'header'): Partial<E
     const rolls = parseLooseNumber(m[2]);
     if (length != null && rolls != null) {
       return { declaredTotalLength: length, declaredRollCount: rolls, totalsSource: source };
+    }
+  }
+  m = /([\d,.]+)\s+ROLS?\s*\/\s*([\d,.]+)\s*M\b/i.exec(text);
+  if (m) {
+    const rolls = parseLooseNumber(m[1]);
+    const length = parseLooseNumber(m[2]);
+    if (length != null && rolls != null) {
+      return {
+        declaredRollCount: rolls,
+        declaredTotalLength: length,
+        declaredLengthUnit: 'M',
+        totalsSource: source,
+      };
     }
   }
   return null;
@@ -378,17 +398,34 @@ function mergeSheetTotalsMetadata(
   return matchTotalsInText(headerText, 'header') ?? {};
 }
 
-function buildExtractedMetadata(preTableRows: unknown[][], dataRows: unknown[][]): ExtractedImportMetadata {
+function buildExtractedMetadata(preTableRows: unknown[][], dataRows: unknown[][], fileName?: string): ExtractedImportMetadata {
   const headerMeta = extractPreTableMetadata(preTableRows);
   const totalsMeta = mergeSheetTotalsMetadata(preTableRows, dataRows);
+  const materialFromFile = fileName ? inferMaterialNameFromImportFile(fileName) : undefined;
+  const designFromFile = fileName ? inferDesignCodeFromImportFile(fileName) : undefined;
   return {
     ...headerMeta,
     ...totalsMeta,
+    fabricFamily: materialFromFile ?? headerMeta.fabricFamily,
+    importMaterialName: materialFromFile,
+    designCodeFromFile: designFromFile,
     declaredTotalLength: totalsMeta.declaredTotalLength ?? headerMeta.declaredTotalLength,
     declaredRollCount: totalsMeta.declaredRollCount ?? headerMeta.declaredRollCount,
     declaredLengthUnit: totalsMeta.declaredLengthUnit ?? headerMeta.declaredLengthUnit,
     totalsSource: totalsMeta.totalsSource ?? headerMeta.totalsSource,
   };
+}
+
+function inferMaterialNameFromImportFile(fileName: string): string {
+  const base = fileName.replace(/\.(xls|xlsx|csv)$/i, '').trim();
+  const withoutPrefix = base.replace(/^roll\s*list(\s*for)?\s*/i, '').trim();
+  const tokens = withoutPrefix.split(/[\s_\-\/]+/).map((t) => t.trim()).filter((t) => t.length >= 2 && !/^\d+$/.test(t));
+  return tokens.length ? tokens[tokens.length - 1].toUpperCase() : base.toUpperCase();
+}
+
+function inferDesignCodeFromImportFile(fileName: string): string | undefined {
+  const m = /\b(\d{2,5})\b/.exec(fileName.replace(/\.(xls|xlsx|csv)$/i, ''));
+  return m?.[1];
 }
 
 /**
@@ -429,7 +466,7 @@ export async function parseExcelFile(file: File): Promise<{
   const rawDataRows = rawRows.slice(headerRowIndex + 1) as unknown[][];
   const rows = stripTrailingSummaryRows(rawDataRows);
   const preTableRows = rawRows.slice(0, headerRowIndex) as unknown[][];
-  const extractedMetadata = buildExtractedMetadata(preTableRows, rawDataRows);
+  const extractedMetadata = buildExtractedMetadata(preTableRows, rawDataRows, file.name);
 
   return { sheetName, headers, rows, headerRowIndex, preTableRows, extractedMetadata };
 }

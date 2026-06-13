@@ -1,5 +1,7 @@
 /**
- * توسيع قوائم التعبئة الصينية (أعمدة متوازية: ROLL NO | LENGTH | LOT).
+ * توسيع قوائم الأتواب بأعمدة متوازية:
+ * - ROLL NO | M | Y  (قوائم Roll List مثل COLOMBIA)
+ * - ROLL NO | LENGTH | LOT (قوائم التعبئة الصينية)
  */
 
 import { isImportSummaryRollNo } from './importSheetMetadata.js';
@@ -19,7 +21,23 @@ function isRollHeader(h: string): boolean {
 
 function isLengthHeader(h: string): boolean {
   const n = normHeader(h);
-  return n.includes('length') || n.includes('الطول') || n.includes('meter') || n.includes('متر') || n.includes('yard') || n.includes('يارد');
+  return (
+    n.includes('length') ||
+    n.includes('الطول') ||
+    n.includes('meter') ||
+    n.includes('metre') ||
+    n.includes('متر')
+  );
+}
+
+function isMeterHeader(h: string): boolean {
+  const n = normHeader(h);
+  return n === 'm' || n === 'mt' || n === 'mts' || n.includes('meter') || n.includes('metre') || n.includes('متر');
+}
+
+function isYardHeader(h: string): boolean {
+  const n = normHeader(h);
+  return n === 'y' || n === 'yd' || n === 'yds' || n.includes('yard') || n.includes('يارد');
 }
 
 function isLotHeader(h: string): boolean {
@@ -27,20 +45,54 @@ function isLotHeader(h: string): boolean {
   return n.includes('lot') || n.includes('batch') || n.includes('اللوط') || n.includes('لوط');
 }
 
-export type ChinaTriplet = { rollIdx: number; lengthIdx: number; lotIdx: number };
+export type RollTriplet = {
+  rollIdx: number;
+  lengthMIdx: number;
+  lengthYIdx?: number;
+  lotIdx?: number;
+  sectionLabel?: string;
+  format: 'M_Y' | 'LENGTH_LOT';
+};
 
-export function detectChinaTriplets(headers: string[]): ChinaTriplet[] {
-  const triplets: ChinaTriplet[] = [];
+export function detectParallelRollTriplets(headers: string[], sectionRow?: unknown[]): RollTriplet[] {
+  const triplets: RollTriplet[] = [];
   for (let i = 0; i < headers.length - 2; i++) {
     const h0 = headers[i] ?? '';
     const h1 = headers[i + 1] ?? '';
     const h2 = headers[i + 2] ?? '';
+    const sectionLabel = sectionRow ? cellStr(sectionRow[i]) : '';
+
+    if (isRollHeader(h0) && isMeterHeader(h1) && isYardHeader(h2)) {
+      triplets.push({
+        rollIdx: i,
+        lengthMIdx: i + 1,
+        lengthYIdx: i + 2,
+        sectionLabel: sectionLabel || undefined,
+        format: 'M_Y',
+      });
+      i += 2;
+      continue;
+    }
+
     if (isRollHeader(h0) && isLengthHeader(h1) && isLotHeader(h2)) {
-      triplets.push({ rollIdx: i, lengthIdx: i + 1, lotIdx: i + 2 });
+      triplets.push({
+        rollIdx: i,
+        lengthMIdx: i + 1,
+        lotIdx: i + 2,
+        sectionLabel: sectionLabel || undefined,
+        format: 'LENGTH_LOT',
+      });
       i += 2;
     }
   }
   return triplets;
+}
+
+/** @deprecated استخدم detectParallelRollTriplets */
+export function detectChinaTriplets(headers: string[]): Array<{ rollIdx: number; lengthIdx: number; lotIdx: number }> {
+  return detectParallelRollTriplets(headers)
+    .filter((t) => t.format === 'LENGTH_LOT')
+    .map((t) => ({ rollIdx: t.rollIdx, lengthIdx: t.lengthMIdx, lotIdx: t.lotIdx! }));
 }
 
 export function isChinaPackingListMetadata(metadata: Record<string, unknown>): boolean {
@@ -48,8 +100,6 @@ export function isChinaPackingListMetadata(metadata: Record<string, unknown>): b
   const material = String(metadata.materialName ?? metadata.material_name ?? '').trim();
   return rollCount > 0 || material.length > 0;
 }
-
-const STANDARD_HEADERS = ['رقم التوب', 'الطول (م)', 'اللوط'];
 
 function cellStr(v: unknown): string {
   if (v == null) return '';
@@ -63,46 +113,82 @@ function cellNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function isDataSkipRow(row: unknown[]): boolean {
+  const joined = row.map((c) => cellStr(c)).filter(Boolean).join(' ');
+  if (!joined) return true;
+  const upper = joined.toUpperCase();
+  if (/^TTY\b/.test(upper)) return true;
+  if (/^\d+\s+ROLS?\s*\/\s*[\d,.]+\s*M\b/i.test(joined)) return true;
+  if (/^(TOTAL|GRAND|SUB|SUMMARY)\b/.test(upper)) return true;
+  return false;
+}
+
+function findSectionRow(preTableRows: unknown[][]): unknown[] | undefined {
+  for (let i = preTableRows.length - 1; i >= 0; i--) {
+    const row = preTableRows[i] ?? [];
+    const letters = row
+      .map((c) => cellStr(c))
+      .filter((c) => /^[A-Z]$/i.test(c));
+    if (letters.length >= 2) return row as unknown[];
+  }
+  return undefined;
+}
+
+export type ExpandRollListOptions = {
+  sectionRow?: unknown[];
+  preTableRows?: unknown[][];
+};
+
 /**
- * إذا وُجدت مجموعات أعمدة متوازية (3+ أتواب في الصف)، يُعاد تنسيق موحّد لصف واحد لكل توب.
+ * إذا وُجدت مجموعات أعمدة متوازية (ROLL|M|Y أو ROLL|LENGTH|LOT)، يُعاد صف واحد لكل توب.
  */
 export function expandChinaPackingListIfNeeded(
   headers: string[],
   rows: unknown[][],
   metadata: Record<string, unknown> = {},
-): { headers: string[]; rows: unknown[][]; sourceType: 'CHINA_PACKING_LIST' } | null {
-  const triplets = detectChinaTriplets(headers);
+  options: ExpandRollListOptions = {},
+): { headers: string[]; rows: unknown[][]; sourceType: 'CHINA_PACKING_LIST' | 'ROLL_LIST_M_Y' } | null {
+  const sectionRow = options.sectionRow ?? (options.preTableRows ? findSectionRow(options.preTableRows) : undefined);
+  const triplets = detectParallelRollTriplets(headers, sectionRow);
   const byMeta = isChinaPackingListMetadata(metadata);
+
   if (triplets.length < 2 && !byMeta) return null;
-  if (triplets.length < 1 && byMeta) {
-    // ملف صيني لكن رأس واحد فقط — لا توسيع
-    return null;
-  }
-  if (triplets.length < 2) return null;
+  if (triplets.length < 1) return null;
+  if (triplets.length < 2 && triplets[0]?.format !== 'M_Y') return null;
+
+  const usesMY = triplets.some((t) => t.format === 'M_Y');
+  const standardHeaders = usesMY
+    ? ['رقم التوب', 'الطول (م)', 'الطول (ياردة)', 'القسم']
+    : ['رقم التوب', 'الطول (م)', 'اللوط'];
 
   const outRows: unknown[][] = [];
   for (const raw of rows) {
     const row = raw ?? [];
-    const nonEmpty = row.filter((v) => cellStr(v) !== '');
-    if (nonEmpty.length === 0) continue;
+    if (isDataSkipRow(row)) continue;
 
     for (const t of triplets) {
       const rollNo = cellStr(row[t.rollIdx]);
-      const length = row[t.lengthIdx];
-      const lot = cellStr(row[t.lotIdx]);
-      const lenM = cellNum(length);
+      const lengthM = row[t.lengthMIdx];
+      const lenM = cellNum(lengthM);
       if (!rollNo) continue;
       if (isImportSummaryRollNo(rollNo)) continue;
-      if (lenM == null || lenM <= 0 || lenM > 200) continue;
-      outRows.push([rollNo, length, lot]);
+      if (lenM == null || lenM <= 0 || lenM > 500) continue;
+
+      if (t.format === 'M_Y') {
+        const lengthY = t.lengthYIdx != null ? row[t.lengthYIdx] : null;
+        outRows.push([rollNo, lengthM, lengthY, t.sectionLabel ?? '']);
+      } else {
+        const lot = t.lotIdx != null ? cellStr(row[t.lotIdx]) : '';
+        outRows.push([rollNo, lengthM, lot]);
+      }
     }
   }
 
   if (!outRows.length) return null;
 
   return {
-    headers: STANDARD_HEADERS,
+    headers: standardHeaders,
     rows: outRows,
-    sourceType: 'CHINA_PACKING_LIST',
+    sourceType: usesMY ? 'ROLL_LIST_M_Y' : 'CHINA_PACKING_LIST',
   };
 }

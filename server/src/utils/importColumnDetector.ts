@@ -250,6 +250,8 @@ const ALIAS_MAP: AliasMap = {
   'lotno': 'batchNo',
   'parti': 'batchNo',
   'partino_batch': 'batchNo',
+  'القسم': 'batchNo',
+  'section': 'batchNo',
 
   // ── Container no ─────────────────────────────────────────────────────────
   'رقمالحاوية': 'containerNo',

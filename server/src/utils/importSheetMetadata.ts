@@ -21,9 +21,10 @@ export function isImportSummaryRow(row: unknown[]): boolean {
   const joined = rowText(row);
   if (!joined) return false;
   const upper = joined.toUpperCase();
-  if (/^(TOTAL|GRAND\s+TOTAL|SUB\s*TOTAL|SUMMARY)\b/.test(upper)) return true;
+  if (/^(TOTAL|GRAND\s+TOTAL|SUB\s*TOTAL|SUMMARY|TTY)\b/.test(upper)) return true;
   if (/TOTAL\s+SHIPPED/i.test(upper)) return true;
-  if (/\bTOTAL\b/.test(upper) && (/\bROLLS?\b/.test(upper) || /\bMTS?\b/.test(upper) || /\bMETERS?\b/.test(upper))) {
+  if (/^\d+\s+ROLS?\s*\/\s*[\d,.]+\s*M\b/i.test(joined)) return true;
+  if (/\bTOTAL\b/.test(upper) && (/\bROLLS?\b/.test(upper) || /\bROLS?\b/.test(upper) || /\bMTS?\b/.test(upper) || /\bMETERS?\b/.test(upper))) {
     return true;
   }
   return false;
@@ -78,6 +79,20 @@ function matchTotalsInText(text: string, source: 'footer' | 'header'): SheetTota
     const rolls = parseLooseNumber(m[2]);
     if (length != null && rolls != null) {
       return { declaredTotalLength: length, declaredRollCount: rolls, totalsSource: source };
+    }
+  }
+
+  m = /([\d,.]+)\s+ROLS?\s*\/\s*([\d,.]+)\s*M\b/i.exec(text);
+  if (m) {
+    const rolls = parseLooseNumber(m[1]);
+    const length = parseLooseNumber(m[2]);
+    if (length != null && rolls != null) {
+      return {
+        declaredRollCount: rolls,
+        declaredTotalLength: length,
+        declaredLengthUnit: 'M',
+        totalsSource: source,
+      };
     }
   }
 
