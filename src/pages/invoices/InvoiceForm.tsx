@@ -1945,6 +1945,9 @@ export const InvoiceForm = () => {
     if (!activeItems.length) return;
     if (hasValidationErrors) return;
 
+    /** جملة: الحفظ دائماً كمسودة — التأكيد المحاسبي عند موافقة المدير في التسليم */
+    const effectiveStatus = isSales && wholesaleSalesUi ? 'draft' : status;
+
     const uuidRe =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -2249,7 +2252,7 @@ export const InvoiceForm = () => {
       ...(isInvoiceNoUiPlaceholder || !trimmedInvoiceNo ? {} : { invoiceNo: trimmedInvoiceNo }),
     };
 
-    if (editInvoiceId && status === 'final') {
+    if (editInvoiceId && status === 'final' && !wholesaleSalesUi) {
       if (
         !window.confirm(
           wholesaleSalesUi
@@ -2266,8 +2269,8 @@ export const InvoiceForm = () => {
         if (isSales) {
           const created = await postSalesInvoice({
             ...salesPersistBodyCreate,
-            confirm: status === 'final',
-            cashboxId: status === 'final' && paidAmount > 0 ? cashboxId || null : null,
+            confirm: effectiveStatus === 'final',
+            cashboxId: effectiveStatus === 'final' && paidAmount > 0 ? cashboxId || null : null,
             partyNameForVoucher,
           });
           const newNo = created.data.invoiceNo?.trim() || '';
@@ -2296,7 +2299,7 @@ export const InvoiceForm = () => {
             totalAmountUsd: totalUsd,
             paidAmountUsd: paidUsd,
             remainingAmountUsd: remainingUsd,
-            status: status === 'draft' ? 'unpaid' : paymentStatus,
+            status: effectiveStatus === 'draft' ? 'unpaid' : paymentStatus,
           };
           flushSync(() => {
             setInvoiceNumber(newNo);
@@ -2307,20 +2310,17 @@ export const InvoiceForm = () => {
           });
           showToast({
             type: 'success',
-            message:
-              status === 'draft'
-                ? wholesaleSalesUi
-                  ? `تم حفظ المسودة ${newNo} — لن تظهر في التسليم حتى التأكيد من قائمة المبيعات`
-                  : `تم حفظ المسودة برقم: ${newNo}`
-                : wholesaleSalesUi
-                  ? `تم تأكيد الفاتورة ${newNo} — ظهرت في قسم التسليم لأمين المستودع`
-                  : `تم إنشاء وتأكيد الفاتورة رقم: ${newNo}`,
+            message: wholesaleSalesUi
+              ? `تم الحفظ — أُرسلت فاتورة ${newNo} لقسم التسليم (مسودة)`
+              : effectiveStatus === 'draft'
+                ? `تم حفظ المسودة برقم: ${newNo}`
+                : `تم إنشاء وتأكيد الفاتورة رقم: ${newNo}`,
           });
         } else {
           const created = await postPurchaseInvoice({
             ...purchasePersistBodyCreate,
-            confirm: status === 'final',
-            cashboxId: status === 'final' && paidAmount > 0 ? cashboxId || null : null,
+            confirm: effectiveStatus === 'final',
+            cashboxId: effectiveStatus === 'final' && paidAmount > 0 ? cashboxId || null : null,
             partyNameForVoucher,
           });
           const newNo = created.data.invoiceNo?.trim() || '';
@@ -2342,15 +2342,15 @@ export const InvoiceForm = () => {
         await updateSalesInvoice(editInvoiceId, salesPersistBodyUpdate);
         const noAfterSave =
           isInvoiceNoUiPlaceholder || !trimmedInvoiceNo ? INVOICE_NUMBER_MISSING_LABEL : trimmedInvoiceNo;
-        if (status === 'draft') {
+        if (status === 'draft' || wholesaleSalesUi) {
           showToast({
             type: 'success',
             message: wholesaleSalesUi
-              ? `تم حفظ المسودة ${noAfterSave} — لن تظهر في التسليم حتى التأكيد من قائمة المبيعات`
+              ? `تم الحفظ — أُرسلت فاتورة ${noAfterSave} لقسم التسليم (مسودة)`
               : `تم حفظ المسودة برقم: ${noAfterSave}`,
           });
         }
-        if (status === 'final') {
+        if (status === 'final' && !wholesaleSalesUi) {
           await confirmSalesInvoice(editInvoiceId, {
             cashboxId: paidAmount > 0 ? cashboxId || null : null,
             partyNameForVoucher,
@@ -2576,7 +2576,7 @@ export const InvoiceForm = () => {
           </button>
           <button onClick={() => handleSave('final')} disabled={hasValidationErrors || draftLoading || editBlocked} className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
             <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">{wholesaleSalesUi ? 'تأكيد وإرسال للتسليم' : 'حفظ نهائي'}</span>
+            <span className="hidden sm:inline">{wholesaleSalesUi ? 'حفظ وإرسال للتسليم' : 'حفظ نهائي'}</span>
           </button>
         </div>
       </div>

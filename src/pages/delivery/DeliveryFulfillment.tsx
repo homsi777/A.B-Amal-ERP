@@ -10,31 +10,27 @@ import {
   saveDeliveryTafnid,
   type DeliveryLineDraft,
 } from '../../lib/api/deliveryApi';
-import { fetchMe, type AuthUser } from '../../lib/api/authApi';
+import { useAuth } from '../../contexts/AuthContext';
+import { canFulfillDelivery, canSaveDeliveryTafnid } from '../../lib/deliveryPermissions';
 import { ApiRequestError } from '../../lib/api/client';
 import { TafnidModal } from '../../components/delivery/TafnidModal';
 import { AR_WHOLESALE, arDeliveryStatus } from '../../lib/i18n/arTerminology';
-import { canFulfillDelivery, canSaveDeliveryTafnid } from '../../lib/deliveryPermissions';
 import { useToast } from '../../components/NonBlockingToast';
 
 export function DeliveryFulfillment() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation('delivery');
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [header, setHeader] = useState<Awaited<ReturnType<typeof getDeliveryDetail>>['header'] | null>(null);
   const [lines, setLines] = useState<DeliveryLineDraft[]>([]);
   const [tafnidOpen, setTafnidOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
-  useEffect(() => {
-    void fetchMe().then(setAuthUser).catch(() => setAuthUser(null));
-  }, []);
-
-  const maySaveTafnid = canSaveDeliveryTafnid(authUser);
-  const mayFulfill = canFulfillDelivery(authUser);
+  const maySaveTafnid = canSaveDeliveryTafnid(user);
+  const mayFulfill = canFulfillDelivery(user);
 
   useEffect(() => {
     if (!id) return;
@@ -87,7 +83,10 @@ export function DeliveryFulfillment() {
     setSaving(true);
     try {
       await confirmDeliveryFulfillment(id);
-      showToast({ type: 'success', message: 'تم التسليم وخصم المخزون' });
+      showToast({
+        type: 'success',
+        message: 'تم تأكيد التسليم وتأكيد الفاتورة محاسبياً وخصم المخزون',
+      });
       setHeader((prev) => (prev ? { ...prev, deliveryStatus: 'FULFILLED' } : prev));
     } catch (e) {
       showToast({

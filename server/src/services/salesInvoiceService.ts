@@ -374,11 +374,11 @@ export async function createSalesInvoice(
     `INSERT INTO sales_invoices (
        company_id, invoice_no, invoice_date, customer_id, warehouse_id, warehouse_label,
        currency_code, notes, subtotal, discount_total, tax_total, total_amount,
-       paid_amount, remaining_amount, payment_status, document_status,
+       paid_amount, remaining_amount, payment_status, document_status, delivery_status,
        exchange_rate_to_usd, subtotal_usd, discount_total_usd, tax_total_usd, total_amount_usd,
        paid_amount_usd, remaining_amount_usd,
        created_by_user_id, updated_by_user_id
-     ) VALUES ($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'DRAFT',$16,$17,$18,$19,$20,$21,$22,$23,$23)
+     ) VALUES ($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'DRAFT','IN_DELIVERY',$16,$17,$18,$19,$20,$21,$22,$23,$23)
      RETURNING id`,
     [
       companyId,
@@ -523,6 +523,7 @@ export async function updateSalesInvoiceDraft(
        total_amount_usd = $22,
        paid_amount_usd = $23,
        remaining_amount_usd = $24,
+       delivery_status = CASE WHEN delivery_status = 'FULFILLED' THEN delivery_status ELSE 'IN_DELIVERY' END,
        updated_by_user_id = $3,
        updated_at = now()
      WHERE id=$1 AND company_id=$2`,
