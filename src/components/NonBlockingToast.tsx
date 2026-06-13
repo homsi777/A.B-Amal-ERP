@@ -106,7 +106,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               role="status"
               className={`pointer-events-auto flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-bold shadow-lg ${toneClass[t.type]}`}
             >
-              <span className="min-w-0 flex-1">{t.message}</span>
+              <span className="min-w-0 flex-1 whitespace-pre-line">{t.message}</span>
               <button
                 type="button"
                 onClick={() => dismissToast(t.id)}

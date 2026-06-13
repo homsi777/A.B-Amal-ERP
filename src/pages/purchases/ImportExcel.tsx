@@ -7,10 +7,13 @@ import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import {
   confirmImportBatch,
+  listImportRows,
   previewPurchaseExcelImport,
   saveImportPricing,
   type ImportPreviewSummary,
   type ImportPricingResult,
+  type PurchaseImportRowDto,
+  formatImportIssuesMessage,
 } from '../../lib/api/purchaseImportApi';
 
 type Step = 'setup' | 'preview' | 'pricing' | 'done';
@@ -35,6 +38,8 @@ export const ImportExcel = () => {
   const [preview, setPreview] = useState<ImportPreviewSummary | null>(null);
   const [pricingResult, setPricingResult] = useState<ImportPricingResult | null>(null);
   const [confirmResult, setConfirmResult] = useState<{ invoiceId?: string | null; invoiceNo?: string | null } | null>(null);
+  const [issueRows, setIssueRows] = useState<PurchaseImportRowDto[]>([]);
+  const [issueRowsTotal, setIssueRowsTotal] = useState(0);
 
   const [basePrice, setBasePrice] = useState('');
   const [priceUnit, setPriceUnit] = useState<'meter' | 'yard'>('meter');
@@ -60,6 +65,32 @@ export const ImportExcel = () => {
       }
     })();
   }, [showToast]);
+
+  useEffect(() => {
+    if (!preview?.batchId || (preview.errorCount ?? 0) <= 0) {
+      setIssueRows([]);
+      setIssueRowsTotal(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, total } = await listImportRows(preview.batchId, { status: 'ERROR', pageSize: 50 });
+        if (!cancelled) {
+          setIssueRows(data);
+          setIssueRowsTotal(total);
+        }
+      } catch {
+        if (!cancelled) {
+          setIssueRows([]);
+          setIssueRowsTotal(preview.errorCount ?? 0);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [preview?.batchId, preview?.errorCount]);
 
   const livePricing = useMemo(() => {
     const totalM = preview?.totalLengthM ?? 0;
@@ -148,6 +179,13 @@ export const ImportExcel = () => {
 
   const handleConfirm = async () => {
     if (!preview?.batchId) return;
+    if ((preview.errorCount ?? 0) > 0) {
+      showToast({
+        type: 'error',
+        message: `لا يمكن الترحيل — يوجد ${preview.errorCount} صف بأخطاء. راجع القائمة أدناه وصحّح الملف ثم أعد المعاينة.`,
+      });
+      return;
+    }
     if (!pricingResult) {
       showToast({ type: 'warning', message: 'احفظ التسعير أولاً قبل الحفظ والترحيل' });
       return;
@@ -163,9 +201,13 @@ export const ImportExcel = () => {
       setStep('done');
       showToast({ type: 'success', message: `تم الترحيل — ${result.createdRolls} توب في المخزون` });
     } catch (e) {
+      const base = e instanceof ApiRequestError ? e.message : 'تعذر تأكيد الاستيراد';
+      const extra =
+        e instanceof ApiRequestError ? formatImportIssuesMessage(e.body?.details) : '';
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر تأكيد الاستيراد',
+        message: extra ? `${base}\n${extra}` : base,
+        durationMs: 12000,
       });
     } finally {
       setLoading(false);
@@ -177,6 +219,8 @@ export const ImportExcel = () => {
     setPreview(null);
     setPricingResult(null);
     setConfirmResult(null);
+    setIssueRows([]);
+    setIssueRowsTotal(0);
     setFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -321,6 +365,49 @@ export const ImportExcel = () => {
                 ))}
               </div>
             )}
+            {(preview.errorCount ?? 0) > 0 && (
+              <div className="rounded-lg border border-red-300 bg-red-50 p-4 space-y-3">
+                <div className="font-bold text-red-900">
+                  صفوف بها أخطاء — يجب إصلاحها قبل الترحيل ({issueRowsTotal || preview.errorCount})
+                </div>
+                <p className="text-sm text-red-800">
+                  صحّح الملف في Excel ثم اضغط «رفع ملف آخر» أو أعد المعاينة. الأخطاء الشائعة: باركود/رقم توب مكرر، طول غير صالح.
+                </p>
+                <div className="max-h-64 overflow-y-auto rounded border border-red-200 bg-white">
+                  <table className="w-full text-sm text-right">
+                    <thead className="bg-red-100 text-red-900 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 font-bold">سطر Excel</th>
+                        <th className="px-3 py-2 font-bold">رقم التوب</th>
+                        <th className="px-3 py-2 font-bold">الباركود</th>
+                        <th className="px-3 py-2 font-bold">الخطأ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {issueRows.map((row) => (
+                        <tr key={row.id} className="border-t border-red-100">
+                          <td className="px-3 py-2 font-mono">{row.row_no}</td>
+                          <td className="px-3 py-2 font-mono" dir="ltr">
+                            {String(row.normalized_data?.rollNo ?? row.normalized_data?.supplierRollRef ?? '—')}
+                          </td>
+                          <td className="px-3 py-2 font-mono" dir="ltr">
+                            {String(row.normalized_data?.barcode ?? '—')}
+                          </td>
+                          <td className="px-3 py-2 text-red-800">{(row.errors ?? []).join(' — ')}</td>
+                        </tr>
+                      ))}
+                      {issueRows.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-3 py-4 text-center text-slate-500">
+                            جاري تحميل تفاصيل الأخطاء...
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
           {step !== 'done' && (
@@ -383,7 +470,7 @@ export const ImportExcel = () => {
                 </button>
                 <button
                   type="button"
-                  disabled={loading || !pricingResult}
+                  disabled={loading || !pricingResult || (preview.errorCount ?? 0) > 0}
                   onClick={() => void handleConfirm()}
                   className="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-emerald-800 disabled:opacity-50"
                 >

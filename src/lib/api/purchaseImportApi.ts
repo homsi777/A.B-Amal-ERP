@@ -65,6 +65,35 @@ export interface PurchaseImportBatchDto {
   warehouse_name?: string | null;
 }
 
+export interface ImportRowIssue {
+  rowNo: number;
+  rollNo?: string | null;
+  barcode?: string | null;
+  lengthM?: number | null;
+  errors: string[];
+  warnings?: string[];
+}
+
+export interface ImportIssuesDetails {
+  errorCount?: number;
+  warningCount?: number;
+  rows: ImportRowIssue[];
+}
+
+export function formatImportIssuesMessage(details: unknown, maxRows = 6): string {
+  if (!details || typeof details !== 'object') return '';
+  const d = details as ImportIssuesDetails;
+  if (!Array.isArray(d.rows) || d.rows.length === 0) return '';
+  return d.rows
+    .slice(0, maxRows)
+    .map((r) => {
+      const id = r.rollNo || r.barcode || '—';
+      const msgs = r.errors?.length ? r.errors : r.warnings ?? [];
+      return `سطر ${r.rowNo} (${id}): ${msgs.join(' — ')}`;
+    })
+    .join('\n');
+}
+
 export interface PurchaseImportRowDto {
   id: string;
   batch_id: string;
