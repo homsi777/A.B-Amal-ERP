@@ -38,23 +38,20 @@ npm run electron:dev
 
 cd ~/ab-amal-erp
 
-# 1) سحب آخر تحديث (إن لم تسحبيه بعد)
-git pull origin main
+# ⚠️ مهم: لا تستخدم git pull origin main — main = مشروع Obada (الأمل)
+# clotexerp.org يجب أن ينشر من فرع clotex فقط:
 
-# 2) بناء الواجهة
-npx tsx server/src/db/migrate.ts
-npm run build
+chmod +x scripts/deploy-clotex-vps.sh
+./scripts/deploy-clotex-vps.sh
 
-# 3) استخراج مسار الواجهة من nginx تلقائياً
-FRONTEND_ROOT=$(sudo grep -E '^\s*root ' /etc/nginx/sites-available/clotexerp-org | head -1 | awk '{print $2}' | tr -d ';')
-echo "مسار الواجهة: $FRONTEND_ROOT"
+# ── إصلاح فوري إن لم يُرفع فرع clotex بعد ──
+# git fetch origin && git checkout acb5ebc && ./scripts/deploy-clotex-vps.sh
 
-# 4) نشر ملفات dist
-sudo rm -rf "${FRONTEND_ROOT}"/*
-sudo cp -r dist/* "${FRONTEND_ROOT}"/
-
-# 5) إعادة تشغيل الـ backend
-pm2 restart clotexerp-server --update-env
-
-# 6) إعادة تحميل nginx
-sudo nginx -t && sudo systemctl reload nginx
+# ── أو يدوياً (بدون السكربت) ──
+# git fetch origin && git checkout clotex   # أو acb5ebc
+# npm install && NODE_OPTIONS="--max-old-space-size=1024" npm run build
+# FRONTEND_ROOT=$(sudo grep -E '^\s*root ' /etc/nginx/sites-available/clotexerp-org | head -1 | awk '{print $2}' | tr -d ';')
+# sudo rm -rf "${FRONTEND_ROOT}"/* && sudo cp -r dist/* "${FRONTEND_ROOT}"/
+# sudo cp "${FRONTEND_ROOT}/clotex-logo.png" "${FRONTEND_ROOT}/favicon.ico" 2>/dev/null || true
+# pm2 restart clotexerp-server --update-env
+# sudo nginx -t && sudo systemctl reload nginx
