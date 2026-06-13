@@ -244,8 +244,9 @@ export async function apiFetch<T>(
   options: RequestInit & { skipAuth?: boolean; timeoutMs?: number } = {},
 ): Promise<T> {
   const base = getApiBaseUrl();
-  if (!base) {
-    const hint = isElectronRuntime() && electronPackagedRenderer()
+  // المتصفح (خصوصاً الإنتاج): base فارغ = طلبات نسبية /api عبر nginx
+  if (!base && isElectronRuntime()) {
+    const hint = electronPackagedRenderer()
       ? ' أضِف حقلاً صالحًا لـ apiPublicUrl في ملف vps-connection.json قبل بناء النسخة المثبتة.'
       : '';
     throw new ApiRequestError(
@@ -292,7 +293,7 @@ export async function apiFetch<T>(
       );
     }
     throw new ApiRequestError(
-      `تعذّر الاتصال بخادم ALamal-AB على العنوان ${base}. قد يكون الخادم غير متاح، عنوان apiPublicUrl خاطئ، مشكلة إنترنت، شهادة SSL، أو سياسات CORS تمنع الطلب.`,
+      `تعذّر الاتصال بخادم ALamal-AB على العنوان ${base || window.location.origin}. قد يكون الخادم غير متاح، عنوان apiPublicUrl خاطئ، مشكلة إنترنت، شهادة SSL، أو سياسات CORS تمنع الطلب.`,
       0,
       { ok: false, code: 'NETWORK' },
     );
