@@ -2,6 +2,8 @@
  * توسيع قوائم التعبئة الصينية (أعمدة متوازية: ROLL NO | LENGTH | LOT).
  */
 
+import { isImportSummaryRollNo } from './importSheetMetadata.js';
+
 function normHeader(h: string): string {
   return String(h ?? '')
     .trim()
@@ -90,6 +92,7 @@ export function expandChinaPackingListIfNeeded(
       const lot = cellStr(row[t.lotIdx]);
       const lenM = cellNum(length);
       if (!rollNo) continue;
+      if (isImportSummaryRollNo(rollNo)) continue;
       if (lenM == null || lenM <= 0 || lenM > 200) continue;
       outRows.push([rollNo, length, lot]);
     }
