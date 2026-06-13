@@ -51,9 +51,17 @@ export function DeliveryFulfillment() {
 
   const onSaveTafnid = async (updated: DeliveryLineDraft[]) => {
     if (!id) return;
-    const missing = updated.some((ln) => ln.tafnidLength == null || ln.tafnidLength <= 0);
-    if (missing) {
-      showToast({ type: 'warning', message: 'أدخل طول التفنيد لكل بند' });
+    const incomplete = updated.some((ln) => {
+      const needed = ln.unit === 'توب' ? Math.max(1, Math.round(ln.rollQty)) : 1;
+      const rolls = ln.rollTafnid ?? [];
+      for (let seq = 1; seq <= needed; seq++) {
+        const len = rolls.find((r) => r.rollSeq === seq)?.length;
+        if (len == null || len <= 0) return true;
+      }
+      return false;
+    });
+    if (incomplete) {
+      showToast({ type: 'warning', message: 'أدخل طول التفنيد لكل توب' });
       return;
     }
     setSaving(true);
@@ -75,9 +83,17 @@ export function DeliveryFulfillment() {
 
   const onConfirmDelivery = async () => {
     if (!id) return;
-    const missing = lines.some((ln) => ln.tafnidLength == null || ln.tafnidLength <= 0);
-    if (missing) {
-      showToast({ type: 'warning', message: 'أكمل التفنيد قبل تأكيد التسليم' });
+    const incomplete = lines.some((ln) => {
+      const needed = ln.unit === 'توب' ? Math.max(1, Math.round(ln.rollQty)) : 1;
+      const rolls = ln.rollTafnid ?? [];
+      for (let seq = 1; seq <= needed; seq++) {
+        const len = rolls.find((r) => r.rollSeq === seq)?.length ?? (seq === 1 ? ln.tafnidLength : undefined);
+        if (len == null || len <= 0) return true;
+      }
+      return false;
+    });
+    if (incomplete) {
+      showToast({ type: 'warning', message: 'أكمل تفنيد كل توب قبل تأكيد التسليم' });
       return;
     }
     setSaving(true);
@@ -225,7 +241,21 @@ export function DeliveryFulfillment() {
                   {line.rollQty} {AR_WHOLESALE.rollUnit}
                 </td>
                 <td className="px-4 py-3">
-                  {line.tafnidLength != null ? `${line.tafnidLength} ${line.unit}` : '—'}
+                  {(() => {
+                    const needed = line.unit === 'توب' ? Math.max(1, Math.round(line.rollQty)) : 1;
+                    const rolls = line.rollTafnid ?? [];
+                    const filled = rolls.filter((r) => r.length != null && r.length > 0).length;
+                    if (needed > 1) {
+                      if (filled === 0) return '—';
+                      if (filled < needed) return `${filled}/${needed} ${AR_WHOLESALE.rollUnit}`;
+                      const lens = rolls
+                        .filter((r) => r.length != null && r.length > 0)
+                        .map((r) => r.length)
+                        .join('، ');
+                      return `${needed} ${AR_WHOLESALE.rollUnit}: ${lens}`;
+                    }
+                    return line.tafnidLength != null ? `${line.tafnidLength} ${line.unit}` : '—';
+                  })()}
                 </td>
               </tr>
             ))}
