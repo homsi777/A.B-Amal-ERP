@@ -640,6 +640,60 @@ export async function postPurchaseInvoiceToGl(
   });
 }
 
+/** تكاليف الاستيراد (شحن/جمارك...) — تُحمَّل على المخزون دون زيادة ذمة المورد */
+export async function postImportLandingCostsToGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    batchId: string;
+    purchaseInvoiceId: string;
+    invoiceNo: string;
+    invoiceDate: string;
+    landingAmountUsd: number;
+    userId: string | null;
+  },
+): Promise<void> {
+  await ensureCompanyInvoiceGlAccounts(client, input.companyId);
+  const dup = await client.query(
+    `SELECT id FROM journal_entries WHERE company_id=$1 AND source_type='IMPORT_LANDING_COST' AND source_id=$2`,
+    [input.companyId, input.batchId],
+  );
+  if (dup.rows.length) return;
+
+  const amt = round2(input.landingAmountUsd);
+  if (amt <= 0) return;
+
+  const invId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.INVENTORY);
+  const suspPay = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.SUSPENSE_PAYMENT);
+  const ccy = 'USD';
+  const entryDate = input.invoiceDate.slice(0, 10);
+
+  await insertBalancedJournal(client, {
+    companyId: input.companyId,
+    entryDate,
+    description: `تكاليف استيراد — ${input.invoiceNo}`,
+    sourceType: 'IMPORT_LANDING_COST',
+    sourceId: input.batchId,
+    userId: input.userId,
+    lines: [
+      {
+        glAccountId: invId,
+        debit: amt,
+        credit: 0,
+        currencyCode: ccy,
+        description: `تكاليف وصول مخزون — ${input.invoiceNo}`,
+      },
+      {
+        glAccountId: suspPay,
+        debit: 0,
+        credit: amt,
+        currencyCode: ccy,
+        description: `تكاليف استيراد (غير مورد) — ${input.invoiceNo}`,
+      },
+    ],
+  });
+}
+
 export async function reversePurchaseInvoiceGl(
   client: PoolClient,
   input: { companyId: string; purchaseInvoiceId: string; invoiceNo: string; userId: string | null },

@@ -73,8 +73,9 @@ export const ImportExcel = () => {
     const basePerM = priceUnit === 'yard' ? base / 0.9144 : base;
     const landingPerM = totalM > 0 ? extras / totalM : 0;
     const finalUnit = basePerM + landingPerM;
-    const invoiceTotal = finalUnit * totalM;
-    return { basePerM, extras, landingPerM, finalUnit, invoiceTotal, totalM };
+    const supplierInvoiceTotal = basePerM * totalM;
+    const inventoryValueTotal = finalUnit * totalM;
+    return { basePerM, extras, landingPerM, finalUnit, supplierInvoiceTotal, inventoryValueTotal, totalM };
   }, [basePrice, priceUnit, freightCost, customsCost, clearanceCost, internalShippingCost, otherCost, preview?.totalLengthM]);
 
   const handlePreview = async () => {
@@ -362,11 +363,12 @@ export const ImportExcel = () => {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                 <div><div className="text-xs text-emerald-700">تكاليف إضافية</div><div className="font-bold font-mono">{livePricing.extras.toFixed(2)}</div></div>
                 <div><div className="text-xs text-emerald-700">توزيع / متر</div><div className="font-bold font-mono">{livePricing.landingPerM.toFixed(4)}</div></div>
                 <div><div className="text-xs text-emerald-700">تكلفة نهائية / متر</div><div className="font-bold font-mono text-emerald-900">{livePricing.finalUnit.toFixed(4)}</div></div>
-                <div><div className="text-xs text-emerald-700">إجمالي الفاتورة</div><div className="font-bold font-mono text-emerald-900">{livePricing.invoiceTotal.toFixed(2)} {currencyCode}</div></div>
+                <div><div className="text-xs text-emerald-700">ذمة المورد</div><div className="font-bold font-mono text-emerald-900">{livePricing.supplierInvoiceTotal.toFixed(2)} {currencyCode}</div></div>
+                <div><div className="text-xs text-emerald-700">قيمة المخزون</div><div className="font-bold font-mono">{livePricing.inventoryValueTotal.toFixed(2)} {currencyCode}</div></div>
               </div>
 
               <div className="flex flex-wrap gap-2">

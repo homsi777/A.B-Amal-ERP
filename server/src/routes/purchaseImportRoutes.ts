@@ -17,6 +17,7 @@ import {
 } from '../utils/importColumnDetector.js';
 import { getExchangeRateToUsdTx } from '../services/exchangeRateService.js';
 import { confirmPurchaseInvoice, createPurchaseInvoice } from '../services/purchaseInvoiceService.js';
+import { postImportLandingCostsToGl } from '../services/glPostingService.js';
 import {
   isPlaceholderColorCode,
   resolveFabricColorForImport,
@@ -496,6 +497,25 @@ function applyChinaImportMetadata(
   }
 }
 
+async function resolveImportRollBarcode(
+  client: import('pg').PoolClient,
+  companyId: string,
+  nd: NormalizedRowData,
+): Promise<string> {
+  const serial =
+    cleanString(nd.barcode) ||
+    cleanString(nd.supplierRollRef) ||
+    cleanString(nd.rollNo);
+  if (serial) {
+    const dup = await client.query<{ id: string }>(
+      `SELECT id FROM fabric_rolls WHERE company_id=$1 AND barcode=$2 LIMIT 1`,
+      [companyId, serial],
+    );
+    if (!dup.rows.length) return serial;
+  }
+  return generateBarcode(client, companyId);
+}
+
 function buildLandingCostNotes(
   baseUnitPrice: number,
   extras: {
@@ -632,6 +652,10 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       coerceNormalizedRowNumbers(nd);
       if (chinaSourceType && cleanString((nd as any).rollNo) && !cleanString((nd as any).supplierRollRef)) {
         (nd as any).supplierRollRef = cleanString((nd as any).rollNo);
+      }
+      const rollSerial = cleanString((nd as any).rollNo) || cleanString((nd as any).supplierRollRef);
+      if (rollSerial && !cleanString((nd as any).barcode)) {
+        (nd as any).barcode = rollSerial;
       }
       if (!cleanString((nd as any).barcode)) {
         const v0 = rawRow[0];
@@ -1002,7 +1026,8 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     const landingTotal = freightCost + customsCost + clearanceCost + internalShippingCost + otherCost;
     const landingPerMeter = landingTotal / totalLengthM;
     const finalUnitCost = Math.round((basePerMeter + landingPerMeter) * 1_000_000) / 1_000_000;
-    const invoiceTotal = Math.round(finalUnitCost * totalLengthM * 100) / 100;
+    const supplierInvoiceTotal = Math.round(basePerMeter * totalLengthM * 100) / 100;
+    const inventoryValueTotal = Math.round(finalUnitCost * totalLengthM * 100) / 100;
 
     const landingNote = buildLandingCostNotes(
       basePerMeter,
@@ -1057,6 +1082,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       );
       for (const row of rows.rows) {
         const nd = { ...(row.normalized_data ?? {}) } as NormalizedRowData;
+        (nd as Record<string, unknown>).purchaseUnitPrice = basePerMeter;
         (nd as Record<string, unknown>).unitCost = finalUnitCost;
         await client.query(
           `UPDATE purchase_import_rows SET normalized_data=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
@@ -1079,7 +1105,9 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           landingCostTotal: landingTotal,
           landingPerMeter: Math.round(landingPerMeter * 1_000_000) / 1_000_000,
           finalUnitCost,
-          invoiceTotal,
+          supplierInvoiceTotal,
+          inventoryValueTotal,
+          invoiceTotal: supplierInvoiceTotal,
           totalLengthM,
         },
       });
@@ -1171,12 +1199,15 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       final_unit_cost?: string | null;
       total_length_m?: string | null;
       purchase_base_unit_price?: string | null;
+      landing_cost_total?: string | null;
       freight_cost?: string | null;
       customs_cost?: string | null;
       clearance_cost?: string | null;
       internal_shipping_cost?: string | null;
       other_cost?: string | null;
     };
+    const purchaseBaseUnitPriceBatch = Number(batchExtras.purchase_base_unit_price);
+    const landingCostTotalBatch = Number(batchExtras.landing_cost_total ?? 0);
     const finalUnitCostBatch = Number(batchExtras.final_unit_cost);
     if (!Number.isFinite(finalUnitCostBatch) || finalUnitCostBatch <= 0) {
       return sendError(reply, 400, 'يرجى إدخال التسعير وتكاليف الاستيراد قبل الحفظ والترحيل', 'PRICING_REQUIRED');
@@ -1302,23 +1333,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           }
         }
 
-        // باركود نظام دائماً لقوائم الصين؛ وإلا توليد عند الغياب
-        const batchRow = batch as Record<string, unknown>;
-        const batchMeta = batchRow.extracted_metadata as Record<string, unknown> | string | null;
-        let parsedBatchMeta: Record<string, unknown> = {};
-        try {
-          parsedBatchMeta =
-            typeof batchMeta === 'string'
-              ? (JSON.parse(batchMeta) as Record<string, unknown>)
-              : (batchMeta as Record<string, unknown>) ?? {};
-        } catch {
-          parsedBatchMeta = {};
-        }
-        const isChinaImport =
-          String(batchRow.source_type ?? parsedBatchMeta.sourceType ?? '') === 'CHINA_PACKING_LIST';
-
-        let barcode = cleanString(nd.barcode);
-        if (!barcode || isChinaImport) barcode = await generateBarcode(client, companyId);
+        const barcode = await resolveImportRollBarcode(client, companyId, nd);
 
         const supplierRollRef =
           cleanString(nd.supplierRollRef) || cleanString(nd.rollNo) || null;
@@ -1328,7 +1343,12 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         const gsm = cleanNumber(nd.gsm);
         const actualWt = cleanNumber(nd.actualWeightKg);
         const calcWt = calcWeight(lengthM, widthCm, gsm);
-        const unitCost = cleanNumber(nd.unitCost) ?? finalUnitCostBatch;
+        const inventoryUnitCost = cleanNumber(nd.unitCost) ?? finalUnitCostBatch;
+        const purchaseUnitPrice =
+          cleanNumber((nd as Record<string, unknown>).purchaseUnitPrice as string | number | null | undefined) ??
+          (Number.isFinite(purchaseBaseUnitPriceBatch) && purchaseBaseUnitPriceBatch > 0
+            ? purchaseBaseUnitPriceBatch
+            : inventoryUnitCost);
 
         // Create fabric_roll
         const rollRow = await client.query(
@@ -1355,7 +1375,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
             gsm,
             calcWt,
             actualWt,
-            unitCost,
+            inventoryUnitCost,
             ccy,
             cleanString(nd.batchNo) || null,
             cleanString(nd.containerNo) || null,
@@ -1401,7 +1421,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         ].filter(Boolean);
         const desc = descParts.join(' / ');
         const qty = lengthM;
-        const price = unitCost ?? 0;
+        const price = purchaseUnitPrice ?? 0;
         const lineTotal = Math.round(qty * price * 100) / 100;
         lineRowIds.push(row.id);
         lineRollIds.push(rollId);
@@ -1449,6 +1469,19 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         createdPurchaseInvoiceId = inv.id;
 
         await confirmPurchaseInvoice(client, companyId, userId, createdPurchaseInvoiceId, { skipStockMovement: true });
+
+        if (landingCostTotalBatch > 0) {
+          const landingUsd = Math.round(landingCostTotalBatch * exchangeRateToUsd * 100) / 100;
+          await postImportLandingCostsToGl(client, {
+            companyId,
+            batchId: id,
+            purchaseInvoiceId: createdPurchaseInvoiceId,
+            invoiceNo: invoiceNoFinal,
+            invoiceDate: invoiceDateFinal,
+            landingAmountUsd: landingUsd,
+            userId,
+          });
+        }
 
         const lnRows = await client.query<{ id: string; line_no: number }>(
           `SELECT id, line_no FROM purchase_invoice_lines WHERE invoice_id=$1 AND company_id=$2 ORDER BY line_no ASC`,
