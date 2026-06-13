@@ -1070,7 +1070,7 @@ function createMainWindow(): void {
     minWidth: 1200,
     minHeight: 760,
     icon: resolveAppIconPath(),
-    title: 'ALamal-AB · الامل.AB — نظام إدارة جملة الأقمشة',
+    title: 'Alamal Trading — نظام إدارة جملة الأقمشة',
     /** في الإنتاج المعبأ تظهر النافذة مبكراً؛ في التطوير ننتظر الجاهزية لتجنب وميض فاضِ */
     show: !isDev,
     webPreferences: {

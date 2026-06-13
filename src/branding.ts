@@ -1,19 +1,20 @@
 /**
- * هوية ALamal-AB Obada — مصدر واحد للعلامة في الواجهة والمطبوعات.
+ * هوية Alamal Trading — مصدر واحد للعلامة في الواجهة والمطبوعات.
  */
 
 import brandMarkUrl from '../logo.png?url';
 import brandMarkInline from '../logo.png?inline';
 
 export const BRAND = {
-  name: 'ALamal-AB',
-  nameAr: 'الامل.AB',
+  name: 'Alamal Trading',
+  nameAr: 'أملام للتجارة',
   tagline: 'DENIM & TEXTILE',
-  fullName: 'ALamal-AB — Denim & Textile',
+  fullName: 'Alamal Trading — Denim & Textile',
   descriptionAr: 'نظام إدارة جملة الأقمشة — دينيم وتكستيل',
-  descriptionEn: 'ALamal-AB Wholesale Denim & Textile ERP',
-  primaryColor: '#B8956B',
-  primaryColorSoft: '#8B7355',
+  descriptionEn: 'Alamal Trading Wholesale Denim & Textile ERP',
+  primaryColor: '#C9A227',
+  primaryColorSoft: '#A0B0B9',
+  logoBg: '#000000',
   logoPng: brandMarkUrl,
   logoInline: brandMarkInline,
   logoSvg: brandMarkUrl,

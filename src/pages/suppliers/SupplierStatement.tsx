@@ -419,7 +419,7 @@ export const SupplierStatement = () => {
           @page { size: A4; margin: 10mm; }
           body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 12px; }
           .head { text-align:center; border-bottom:2px solid #1e293b; padding-bottom:8px; margin-bottom:10px; }
-          .logo { height:78px; width:auto; object-fit:contain; display:block; margin:0 auto 4px; }
+          .logo { height:100px; width:auto; max-width:220px; object-fit:contain; display:block; margin:0 auto 4px; }
           .brand { font-weight:900; font-size:18px; color:#1e293b; }
           .title { text-align:center; margin: 22px 0 20px; font-weight:900; font-size:20px; }
           .meta { display:flex; justify-content:space-between; margin-bottom:8px; color:#334155; font-size:11px; }
@@ -437,7 +437,6 @@ export const SupplierStatement = () => {
       <body>
         <div class="head">
           <img class="logo" src="${BRAND.logoInline}" alt="${escapeDuesHtml(BRAND.name)}" />
-          <div class="brand">${escapeDuesHtml(BRAND.name)}</div>
           <div>${escapeDuesHtml(BRAND.descriptionAr)}</div>
         </div>
         <div class="title">كشف ذمم الموردين</div>

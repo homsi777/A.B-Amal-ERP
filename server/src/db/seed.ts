@@ -32,14 +32,14 @@ async function main() {
     await client.query(
       `UPDATE companies
           SET code = 'ALAMAL-MAIN',
-              name = 'ALamal-AB',
+              name = 'Alamal Trading',
               updated_at = now()
         WHERE code = 'TEXTILE-MAIN'`,
     );
 
     await client.query(
       `INSERT INTO companies (code, name, base_currency_code)
-       VALUES ('ALAMAL-MAIN', 'ALamal-AB', 'USD')
+       VALUES ('ALAMAL-MAIN', 'Alamal Trading', 'USD')
        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, updated_at = now()`,
     );
 
@@ -174,7 +174,7 @@ async function main() {
         showBatchNo: true,
         showContainerNo: true,
         showPurchaseInvoiceNo: true,
-        brandName: 'ALamal-AB',
+        brandName: 'Alamal Trading',
         subtitle: 'DENIM & TEXTILE',
       });
       await client.query(

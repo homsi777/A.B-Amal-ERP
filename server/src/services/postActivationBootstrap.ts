@@ -102,7 +102,7 @@ async function seedRbacWarehouseTemplate(client: PoolClient, companyId: string):
     showBatchNo: true,
     showContainerNo: true,
     showPurchaseInvoiceNo: true,
-    brandName: 'ALamal-AB',
+    brandName: 'Alamal Trading',
     subtitle: 'DENIM & TEXTILE',
   });
   await client.query(
