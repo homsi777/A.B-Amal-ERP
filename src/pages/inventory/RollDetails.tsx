@@ -15,6 +15,7 @@ import {
 } from '../../lib/api/fabricRollsApi';
 import { listWarehouses, listLocations, type ApiWarehouse, type ApiWarehouseLocation } from '../../lib/api/warehousesApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
+import { displayImportedColorCode, displayImportedColorName } from '../../lib/importDisplay';
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ const EditModal = ({ roll, suppliers, warehouses, onClose, onSaved }: EditModalP
             </div>
             <div>
               <div className="text-xs font-bold text-indigo-500">اللون</div>
-              <div className="mt-1 text-sm font-black text-slate-900">{displayValue(roll.color_name_ar ?? roll.color_code)}</div>
+              <div className="mt-1 text-sm font-black text-slate-900">{displayImportedColorName(roll.color_name_ar ?? roll.color_name_tr ?? roll.color_code)}</div>
             </div>
           </div>
 
@@ -471,14 +472,18 @@ export const RollDetails = () => {
           <DataRow label="الخامة" value={roll.item_name} />
           <DataRow label="الكود الداخلي" value={<span className="font-mono">{roll.internal_code}</span>} />
           <DataRow label="اللون" value={
-            roll.color_name_ar ? (
-              <div className="flex items-center gap-2">
-                {roll.hex_color && (
-                  <span className="w-4 h-4 rounded-full border border-slate-200" style={{ backgroundColor: roll.hex_color }} />
-                )}
-                {roll.color_name_ar} {roll.color_code && <span className="font-mono text-slate-500">({roll.color_code})</span>}
-              </div>
-            ) : undefined
+            <div className="flex items-center gap-2">
+              {roll.hex_color && roll.color_name_ar && (
+                <span className="w-4 h-4 rounded-full border border-slate-200" style={{ backgroundColor: roll.hex_color }} />
+              )}
+              <span>{displayImportedColorName(roll.color_name_ar ?? roll.color_name_tr)}</span>
+              {roll.color_code && roll.color_code.trim() !== '0' && (
+                <span className="font-mono text-slate-500">({displayImportedColorCode(roll.color_code)})</span>
+              )}
+            </div>
+          } />
+          <DataRow label="كود اللون" value={
+            <span className="font-mono">{displayImportedColorCode(roll.color_code)}</span>
           } />
           <DataRow label="المتغير" value={roll.variant_code} />
           <DataRow label="المورد" value={roll.supplier_name} />
