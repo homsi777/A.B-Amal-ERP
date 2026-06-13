@@ -115,6 +115,7 @@ export const AR_WHOLESALE = {
   inDelivery: 'قيد التسليم',
   fulfilled: 'تم التسليم',
   confirmedSale: 'بيع مؤكد — بانتظار المستودع',
+  pendingTafnid: 'بانتظار التفنيد — أمين المستودع',
   tafnidSaved: 'تفنيد محفوظ — بانتظار موافقة المدير',
   chinaImport: 'استيراد قائمة تعبئة صينية',
   wholesaleSales: 'بيع جملة (بالتوب)',

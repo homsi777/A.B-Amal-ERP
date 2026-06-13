@@ -2250,7 +2250,15 @@ export const InvoiceForm = () => {
     };
 
     if (editInvoiceId && status === 'final') {
-      if (!window.confirm('سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟')) return;
+      if (
+        !window.confirm(
+          wholesaleSalesUi
+            ? 'سيتم تأكيد الفاتورة وإرسالها لقسم التسليم. لن يُخصم المخزون حتى يفنّد أمين المستودع ويوافق المدير. هل تريد المتابعة؟'
+            : 'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟',
+        )
+      ) {
+        return;
+      }
     }
 
     try {
@@ -2301,8 +2309,12 @@ export const InvoiceForm = () => {
             type: 'success',
             message:
               status === 'draft'
-                ? `تم حفظ المسودة برقم: ${newNo}`
-                : `تم إنشاء وتأكيد الفاتورة رقم: ${newNo}`,
+                ? wholesaleSalesUi
+                  ? `تم حفظ المسودة ${newNo} — لن تظهر في التسليم حتى التأكيد من قائمة المبيعات`
+                  : `تم حفظ المسودة برقم: ${newNo}`
+                : wholesaleSalesUi
+                  ? `تم تأكيد الفاتورة ${newNo} — ظهرت في قسم التسليم لأمين المستودع`
+                  : `تم إنشاء وتأكيد الفاتورة رقم: ${newNo}`,
           });
         } else {
           const created = await postPurchaseInvoice({
@@ -2333,7 +2345,9 @@ export const InvoiceForm = () => {
         if (status === 'draft') {
           showToast({
             type: 'success',
-            message: `تم حفظ المسودة برقم: ${noAfterSave}`,
+            message: wholesaleSalesUi
+              ? `تم حفظ المسودة ${noAfterSave} — لن تظهر في التسليم حتى التأكيد من قائمة المبيعات`
+              : `تم حفظ المسودة برقم: ${noAfterSave}`,
           });
         }
         if (status === 'final') {
@@ -2374,7 +2388,9 @@ export const InvoiceForm = () => {
           });
           showToast({
             type: 'success',
-            message: `تم تأكيد الفاتورة رقم: ${confirmedNo}`,
+            message: wholesaleSalesUi
+              ? `تم تأكيد الفاتورة ${confirmedNo} — ظهرت في قسم التسليم لأمين المستودع`
+              : `تم تأكيد الفاتورة رقم: ${confirmedNo}`,
           });
         }
       } else {
@@ -2560,7 +2576,7 @@ export const InvoiceForm = () => {
           </button>
           <button onClick={() => handleSave('final')} disabled={hasValidationErrors || draftLoading || editBlocked} className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
             <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">حفظ نهائي</span>
+            <span className="hidden sm:inline">{wholesaleSalesUi ? 'تأكيد وإرسال للتسليم' : 'حفظ نهائي'}</span>
           </button>
         </div>
       </div>
