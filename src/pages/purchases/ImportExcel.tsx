@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, FileUp, Loader2, Save, Ship, Calculator } from 'lucide-react';
+import { ArrowRight, FileUp, Loader2, Save, Ship, Calculator, Upload } from 'lucide-react';
 import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
@@ -20,6 +20,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 export const ImportExcel = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [step, setStep] = useState<Step>('setup');
   const [loading, setLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
@@ -170,12 +171,21 @@ export const ImportExcel = () => {
     }
   };
 
+  const resetImport = () => {
+    setStep('setup');
+    setPreview(null);
+    setPricingResult(null);
+    setConfirmResult(null);
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const meta = preview?.extractedMetadata;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 pb-10">
       <div className="flex items-center gap-4">
-        <Link to="/purchases" className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+        <Link to="/invoices/purchases" className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
           <ArrowRight className="w-5 h-5" />
         </Link>
         <div>
@@ -186,19 +196,48 @@ export const ImportExcel = () => {
         </div>
       </div>
 
+      {step !== 'done' && (
+        <div className="bg-white rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 p-6 space-y-4">
+          <div className="flex flex-col items-center text-center gap-3">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+              <Upload className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">رفع ملف Excel</h3>
+              <p className="text-sm text-slate-600 mt-1">يدعم .xls و .xlsx — مثل Roll List / DETAILED PACKING LIST</p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="sr-only"
+              id="purchase-excel-file-input"
+            />
+            <label
+              htmlFor="purchase-excel-file-input"
+              className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition"
+            >
+              <FileUp className="w-5 h-5" />
+              اختر ملف Excel من جهازك
+            </label>
+            {file ? (
+              <div className="text-sm font-bold text-emerald-900 bg-white border border-emerald-200 rounded-lg px-4 py-2">
+                الملف المختار: <span className="font-mono" dir="ltr">{file.name}</span>
+              </div>
+            ) : (
+              <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                لم يُختَر ملف بعد — اضغط الزر الأخضر أعلاه
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {step === 'setup' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <h3 className="font-bold text-slate-800 text-sm">بيانات الفاتورة والمورد</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-bold text-slate-700">ملف Excel</label>
-              <input
-                type="file"
-                accept=".xls,.xlsx,.csv"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                className="w-full text-sm"
-              />
-              {file && <div className="text-xs text-slate-500">{file.name}</div>}
-            </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700">المورد</label>
               <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
@@ -252,6 +291,17 @@ export const ImportExcel = () => {
 
       {(step === 'preview' || step === 'pricing' || step === 'done') && preview && (
         <div className="space-y-4">
+          {step !== 'done' && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={resetImport}
+                className="text-sm font-bold text-slate-600 hover:text-slate-900 underline"
+              >
+                رفع ملف آخر
+              </button>
+            </div>
+          )}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
             <h3 className="font-bold text-slate-900">ملخص التحليل — {preview.fileName}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -358,7 +408,7 @@ export const ImportExcel = () => {
                     عرض الفاتورة
                   </button>
                 )}
-                <Link to="/purchases" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">
+                <Link to="/invoices/purchases" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700">
                   فواتير الشراء
                 </Link>
                 <Link to="/inventory" className="bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50">

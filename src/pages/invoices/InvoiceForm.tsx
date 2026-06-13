@@ -1,8 +1,8 @@
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
-import { ArrowRight, Save, X, FileText, Plus, Trash2, QrCode, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, Save, X, FileText, Plus, Trash2, QrCode, ChevronDown, ChevronUp, FileUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { calculateFabricInvoiceSummary, calculateFabricWeightKg } from '../../lib/fabricInvoiceSummary';
 import { sendTelegramInvoiceNotification } from '../../lib/telegramInvoice';
@@ -2529,6 +2529,15 @@ export const InvoiceForm = () => {
         </div>
 
         <div className="flex gap-3">
+          {!isSales && !editInvoiceId ? (
+            <Link
+              to="/purchases/import-excel"
+              className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition shadow-sm font-medium"
+            >
+              <FileUp className="w-4 h-4" />
+              <span className="hidden sm:inline">استيراد من Excel</span>
+            </Link>
+          ) : null}
           <button onClick={() => navigate(-1)} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm font-medium">
             <X className="w-4 h-4" />
             <span className="hidden sm:inline">إلغاء</span>
