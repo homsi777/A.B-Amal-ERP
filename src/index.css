@@ -84,6 +84,89 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .notify-bell-glow {
+    animation: notify-bell-glow 2.2s ease-in-out infinite;
+  }
+
+  .notify-badge-pulse {
+    animation: notify-badge-pulse 1.8s ease-in-out infinite;
+  }
+
+  .notify-panel-glow {
+    animation: notify-panel-glow 2.8s ease-in-out infinite;
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, #f59e0b 50%, transparent),
+      0 0 28px color-mix(in oklab, #f59e0b 40%, transparent),
+      0 16px 48px rgba(15, 23, 42, 0.16);
+  }
+
+  .notify-item-glow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .notify-item-glow::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    animation: notify-item-shine 3.5s ease-in-out infinite;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      color-mix(in oklab, #fbbf24 28%, transparent) 50%,
+      transparent 65%
+    );
+  }
+}
+
+@keyframes notify-panel-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, #f59e0b 45%, transparent),
+      0 0 22px color-mix(in oklab, #f59e0b 30%, transparent),
+      0 14px 40px rgba(15, 23, 42, 0.14);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, #f59e0b 65%, transparent),
+      0 0 36px color-mix(in oklab, #f59e0b 48%, transparent),
+      0 18px 52px rgba(15, 23, 42, 0.18);
+  }
+}
+
+@keyframes notify-item-shine {
+  0%, 78%, 100% {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+  40% {
+    opacity: 1;
+    transform: translateX(-120%);
+  }
+}
+
+@keyframes notify-bell-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, #f59e0b 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 10px color-mix(in oklab, #f59e0b 0%, transparent);
+  }
+}
+
+@keyframes notify-badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in oklab, #ef4444 70%, transparent);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px color-mix(in oklab, #ef4444 0%, transparent);
+  }
 }
 
 /**
