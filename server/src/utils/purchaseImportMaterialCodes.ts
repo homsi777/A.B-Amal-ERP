@@ -3,42 +3,38 @@ import { cleanString, type NormalizedField } from './importColumnDetector.js';
 
 type NormalizedRowData = Partial<Record<NormalizedField, string | number | null>>;
 
-function slugCode(s: string): string {
-  const v = s.trim().toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/gi, '-').replace(/^-+|-+$/g, '');
-  return v || 'item';
-}
-
-async function ensureCategoryNode(
+async function ensureCategoryNodeByName(
   client: PoolClient,
   companyId: string,
   parentId: string | null,
-  code: string,
   name: string,
-  _level: number,
 ): Promise<{ id: string; created: boolean }> {
-  const byCode = await client.query<{ id: string }>(
+  const label = name.trim() || '—';
+  const byName = await client.query<{ id: string }>(
     `SELECT id FROM fabric_categories
-     WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
+     WHERE company_id=$1 AND parent_id IS NOT DISTINCT FROM $2
+       AND lower(trim(name))=lower(trim($3))
      LIMIT 1`,
-    [companyId, code],
+    [companyId, parentId, label],
   );
-  if (byCode.rows.length) return { id: byCode.rows[0].id, created: false };
+  if (byName.rows.length) return { id: byName.rows[0].id, created: false };
 
   try {
     const ins = await client.query<{ id: string }>(
       `INSERT INTO fabric_categories (company_id, parent_id, code, name, is_active)
-       VALUES ($1,$2,$3,$4,true)
+       VALUES ($1,$2,$3,$3,true)
        RETURNING id`,
-      [companyId, parentId, code, name],
+      [companyId, parentId, label],
     );
     return { id: ins.rows[0].id, created: true };
   } catch (e: unknown) {
     if ((e as { code?: string }).code !== '23505') throw e;
     const again = await client.query<{ id: string }>(
       `SELECT id FROM fabric_categories
-       WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
+       WHERE company_id=$1 AND parent_id IS NOT DISTINCT FROM $2
+         AND lower(trim(name))=lower(trim($3))
        LIMIT 1`,
-      [companyId, code],
+      [companyId, parentId, label],
     );
     if (!again.rows.length) throw e;
     return { id: again.rows[0].id, created: false };
@@ -56,7 +52,6 @@ export function resolveImportMaterialCode(nd: NormalizedRowData): string {
 
 /**
  * Persist كود الخامة from Excel onto fabric_items.
- * Runs for matched and newly created items — previously codes were dropped when the item already existed by name.
  */
 export async function applyPurchaseImportMaterialCodes(
   client: PoolClient,
@@ -112,39 +107,26 @@ export async function applyPurchaseImportMaterialCodes(
   );
 }
 
-/** Keep category tree level-2 (كود الخامة) in sync with import row. */
+/** نفس شجرة فاتورة الشراء اليدوية: خامة → تصميم → لون → كود لون */
 export async function ensureFabricCategoryChainFromImport(
   client: PoolClient,
   companyId: string,
   nd: NormalizedRowData,
 ): Promise<number> {
-  const materialName = cleanString(nd.materialName);
-  const designCode = resolveImportMaterialCode(nd);
-  const colorName = cleanString(nd.colorName) || cleanString(nd.colorNameTr);
-  const colorCode = cleanString(nd.colorCode) || cleanString(nd.supplierColorCode);
-
-  if (!materialName && !designCode) return 0;
+  const materialName = cleanString(nd.materialName) || 'خامة غير محددة';
+  const designCode = resolveImportMaterialCode(nd) || materialName;
+  const colorName = cleanString(nd.colorName) || cleanString(nd.colorNameTr) || 'لون غير محدد';
+  const colorCode = cleanString(nd.colorCode) || cleanString(nd.supplierColorCode) || colorName;
 
   let created = 0;
-  const l1Label = materialName || designCode;
-  const l1 = await ensureCategoryNode(client, companyId, null, `L1_${slugCode(l1Label)}`, l1Label, 1);
+  const l1 = await ensureCategoryNodeByName(client, companyId, null, materialName);
   if (l1.created) created += 1;
-
-  let parentId = l1.id;
-  if (designCode) {
-    const l2 = await ensureCategoryNode(client, companyId, l1.id, `L2_${slugCode(designCode)}`, designCode, 2);
-    if (l2.created) created += 1;
-    parentId = l2.id;
-  }
-
-  if (colorName) {
-    const l3 = await ensureCategoryNode(client, companyId, parentId, `L3_${slugCode(colorName)}`, colorName, 3);
-    if (l3.created) created += 1;
-    if (colorCode) {
-      const l4 = await ensureCategoryNode(client, companyId, l3.id, `L4_${slugCode(colorCode)}`, colorCode, 4);
-      if (l4.created) created += 1;
-    }
-  }
+  const l2 = await ensureCategoryNodeByName(client, companyId, l1.id, designCode);
+  if (l2.created) created += 1;
+  const l3 = await ensureCategoryNodeByName(client, companyId, l2.id, colorName);
+  if (l3.created) created += 1;
+  const l4 = await ensureCategoryNodeByName(client, companyId, l3.id, colorCode);
+  if (l4.created) created += 1;
 
   return created;
 }

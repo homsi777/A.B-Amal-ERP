@@ -255,7 +255,8 @@ export const ImportExcel = () => {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
             <h3 className="font-bold text-slate-900">ملخص التحليل — {preview.fileName}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500">الخامة</div><div className="font-bold">{meta?.materialName ?? '—'}</div></div>
+              <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500">نوع الخامة</div><div className="font-bold">{(meta as { fabricFamily?: string })?.fabricFamily ?? meta?.materialName ?? '—'}</div></div>
+              <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500">كود التصميم</div><div className="font-bold">{meta?.materialName ?? '—'}</div></div>
               <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500">العرض</div><div className="font-bold">{meta?.widthRaw ? `${meta.widthRaw} inch` : '—'}</div></div>
               <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500">عدد الأتواب</div><div className="font-bold">{preview.rowCount}</div></div>
               <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500">إجمالي الأمتار</div><div className="font-bold">{preview.totalLengthM.toLocaleString('ar-EG')}</div></div>

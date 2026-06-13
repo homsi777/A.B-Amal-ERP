@@ -459,16 +459,31 @@ async function validateAndMatchRow(
   return { status, errors, warnings, matchedItemId, matchedColorId, matchedVariantId, normalizedData: nd, willCreateItem, willCreateColor, willCreateVariant };
 }
 
+function inferFabricFamilyFromFileName(fileName: string): string {
+  const upper = String(fileName || '').toUpperCase();
+  if (upper.includes('DENIM') || upper.includes('جينز')) return 'DENIM';
+  if (upper.includes('COTTON') || upper.includes('قطن')) return 'COTTON';
+  if (upper.includes('LINEN') || upper.includes('كتان')) return 'LINEN';
+  return 'مستورد';
+}
+
 function applyChinaImportMetadata(
   nd: NormalizedRowData,
   metadata: Record<string, unknown>,
+  fileName?: string,
 ): void {
-  const mat = cleanString(metadata.materialName);
-  if (mat && !cleanString(nd.materialName)) {
-    (nd as Record<string, unknown>).materialName = mat;
-  }
-  if (mat && !cleanString(nd.supplierMaterialCode)) {
-    (nd as Record<string, unknown>).supplierMaterialCode = mat;
+  /** من رأس الملف: Amelia-19 = كود التصميم (المستوى 2) */
+  const designCode = cleanString(metadata.materialName);
+  /** من اسم الملف أو افتراضي: DENIM = اسم الخامة (المستوى 1) */
+  const fabricFamily =
+    cleanString(metadata.fabricFamily) ||
+    (fileName ? inferFabricFamilyFromFileName(fileName) : '') ||
+    'مستورد';
+
+  (nd as Record<string, unknown>).materialName = fabricFamily;
+  if (designCode) {
+    (nd as Record<string, unknown>).supplierMaterialCode = designCode;
+    (nd as Record<string, unknown>).internalMaterialCode = designCode;
   }
   const widthAvg = Number(metadata.widthCmAvg);
   if (Number.isFinite(widthAvg) && widthAvg > 0 && cleanNumber(nd.widthCm) == null) {
@@ -628,7 +643,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         if (y != null) (nd as any).lengthM = Math.round(y * 0.9144 * 1000) / 1000;
       }
       if (chinaSourceType) {
-        applyChinaImportMetadata(nd, extractedMetadata as Record<string, unknown>);
+        applyChinaImportMetadata(nd, extractedMetadata as Record<string, unknown>, fileName);
       }
       const result = await validateAndMatchRow(
         nd, companyId, warehouseId, defaultLocationId ?? null,
@@ -676,6 +691,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     }
     const batchMetadata = {
       ...extractedMetadata,
+      fabricFamily: inferFabricFamilyFromFileName(fileName),
       headerRowIndex: headerRowIndex ?? 0,
       preTableRows,
       warnings: metadataWarnings,
