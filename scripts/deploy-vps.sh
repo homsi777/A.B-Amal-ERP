@@ -28,6 +28,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+DEPLOY_USER="$(whoami)"
+
+# ملفات قد تُنشأ بصلاحيات root — نصلحها قبل البناء
+fix_deploy_permissions() {
+  local target="$1"
+  [[ -e "$target" ]] || return 0
+  if [[ -w "$target" ]]; then
+    return 0
+  fi
+  echo ">> إصلاح صلاحيات $target (كانت root)..."
+  sudo chown -R "$DEPLOY_USER:$DEPLOY_USER" "$target" 2>/dev/null || sudo rm -rf "$target"
+}
+
+fix_deploy_permissions .env.production
+fix_deploy_permissions dist
+
 # ── إعدادات Obada (عدّل هنا إن لزم) ─────────────────────────────────────────
 OBADA_PUBLIC_HOST="${OBADA_PUBLIC_HOST:-65.21.136.217}"
 OBADA_WEB_PORT="${OBADA_WEB_PORT:-2730}"
@@ -111,12 +127,15 @@ npm install
 
 # ── 3) بناء الواجهة (same-origin /api عبر nginx — لا تضف /api في VITE) ─────
 echo ">> إعداد .env.production للبناء..."
+fix_deploy_permissions .env.production
+rm -f .env.production
 cat > .env.production <<EOF
 VITE_API_BASE_URL=
 VITE_APP_BASE_URL=${OBADA_PUBLIC_URL}
 EOF
 
 echo ">> npm run build..."
+fix_deploy_permissions dist
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
 npm run build
 
