@@ -105,7 +105,13 @@ export function DeliveryQueue() {
                       {row.totalAmount.toLocaleString('ar-SY', { minimumFractionDigits: 2 })} {row.currencyCode}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-[var(--ui-accent-soft-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--ui-nav-active-text)]">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          row.deliveryStatus === 'TAFNID_SAVED'
+                            ? 'bg-amber-100 text-amber-900'
+                            : 'bg-[var(--ui-accent-soft-bg)] text-[var(--ui-nav-active-text)]'
+                        }`}
+                      >
                         {arDeliveryStatus(row.deliveryStatus)}
                       </span>
                     </td>

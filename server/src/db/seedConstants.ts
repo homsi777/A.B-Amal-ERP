@@ -14,6 +14,8 @@ export const PERMISSIONS: { code: string; name: string; category: string }[] = [
   { code: 'settings.view', name: 'عرض الإعدادات', category: 'settings' },
   { code: 'settings.manage', name: 'إدارة الإعدادات', category: 'settings' },
   { code: 'users.manage', name: 'إدارة المستخدمين', category: 'users' },
+  { code: 'delivery.tafnid', name: 'حفظ تفنيد التسليم', category: 'delivery' },
+  { code: 'delivery.fulfill', name: 'تأكيد تسليم الجملة', category: 'delivery' },
 ];
 
 export const ROLES = [

@@ -13,7 +13,7 @@ export type DeliveryQueueItem = {
   rollCount: number;
   totalAmount: number;
   currencyCode: string;
-  deliveryStatus: 'CONFIRMED_SALE' | 'IN_DELIVERY' | 'FULFILLED';
+  deliveryStatus: 'CONFIRMED_SALE' | 'IN_DELIVERY' | 'TAFNID_SAVED' | 'FULFILLED';
 };
 
 export type DeliveryLineDraft = {
@@ -29,6 +29,7 @@ export type DeliveryLineDraft = {
 function mapDeliveryStatus(raw: unknown): DeliveryQueueItem['deliveryStatus'] {
   const s = String(raw ?? 'IN_DELIVERY').toUpperCase();
   if (s === 'FULFILLED') return 'FULFILLED';
+  if (s === 'TAFNID_SAVED') return 'TAFNID_SAVED';
   if (s === 'IN_DELIVERY') return 'IN_DELIVERY';
   return 'CONFIRMED_SALE';
 }
@@ -114,4 +115,9 @@ export async function saveDeliveryTafnid(
 
 export async function confirmDeliveryFulfillment(invoiceId: string): Promise<void> {
   await apiFetch(`/api/delivery/${invoiceId}/fulfill`, { method: 'POST' });
+}
+
+export async function countPendingDeliveryApprovals(): Promise<number> {
+  const res = await apiFetch<{ ok: boolean; total: number }>('/api/delivery/pending-approvals');
+  return Number(res.total ?? 0) || 0;
 }

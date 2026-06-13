@@ -32,6 +32,8 @@ import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { BRAND } from '../branding';
+import { countPendingDeliveryApprovals } from '../lib/api/deliveryApi';
+import { AR_WHOLESALE } from '../lib/i18n/arTerminology';
 
 /** أيام حتى موعد التوريد المتوقع (تاريخ محلي) */
 function daysUntilSupply(expectedDate: string): number {
@@ -71,6 +73,27 @@ const Topbar = () => {
   const customers = useStore((s) => s.customers);
 
   const pickupAlerts = useMemo(() => selectNearPickupOrders(customerOrders), [customerOrders]);
+  const [deliveryPendingCount, setDeliveryPendingCount] = useState(0);
+  const notifyTotal = pickupAlerts.length + deliveryPendingCount;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void countPendingDeliveryApprovals()
+        .then((n) => {
+          if (!cancelled) setDeliveryPendingCount(n);
+        })
+        .catch(() => {
+          if (!cancelled) setDeliveryPendingCount(0);
+        });
+    };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!notifyOpen) return;
@@ -225,9 +248,9 @@ const Topbar = () => {
               aria-haspopup="true"
             >
               <Bell className="w-5 h-5" strokeWidth={2} />
-              {pickupAlerts.length > 0 && (
+              {notifyTotal > 0 && (
                 <span className="absolute top-1 end-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">
-                  {pickupAlerts.length > 99 ? '99+' : pickupAlerts.length}
+                  {notifyTotal > 99 ? '99+' : notifyTotal}
                 </span>
               )}
             </button>
@@ -240,10 +263,27 @@ const Topbar = () => {
                   </p>
                 </div>
                 <div className="max-h-72 overflow-y-auto">
-                  {pickupAlerts.length === 0 ? (
+                  {pickupAlerts.length === 0 && deliveryPendingCount === 0 ? (
                     <p className="px-4 py-6 text-sm text-center text-[var(--text-muted)]">لا توجد تنبيهات حالياً</p>
                   ) : (
                     <ul className="divide-y divide-[var(--border-subtle)]">
+                      {deliveryPendingCount > 0 ? (
+                        <li>
+                          <Link
+                            to="/delivery"
+                            className="block px-4 py-3 hover:bg-[var(--border-subtle)] transition text-right"
+                            onClick={() => setNotifyOpen(false)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="font-semibold text-[var(--ui-accent)] text-sm">تسليم الجملة</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 whitespace-nowrap">
+                                {deliveryPendingCount}
+                              </span>
+                            </div>
+                            <p className="text-xs text-[var(--text-heading)] mt-1">{AR_WHOLESALE.tafnidSaved}</p>
+                          </Link>
+                        </li>
+                      ) : null}
                       {pickupAlerts.slice(0, 12).map((o) => {
                         const c = customers.find((x) => x.id === o.customerId);
                         return (
@@ -272,15 +312,26 @@ const Topbar = () => {
                     </ul>
                   )}
                 </div>
-                {pickupAlerts.length > 0 && (
+                {(pickupAlerts.length > 0 || deliveryPendingCount > 0) && (
                   <div className="px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
-                    <Link
-                      to="/orders"
-                      className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
-                      onClick={() => setNotifyOpen(false)}
-                    >
-                      {t('notifications.openOrders')}
-                    </Link>
+                    {deliveryPendingCount > 0 ? (
+                      <Link
+                        to="/delivery"
+                        className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
+                        onClick={() => setNotifyOpen(false)}
+                      >
+                        فتح قسم التسليم
+                      </Link>
+                    ) : null}
+                    {pickupAlerts.length > 0 ? (
+                      <Link
+                        to="/orders"
+                        className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
+                        onClick={() => setNotifyOpen(false)}
+                      >
+                        {t('notifications.openOrders')}
+                      </Link>
+                    ) : null}
                   </div>
                 )}
               </div>

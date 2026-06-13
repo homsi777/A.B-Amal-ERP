@@ -1,10 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
+import { canFulfillDelivery, canSaveDeliveryTafnid } from '../middleware/deliveryAuth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import {
   confirmDeliveryFulfillment,
+  countPendingManagerApprovals,
   getDeliveryDetail,
   listDeliveryQueue,
   saveDeliveryTafnid,
@@ -24,6 +26,13 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true, ...result });
   });
 
+  app.get('/pending-approvals', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const pool = getPool();
+    const total = await countPendingManagerApprovals(pool, companyId);
+    return reply.send({ ok: true, total });
+  });
+
   app.get('/:invoiceId', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const { invoiceId } = req.params as { invoiceId: string };
@@ -34,6 +43,9 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.put('/:invoiceId/tafnid', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!canSaveDeliveryTafnid(req.user)) {
+      return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    }
     const { companyId } = req.user!;
     const { invoiceId } = req.params as { invoiceId: string };
     const parsed = saveTafnidSchema.safeParse(req.body);
@@ -62,6 +74,9 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/:invoiceId/fulfill', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!canFulfillDelivery(req.user)) {
+      return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    }
     const { companyId, sub: userId } = req.user!;
     const { invoiceId } = req.params as { invoiceId: string };
     const pool = getPool();

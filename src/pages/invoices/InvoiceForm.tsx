@@ -46,6 +46,7 @@ import {
   INVOICE_LINE_UUID_RE,
 } from '../../lib/invoiceLineDuplicateIdentity';
 import type { Invoice } from '../../types';
+import { WHOLESALE_SALES_MODE } from '../../lib/inventoryUiConfig';
 
 /** Optional keys some APIs return for scanner / label matching (not all on FabricRollDto). */
 type FabricRollScanIdentity = FabricRollDto & {
@@ -526,6 +527,7 @@ export const InvoiceForm = () => {
   const { id: routeInvoiceId } = useParams<{ id: string }>();
   const { showToast } = useToast();
   const isSales = location.pathname.includes('sales');
+  const wholesaleSalesUi = isSales && WHOLESALE_SALES_MODE;
   const editInvoiceId =
     routeInvoiceId && EDIT_INVOICE_ID_RE.test(routeInvoiceId) && location.pathname.includes('/edit')
       ? routeInvoiceId
@@ -1698,8 +1700,9 @@ export const InvoiceForm = () => {
     );
   };
 
-  const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price' | 'rollQty') => {
-    const value = numberValue(item[field]);
+  const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price' | 'rollQty' | 'materialName') => {
+    const value = field === 'materialName' ? item.materialName.trim() : numberValue(item[field]);
+    if (field === 'materialName' && wholesaleSalesUi && !value) return 'اسم الخامة مطلوب';
     if (field === 'rollQty' && isSales && value <= 0) return 'العدد يجب أن يكون أكبر من صفر';
     if (field === 'length' && !isSales && value <= 0) return 'الطول يجب أن يكون أكبر من صفر';
     if (field === 'price' && value < 0) return 'السعر لا يمكن أن يكون سالبا';
@@ -1719,7 +1722,7 @@ export const InvoiceForm = () => {
 
     const keys = items
       .filter((x) => !isEmptyInvoiceItem(x))
-      .map((x) => ({ id: x.id, key: buildInvoiceSaveDuplicateKey(x, warehouse) }));
+      .map((x) => ({ id: x.id, key: buildInvoiceSaveDuplicateKey(x, warehouse, { salesWholesale: wholesaleSalesUi }) }));
     const current = keys.find((k) => k.id === lineId);
     if (!current) return;
     const count = keys.reduce((acc, k) => (k.key === current.key ? acc + 1 : acc), 0);
@@ -1736,6 +1739,7 @@ export const InvoiceForm = () => {
   const hasValidationErrors = activeItems.some(
     (item) =>
       getItemError(item, 'price') ||
+      (wholesaleSalesUi ? getItemError(item, 'materialName') : '') ||
       (isSales ? getItemError(item, 'rollQty') : getItemError(item, 'length')),
   );
 
@@ -1899,7 +1903,7 @@ export const InvoiceForm = () => {
     const idx = inputs.indexOf(target);
     if (idx === -1) return;
 
-    if (isSales && idx === 5) {
+    if (isSales && !wholesaleSalesUi && idx === 5) {
       e.preventDefault();
       void (async () => {
         await syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, {
@@ -1941,22 +1945,25 @@ export const InvoiceForm = () => {
     const uuidRe =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-    const dupSaveKeys = activeItems.map((i) => buildInvoiceSaveDuplicateKey(i, warehouse));
+    const dupSaveKeys = activeItems.map((i) =>
+      buildInvoiceSaveDuplicateKey(i, warehouse, { salesWholesale: wholesaleSalesUi }),
+    );
     const seenSave = new Set<string>();
     for (const k of dupSaveKeys) {
       if (seenSave.has(k)) {
         playWarningBeep();
         showToast({
           type: 'warning',
-          message:
-            'لا يمكن حفظ الفاتورة: سطر مكرر بنفس هوية الرول أو الباركود أو نفس بيانات الخامة واللون والطول. ادمج الكمية أو احذف التكرار.',
+          message: wholesaleSalesUi
+            ? 'لا يمكن حفظ الفاتورة: سطر مكرر بنفس الخامة. ادمج الكمية أو احذف التكرار.'
+            : 'لا يمكن حفظ الفاتورة: سطر مكرر بنفس هوية الرول أو الباركود أو نفس بيانات الخامة واللون والطول. ادمج الكمية أو احذف التكرار.',
         });
         return;
       }
       seenSave.add(k);
     }
 
-    if (isSales) {
+    if (isSales && !wholesaleSalesUi) {
       let rollsAcc = [...apiRolls];
       const mergeRollDuringSave = (r: FabricRollDto) => {
         rollsAcc = rollsAcc.some((x) => x.id === r.id)
@@ -2522,7 +2529,9 @@ export const InvoiceForm = () => {
             </h2>
             <p className="text-slate-500 mt-1 text-sm">
               {isSales
-                ? 'تسجيل بيع بالجملة — باركود، عدد الأتواب، السعر، والمجموع'
+                ? wholesaleSalesUi
+                  ? 'تسجيل بيع بالجملة — اسم الخامة، عدد الأتواب، السعر، والمجموع'
+                  : 'تسجيل بيع بالجملة — باركود، عدد الأتواب، السعر، والمجموع'
                 : 'تسجيل شراء — باركود، الطول (متر/ياردة)، السعر، والمجموع'}
             </p>
           </div>
@@ -2741,10 +2750,10 @@ export const InvoiceForm = () => {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border border-slate-200">
                   <th className="p-3 font-bold w-12 text-center">#</th>
-                  <th className="p-3 font-bold min-w-[140px]">باركورد</th>
+                  {!wholesaleSalesUi ? <th className="p-3 font-bold min-w-[140px]">باركورد</th> : null}
                   <th className="p-3 font-bold min-w-[220px]">اسم التوب</th>
                   <th className="p-3 font-bold w-20">عدد</th>
-                  <th className="p-3 font-bold min-w-[120px]">متر/يارد</th>
+                  {!wholesaleSalesUi ? <th className="p-3 font-bold min-w-[120px]">متر/يارد</th> : null}
                   <th className="p-3 font-bold w-28">سعر</th>
                   <th className="p-3 font-bold w-28">مجموع</th>
                   <th className="p-3 font-bold w-12 text-center"></th>
@@ -2754,11 +2763,17 @@ export const InvoiceForm = () => {
                 {items.map((item, index) => {
                   const lengthError = getItemError(item, 'length');
                   const rollQtyError = getItemError(item, 'rollQty');
+                  const materialError = wholesaleSalesUi ? getItemError(item, 'materialName') : '';
                   const priceError = getItemError(item, 'price');
                   const lineTotal = computeInvoiceLineTotal(item, isSales);
+                  const materialFieldIndex = wholesaleSalesUi ? 0 : 1;
+                  const rollQtyFieldIndex = wholesaleSalesUi ? 1 : 2;
+                  const lengthFieldIndex = 3;
+                  const priceFieldIndex = wholesaleSalesUi ? 2 : 4;
                   return (
                     <tr key={item.id} data-invoice-item-row className="border-b border-x border-slate-200">
                       <td className="p-2 text-center font-bold text-slate-400">{index + 1}</td>
+                      {!wholesaleSalesUi ? (
                       <td className="p-2">
                         <div className="relative">
                           <QrCode className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" />
@@ -2809,11 +2824,12 @@ export const InvoiceForm = () => {
                           />
                         </div>
                       </td>
+                      ) : null}
                       <td className="p-2">
                         <div className="relative">
                           <input
                             type="text"
-                            data-invoice-field-index={1}
+                            data-invoice-field-index={materialFieldIndex}
                             autoComplete="off"
                             placeholder="اسم التوب / الخامة"
                             value={item.materialName}
@@ -2923,13 +2939,16 @@ export const InvoiceForm = () => {
                               }
                               handleInvoiceLineEnter(e, item);
                             }}
-                            className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500 shadow-sm"
+                            className={`w-full bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500 shadow-sm${
+                              materialError ? ' border-red-300' : ''
+                            }`}
+                            title={materialError}
                           />
                         </div>
                       </td>
                       <td className="p-2">
                         <input
-                          data-invoice-field-index={2}
+                          data-invoice-field-index={rollQtyFieldIndex}
                           type="number"
                           min="1"
                           step="1"
@@ -2941,10 +2960,11 @@ export const InvoiceForm = () => {
                           className={inputClass(Boolean(rollQtyError))}
                         />
                       </td>
+                      {!wholesaleSalesUi ? (
                       <td className="p-2">
                         <div className="flex items-center gap-1">
                           <input
-                            data-invoice-field-index={3}
+                            data-invoice-field-index={lengthFieldIndex}
                             type="number"
                             min="0"
                             step="0.01"
@@ -2975,9 +2995,10 @@ export const InvoiceForm = () => {
                           </select>
                         </div>
                       </td>
+                      ) : null}
                       <td className="p-2">
                         <input
-                          data-invoice-field-index={4}
+                          data-invoice-field-index={priceFieldIndex}
                           type="number"
                           min="0"
                           step="0.01"
