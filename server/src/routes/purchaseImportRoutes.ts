@@ -477,6 +477,23 @@ function inferFabricFamilyFromFileName(fileName: string): string {
   return 'مستورد';
 }
 
+const ALLOWED_IMPORT_SOURCE_TYPES = new Set([
+  'PURCHASE_INVOICE',
+  'OPENING_STOCK',
+  'DIRECT_STOCK_IMPORT',
+  'CHINA_PACKING_LIST',
+  'ROLL_LIST_M_Y',
+  'STOCK_IMPORT',
+]);
+
+function toDbImportSourceType(sourceType: string | null | undefined): string {
+  if (!sourceType || sourceType === 'PURCHASE_INVOICE') return 'PURCHASE_INVOICE';
+  // متوافق مع قواعد DB القديمة قبل ترحيل 037
+  if (sourceType === 'ROLL_LIST_M_Y') return 'CHINA_PACKING_LIST';
+  if (ALLOWED_IMPORT_SOURCE_TYPES.has(sourceType)) return sourceType;
+  return 'PURCHASE_INVOICE';
+}
+
 function extractRepairMetadata(
   metadata: Record<string, unknown>,
   fileName?: string,
@@ -1040,7 +1057,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       chinaPackingExpanded: Boolean(chinaSourceType),
     };
     const detectedColumns = Array.from(colMap.entries()).map(([idx, field]) => ({ col: workHeaders[idx], field }));
-    const batchSourceType = chinaSourceType ?? 'PURCHASE_INVOICE';
+    const batchSourceType = toDbImportSourceType(chinaSourceType);
 
     const client = await pool.connect();
     try {
@@ -1136,6 +1153,14 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       }
       if (err.code === '23505') {
         return sendError(reply, 409, 'تعارض بيانات (قيود تكرار). راجع رقم الفاتورة/الباركود ثم أعد المحاولة.', 'DUPLICATE');
+      }
+      if (err.code === '23514') {
+        return sendError(
+          reply,
+          409,
+          'قاعدة البيانات غير محدثة (نوع مصدر الاستيراد). شغّل npm run server:migrate ثم أعد المحاولة.',
+          'DB_SCHEMA_OUTDATED',
+        );
       }
       if (err.code === '22007') return sendError(reply, 400, 'تاريخ غير صالح', 'VALIDATION');
       if (err.code === '22P02') return sendError(reply, 400, 'قيمة رقمية غير صالحة', 'VALIDATION');
@@ -1974,6 +1999,14 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       }
       if (err.code === '23505') {
         return sendError(reply, 409, 'تعارض بيانات (قيود تكرار). راجع رقم الفاتورة/الباركود ثم أعد المحاولة.', 'DUPLICATE');
+      }
+      if (err.code === '23514') {
+        return sendError(
+          reply,
+          409,
+          'قاعدة البيانات غير محدثة (نوع مصدر الاستيراد). شغّل npm run server:migrate ثم أعد المحاولة.',
+          'DB_SCHEMA_OUTDATED',
+        );
       }
       if (err.code === '22007') return sendError(reply, 400, 'تاريخ غير صالح', 'VALIDATION');
       if (err.code === '22P02') return sendError(reply, 400, 'قيمة رقمية غير صالحة', 'VALIDATION');
