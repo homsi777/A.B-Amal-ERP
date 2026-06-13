@@ -2642,18 +2642,19 @@ export const InvoiceForm = () => {
           </div>
         ) : null}
 
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700">ملاحظات الفاتورة</label>
+        <div className="space-y-1 max-w-md">
+          <label className="text-xs font-bold text-slate-600">ملاحظات الفاتورة</label>
           <textarea
             value={headerNotes}
             onChange={(e) => setHeaderNotes(e.target.value)}
             onKeyDown={focusNextFormControl}
-            rows={2}
-            className={`${inputClass()} min-h-[3rem]`}
+            rows={1}
+            className={`${inputClass()} min-h-0 resize-y text-sm py-1.5 max-h-20`}
             placeholder="اختياري"
           />
         </div>
 
+        {!isSales && (
         <section className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-bold text-cyan-900">مسح QR / باركود (خيار للمحاسب)</div>
@@ -2688,6 +2689,7 @@ export const InvoiceForm = () => {
           </div>
           {scanMessage && <div className="text-xs font-bold text-cyan-800">{scanMessage}</div>}
         </section>
+        )}
 
         <hr className="border-slate-100" />
 
