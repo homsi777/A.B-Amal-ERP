@@ -2,11 +2,18 @@ import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 
-export function sendError(reply: FastifyReply, statusCode: number, message: string, code?: string) {
+export function sendError(
+  reply: FastifyReply,
+  statusCode: number,
+  message: string,
+  code?: string,
+  details?: unknown,
+) {
   return reply.status(statusCode).send({
     ok: false,
     message,
     code: code ?? 'ERROR',
+    ...(details !== undefined ? { details } : {}),
   });
 }
 

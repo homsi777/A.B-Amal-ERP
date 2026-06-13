@@ -510,6 +510,75 @@ function importAmountToUsd(amount: number, currencyCode: string, exchangeRateToU
   return Math.round((amount / rate) * 100) / 100;
 }
 
+function parseJsonStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+    } catch {
+      return value.trim() ? [value] : [];
+    }
+  }
+  return [];
+}
+
+type ImportRowIssueDetail = {
+  rowNo: number;
+  rollNo: string | null;
+  barcode: string | null;
+  lengthM: number | null;
+  errors: string[];
+  warnings: string[];
+};
+
+async function fetchImportRowIssues(
+  pool: ReturnType<typeof getPool>,
+  batchId: string,
+  companyId: string,
+  status: 'ERROR' | 'WARNING',
+  limit = 40,
+): Promise<ImportRowIssueDetail[]> {
+  const r = await pool.query<{
+    row_no: number;
+    errors: unknown;
+    warnings: unknown;
+    normalized_data: NormalizedRowData;
+  }>(
+    `SELECT row_no, errors, warnings, normalized_data
+     FROM purchase_import_rows
+     WHERE batch_id=$1 AND company_id=$2 AND status=$3
+     ORDER BY row_no ASC
+     LIMIT $4`,
+    [batchId, companyId, status, limit],
+  );
+  return r.rows.map((row) => ({
+    rowNo: row.row_no,
+    rollNo: cleanString(row.normalized_data?.rollNo) || cleanString(row.normalized_data?.supplierRollRef),
+    barcode: cleanString(row.normalized_data?.barcode),
+    lengthM: cleanNumber(row.normalized_data?.lengthM),
+    errors: parseJsonStringArray(row.errors),
+    warnings: parseJsonStringArray(row.warnings),
+  }));
+}
+
+function buildImportIssuesMessage(
+  totalCount: number,
+  kind: 'أخطاء' | 'تحذيرات',
+  samples: ImportRowIssueDetail[],
+): string {
+  const head = `يوجد ${totalCount} صف${totalCount === 1 ? '' : 'وف'} بها ${kind}.`;
+  const examples = samples
+    .slice(0, 10)
+    .map((s) => {
+      const id = s.rollNo || s.barcode || '—';
+      const msgs = kind === 'أخطاء' ? s.errors : s.warnings;
+      return `سطر ${s.rowNo} (${id}): ${msgs.join(' — ')}`;
+    })
+    .join(' | ');
+  return examples ? `${head} ${examples}` : head;
+}
+
 async function resolveImportRollBarcode(
   client: import('pg').PoolClient,
   companyId: string,
@@ -1192,9 +1261,25 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       );
       (batch as { status: string }).status = 'VALIDATED';
     }
-    if (batch.error_count > 0) return sendError(reply, 400, 'يوجد صفوف بها أخطاء. صحِّح الملف أو أزل الصفوف الخاطئة.', 'HAS_ERRORS');
+    if (batch.error_count > 0) {
+      const errorRows = await fetchImportRowIssues(pool, id, companyId, 'ERROR');
+      return sendError(
+        reply,
+        400,
+        buildImportIssuesMessage(batch.error_count, 'أخطاء', errorRows),
+        'HAS_ERRORS',
+        { errorCount: batch.error_count, rows: errorRows },
+      );
+    }
     if (batch.warning_count > 0 && !allowWarnings) {
-      return sendError(reply, 400, 'يوجد صفوف بها تحذيرات. أرسل allowWarnings=true للمتابعة.', 'HAS_WARNINGS');
+      const warnRows = await fetchImportRowIssues(pool, id, companyId, 'WARNING');
+      return sendError(
+        reply,
+        400,
+        buildImportIssuesMessage(batch.warning_count, 'تحذيرات', warnRows),
+        'HAS_WARNINGS',
+        { warningCount: batch.warning_count, rows: warnRows },
+      );
     }
 
     const rowsToImport = await pool.query<{
