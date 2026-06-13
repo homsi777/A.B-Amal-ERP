@@ -14,6 +14,7 @@ export interface FabricInvoiceSummaryLine {
   lengthMeters?: number | string | null;
   length?: number | string | null;
   quantity?: number | string | null;
+  rollsCount?: number | string | null;
   weightKg?: number | string | null;
   weight?: number | string | null;
   pricePerMeter?: number | string | null;
@@ -91,7 +92,7 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
       colorKeys: new Set<string>(),
     };
 
-    group.rollCount += 1;
+    group.rollCount += Math.max(1, toNumber(line.rollsCount ?? line.quantity ?? 1));
     group.totalMeters += totalMeters;
     group.totalKg += totalKg;
     group.totalAmount += totalAmount;
