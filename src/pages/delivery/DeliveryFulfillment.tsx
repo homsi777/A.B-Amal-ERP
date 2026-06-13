@@ -67,10 +67,11 @@ export function DeliveryFulfillment() {
     setSaving(true);
     try {
       await saveDeliveryTafnid(id, updated);
-      setLines(updated);
+      const refreshed = await getDeliveryDetail(id);
+      setLines(refreshed.lines);
+      setHeader(refreshed.header);
       setTafnidOpen(false);
-      setHeader((prev) => (prev ? { ...prev, deliveryStatus: 'TAFNID_SAVED' } : prev));
-      showToast({ type: 'success', message: 'تم حفظ التفنيد — بانتظار موافقة المدير' });
+      showToast({ type: 'success', message: 'تم حفظ التفنيد — أُرسل إشعار للمدير/المحاسب' });
     } catch (e) {
       showToast({
         type: 'error',
@@ -101,7 +102,7 @@ export function DeliveryFulfillment() {
       await confirmDeliveryFulfillment(id);
       showToast({
         type: 'success',
-        message: 'تم تأكيد التسليم وتأكيد الفاتورة محاسبياً وخصم المخزون',
+        message: 'تم تأكيد الفاتورة محاسبياً — يمكن طباعة الكشف وتسليم الزبون',
       });
       setHeader((prev) => (prev ? { ...prev, deliveryStatus: 'FULFILLED' } : prev));
     } catch (e) {
@@ -160,7 +161,7 @@ export function DeliveryFulfillment() {
 
         {header.deliveryStatus === 'TAFNID_SAVED' && (
           <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-            تم حفظ التفنيد. ينتظر المدير مراجعة الأطوال وتأكيد التسليم لخصم المخزون.
+            تم حفظ التفنيد وظهر المبلغ أدناه. المدير/المحاسب يؤكد لإرسال الفاتورة للطباعة والتسليم.
           </p>
         )}
 
@@ -216,8 +217,16 @@ export function DeliveryFulfillment() {
               onClick={() => void onConfirmDelivery()}
               className="inline-flex items-center gap-2 rounded-lg border border-[var(--ui-accent-border)] bg-[var(--ui-accent-soft-bg)] px-4 py-2 text-sm font-medium text-[var(--ui-nav-active-text)] disabled:opacity-50"
             >
-              {t('confirmDelivery')}
+              تأكيد للمحاسبة
             </button>
+          ) : null}
+          {header.deliveryStatus === 'FULFILLED' ? (
+            <Link
+              to={`/invoices/statement/${id}`}
+              className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]"
+            >
+              كشف الفاتورة / طباعة
+            </Link>
           ) : null}
         </div>
       </div>

@@ -717,182 +717,19 @@ export async function confirmDeliveryFulfillment(
 
   await recalculateWholesaleSalesTotals(client, companyId, invoiceId);
 
-  if (inv.document_status === 'DRAFT') {
+  const statusRow = await client.query<{ document_status: string }>(
+    `SELECT document_status FROM sales_invoices WHERE id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  const docStatus = statusRow.rows[0]?.document_status;
+
+  if (docStatus === 'DRAFT') {
     await confirmSalesInvoice(client, companyId, userId, invoiceId, {
       cashboxId: null,
       partyNameForVoucher: null,
     });
-  } else if (inv.document_status !== 'CONFIRMED') {
-    throw Object.assign(new Error('حالة الفاتورة غير صالحة للتسليم'), { code: 'INVALID_STATE' });
-  }
-
-  const ccy = String(inv.currency_code || 'USD');
-  const rate = Number(inv.exchange_rate_to_usd) > 0 ? Number(inv.exchange_rate_to_usd) : NaN;
-  const exchangeRateToUsd = ccy.trim().toUpperCase() === 'USD' ? 1 : rate;
-  if (!Number.isFinite(exchangeRateToUsd) || exchangeRateToUsd <= 0) {
-    throw Object.assign(new Error('لا يمكن التسليم بدون سعر صرف'), { code: 'VALIDATION' });
-  }
-
-  const lines = await client.query(
-    `SELECT sil.*
-     FROM sales_invoice_lines sil
-     WHERE sil.invoice_id=$1 AND sil.company_id=$2
-     ORDER BY sil.line_no`,
-    [invoiceId, companyId],
-  );
-
-  const tafnidByLine = await loadTafnidRowsByLine(client, companyId, invoiceId);
-
-  for (const ln of lines.rows) {
-    const lineId = String(ln.id);
-    const tafnidRows = tafnidByLine.get(lineId) ?? [];
-    const unit = String(ln.unit);
-    const rollQty = Number(ln.quantity);
-
-    if (unit === 'roll') {
-      const rollsNeeded = rollsNeededForLine(unit, rollQty);
-      if (tafnidRows.length < rollsNeeded) {
-        throw Object.assign(
-          new Error(`يجب تفنيد ${rollsNeeded} توب للسطر ${ln.line_no} قبل التسليم`),
-          { code: 'VALIDATION' },
-        );
-      }
-
-      const perRollTafnid: { rollSeq: number; len: number; lengthUnit: 'meter' | 'yard' }[] = [];
-      for (let seq = 1; seq <= rollsNeeded; seq++) {
-        const row = tafnidRows.find((r) => r.rollSeq === seq);
-        const tafnidLen = row?.tafnidLength ?? NaN;
-        if (!Number.isFinite(tafnidLen) || tafnidLen <= 0) {
-          throw Object.assign(new Error(`يجب تفنيد التوب ${seq} في السطر ${ln.line_no}`), { code: 'VALIDATION' });
-        }
-        perRollTafnid.push({
-          rollSeq: seq,
-          len: tafnidLen,
-          lengthUnit: (row?.lengthUnit as 'meter' | 'yard') || 'meter',
-        });
-      }
-
-      const itemId = await resolveFabricItemId(client, companyId, ln);
-      if (!itemId) {
-        throw Object.assign(new Error(`تعذر تحديد الخامة للسطر ${ln.line_no}`), { code: 'VALIDATION' });
-      }
-
-      const preassigned = tafnidRows.find((r) => r.rollSeq === 1)?.fabricRollId;
-      const prebound = ln.fabric_roll_id as string | null;
-
-      if ((preassigned || prebound) && rollsNeeded === 1) {
-        const singleRollId = preassigned || prebound;
-        const perRollM = quantityToMeters(perRollTafnid[0].len, perRollTafnid[0].lengthUnit);
-        const deducted = await deductRollMeters(
-          client,
-          companyId,
-          userId,
-          singleRollId!,
-          perRollM,
-          invoiceId,
-          String(inv.invoice_no),
-        );
-        const costSnapshot = await buildSalesLineCostSnapshot(
-          client,
-          companyId,
-          deducted.soldM,
-          deducted.unitCost,
-          deducted.currencyCode,
-          ccy,
-          exchangeRateToUsd,
-        );
-        await updateLineCostAndMeta(client, companyId, ln, singleRollId, deducted.soldM, costSnapshot, {
-          tafnid_rolls: perRollTafnid.map((r) => ({ roll_seq: r.rollSeq, length: r.len, unit: r.lengthUnit })),
-        });
-        continue;
-      }
-
-      const picked = await pickAvailableRolls(client, companyId, itemId, rollsNeeded);
-      if (picked.length < rollsNeeded) {
-        throw Object.assign(
-          new Error(`مخزون غير كافٍ للسطر ${ln.line_no}: مطلوب ${rollsNeeded} توب، متاح ${picked.length}`),
-          { code: 'INVALID_STOCK' },
-        );
-      }
-
-      let totalSoldM = 0;
-      let weightedCost = 0;
-      let costCurrency: string | null = null;
-      const rollIds: string[] = [];
-      const fulfilledTafnid: { roll_seq: number; length: number; unit: string; roll_id: string }[] = [];
-
-      for (let i = 0; i < rollsNeeded; i++) {
-        const roll = picked[i];
-        const taf = perRollTafnid[i];
-        const perRollM = quantityToMeters(taf.len, taf.lengthUnit);
-        const deducted = await deductRollMeters(
-          client,
-          companyId,
-          userId,
-          roll.id,
-          perRollM,
-          invoiceId,
-          String(inv.invoice_no),
-        );
-        totalSoldM += deducted.soldM;
-        if (deducted.unitCost != null) weightedCost += deducted.unitCost * deducted.soldM;
-        costCurrency = deducted.currencyCode ?? costCurrency;
-        rollIds.push(roll.id);
-        fulfilledTafnid.push({
-          roll_seq: taf.rollSeq,
-          length: taf.len,
-          unit: taf.lengthUnit,
-          roll_id: roll.id,
-        });
-      }
-
-      const avgUnitCost = totalSoldM > 0 && weightedCost > 0 ? weightedCost / totalSoldM : null;
-      const costSnapshot = await buildSalesLineCostSnapshot(
-        client,
-        companyId,
-        totalSoldM,
-        avgUnitCost,
-        costCurrency,
-        ccy,
-        exchangeRateToUsd,
-      );
-      await updateLineCostAndMeta(client, companyId, ln, rollIds[0] ?? null, totalSoldM, costSnapshot, {
-        fulfilled_rolls: rollIds,
-        tafnid_rolls: fulfilledTafnid,
-      });
-      continue;
-    }
-
-    const tafnidLen = tafnidRows.find((r) => r.rollSeq === 1)?.tafnidLength ?? NaN;
-    if (!Number.isFinite(tafnidLen) || tafnidLen <= 0) {
-      throw Object.assign(new Error(`يجب تفنيد السطر ${ln.line_no} قبل التسليم`), { code: 'VALIDATION' });
-    }
-
-    const lengthUnit = (tafnidRows.find((r) => r.rollSeq === 1)?.lengthUnit as 'meter' | 'yard') || 'meter';
-    const perRollM = quantityToMeters(tafnidLen, lengthUnit);
-
-    if (ln.fabric_roll_id) {
-      const qtyM = quantityToMeters(Number(ln.quantity), ln.unit as 'meter' | 'yard');
-      const deducted = await deductRollMeters(
-        client,
-        companyId,
-        userId,
-        String(ln.fabric_roll_id),
-        qtyM,
-        invoiceId,
-        String(inv.invoice_no),
-      );
-      const costSnapshot = await buildSalesLineCostSnapshot(
-        client,
-        companyId,
-        deducted.soldM,
-        deducted.unitCost,
-        deducted.currencyCode,
-        ccy,
-        exchangeRateToUsd,
-      );
-      await updateLineCostAndMeta(client, companyId, ln, String(ln.fabric_roll_id), deducted.soldM, costSnapshot);
-    }
+  } else if (docStatus !== 'CONFIRMED') {
+    throw Object.assign(new Error('حالة الفاتورة غير صالحة للتأكيد المحاسبي'), { code: 'INVALID_STATE' });
   }
 
   await client.query(
