@@ -124,6 +124,7 @@ import { Login } from './pages/Login';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireActivation } from './components/RequireActivation';
 import { StartupConnectionBanner } from './components/electron/StartupConnectionBanner';
+import { AuthProvider } from './contexts/AuthContext';
 
 export default function App() {
   return (
@@ -138,7 +139,9 @@ export default function App() {
             element={
               <RequireAuth>
                 <RequireActivation>
-                  <DashboardLayout />
+                  <AuthProvider>
+                    <DashboardLayout />
+                  </AuthProvider>
                 </RequireActivation>
               </RequireAuth>
             }

@@ -2,7 +2,9 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { getExchangeRateToUsdTx } from './exchangeRateService.js';
 import { INVOICE_AMOUNT_EPS } from './invoiceAmountHelpers.js';
-import { quantityToMeters } from './salesInvoiceService.js';
+import { quantityToMeters, confirmSalesInvoice } from './salesInvoiceService.js';
+
+const DELIVERY_OPEN_DOC = "si.document_status IN ('DRAFT', 'CONFIRMED')";
 
 const EPS = INVOICE_AMOUNT_EPS;
 
@@ -107,7 +109,7 @@ export async function listDeliveryQueue(
 
   const conds = [
     'si.company_id = $1',
-    "si.document_status = 'CONFIRMED'",
+    DELIVERY_OPEN_DOC,
     "si.delivery_status IN ('IN_DELIVERY', 'TAFNID_SAVED')",
   ];
   const params: unknown[] = [companyId];
@@ -147,7 +149,7 @@ export async function countPendingManagerApprovals(db: DbQuery, companyId: strin
   const r = await db.query<{ total: number }>(
     `SELECT COUNT(*)::int AS total FROM sales_invoices si
      WHERE si.company_id=$1
-       AND si.document_status='CONFIRMED'
+       AND ${DELIVERY_OPEN_DOC}
        AND si.delivery_status='TAFNID_SAVED'`,
     [companyId],
   );
@@ -158,7 +160,7 @@ export async function countPendingWarehouseTafnid(db: DbQuery, companyId: string
   const r = await db.query<{ total: number }>(
     `SELECT COUNT(*)::int AS total FROM sales_invoices si
      WHERE si.company_id=$1
-       AND si.document_status='CONFIRMED'
+       AND ${DELIVERY_OPEN_DOC}
        AND si.delivery_status='IN_DELIVERY'`,
     [companyId],
   );
@@ -181,9 +183,9 @@ export async function listPendingWarehouseTafnid(
      FROM sales_invoices si
      INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
      WHERE si.company_id=$1
-       AND si.document_status='CONFIRMED'
+       AND ${DELIVERY_OPEN_DOC}
        AND si.delivery_status='IN_DELIVERY'
-     ORDER BY si.confirmed_at DESC NULLS LAST, si.created_at DESC
+     ORDER BY si.created_at DESC
      LIMIT $2`,
     [companyId, limit],
   );
@@ -204,7 +206,7 @@ export async function listPendingManagerApprovals(
      FROM sales_invoices si
      INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
      WHERE si.company_id=$1
-       AND si.document_status='CONFIRMED'
+       AND ${DELIVERY_OPEN_DOC}
        AND si.delivery_status='TAFNID_SAVED'
      ORDER BY si.updated_at DESC
      LIMIT $2`,
@@ -244,7 +246,7 @@ export async function getDeliveryDetail(
     `SELECT si.*, c.name AS customer_name
      FROM sales_invoices si
      INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
-     WHERE si.id=$1 AND si.company_id=$2 AND si.document_status='CONFIRMED'`,
+     WHERE si.id=$1 AND si.company_id=$2 AND ${DELIVERY_OPEN_DOC}`,
     [invoiceId, companyId],
   );
   if (!h.rows.length) return null;
@@ -275,8 +277,11 @@ export async function saveDeliveryTafnid(
   );
   if (!inv.rows.length) throw Object.assign(new Error('الفاتورة غير موجودة'), { code: 'NOT_FOUND' });
   const row = inv.rows[0];
-  if (row.document_status !== 'CONFIRMED') {
-    throw Object.assign(new Error('الفاتورة غير مؤكدة'), { code: 'INVALID_STATE' });
+  if (row.document_status === 'VOIDED') {
+    throw Object.assign(new Error('الفاتورة ملغاة'), { code: 'INVALID_STATE' });
+  }
+  if (row.document_status !== 'DRAFT' && row.document_status !== 'CONFIRMED') {
+    throw Object.assign(new Error('حالة الفاتورة غير صالحة للتفنيد'), { code: 'INVALID_STATE' });
   }
   if (row.delivery_status === 'FULFILLED') {
     throw Object.assign(new Error('تم تسليم هذه الفاتورة مسبقاً'), { code: 'INVALID_STATE' });
@@ -521,8 +526,16 @@ export async function confirmDeliveryFulfillment(
   );
   if (!invRow.rows.length) throw Object.assign(new Error('الفاتورة غير موجودة'), { code: 'NOT_FOUND' });
   const inv = invRow.rows[0];
-  if (inv.document_status !== 'CONFIRMED') {
-    throw Object.assign(new Error('الفاتورة غير مؤكدة'), { code: 'INVALID_STATE' });
+  if (inv.document_status === 'VOIDED') {
+    throw Object.assign(new Error('الفاتورة ملغاة'), { code: 'INVALID_STATE' });
+  }
+  if (inv.document_status === 'DRAFT') {
+    await confirmSalesInvoice(client, companyId, userId, invoiceId, {
+      cashboxId: null,
+      partyNameForVoucher: null,
+    });
+  } else if (inv.document_status !== 'CONFIRMED') {
+    throw Object.assign(new Error('حالة الفاتورة غير صالحة للتسليم'), { code: 'INVALID_STATE' });
   }
   if (inv.delivery_status === 'FULFILLED') {
     throw Object.assign(new Error('تم التسليم مسبقاً'), { code: 'INVALID_STATE' });

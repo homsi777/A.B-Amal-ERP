@@ -33,7 +33,8 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { BRAND } from '../branding';
 import { fetchDeliveryNotifications, type DeliveryNotifications } from '../lib/api/deliveryApi';
-import { fetchMe, type AuthUser } from '../lib/api/authApi';
+import { useAuth } from '../contexts/AuthContext';
+import { RouteAccessGuard } from '../components/RouteAccessGuard';
 import { canFulfillDelivery, canSaveDeliveryTafnid } from '../lib/deliveryPermissions';
 import { AR_WHOLESALE } from '../lib/i18n/arTerminology';
 import { displayStoredInvoiceNo } from '../lib/invoiceDbMappers';
@@ -68,6 +69,7 @@ type NavItem =
 const Topbar = () => {
   const { t } = useTranslation(['nav', 'common']);
   const location = useLocation();
+  const { user, canSeeNavItem } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const notifyRef = useRef<HTMLDivElement>(null);
@@ -76,7 +78,6 @@ const Topbar = () => {
   const customers = useStore((s) => s.customers);
 
   const pickupAlerts = useMemo(() => selectNearPickupOrders(customerOrders), [customerOrders]);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNotifications>({
     pendingTafnid: 0,
     pendingManagerApproval: 0,
@@ -84,16 +85,12 @@ const Topbar = () => {
     approvalQueue: [],
   });
 
-  const showWarehouseAlerts = canSaveDeliveryTafnid(authUser);
-  const showManagerAlerts = canFulfillDelivery(authUser);
+  const showWarehouseAlerts = canSaveDeliveryTafnid(user);
+  const showManagerAlerts = canFulfillDelivery(user);
   const warehouseAlertCount = showWarehouseAlerts ? deliveryNotes.pendingTafnid : 0;
   const managerAlertCount = showManagerAlerts ? deliveryNotes.pendingManagerApproval : 0;
   const deliveryAlertCount = warehouseAlertCount + managerAlertCount;
   const notifyTotal = pickupAlerts.length + deliveryAlertCount;
-
-  useEffect(() => {
-    void fetchMe().then(setAuthUser).catch(() => setAuthUser(null));
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,6 +199,11 @@ const Topbar = () => {
     { labelKey: 'partners', to: '/partners', icon: Handshake },
     { labelKey: 'settings', to: '/settings', icon: Settings },
   ];
+
+  const visibleNavItems = useMemo(
+    () => navItems.filter((item) => canSeeNavItem(item.labelKey)),
+    [canSeeNavItem, navItems],
+  );
 
   const isRouteActive = (to?: string) => {
     if (!to) return false;
@@ -398,7 +400,7 @@ const Topbar = () => {
               M
             </div>
             <div className="text-sm">
-              <p className="font-medium text-[var(--text-heading)]">{t('systemAdmin')}</p>
+              <p className="font-medium text-[var(--text-heading)]">{user?.fullName || user?.username || t('systemAdmin')}</p>
             </div>
           </div>
           <button
@@ -413,7 +415,7 @@ const Topbar = () => {
       </div>
 
       <nav className="px-6 py-2 hidden lg:flex flex-wrap gap-1 items-center bg-[var(--surface-muted-nav)] relative z-10 w-full transition-colors duration-300">
-        {navItems.map((item, idx) => {
+        {visibleNavItems.map((item, idx) => {
           const parentActive = isParentActive(item);
 
           if ('subItems' in item && item.subItems) {
@@ -459,7 +461,7 @@ const Topbar = () => {
 
       {mobileMenuOpen && (
         <div className="lg:hidden absolute top-full left-0 right-0 bg-[var(--surface-header)] border-b border-[var(--border-default)] shadow-xl max-h-[80vh] overflow-y-auto flex flex-col p-4 gap-2 z-50">
-          {navItems.map((item, idx) => {
+          {visibleNavItems.map((item, idx) => {
             const parentActive = isParentActive(item);
 
             if ('subItems' in item && item.subItems) {
@@ -543,7 +545,9 @@ export const DashboardLayout = () => {
       <Topbar />
       <main className={mainClass}>
         <ToastProvider>
-          <Outlet />
+          <RouteAccessGuard>
+            <Outlet />
+          </RouteAccessGuard>
         </ToastProvider>
       </main>
     </div>

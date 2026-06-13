@@ -112,6 +112,38 @@ async function main() {
       }
     }
 
+    const inventoryRole = await client.query<{ id: string }>(
+      `SELECT id FROM roles WHERE code = 'inventory'`,
+    );
+    if (inventoryRole.rows[0]?.id) {
+      for (const code of ['delivery.tafnid']) {
+        const pid = permByCode.get(code);
+        if (pid) {
+          await client.query(
+            `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
+            [inventoryRole.rows[0].id, pid],
+          );
+        }
+      }
+    }
+
+    const managerRole = await client.query<{ id: string }>(
+      `SELECT id FROM roles WHERE code = 'manager'`,
+    );
+    if (managerRole.rows[0]?.id) {
+      for (const code of ['delivery.tafnid', 'delivery.fulfill', 'dashboard.view', 'inventory.view']) {
+        const pid = permByCode.get(code);
+        if (pid) {
+          await client.query(
+            `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
+            [managerRole.rows[0].id, pid],
+          );
+        }
+      }
+    }
+
     await client.query(
       `INSERT INTO warehouses (company_id, code, name, type, is_active)
        VALUES ($1, 'MAIN', 'المستودع الرئيسي', 'MAIN', true)

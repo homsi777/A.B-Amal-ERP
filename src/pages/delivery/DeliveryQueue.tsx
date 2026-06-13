@@ -5,10 +5,13 @@ import { ar } from 'date-fns/locale';
 import { PackageCheck, Search, Truck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { listDeliveryQueue, type DeliveryQueueItem } from '../../lib/api/deliveryApi';
+import { useAuth } from '../../contexts/AuthContext';
 import { arDeliveryStatus } from '../../lib/i18n/arTerminology';
 
 export function DeliveryQueue() {
   const { t } = useTranslation('delivery');
+  const { canAccessPath } = useAuth();
+  const canCreateSalesInvoice = canAccessPath('/invoices/sales/new');
   const [rows, setRows] = useState<DeliveryQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,12 +72,14 @@ export function DeliveryQueue() {
             <PackageCheck className="h-12 w-12 text-[var(--text-muted)]" />
             <p className="font-medium text-[var(--text-heading)]">{t('empty')}</p>
             <p className="text-sm text-[var(--text-muted)]">{t('emptyHint')}</p>
-            <Link
-              to="/invoices/sales/new"
-              className="mt-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]"
-            >
-              إنشاء فاتورة بيع
-            </Link>
+            {canCreateSalesInvoice ? (
+              <Link
+                to="/invoices/sales/new"
+                className="mt-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]"
+              >
+                إنشاء فاتورة بيع
+              </Link>
+            ) : null}
           </div>
         ) : (
           <div className="overflow-x-auto">

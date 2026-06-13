@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { loginApi } from '../lib/api/authApi';
+import { canAccessPath, getDefaultLandingPath } from '../lib/auth/accessControl';
 import { ApiRequestError } from '../lib/api/client';
 import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
@@ -82,12 +83,15 @@ export const Login = () => {
     setError('');
     setLoading(true);
     try {
-      await loginApi(username, password);
+      const loggedIn = await loginApi(username, password);
       const requestedRedirect = searchParams.get('redirect') ?? '';
+      const fallback = getDefaultLandingPath(loggedIn.user);
       const safeRedirect =
-        requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//')
+        requestedRedirect.startsWith('/') &&
+        !requestedRedirect.startsWith('//') &&
+        canAccessPath(loggedIn.user, requestedRedirect)
           ? requestedRedirect
-          : '/';
+          : fallback;
       navigate(safeRedirect, { replace: true });
     } catch (err) {
       const msg =

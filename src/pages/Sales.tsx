@@ -79,7 +79,7 @@ export const Sales = () => {
     showToast({
       type: 'success',
       message: WHOLESALE_SALES_MODE
-        ? 'تم تأكيد الفاتورة — ظهرت في قسم التسليم لأمين المستودع'
+        ? 'تم تأكيد الفاتورة — التأكيد النهائي يتم من قسم التسليم بعد التفنيد'
         : 'تم تأكيد فاتورة المبيعات',
     });
     setConfirmTargetId(null);
@@ -193,7 +193,7 @@ export const Sales = () => {
           <h2 className="text-2xl font-bold text-slate-900">المبيعات</h2>
           <p className="text-slate-500 mt-1">
             إدارة فواتير المبيعات
-            {WHOLESALE_SALES_MODE ? ' — المسودة لا تظهر في التسليم حتى التأكيد' : ''}
+            {WHOLESALE_SALES_MODE ? ' — المسودة تُرسل تلقائياً لقسم التسليم' : ''}
           </p>
         </div>
         <Link
@@ -309,15 +309,23 @@ export const Sales = () => {
                               >
                                 متابعة المسودة
                               </Link>
-                              <button
-                                type="button"
-                                disabled={confirmBusy}
-                                onClick={() => void handleConfirm(invoice.id)}
-                                className="text-white font-medium bg-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-700 transition text-xs disabled:opacity-50"
-                                title={WHOLESALE_SALES_MODE ? 'بعد التأكيد تظهر في قسم التسليم' : undefined}
-                              >
-                                {WHOLESALE_SALES_MODE ? 'تأكيد وإرسال للتسليم' : 'تأكيد'}
-                              </button>
+                              {!WHOLESALE_SALES_MODE ? (
+                                <button
+                                  type="button"
+                                  disabled={confirmBusy}
+                                  onClick={() => void handleConfirm(invoice.id)}
+                                  className="text-white font-medium bg-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-700 transition text-xs disabled:opacity-50"
+                                >
+                                  تأكيد
+                                </button>
+                              ) : (
+                                <Link
+                                  to="/delivery"
+                                  className="text-sky-800 font-medium bg-sky-50 px-2 py-1 rounded-lg hover:bg-sky-100 transition text-xs"
+                                >
+                                  في التسليم
+                                </Link>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => void handleDeleteDraft(invoice.id)}
