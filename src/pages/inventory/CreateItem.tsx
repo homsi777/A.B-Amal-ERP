@@ -18,6 +18,11 @@ const INVENTORY_SHOW_ITEM_IMAGE_KEY = 'inventory_show_item_image_upload';
 const INVENTORY_LOW_STOCK_THRESHOLD_KEY = 'inventory_low_stock_threshold';
 const INVENTORY_AUTO_PRINT_KEY = 'inventory_create_item_auto_print';
 const RETAIN_ENTRY_FIELDS_KEY = 'inventory_create_item_retain_fields';
+const EMPTY_FIELD_MARKER = '0';
+
+function emptyAsZero(value: string): string {
+  return value.trim() || EMPTY_FIELD_MARKER;
+}
 
 function findCategoryById(tree: ApiCategory[], id: string): ApiCategory | null {
   for (const n of tree) {
@@ -338,8 +343,8 @@ export const CreateItem = () => {
         return;
       }
     } else {
-      if (!catL1Id || !catL2Id || !catL3Id || !catL4Id) {
-        setSaveError('يرجى اختيار اسم الخامة وكود الخامة ولون الخامة وكود اللون من شجرة التصنيفات.');
+      if (!catL1Id || !catL2Id) {
+        setSaveError('يرجى اختيار اسم الخامة وكود الخامة من شجرة التصنيفات.');
         return;
       }
       if (!warehouseId) {
@@ -378,8 +383,8 @@ export const CreateItem = () => {
     const payload = {
       name,
       fabricCode: materialCodeValue,
-      colorName: colorNameValue,
-      colorCode: colorCodeValue,
+      colorName: emptyAsZero(colorNameValue),
+      colorCode: emptyAsZero(colorCodeValue),
       lotNumber: lotNumberValue || undefined,
       lengthType,
       length: Number(length) || 0,
@@ -512,8 +517,8 @@ export const CreateItem = () => {
             colorId,
             variantId: null,
             articleCode: apiItem.internal_code || internalCode,
-            fabricColorName: colorNameValue || 'بدون لون',
-            colorCode: colorCodeValue || '',
+            fabricColorName: emptyAsZero(colorNameValue),
+            colorCode: emptyAsZero(colorCodeValue),
             designNr: apiItem.internal_code || internalCode,
           };
         }
@@ -554,8 +559,8 @@ export const CreateItem = () => {
           colorId,
           variantId: null,
           articleCode: apiItem.internal_code || internalCode,
-          fabricColorName: colorNameValue || 'بدون لون',
-          colorCode: colorCodeValue || '',
+          fabricColorName: emptyAsZero(colorNameValue),
+          colorCode: emptyAsZero(colorCodeValue),
           designNr: apiItem.internal_code || internalCode,
         };
       }
@@ -973,7 +978,7 @@ export const CreateItem = () => {
                   ) : null}
                   {!isEditMode && name.trim() && !catL1Id ? (
                     <p className="text-xs text-amber-700">
-                      اختر اسم خامة من الاقتراحات حتى يقرأ النظام كود الخامة والألوان من شجرة التصنيفات.
+                      اختر اسم خامة من الاقتراحات حتى يقرأ النظام كود الخامة من شجرة التصنيفات. اللون وكود اللون اختياريان.
                     </p>
                   ) : null}
                   {!isEditMode && catL1Id ? (
@@ -1021,7 +1026,7 @@ export const CreateItem = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <label className="block text-sm font-bold text-slate-700">لون الخامة</label>
+                    <label className="block text-sm font-bold text-slate-700">لون الخامة <span className="text-slate-400 font-normal">(اختياري)</span></label>
                     <select
                       id="color-name"
                       onKeyDown={e => enterToNext(e, 'color-code')}
@@ -1030,10 +1035,10 @@ export const CreateItem = () => {
                         setCatL3Id(e.target.value);
                         setCatL4Id('');
                       }}
-                      disabled={!catL2Id || level3Options.length === 0}
+                      disabled={!catL2Id}
                       className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm disabled:opacity-50"
                     >
-                      <option value="">-- اختر لون الخامة --</option>
+                      <option value="">-- بدون لون --</option>
                       {level3Options.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -1043,7 +1048,7 @@ export const CreateItem = () => {
                   </div>
 
                   <div className="space-y-3 md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700">كود اللون</label>
+                    <label className="block text-sm font-bold text-slate-700">كود اللون <span className="text-slate-400 font-normal">(اختياري)</span></label>
                     <div className="flex gap-3 items-stretch">
                       <div
                         className="w-14 h-[50px] shrink-0 rounded-lg border border-slate-300 shadow-sm self-center"
@@ -1055,11 +1060,11 @@ export const CreateItem = () => {
                         onKeyDown={e => enterToNext(e, 'roll-width')}
                         value={catL4Id}
                         onChange={(e) => setCatL4Id(e.target.value)}
-                        disabled={!catL3Id || level4Options.length === 0}
+                        disabled={!catL2Id}
                         className="min-h-[50px] flex-1 p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm font-mono text-left disabled:opacity-50"
                         dir="ltr"
                       >
-                        <option value="">-- اختر كود اللون --</option>
+                        <option value="">-- بدون كود لون --</option>
                         {level4Options.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.code}

@@ -22,6 +22,7 @@ import { StockExcelImportModal } from './inventory/StockExcelImportModal';
 import { restoreAccidentalInteractionLocks } from '../components/NonBlockingToast';
 import {
   displayImportedColorCode,
+  displayImportedColorName,
   displayImportedItemCode,
 } from '../lib/importDisplay';
 import { rollColorSwatch } from '../lib/colorDisplay';
@@ -396,23 +397,37 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
     setSaving(true);
     setErr('');
     try {
-      if (!catL1Id || !catL2Id || !catL3Id || !catL4Id) {
-        setErr('اختاري اسم الخامة وكود الخامة واللون وكود اللون قبل الحفظ.');
+      if (!catL1Id || !catL2Id) {
+        setErr('اختاري اسم الخامة وكود الخامة قبل الحفظ. اللون وكود اللون اختياريان.');
         setSaving(false);
         return;
       }
-      const resolved = await resolveFabricClassification({
-        level1CategoryId: catL1Id,
-        level2CategoryId: catL2Id,
-        level3CategoryId: catL3Id,
-        level4CategoryId: catL4Id,
-        widthCm: widthCm ? Number(widthCm) : null,
-        gsm: gsm ? Number(gsm) : null,
-      });
+
+      let itemId = roll.item_id;
+      let colorId: string | null = roll.color_id;
+      let variantId: string | null = roll.variant_id;
+
+      if (catL1Id && catL2Id && catL3Id && catL4Id) {
+        const resolved = await resolveFabricClassification({
+          level1CategoryId: catL1Id,
+          level2CategoryId: catL2Id,
+          level3CategoryId: catL3Id,
+          level4CategoryId: catL4Id,
+          widthCm: widthCm ? Number(widthCm) : null,
+          gsm: gsm ? Number(gsm) : null,
+        });
+        itemId = resolved.itemId;
+        colorId = resolved.colorId;
+        variantId = resolved.variantId;
+      } else {
+        colorId = null;
+        variantId = null;
+      }
+
       await updateFabricRoll(roll.id, {
-        itemId: resolved.itemId,
-        colorId: resolved.colorId,
-        variantId: resolved.variantId,
+        itemId,
+        colorId,
+        variantId,
         lengthM: Number(lengthM) || 0,
         widthCm: widthCm ? Number(widthCm) : null,
         gsm: gsm ? Number(gsm) : null,
@@ -462,16 +477,16 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-bold text-slate-700">اللون</label>
+                <label className="mb-1 block text-sm font-bold text-slate-700">اللون <span className="text-slate-400 font-normal">(اختياري)</span></label>
                 <select value={catL3Id} disabled={!catL2Id} onChange={(e) => { setCatL3Id(e.target.value); setCatL4Id(''); }} className={fieldCls}>
-                  <option value="">اختيار اللون</option>
+                  <option value="">بدون لون</option>
                   {level3Options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-bold text-slate-700">كود اللون</label>
-                <select value={catL4Id} disabled={!catL3Id} onChange={(e) => setCatL4Id(e.target.value)} className={fieldCls}>
-                  <option value="">اختيار كود اللون</option>
+                <label className="mb-1 block text-sm font-bold text-slate-700">كود اللون <span className="text-slate-400 font-normal">(اختياري)</span></label>
+                <select value={catL4Id} disabled={!catL2Id} onChange={(e) => setCatL4Id(e.target.value)} className={fieldCls}>
+                  <option value="">بدون كود لون</option>
                   {level4Options.map((c) => <option key={c.id} value={c.id}>{c.code || c.name}</option>)}
                 </select>
               </div>
@@ -1142,7 +1157,7 @@ return (
                 const weight = roll.actual_weight_kg ?? roll.calculated_weight_kg ?? '0';
                 const isSelected = selectedRollIds.has(roll.id);
                 const canSelect = roll.status !== 'INACTIVE';
-                const colorName = roll.color_name_ar || roll.color_name_tr || '';
+                const colorName = displayImportedColorName(roll.color_name_ar || roll.color_name_tr);
                 const colorSwatch = rollColorSwatch(roll);
                 const colorCodeDisplay = displayImportedColorCode(roll.color_code);
                 const itemCodeDisplay = displayImportedItemCode(roll);
@@ -1197,11 +1212,11 @@ return (
                             style={{ backgroundColor: colorSwatch }}
                           />
                         )}
-                        <span>{colorName || '—'}</span>
+                        <span>{colorName}</span>
                       </div>
                     </td>
                     <td className="py-2.5 px-4 font-mono text-xs text-slate-600">
-                      {colorCodeDisplay || '—'}
+                      {colorCodeDisplay}
                     </td>
                     <td className="py-2.5 px-4 text-slate-700 whitespace-nowrap">
                       {parseFloat(roll.length_m || '0').toFixed(2)} م
