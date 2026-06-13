@@ -29,6 +29,7 @@ import {
   resolveImportMaterialCode,
 } from '../utils/purchaseImportMaterialCodes.js';
 import { expandChinaPackingListIfNeeded } from '../utils/chinaPackingListExpand.js';
+import { parseImportFileName } from '../utils/importFileName.js';
 import {
   isImportSummaryRow,
   mergeSheetTotalsMetadata,
@@ -498,11 +499,13 @@ function applyChinaImportMetadata(
   metadata: Record<string, unknown>,
   fileName?: string,
 ): void {
-  /** من رأس الملف: Amelia-19 = كود التصميم (المستوى 2) */
-  const designCode = cleanString(metadata.materialName);
-  /** من اسم الملف أو افتراضي: DENIM = اسم الخامة (المستوى 1) */
+  const fromFile = fileName ? parseImportFileName(fileName) : null;
+  /** من رأس الملف الصيني: Amelia-19 = كود التصميم */
+  const designCode = cleanString(metadata.materialName) || fromFile?.designCode;
+  /** من اسم الملف: COLOMBIA = اسم القماش */
   const fabricFamily =
     cleanString(metadata.fabricFamily) ||
+    fromFile?.materialName ||
     (fileName ? inferFabricFamilyFromFileName(fileName) : '') ||
     'مستورد';
 
@@ -880,9 +883,13 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
 
     // توسيع قوائم التعبئة الصينية (أعمدة متوازية ROLL | LENGTH | LOT)
     const sheetTotals = mergeSheetTotalsMetadata(preTableRows as unknown[][], rows as unknown[][]);
+    const fileParsed = parseImportFileName(fileName);
     const mergedExtractedMetadata = {
       ...(extractedMetadata as Record<string, unknown>),
       ...sheetTotals,
+      fabricFamily: (extractedMetadata as { fabricFamily?: string }).fabricFamily ?? fileParsed.materialName,
+      importMaterialName: fileParsed.materialName,
+      designCodeFromFile: fileParsed.designCode,
       declaredTotalLength:
         sheetTotals.declaredTotalLength ??
         (extractedMetadata as { declaredTotalLength?: number }).declaredTotalLength,
@@ -897,7 +904,9 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     let workHeaders = headers;
     let workRows = stripTrailingSummaryRows(rows as unknown[][]);
     let chinaSourceType: string | null = null;
-    const chinaExpanded = expandChinaPackingListIfNeeded(headers, workRows, mergedExtractedMetadata);
+    const chinaExpanded = expandChinaPackingListIfNeeded(workHeaders, workRows, mergedExtractedMetadata, {
+      preTableRows: preTableRows as unknown[][],
+    });
     if (chinaExpanded) {
       workHeaders = chinaExpanded.headers;
       workRows = chinaExpanded.rows;
@@ -1022,7 +1031,8 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     }
     const batchMetadata = {
       ...mergedExtractedMetadata,
-      fabricFamily: inferFabricFamilyFromFileName(fileName),
+      fabricFamily: fileParsed.materialName,
+      materialName: fileParsed.designCode ?? fileParsed.materialName,
       headerRowIndex: headerRowIndex ?? 0,
       preTableRows,
       warnings: metadataWarnings,
