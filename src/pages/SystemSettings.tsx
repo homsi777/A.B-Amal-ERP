@@ -17,6 +17,8 @@ import {
   RefreshCw,
   Bot,
   MessageCircle,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { ThemeDisplaySettings } from '../components/settings/ThemeDisplaySettings';
 import { TelegramBotSettingsPanel } from '../components/settings/TelegramBotSettingsPanel';
@@ -31,6 +33,7 @@ import {
   saveRolePermissions,
   saveSystemSetting,
   testTelegramBot,
+  updateSystemUser,
   type ApiPermission,
   type ApiRole,
   type ApiRolePermission,
@@ -118,6 +121,16 @@ export const SystemSettings = () => {
     role: 'viewer',
     isActive: true,
   });
+  const [editingUser, setEditingUser] = useState<ApiUser | null>(null);
+  const [editUserForm, setEditUserForm] = useState({
+    username: '',
+    fullName: '',
+    password: '',
+    role: 'viewer',
+    isActive: true,
+  });
+  const [editUserSaving, setEditUserSaving] = useState(false);
+  const [editUserError, setEditUserError] = useState('');
   const [telegramStatus, setTelegramStatus] = useState('');
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [telegramUpdates, setTelegramUpdates] = useState<TelegramChatCandidate[]>([]);
@@ -276,9 +289,56 @@ export const SystemSettings = () => {
 
   const handleCreateUser = async () => {
     if (!userForm.username || !userForm.password) return;
-    const created = await createSystemUser(userForm);
-    setUsers((current) => [created, ...current]);
-    setUserForm({ username: '', fullName: '', password: '', role: userForm.role, isActive: true });
+    try {
+      const created = await createSystemUser(userForm);
+      setUsers((current) => [created, ...current]);
+      setUserForm({ username: '', fullName: '', password: '', role: userForm.role, isActive: true });
+      showToast({ message: 'تم إضافة المستخدم.', type: 'success' });
+    } catch (error) {
+      showToast({
+        message: error instanceof Error ? error.message : 'تعذر إضافة المستخدم.',
+        type: 'error',
+      });
+    }
+  };
+
+  const openEditUser = (user: ApiUser) => {
+    setEditingUser(user);
+    setEditUserForm({
+      username: user.username,
+      fullName: user.full_name || '',
+      password: '',
+      role: user.role,
+      isActive: user.is_active,
+    });
+    setEditUserError('');
+  };
+
+  const closeEditUser = () => {
+    setEditingUser(null);
+    setEditUserError('');
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser || !editUserForm.username.trim()) return;
+    setEditUserSaving(true);
+    setEditUserError('');
+    try {
+      const updated = await updateSystemUser(editingUser.id, {
+        username: editUserForm.username.trim(),
+        fullName: editUserForm.fullName.trim(),
+        role: editUserForm.role,
+        isActive: editUserForm.isActive,
+        ...(editUserForm.password.trim() ? { password: editUserForm.password } : {}),
+      });
+      setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
+      showToast({ message: 'تم تحديث المستخدم.', type: 'success' });
+      closeEditUser();
+    } catch (error) {
+      setEditUserError(error instanceof Error ? error.message : 'تعذر تحديث المستخدم.');
+    } finally {
+      setEditUserSaving(false);
+    }
   };
 
   const handleTelegramTest = async () => {
@@ -600,7 +660,12 @@ export const SystemSettings = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
-                        <tr><th className="p-3 text-right">المستخدم</th><th className="p-3 text-right">الدور</th><th className="p-3 text-right">الحالة</th></tr>
+                        <tr>
+                          <th className="p-3 text-right">المستخدم</th>
+                          <th className="p-3 text-right">الدور</th>
+                          <th className="p-3 text-right">الحالة</th>
+                          <th className="p-3 text-right w-24">إجراء</th>
+                        </tr>
                       </thead>
                       <tbody>
                         {users.map((user) => (
@@ -608,9 +673,20 @@ export const SystemSettings = () => {
                             <td className="p-3 font-bold text-[var(--text-heading)]">{user.full_name || user.username}<div className="text-xs text-[var(--text-muted)] font-mono">{user.username}</div></td>
                             <td className="p-3 text-[var(--text-heading)]">{roles.find((role) => role.code === user.role)?.name || user.role}</td>
                             <td className="p-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${user.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{user.is_active ? 'فعال' : 'موقوف'}</span></td>
+                            <td className="p-3">
+                              <button
+                                type="button"
+                                title="تعديل المستخدم"
+                                onClick={() => openEditUser(user)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-default)] px-2.5 py-1.5 text-xs font-bold text-[var(--text-heading)] hover:bg-[var(--surface-muted-nav)] transition"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                                تعديل
+                              </button>
+                            </td>
                           </tr>
                         ))}
-                        {users.length === 0 && <tr><td colSpan={3} className="p-6 text-center text-[var(--text-muted)]">لا توجد بيانات مستخدمين محملة.</td></tr>}
+                        {users.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">لا توجد بيانات مستخدمين محملة.</td></tr>}
                       </tbody>
                     </table>
                   </div>
@@ -624,6 +700,7 @@ export const SystemSettings = () => {
                     {roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
                   </select>
                 </div>
+                <p className="text-xs text-[var(--text-muted)]">عدّلي الصلاحيات بالنقر على المربعات — يُحفظ التعديل مباشرة.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {permissions.map((permission) => (
                     <label key={permission.code} className="flex items-center justify-between gap-3 p-3 border border-[var(--border-default)] rounded-lg hover:bg-[var(--surface-muted-nav)] cursor-pointer">
@@ -925,6 +1002,78 @@ export const SystemSettings = () => {
           )}
         </div>
       </div>
+
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border-default)] p-5">
+              <h3 className="text-lg font-bold text-[var(--text-heading)]">تعديل مستخدم</h3>
+              <button type="button" onClick={closeEditUser} className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3 p-5">
+              <input
+                className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
+                placeholder="اسم المستخدم"
+                value={editUserForm.username}
+                onChange={(e) => setEditUserForm({ ...editUserForm, username: e.target.value })}
+              />
+              <input
+                className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
+                placeholder="الاسم الكامل"
+                value={editUserForm.fullName}
+                onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })}
+              />
+              <input
+                className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
+                placeholder="كلمة مرور جديدة (اتركها فارغة بدون تغيير)"
+                type="password"
+                value={editUserForm.password}
+                onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })}
+              />
+              <select
+                className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
+                value={editUserForm.role}
+                onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
+              >
+                {(roles.length ? roles : [{ code: 'viewer', name: 'مشاهد' } as ApiRole]).map((role) => (
+                  <option key={role.code} value={role.code}>{role.name}</option>
+                ))}
+              </select>
+              <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-heading)]">
+                <input
+                  type="checkbox"
+                  checked={editUserForm.isActive}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, isActive: e.target.checked })}
+                  className="accent-[var(--ui-accent)]"
+                />
+                الحساب فعال
+              </label>
+              {editUserError && <p className="text-sm font-bold text-rose-600">{editUserError}</p>}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[var(--border-default)] p-5">
+              <button
+                type="button"
+                onClick={closeEditUser}
+                disabled={editUserSaving}
+                className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm font-bold text-[var(--text-heading)] hover:bg-[var(--surface-muted-nav)] disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateUser}
+                disabled={editUserSaving || !editUserForm.username.trim()}
+                className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-bold text-white hover:opacity-95 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {editUserSaving ? 'جاري الحفظ...' : 'حفظ التعديل'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
