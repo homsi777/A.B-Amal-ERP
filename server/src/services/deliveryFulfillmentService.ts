@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { getExchangeRateToUsdTx } from './exchangeRateService.js';
 import { INVOICE_AMOUNT_EPS } from './invoiceAmountHelpers.js';
-import { quantityToMeters, confirmSalesInvoice } from './salesInvoiceService.js';
+import { quantityToMeters, confirmSalesInvoice, paymentStatuses } from './salesInvoiceService.js';
 
 const DELIVERY_OPEN_DOC = "si.document_status IN ('DRAFT', 'CONFIRMED')";
 
@@ -152,6 +152,126 @@ async function isInvoiceTafnidComplete(
     }
     return true;
   });
+}
+
+async function recalculateWholesaleSalesTotals(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<void> {
+  const inv = await client.query<{
+    discount_total: string;
+    tax_total: string;
+    paid_amount: string;
+    exchange_rate_to_usd: string;
+    currency_code: string;
+  }>(
+    `SELECT discount_total, tax_total, paid_amount, exchange_rate_to_usd, currency_code
+     FROM sales_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [invoiceId, companyId],
+  );
+  if (!inv.rows.length) return;
+
+  const header = inv.rows[0];
+  const discount = Number(header.discount_total) || 0;
+  const tax = Number(header.tax_total) || 0;
+  const paid = Number(header.paid_amount) || 0;
+  const ccy = String(header.currency_code || 'USD').trim().toUpperCase();
+  const rate = Number(header.exchange_rate_to_usd) > 0 ? Number(header.exchange_rate_to_usd) : NaN;
+  const exchangeRateToUsd = ccy === 'USD' ? 1 : rate;
+  if (!Number.isFinite(exchangeRateToUsd) || exchangeRateToUsd <= 0) {
+    throw Object.assign(new Error('لا يمكن احتساب الإجمالي بدون سعر صرف'), { code: 'VALIDATION' });
+  }
+
+  const lines = await client.query(
+    `SELECT * FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2 ORDER BY line_no`,
+    [invoiceId, companyId],
+  );
+  const tafnidByLine = await loadTafnidRowsByLine(client, companyId, invoiceId);
+
+  let subtotal = 0;
+  for (const ln of lines.rows) {
+    const unit = String(ln.unit);
+    if (unit === 'roll') {
+      const needed = rollsNeededForLine(unit, Number(ln.quantity));
+      const tafnidRows = tafnidByLine.get(String(ln.id)) ?? [];
+      let totalM = 0;
+      for (let seq = 1; seq <= needed; seq++) {
+        const row = tafnidRows.find((r) => r.rollSeq === seq);
+        if (!row) continue;
+        totalM += quantityToMeters(row.tafnidLength, row.lengthUnit as 'meter' | 'yard');
+      }
+      const unitPrice = Number(ln.unit_price) || 0;
+      const lineTotal = round2(totalM * unitPrice);
+      subtotal += lineTotal;
+
+      let meta: Record<string, unknown> = {};
+      try {
+        meta =
+          typeof ln.metadata === 'string'
+            ? (JSON.parse(ln.metadata) as Record<string, unknown>)
+            : ((ln.metadata as Record<string, unknown>) ?? {});
+      } catch {
+        meta = {};
+      }
+      meta.tafnid_total_meters = round2(totalM);
+      meta.pricing_unit = 'meter';
+
+      const lineTotalUsd = computeUsd(lineTotal, exchangeRateToUsd);
+      const unitPriceUsd = computeUsd4(unitPrice, exchangeRateToUsd);
+      await client.query(
+        `UPDATE sales_invoice_lines SET
+           line_total=$3,
+           line_total_usd=$4,
+           unit_price_usd=$5,
+           metadata=$6::jsonb
+         WHERE id=$1 AND company_id=$2`,
+        [ln.id, companyId, lineTotal, lineTotalUsd, unitPriceUsd, JSON.stringify(meta)],
+      );
+    } else {
+      subtotal += Number(ln.line_total) || 0;
+    }
+  }
+
+  subtotal = round2(subtotal);
+  const totalAmount = round2(Math.max(0, subtotal - discount + tax));
+  const pay = paymentStatuses(totalAmount, paid);
+  const subtotalUsd = computeUsd(subtotal, exchangeRateToUsd);
+  const discountUsd = computeUsd(discount, exchangeRateToUsd);
+  const taxUsd = computeUsd(tax, exchangeRateToUsd);
+  const totalUsd = computeUsd(totalAmount, exchangeRateToUsd);
+  const paidUsd = computeUsd(paid, exchangeRateToUsd);
+  const remainingUsd = computeUsd(pay.remaining, exchangeRateToUsd);
+
+  await client.query(
+    `UPDATE sales_invoices SET
+       subtotal=$3,
+       total_amount=$4,
+       remaining_amount=$5,
+       payment_status=$6,
+       subtotal_usd=$7,
+       total_amount_usd=$8,
+       paid_amount_usd=$9,
+       remaining_amount_usd=$10,
+       discount_total_usd=$11,
+       tax_total_usd=$12,
+       updated_at=now()
+     WHERE id=$1 AND company_id=$2`,
+    [
+      invoiceId,
+      companyId,
+      subtotal,
+      totalAmount,
+      pay.remaining,
+      pay.paymentStatus,
+      subtotalUsd,
+      totalUsd,
+      paidUsd,
+      remainingUsd,
+      discountUsd,
+      taxUsd,
+    ],
+  );
 }
 
 export const saveTafnidSchema = z.object({
@@ -396,6 +516,7 @@ export async function saveDeliveryTafnid(
 
   const allTafnidComplete = await isInvoiceTafnidComplete(client, companyId, invoiceId);
   if (allTafnidComplete) {
+    await recalculateWholesaleSalesTotals(client, companyId, invoiceId);
     await client.query(
       `UPDATE sales_invoices SET delivery_status='TAFNID_SAVED', updated_at=now()
        WHERE id=$1 AND company_id=$2 AND delivery_status IN ('IN_DELIVERY', 'TAFNID_SAVED')`,
@@ -584,14 +705,6 @@ export async function confirmDeliveryFulfillment(
   if (inv.document_status === 'VOIDED') {
     throw Object.assign(new Error('الفاتورة ملغاة'), { code: 'INVALID_STATE' });
   }
-  if (inv.document_status === 'DRAFT') {
-    await confirmSalesInvoice(client, companyId, userId, invoiceId, {
-      cashboxId: null,
-      partyNameForVoucher: null,
-    });
-  } else if (inv.document_status !== 'CONFIRMED') {
-    throw Object.assign(new Error('حالة الفاتورة غير صالحة للتسليم'), { code: 'INVALID_STATE' });
-  }
   if (inv.delivery_status === 'FULFILLED') {
     throw Object.assign(new Error('تم التسليم مسبقاً'), { code: 'INVALID_STATE' });
   }
@@ -600,6 +713,17 @@ export async function confirmDeliveryFulfillment(
       new Error('يجب حفظ التفنيد وانتظار موافقة المدير قبل التسليم'),
       { code: 'INVALID_STATE' },
     );
+  }
+
+  await recalculateWholesaleSalesTotals(client, companyId, invoiceId);
+
+  if (inv.document_status === 'DRAFT') {
+    await confirmSalesInvoice(client, companyId, userId, invoiceId, {
+      cashboxId: null,
+      partyNameForVoucher: null,
+    });
+  } else if (inv.document_status !== 'CONFIRMED') {
+    throw Object.assign(new Error('حالة الفاتورة غير صالحة للتسليم'), { code: 'INVALID_STATE' });
   }
 
   const ccy = String(inv.currency_code || 'USD');
