@@ -23,7 +23,7 @@ import { restoreAccidentalInteractionLocks } from '../components/NonBlockingToas
 import {
   displayImportedColorCode,
   displayImportedColorName,
-  displayImportedItemCode,
+  displayInventoryMaterialCode,
 } from '../lib/importDisplay';
 import { rollColorSwatch } from '../lib/colorDisplay';
 
@@ -1160,7 +1160,7 @@ return (
                 const colorName = displayImportedColorName(roll.color_name_ar || roll.color_name_tr);
                 const colorSwatch = rollColorSwatch(roll);
                 const colorCodeDisplay = displayImportedColorCode(roll.color_code);
-                const itemCodeDisplay = displayImportedItemCode(roll);
+                const itemCodeDisplay = displayInventoryMaterialCode(roll);
                 return (
                   <tr
                     key={roll.id}

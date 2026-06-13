@@ -11,7 +11,17 @@ export function displayOptionalInventoryField(value?: string | null): string {
   return trimmed;
 }
 
-/** كود الخامة كما في Excel: فارغ إن لم يُذكر في الملف. */
+/** كود الخامة في المخزون — internal_code هو ما يختاره المستخدم (CLO3). */
+export function displayInventoryMaterialCode(roll: {
+  internal_code?: string | null;
+  supplier_code_item?: string | null;
+}): string {
+  const internal = String(roll.internal_code ?? '').trim();
+  if (internal && !internal.startsWith(AUTO_INTERNAL_CODE_PREFIX)) return internal;
+  return String(roll.supplier_code_item ?? '').trim();
+}
+
+/** كود الخامة كما في Excel: يُفضَّل كود المورد عند الاستيراد. */
 export function displayImportedItemCode(roll: {
   internal_code?: string | null;
   supplier_code_item?: string | null;
