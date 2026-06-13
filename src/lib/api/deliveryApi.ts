@@ -16,15 +16,27 @@ export type DeliveryQueueItem = {
   deliveryStatus: 'CONFIRMED_SALE' | 'IN_DELIVERY' | 'TAFNID_SAVED' | 'FULFILLED';
 };
 
+export type TafnidRollEntry = {
+  rollSeq: number;
+  length?: number;
+};
+
 export type DeliveryLineDraft = {
   lineNo: number;
   lineIndex: number;
   description: string;
   rollQty: number;
   unit: string;
+  /** @deprecated single-roll legacy — use rollTafnid */
   tafnidLength?: number;
   tafnidUnit?: 'meter' | 'yard';
+  rollTafnid?: TafnidRollEntry[];
 };
+
+function rollsNeededForLine(unit: string, quantity: number): number {
+  if (unit === 'roll' || unit === 'توب') return Math.max(1, Math.round(quantity));
+  return 1;
+}
 
 function mapDeliveryStatus(raw: unknown): DeliveryQueueItem['deliveryStatus'] {
   const s = String(raw ?? 'IN_DELIVERY').toUpperCase();
@@ -81,16 +93,34 @@ export async function getDeliveryDetail(invoiceId: string): Promise<{
 
   const mappedLines: DeliveryLineDraft[] = lines.map((line) => {
     const lineNo = Number(line.line_no ?? 0);
-    const tafnidUnit = (line.tafnid_length_unit as 'meter' | 'yard' | undefined) ?? 'meter';
-    const tafnidLen = line.tafnid_length != null ? Number(line.tafnid_length) : undefined;
+    const unitRaw = String(line.unit ?? 'roll');
+    const isRoll = unitRaw === 'roll';
+    const tafnidUnitDefault: 'meter' | 'yard' = 'meter';
+    const rawRolls = Array.isArray(line.tafnid_rolls)
+      ? (line.tafnid_rolls as { rollSeq?: number; roll_seq?: number; tafnidLength?: number; tafnid_length?: number; lengthUnit?: string; length_unit?: string }[])
+      : [];
+    const rollTafnid: TafnidRollEntry[] = rawRolls.map((r) => {
+      const len = r.tafnidLength ?? r.tafnid_length;
+      const n = len != null ? Number(len) : undefined;
+      return {
+        rollSeq: Number(r.rollSeq ?? r.roll_seq ?? 0),
+        length: Number.isFinite(n) && (n as number) > 0 ? (n as number) : undefined,
+      };
+    });
+    const firstLen = rollTafnid.find((r) => r.rollSeq === 1)?.length;
+    const firstUnit =
+      (rawRolls.find((r) => Number(r.rollSeq ?? r.roll_seq) === 1)?.lengthUnit as 'meter' | 'yard' | undefined) ??
+      (rawRolls.find((r) => Number(r.rollSeq ?? r.roll_seq) === 1)?.length_unit as 'meter' | 'yard' | undefined) ??
+      tafnidUnitDefault;
     return {
       lineNo,
       lineIndex: lineNo,
       description: String(line.description ?? '—'),
       rollQty: Number(line.quantity ?? 0),
-      unit: line.unit === 'roll' ? 'توب' : line.unit === 'yard' ? 'ياردة' : 'متر',
-      tafnidLength: Number.isFinite(tafnidLen) ? tafnidLen : undefined,
-      tafnidUnit,
+      unit: isRoll ? 'توب' : unitRaw === 'yard' ? 'ياردة' : 'متر',
+      tafnidLength: firstLen,
+      tafnidUnit: firstUnit,
+      rollTafnid,
     };
   });
 
@@ -101,15 +131,37 @@ export async function saveDeliveryTafnid(
   invoiceId: string,
   lines: DeliveryLineDraft[],
 ): Promise<void> {
+  const payloadLines: {
+    lineNo: number;
+    rollSeq: number;
+    tafnidLength: number;
+    lengthUnit: 'meter' | 'yard';
+  }[] = [];
+
+  for (const ln of lines) {
+    const needed = rollsNeededForLine(ln.unit, ln.rollQty);
+    const entries = ln.rollTafnid?.length
+      ? ln.rollTafnid
+      : ln.tafnidLength != null
+        ? [{ rollSeq: 1, length: ln.tafnidLength }]
+        : [];
+    for (let seq = 1; seq <= needed; seq++) {
+      const entry = entries.find((e) => e.rollSeq === seq) ?? entries[seq - 1];
+      const len = entry?.length;
+      if (len != null && Number.isFinite(len) && len > 0) {
+        payloadLines.push({
+          lineNo: ln.lineNo,
+          rollSeq: seq,
+          tafnidLength: len,
+          lengthUnit: ln.tafnidUnit ?? 'meter',
+        });
+      }
+    }
+  }
+
   await apiFetch(`/api/delivery/${invoiceId}/tafnid`, {
     method: 'PUT',
-    body: JSON.stringify({
-      lines: lines.map((ln) => ({
-        lineNo: ln.lineNo,
-        tafnidLength: ln.tafnidLength,
-        lengthUnit: ln.tafnidUnit ?? 'meter',
-      })),
-    }),
+    body: JSON.stringify({ lines: payloadLines }),
   });
 }
 

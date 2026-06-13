@@ -86,11 +86,73 @@ async function buildSalesLineCostSnapshot(
 
 export const tafnidLineSchema = z.object({
   lineNo: z.coerce.number().int().positive(),
+  rollSeq: z.coerce.number().int().positive().default(1),
   tafnidLength: z.coerce.number().positive(),
   lengthUnit: z.enum(['meter', 'yard']).default('meter'),
   fabricRollId: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
+
+function rollsNeededForLine(unit: string, quantity: number): number {
+  if (unit === 'roll') return Math.max(1, Math.round(quantity));
+  return 1;
+}
+
+async function loadTafnidRowsByLine(
+  db: DbQuery,
+  companyId: string,
+  invoiceId: string,
+): Promise<Map<string, { rollSeq: number; tafnidLength: number; lengthUnit: string; fabricRollId: string | null }[]>> {
+  const r = await db.query<{
+    invoice_line_id: string;
+    roll_seq: number;
+    tafnid_length: string;
+    length_unit: string;
+    fabric_roll_id: string | null;
+  }>(
+    `SELECT invoice_line_id, roll_seq, tafnid_length, length_unit, fabric_roll_id
+     FROM delivery_fulfillment_lines
+     WHERE invoice_id=$1 AND company_id=$2
+     ORDER BY invoice_line_id, roll_seq`,
+    [invoiceId, companyId],
+  );
+  const map = new Map<string, { rollSeq: number; tafnidLength: number; lengthUnit: string; fabricRollId: string | null }[]>();
+  for (const row of r.rows) {
+    const lineId = String(row.invoice_line_id);
+    const list = map.get(lineId) ?? [];
+    list.push({
+      rollSeq: Number(row.roll_seq),
+      tafnidLength: Number(row.tafnid_length),
+      lengthUnit: String(row.length_unit || 'meter'),
+      fabricRollId: row.fabric_roll_id,
+    });
+    map.set(lineId, list);
+  }
+  return map;
+}
+
+async function isInvoiceTafnidComplete(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<boolean> {
+  const allLines = await client.query<{ id: string; unit: string; quantity: string }>(
+    `SELECT id, unit, quantity FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  const tafnidByLine = await loadTafnidRowsByLine(client, companyId, invoiceId);
+
+  return allLines.rows.every((ln) => {
+    const needed = rollsNeededForLine(String(ln.unit), Number(ln.quantity));
+    const rows = tafnidByLine.get(String(ln.id)) ?? [];
+    if (rows.length < needed) return false;
+    for (let seq = 1; seq <= needed; seq++) {
+      const entry = rows.find((r) => r.rollSeq === seq);
+      if (!entry || !Number.isFinite(entry.tafnidLength) || entry.tafnidLength <= 0) return false;
+    }
+    return true;
+  });
+}
 
 export const saveTafnidSchema = z.object({
   lines: z.array(tafnidLineSchema).min(1),
@@ -252,16 +314,20 @@ export async function getDeliveryDetail(
   if (!h.rows.length) return null;
 
   const lines = await db.query(
-    `SELECT sil.*, dfl.tafnid_length, dfl.length_unit AS tafnid_length_unit, dfl.fabric_roll_id AS tafnid_roll_id
+    `SELECT sil.*
      FROM sales_invoice_lines sil
-     LEFT JOIN delivery_fulfillment_lines dfl
-       ON dfl.invoice_line_id = sil.id AND dfl.company_id = sil.company_id AND dfl.roll_seq = 1
      WHERE sil.invoice_id=$1 AND sil.company_id=$2
      ORDER BY sil.line_no`,
     [invoiceId, companyId],
   );
 
-  return { header: h.rows[0], lines: lines.rows };
+  const tafnidByLine = await loadTafnidRowsByLine(db, companyId, invoiceId);
+  const enriched = lines.rows.map((ln) => ({
+    ...ln,
+    tafnid_rolls: tafnidByLine.get(String(ln.id)) ?? [],
+  }));
+
+  return { header: h.rows[0], lines: enriched };
 }
 
 export async function saveDeliveryTafnid(
@@ -287,21 +353,27 @@ export async function saveDeliveryTafnid(
     throw Object.assign(new Error('تم تسليم هذه الفاتورة مسبقاً'), { code: 'INVALID_STATE' });
   }
 
-  const dbLines = await client.query(
-    `SELECT id, line_no FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2`,
+  const dbLines = await client.query<{ id: string; line_no: number; unit: string; quantity: string }>(
+    `SELECT id, line_no, unit, quantity FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2`,
     [invoiceId, companyId],
   );
-  const lineByNo = new Map(dbLines.rows.map((l) => [Number(l.line_no), String(l.id)]));
+  const lineByNo = new Map(dbLines.rows.map((l) => [Number(l.line_no), l]));
 
   for (const ln of input.lines) {
-    const lineId = lineByNo.get(ln.lineNo);
-    if (!lineId) {
+    const dbLine = lineByNo.get(ln.lineNo);
+    if (!dbLine) {
       throw Object.assign(new Error(`سطر ${ln.lineNo} غير موجود في الفاتورة`), { code: 'VALIDATION' });
+    }
+    const maxRolls = rollsNeededForLine(dbLine.unit, Number(dbLine.quantity));
+    if (ln.rollSeq > maxRolls) {
+      throw Object.assign(new Error(`رقم التوب ${ln.rollSeq} يتجاوز عدد الأتواب في السطر ${ln.lineNo}`), {
+        code: 'VALIDATION',
+      });
     }
     await client.query(
       `INSERT INTO delivery_fulfillment_lines
          (company_id, invoice_id, invoice_line_id, line_no, roll_seq, fabric_roll_id, tafnid_length, length_unit, notes)
-       VALUES ($1,$2,$3,$4,1,$5,$6,$7,$8)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (invoice_line_id, roll_seq) DO UPDATE SET
          fabric_roll_id=EXCLUDED.fabric_roll_id,
          tafnid_length=EXCLUDED.tafnid_length,
@@ -311,8 +383,9 @@ export async function saveDeliveryTafnid(
       [
         companyId,
         invoiceId,
-        lineId,
+        dbLine.id,
         ln.lineNo,
+        ln.rollSeq,
         ln.fabricRollId ?? null,
         ln.tafnidLength,
         ln.lengthUnit,
@@ -321,25 +394,7 @@ export async function saveDeliveryTafnid(
     );
   }
 
-  const allLines = await client.query(
-    `SELECT sil.id, sil.line_no
-     FROM sales_invoice_lines sil
-     WHERE sil.invoice_id=$1 AND sil.company_id=$2`,
-    [invoiceId, companyId],
-  );
-  const tafnidRows = await client.query(
-    `SELECT invoice_line_id, tafnid_length
-     FROM delivery_fulfillment_lines
-     WHERE invoice_id=$1 AND company_id=$2 AND roll_seq=1`,
-    [invoiceId, companyId],
-  );
-  const tafnidByLine = new Map(
-    tafnidRows.rows.map((r) => [String(r.invoice_line_id), Number(r.tafnid_length)]),
-  );
-  const allTafnidComplete = allLines.rows.every((ln) => {
-    const len = tafnidByLine.get(String(ln.id));
-    return Number.isFinite(len) && (len as number) > 0;
-  });
+  const allTafnidComplete = await isInvoiceTafnidComplete(client, companyId, invoiceId);
   if (allTafnidComplete) {
     await client.query(
       `UPDATE sales_invoices SET delivery_status='TAFNID_SAVED', updated_at=now()
@@ -555,43 +610,60 @@ export async function confirmDeliveryFulfillment(
   }
 
   const lines = await client.query(
-    `SELECT sil.*, dfl.tafnid_length, dfl.length_unit AS tafnid_length_unit, dfl.fabric_roll_id AS assigned_roll_id
+    `SELECT sil.*
      FROM sales_invoice_lines sil
-     LEFT JOIN delivery_fulfillment_lines dfl
-       ON dfl.invoice_line_id = sil.id AND dfl.company_id = sil.company_id AND dfl.roll_seq = 1
      WHERE sil.invoice_id=$1 AND sil.company_id=$2
      ORDER BY sil.line_no`,
     [invoiceId, companyId],
   );
 
-  for (const ln of lines.rows) {
-    const tafnidLen = ln.tafnid_length != null ? Number(ln.tafnid_length) : NaN;
-    if (!Number.isFinite(tafnidLen) || tafnidLen <= 0) {
-      throw Object.assign(new Error(`يجب تفنيد السطر ${ln.line_no} قبل التسليم`), { code: 'VALIDATION' });
-    }
+  const tafnidByLine = await loadTafnidRowsByLine(client, companyId, invoiceId);
 
-    const lengthUnit = (ln.tafnid_length_unit as 'meter' | 'yard') || 'meter';
-    const perRollM = quantityToMeters(tafnidLen, lengthUnit);
-    const rollQty = Number(ln.quantity);
+  for (const ln of lines.rows) {
+    const lineId = String(ln.id);
+    const tafnidRows = tafnidByLine.get(lineId) ?? [];
     const unit = String(ln.unit);
+    const rollQty = Number(ln.quantity);
 
     if (unit === 'roll') {
-      const rollsNeeded = Math.max(1, Math.round(rollQty));
+      const rollsNeeded = rollsNeededForLine(unit, rollQty);
+      if (tafnidRows.length < rollsNeeded) {
+        throw Object.assign(
+          new Error(`يجب تفنيد ${rollsNeeded} توب للسطر ${ln.line_no} قبل التسليم`),
+          { code: 'VALIDATION' },
+        );
+      }
+
+      const perRollTafnid: { rollSeq: number; len: number; lengthUnit: 'meter' | 'yard' }[] = [];
+      for (let seq = 1; seq <= rollsNeeded; seq++) {
+        const row = tafnidRows.find((r) => r.rollSeq === seq);
+        const tafnidLen = row?.tafnidLength ?? NaN;
+        if (!Number.isFinite(tafnidLen) || tafnidLen <= 0) {
+          throw Object.assign(new Error(`يجب تفنيد التوب ${seq} في السطر ${ln.line_no}`), { code: 'VALIDATION' });
+        }
+        perRollTafnid.push({
+          rollSeq: seq,
+          len: tafnidLen,
+          lengthUnit: (row?.lengthUnit as 'meter' | 'yard') || 'meter',
+        });
+      }
+
       const itemId = await resolveFabricItemId(client, companyId, ln);
       if (!itemId) {
         throw Object.assign(new Error(`تعذر تحديد الخامة للسطر ${ln.line_no}`), { code: 'VALIDATION' });
       }
 
-      const preassigned = ln.assigned_roll_id as string | null;
+      const preassigned = tafnidRows.find((r) => r.rollSeq === 1)?.fabricRollId;
       const prebound = ln.fabric_roll_id as string | null;
-      const singleRollId = preassigned || prebound;
 
-      if (singleRollId && rollsNeeded === 1) {
+      if ((preassigned || prebound) && rollsNeeded === 1) {
+        const singleRollId = preassigned || prebound;
+        const perRollM = quantityToMeters(perRollTafnid[0].len, perRollTafnid[0].lengthUnit);
         const deducted = await deductRollMeters(
           client,
           companyId,
           userId,
-          singleRollId,
+          singleRollId!,
           perRollM,
           invoiceId,
           String(inv.invoice_no),
@@ -605,7 +677,9 @@ export async function confirmDeliveryFulfillment(
           ccy,
           exchangeRateToUsd,
         );
-        await updateLineCostAndMeta(client, companyId, ln, singleRollId, deducted.soldM, costSnapshot);
+        await updateLineCostAndMeta(client, companyId, ln, singleRollId, deducted.soldM, costSnapshot, {
+          tafnid_rolls: perRollTafnid.map((r) => ({ roll_seq: r.rollSeq, length: r.len, unit: r.lengthUnit })),
+        });
         continue;
       }
 
@@ -621,8 +695,12 @@ export async function confirmDeliveryFulfillment(
       let weightedCost = 0;
       let costCurrency: string | null = null;
       const rollIds: string[] = [];
+      const fulfilledTafnid: { roll_seq: number; length: number; unit: string; roll_id: string }[] = [];
 
-      for (const roll of picked) {
+      for (let i = 0; i < rollsNeeded; i++) {
+        const roll = picked[i];
+        const taf = perRollTafnid[i];
+        const perRollM = quantityToMeters(taf.len, taf.lengthUnit);
         const deducted = await deductRollMeters(
           client,
           companyId,
@@ -636,6 +714,12 @@ export async function confirmDeliveryFulfillment(
         if (deducted.unitCost != null) weightedCost += deducted.unitCost * deducted.soldM;
         costCurrency = deducted.currencyCode ?? costCurrency;
         rollIds.push(roll.id);
+        fulfilledTafnid.push({
+          roll_seq: taf.rollSeq,
+          length: taf.len,
+          unit: taf.lengthUnit,
+          roll_id: roll.id,
+        });
       }
 
       const avgUnitCost = totalSoldM > 0 && weightedCost > 0 ? weightedCost / totalSoldM : null;
@@ -650,10 +734,20 @@ export async function confirmDeliveryFulfillment(
       );
       await updateLineCostAndMeta(client, companyId, ln, rollIds[0] ?? null, totalSoldM, costSnapshot, {
         fulfilled_rolls: rollIds,
-        tafnid_length_per_roll: tafnidLen,
-        tafnid_length_unit: lengthUnit,
+        tafnid_rolls: fulfilledTafnid,
       });
-    } else if (ln.fabric_roll_id) {
+      continue;
+    }
+
+    const tafnidLen = tafnidRows.find((r) => r.rollSeq === 1)?.tafnidLength ?? NaN;
+    if (!Number.isFinite(tafnidLen) || tafnidLen <= 0) {
+      throw Object.assign(new Error(`يجب تفنيد السطر ${ln.line_no} قبل التسليم`), { code: 'VALIDATION' });
+    }
+
+    const lengthUnit = (tafnidRows.find((r) => r.rollSeq === 1)?.lengthUnit as 'meter' | 'yard') || 'meter';
+    const perRollM = quantityToMeters(tafnidLen, lengthUnit);
+
+    if (ln.fabric_roll_id) {
       const qtyM = quantityToMeters(Number(ln.quantity), ln.unit as 'meter' | 'yard');
       const deducted = await deductRollMeters(
         client,
