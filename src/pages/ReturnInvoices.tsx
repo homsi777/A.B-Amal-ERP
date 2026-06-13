@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { randomId } from '../lib/cryptoPolyfill';
 import { Search, Filter, Plus, ArrowLeftRight, Loader2, Eye, Pencil, Ban, Printer } from 'lucide-react';
 import {
   listReturns,
@@ -113,7 +113,7 @@ export const ReturnInvoices = () => {
 
   const [unlinkedLines, setUnlinkedLines] = useState<
     { id: string; description: string; qty: string; unitPrice: string; unit: 'meter' | 'yard'; rollId: string }[]
-  >([{ id: crypto.randomUUID(), description: '', qty: '1', unitPrice: '0', unit: 'meter', rollId: '' }]);
+  >([{ id: randomId(), description: '', qty: '1', unitPrice: '0', unit: 'meter', rollId: '' }]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,7 +158,7 @@ export const ReturnInvoices = () => {
     setFormReason('');
     setFormSettlement('CREDIT_BALANCE');
     setFormNotes('');
-    setUnlinkedLines([{ id: crypto.randomUUID(), description: '', qty: '1', unitPrice: '0', unit: 'meter', rollId: '' }]);
+    setUnlinkedLines([{ id: randomId(), description: '', qty: '1', unitPrice: '0', unit: 'meter', rollId: '' }]);
   };
 
   useEffect(() => {
@@ -1080,7 +1080,7 @@ export const ReturnInvoices = () => {
                   onClick={() =>
                     setUnlinkedLines((prev) => [
                       ...prev,
-                      { id: crypto.randomUUID(), description: '', qty: '1', unitPrice: '0', unit: 'meter', rollId: '' },
+                      { id: randomId(), description: '', qty: '1', unitPrice: '0', unit: 'meter', rollId: '' },
                     ])
                   }
                 >

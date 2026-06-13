@@ -8,6 +8,27 @@
     <link rel="apple-touch-icon" href="./alamal-logo.png" />
     <script>
       (function () {
+        function fallback() {
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = (Math.random() * 16) | 0;
+            var v = c === 'x' ? r : (r & 3) | 8;
+            return v.toString(16);
+          });
+        }
+        try {
+          var c = window.crypto;
+          if (!c) {
+            window.crypto = { randomUUID: fallback };
+            return;
+          }
+          if (typeof c.randomUUID !== 'function') {
+            c.randomUUID = fallback;
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script>
+      (function () {
         try {
           var raw = localStorage.getItem('obada-erp-ui-preferences');
           if (!raw) return;
