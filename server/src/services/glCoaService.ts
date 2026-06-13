@@ -179,6 +179,8 @@ export async function ensureCompanyInvoiceGlAccounts(client: PoolClient, company
     sort_order: number;
   }> = [
     { code: '1130', name: 'مخزون الأقمشة', account_type: 'ASSET', parent_code: '11', system_key: GL_KEYS.INVENTORY, sort_order: 45 },
+    { code: '2100', name: 'الموردون (ذمم دائنة)', account_type: 'LIABILITY', parent_code: '21', system_key: GL_KEYS.AP, sort_order: 80 },
+    { code: '2990', name: 'حسابات وسيطة — صرف عام', account_type: 'LIABILITY', parent_code: '2', system_key: GL_KEYS.SUSPENSE_PAYMENT, sort_order: 90 },
     { code: '4001', name: 'إيرادات مبيعات أقمشة', account_type: 'REVENUE', parent_code: '4', system_key: GL_KEYS.SALES_REVENUE, sort_order: 102 },
     { code: '5131', name: 'تكلفة البضاعة المباعة', account_type: 'EXPENSE', parent_code: '5', system_key: GL_KEYS.COGS, sort_order: 135 },
   ];
