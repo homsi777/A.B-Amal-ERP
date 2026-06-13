@@ -25,6 +25,7 @@ import {
   displayImportedItemCode,
 } from '../lib/importDisplay';
 import { rollColorSwatch } from '../lib/colorDisplay';
+import { HIDE_FABRIC_COLOR_UI, INVENTORY_TABLE_COLUMN_COUNT } from '../lib/inventoryUiConfig';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -396,6 +397,24 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
     setSaving(true);
     setErr('');
     try {
+      if (HIDE_FABRIC_COLOR_UI) {
+        await updateFabricRoll(roll.id, {
+          itemId: roll.item_id,
+          colorId: roll.color_id,
+          variantId: roll.variant_id ?? null,
+          lengthM: Number(lengthM) || 0,
+          widthCm: widthCm ? Number(widthCm) : null,
+          gsm: gsm ? Number(gsm) : null,
+          actualWeightKg: actualWeightKg ? Number(actualWeightKg) : null,
+          unitCost: unitCost ? Number(unitCost) : null,
+          batchNo: batchNo || null,
+          containerNo: containerNo || null,
+          supplierRollRef: supplierRollRef || null,
+          notes: notes || null,
+        });
+        onSaved();
+        return;
+      }
       if (!catL1Id || !catL2Id || !catL3Id || !catL4Id) {
         setErr('اختاري اسم الخامة وكود الخامة واللون وكود اللون قبل الحفظ.');
         setSaving(false);
@@ -444,6 +463,7 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
           <button onClick={onClose} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
         <div className="max-h-[72vh] space-y-5 overflow-y-auto p-6">
+          {!HIDE_FABRIC_COLOR_UI && (
           <section className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
             <h4 className="mb-4 text-base font-black text-slate-900">التصنيف المرتبط بالخامة</h4>
             <div className="grid gap-4 md:grid-cols-4">
@@ -477,6 +497,7 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
               </div>
             </div>
           </section>
+          )}
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h4 className="mb-4 text-base font-black text-slate-900">بيانات التوب السريعة</h4>
             <div className="grid gap-4 md:grid-cols-4">
@@ -877,7 +898,7 @@ return (
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="بحث بالباركود، اسم الخامة، كود المورد، اسم اللون..."
+                placeholder="بحث بالباركود، اسم الخامة، كود المورد..."
                 className="w-full pr-9 pl-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
               />
             </div>
@@ -1088,6 +1109,7 @@ return (
                     )}
                   </button>
                 </th>
+                {!HIDE_FABRIC_COLOR_UI && (
                 <th className="text-right py-3 px-4 font-bold text-slate-600">
                   <button
                     onClick={() => handleSort('color_name_ar')}
@@ -1099,7 +1121,10 @@ return (
                     )}
                   </button>
                 </th>
+                )}
+                {!HIDE_FABRIC_COLOR_UI && (
                 <th className="text-right py-3 px-4 font-bold text-slate-600">كود اللون</th>
+                )}
                 <th className="text-right py-3 px-4 font-bold text-slate-600 whitespace-nowrap">الطول</th>
                 <th className="text-right py-3 px-4 font-bold text-slate-600 whitespace-nowrap">وزن KG</th>
                 <th className="text-right py-3 px-4 font-bold text-slate-600">المستودع</th>
@@ -1109,7 +1134,7 @@ return (
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={bulkDeleteMode ? 10 : 9} className="py-12 text-center text-slate-400">
+                  <td colSpan={bulkDeleteMode ? INVENTORY_TABLE_COLUMN_COUNT + 1 : INVENTORY_TABLE_COLUMN_COUNT} className="py-12 text-center text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
                     جاري التحميل...
                   </td>
@@ -1117,7 +1142,7 @@ return (
               )}
                {!loading && rolls.length === 0 && (
                  <tr>
-                   <td colSpan={bulkDeleteMode ? 10 : 9} className="py-16 text-center">
+                   <td colSpan={bulkDeleteMode ? INVENTORY_TABLE_COLUMN_COUNT + 1 : INVENTORY_TABLE_COLUMN_COUNT} className="py-16 text-center">
                      <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                      <p className="text-slate-400 font-bold">لا توجد أتواب في المخزون</p>
                      <p className="text-slate-400 text-xs mt-1">
@@ -1189,6 +1214,7 @@ return (
                     <td className="py-2.5 px-4 font-mono text-xs text-slate-600 whitespace-nowrap">
                       {itemCodeDisplay || '—'}
                     </td>
+                    {!HIDE_FABRIC_COLOR_UI && (
                     <td className="py-2.5 px-4 text-slate-700">
                       <div className="flex items-center gap-2">
                         {colorSwatch && (
@@ -1200,9 +1226,12 @@ return (
                         <span>{colorName || '—'}</span>
                       </div>
                     </td>
+                    )}
+                    {!HIDE_FABRIC_COLOR_UI && (
                     <td className="py-2.5 px-4 font-mono text-xs text-slate-600">
                       {colorCodeDisplay || '—'}
                     </td>
+                    )}
                     <td className="py-2.5 px-4 text-slate-700 whitespace-nowrap">
                       {parseFloat(roll.length_m || '0').toFixed(2)} م
                     </td>

@@ -13,6 +13,7 @@ import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { getCategoryTree, type ApiCategory } from '../../lib/api/fabricCategoriesApi';
 import { resolveFabricClassification } from '../../lib/api/fabricClassificationApi';
 import { buildRollQrPayload } from '../../lib/labels/buildRollQrPayload';
+import { HIDE_FABRIC_COLOR_UI } from '../../lib/inventoryUiConfig';
 
 const INVENTORY_SHOW_ITEM_IMAGE_KEY = 'inventory_show_item_image_upload';
 const INVENTORY_LOW_STOCK_THRESHOLD_KEY = 'inventory_low_stock_threshold';
@@ -338,8 +339,16 @@ export const CreateItem = () => {
         return;
       }
     } else {
-      if (!catL1Id || !catL2Id || !catL3Id || !catL4Id) {
-        setSaveError('يرجى اختيار اسم الخامة وكود الخامة ولون الخامة وكود اللون من شجرة التصنيفات.');
+      if (!catL1Id || !catL2Id) {
+        setSaveError(
+          HIDE_FABRIC_COLOR_UI
+            ? 'يرجى اختيار اسم الخامة وكود الخامة من شجرة التصنيفات.'
+            : 'يرجى اختيار اسم الخامة وكود الخامة ولون الخامة وكود اللون من شجرة التصنيفات.',
+        );
+        return;
+      }
+      if (!HIDE_FABRIC_COLOR_UI && (!catL3Id || !catL4Id)) {
+        setSaveError('يرجى اختيار لون الخامة وكود اللون من شجرة التصنيفات.');
         return;
       }
       if (!warehouseId) {
@@ -954,7 +963,7 @@ export const CreateItem = () => {
                     type="text" 
                     value={name}
                     onChange={e => handleMaterialNameChange(e.target.value)}
-                    placeholder="اكتب اسم الخامة وسيتم اقتراح الأكواد والألوان المرتبطة" 
+                    placeholder={HIDE_FABRIC_COLOR_UI ? 'اكتب اسم الخامة وسيتم اقتراح أكوادها المرتبطة' : 'اكتب اسم الخامة وسيتم اقتراح الأكواد والألوان المرتبطة'} 
                     className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm" 
                   />
                   {!isEditMode && name.trim() && !catL1Id && materialNameSuggestions.length > 0 ? (
@@ -973,7 +982,9 @@ export const CreateItem = () => {
                   ) : null}
                   {!isEditMode && name.trim() && !catL1Id ? (
                     <p className="text-xs text-amber-700">
-                      اختر اسم خامة من الاقتراحات حتى يقرأ النظام كود الخامة والألوان من شجرة التصنيفات.
+                      {HIDE_FABRIC_COLOR_UI
+                        ? 'اختر اسم خامة من الاقتراحات حتى يقرأ النظام كود الخامة من شجرة التصنيفات.'
+                        : 'اختر اسم خامة من الاقتراحات حتى يقرأ النظام كود الخامة والألوان من شجرة التصنيفات.'}
                     </p>
                   ) : null}
                   {!isEditMode && catL1Id ? (
@@ -1020,6 +1031,7 @@ export const CreateItem = () => {
                     </select>
                   </div>
 
+                  {!HIDE_FABRIC_COLOR_UI && (
                   <div className="space-y-3">
                     <label className="block text-sm font-bold text-slate-700">لون الخامة</label>
                     <select
@@ -1068,6 +1080,7 @@ export const CreateItem = () => {
                       </select>
                     </div>
                   </div>
+                  )}
                 </>
               )}
 
@@ -1083,6 +1096,7 @@ export const CreateItem = () => {
                       dir="ltr"
                     />
                   </div>
+                  {!HIDE_FABRIC_COLOR_UI && (
                   <div className="space-y-3">
                     <label className="block text-sm font-bold text-slate-700">لون الخامة (مرجعي)</label>
                     <input
@@ -1102,6 +1116,7 @@ export const CreateItem = () => {
                       dir="ltr"
                     />
                   </div>
+                  )}
                 </>
               )}
 

@@ -9,10 +9,14 @@ import {
   toggleCategoryStatus,
   updateCategory,
 } from '../../lib/api/fabricCategoriesApi';
+import {
+  FABRIC_CATEGORY_LEVEL_LABELS,
+  FABRIC_CATEGORY_MAX_COLUMNS,
+  HIDE_FABRIC_COLOR_UI,
+} from '../../lib/inventoryUiConfig';
 
-/** أربع مستويات فقط: 1 اسم خامة → 2 كود خامة → 3 اللون → 4 كود اللون */
-const MAX_COLUMNS = 4;
-const COLUMN_LABELS = ['اسم خامة', 'كود الخامة', 'اللون', 'كود اللون'] as const;
+const MAX_COLUMNS = FABRIC_CATEGORY_MAX_COLUMNS;
+const COLUMN_LABELS = FABRIC_CATEGORY_LEVEL_LABELS;
 
 const emptyForm = (parentId?: string | null): CategoryPayload => ({
   code: '', name: '', parent_id: parentId ?? null,
@@ -84,7 +88,9 @@ export const Categories = () => {
     try {
       const result = await syncCategoriesFromMaterials();
       setSyncSummary(
-        `تمت مزامنة التصنيفات: أُضيف ${result.totalCreated} (اسم خامة ${result.createdLevel1}، كود خامة ${result.createdLevel2}، لون ${result.createdLevel3}، كود لون ${result.createdLevel4}).`,
+        HIDE_FABRIC_COLOR_UI
+          ? `تمت مزامنة التصنيفات: أُضيف ${result.totalCreated} (اسم خامة ${result.createdLevel1}، كود خامة ${result.createdLevel2}).`
+          : `تمت مزامنة التصنيفات: أُضيف ${result.totalCreated} (اسم خامة ${result.createdLevel1}، كود خامة ${result.createdLevel2}، لون ${result.createdLevel3}، كود لون ${result.createdLevel4}).`,
       );
       setError(null);
     } catch (e) {
@@ -210,7 +216,7 @@ export const Categories = () => {
   const columns: { level: number; title: string; parentId: string | null; nodes: ApiCategory[] }[] = [
     { level: 0, title: COLUMN_LABELS[0], parentId: null, nodes: tree },
   ];
-  if (selectedPath[0]) {
+  if (selectedPath[0] && MAX_COLUMNS > 1) {
     columns.push({
       level: 1,
       title: `${COLUMN_LABELS[1]} — ${selectedPath[0].name}`,
@@ -218,7 +224,7 @@ export const Categories = () => {
       nodes: selectedPath[0].children || [],
     });
   }
-  if (selectedPath[1]) {
+  if (!HIDE_FABRIC_COLOR_UI && selectedPath[1]) {
     columns.push({
       level: 2,
       title: `${COLUMN_LABELS[2]} — ${selectedPath[1].name}`,
@@ -226,7 +232,7 @@ export const Categories = () => {
       nodes: selectedPath[1].children || [],
     });
   }
-  if (selectedPath[2]) {
+  if (!HIDE_FABRIC_COLOR_UI && selectedPath[2]) {
     columns.push({
       level: 3,
       title: `${COLUMN_LABELS[3]} — ${selectedPath[2].name}`,
@@ -235,12 +241,12 @@ export const Categories = () => {
     });
   }
 
-  /** يمكن جعل أصلاً لمن عمقه ≤ 2 فقط حتى لا يضاف شيء تحت كود اللون */
+  const maxParentDepth = HIDE_FABRIC_COLOR_UI ? 0 : 2;
   const parentOptions = [
     { id: '', name: 'بلا أصل — مستوى اسم الخامة' },
     ...allCategories
       .filter(c => !editTarget || c.id !== editTarget.id)
-      .filter(c => depthFromRoot(c.id, byIdMap) <= 2)
+      .filter(c => depthFromRoot(c.id, byIdMap) <= maxParentDepth)
       .map(c => ({
         id: c.id,
         name: `${c.name} (${depthFromRoot(c.id, byIdMap) === 0 ? COLUMN_LABELS[0] : depthFromRoot(c.id, byIdMap) === 1 ? COLUMN_LABELS[1] : depthFromRoot(c.id, byIdMap) === 2 ? COLUMN_LABELS[2] : COLUMN_LABELS[3]})`,
@@ -253,7 +259,11 @@ export const Categories = () => {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">تصنيفات الأقمشة</h2>
 <p className="text-slate-500 mt-1">
-             أربع مستويات فقط: <strong>اسم خامة</strong> ثم <strong>كود الخامة</strong> ثم <strong>اللون</strong> ثم <strong>كود اللون</strong>. عند الإضافة تظهر خانة إدخال واحدة تلقائياً؛ عند التعديل تظهر كلتا الخانتين.
+             {HIDE_FABRIC_COLOR_UI ? (
+               <>مستويان فقط: <strong>اسم خامة</strong> ثم <strong>كود الخامة</strong>.</>
+             ) : (
+               <>أربع مستويات فقط: <strong>اسم خامة</strong> ثم <strong>كود الخامة</strong> ثم <strong>اللون</strong> ثم <strong>كود اللون</strong>. عند الإضافة تظهر خانة إدخال واحدة تلقائياً؛ عند التعديل تظهر كلتا الخانتين.</>
+             )}
            </p>
         </div>
         <div className="flex items-center gap-2">
@@ -403,7 +413,11 @@ export const Categories = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                   {parentOptions.map(o => <option key={o.id || 'root'} value={o.id}>{o.name}</option>)}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">لا يمكن الإضافة تحت «كود اللون» — الحد أربع مستويات.</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {HIDE_FABRIC_COLOR_UI
+                    ? 'مستويان فقط: اسم الخامة ثم كود الخامة.'
+                    : 'لا يمكن الإضافة تحت «كود اللون» — الحد أربع مستويات.'}
+                </p>
               </div>
               <div className="pt-2 flex justify-end gap-3">
                 <button type="button" onClick={closeModal} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm">إلغاء</button>
