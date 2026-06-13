@@ -115,6 +115,7 @@ export const AR_WHOLESALE = {
   inDelivery: 'قيد التسليم',
   fulfilled: 'تم التسليم',
   confirmedSale: 'بيع مؤكد — بانتظار المستودع',
+  tafnidSaved: 'تفنيد محفوظ — بانتظار موافقة المدير',
   chinaImport: 'استيراد قائمة تعبئة صينية',
   wholesaleSales: 'بيع جملة (بالتوب)',
 } as const;
@@ -122,6 +123,7 @@ export const AR_WHOLESALE = {
 export type ObadaDeliveryStatus =
   | 'CONFIRMED_SALE'
   | 'IN_DELIVERY'
+  | 'TAFNID_SAVED'
   | 'FULFILLED'
   | 'DRAFT';
 
@@ -130,6 +132,7 @@ export function arDeliveryStatus(status: ObadaDeliveryStatus | string | null | u
   const s = String(status).toUpperCase();
   if (s === 'CONFIRMED_SALE' || s === 'CONFIRMED') return AR_WHOLESALE.confirmedSale;
   if (s === 'IN_DELIVERY' || s === 'PENDING_DELIVERY') return AR_WHOLESALE.pendingDelivery;
+  if (s === 'TAFNID_SAVED') return AR_WHOLESALE.tafnidSaved;
   if (s === 'FULFILLED' || s === 'COMPLETED') return AR_WHOLESALE.fulfilled;
   if (s === 'DRAFT') return 'مسودة';
   return status;

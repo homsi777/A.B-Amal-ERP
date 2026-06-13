@@ -64,7 +64,12 @@ export function buildInvoiceSaveDuplicateKey(
     internalRollId: string;
   },
   warehouseKey: string,
+  opts?: { salesWholesale?: boolean },
 ): string {
+  if (opts?.salesWholesale) {
+    const mat = normalizeInvoiceIdentityToken(line.materialName);
+    if (mat) return `wh:${warehouseKey}:${mat}`;
+  }
   const u = line.internalRollId.trim();
   if (u && INVOICE_LINE_UUID_RE.test(u)) {
     return `u:${u.toLowerCase()}`;

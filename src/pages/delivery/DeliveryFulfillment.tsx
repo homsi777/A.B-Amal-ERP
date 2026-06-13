@@ -10,9 +10,11 @@ import {
   saveDeliveryTafnid,
   type DeliveryLineDraft,
 } from '../../lib/api/deliveryApi';
+import { fetchMe, type AuthUser } from '../../lib/api/authApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { TafnidModal } from '../../components/delivery/TafnidModal';
 import { AR_WHOLESALE, arDeliveryStatus } from '../../lib/i18n/arTerminology';
+import { canFulfillDelivery, canSaveDeliveryTafnid } from '../../lib/deliveryPermissions';
 import { useToast } from '../../components/NonBlockingToast';
 
 export function DeliveryFulfillment() {
@@ -25,6 +27,14 @@ export function DeliveryFulfillment() {
   const [lines, setLines] = useState<DeliveryLineDraft[]>([]);
   const [tafnidOpen, setTafnidOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    void fetchMe().then(setAuthUser).catch(() => setAuthUser(null));
+  }, []);
+
+  const maySaveTafnid = canSaveDeliveryTafnid(authUser);
+  const mayFulfill = canFulfillDelivery(authUser);
 
   useEffect(() => {
     if (!id) return;
@@ -55,7 +65,8 @@ export function DeliveryFulfillment() {
       await saveDeliveryTafnid(id, updated);
       setLines(updated);
       setTafnidOpen(false);
-      showToast({ type: 'success', message: 'تم حفظ التفنيد' });
+      setHeader((prev) => (prev ? { ...prev, deliveryStatus: 'TAFNID_SAVED' } : prev));
+      showToast({ type: 'success', message: 'تم حفظ التفنيد — بانتظار موافقة المدير' });
     } catch (e) {
       showToast({
         type: 'error',
@@ -121,10 +132,22 @@ export function DeliveryFulfillment() {
               فاتورة {header.invoiceNo} — {header.customerLabel}
             </p>
           </div>
-          <span className="rounded-full bg-[var(--ui-accent-soft-bg)] px-3 py-1 text-xs font-medium text-[var(--ui-nav-active-text)]">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              header.deliveryStatus === 'TAFNID_SAVED'
+                ? 'bg-amber-100 text-amber-900'
+                : 'bg-[var(--ui-accent-soft-bg)] text-[var(--ui-nav-active-text)]'
+            }`}
+          >
             {arDeliveryStatus(header.deliveryStatus)}
           </span>
         </div>
+
+        {header.deliveryStatus === 'TAFNID_SAVED' && (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            تم حفظ التفنيد. ينتظر المدير مراجعة الأطوال وتأكيد التسليم لخصم المخزون.
+          </p>
+        )}
 
         <dl className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
           <div>
@@ -148,15 +171,17 @@ export function DeliveryFulfillment() {
         </dl>
 
         <div className="mt-6 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={saving || header.deliveryStatus === 'FULFILLED'}
-            onClick={() => setTafnidOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)] disabled:opacity-50"
-          >
-            <Ruler className="h-4 w-4" />
-            {AR_WHOLESALE.tafnidAction}
-          </button>
+          {maySaveTafnid ? (
+            <button
+              type="button"
+              disabled={saving || header.deliveryStatus === 'FULFILLED'}
+              onClick={() => setTafnidOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)] disabled:opacity-50"
+            >
+              <Ruler className="h-4 w-4" />
+              {AR_WHOLESALE.tafnidAction}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => window.print()}
@@ -165,14 +190,20 @@ export function DeliveryFulfillment() {
             <Printer className="h-4 w-4" />
             {t('actionPrint')}
           </button>
-          <button
-            type="button"
-            disabled={saving || header.deliveryStatus === 'FULFILLED'}
-            onClick={() => void onConfirmDelivery()}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--ui-accent-border)] bg-[var(--ui-accent-soft-bg)] px-4 py-2 text-sm font-medium text-[var(--ui-nav-active-text)] disabled:opacity-50"
-          >
-            {t('confirmDelivery')}
-          </button>
+          {mayFulfill ? (
+            <button
+              type="button"
+              disabled={
+                saving ||
+                header.deliveryStatus === 'FULFILLED' ||
+                header.deliveryStatus !== 'TAFNID_SAVED'
+              }
+              onClick={() => void onConfirmDelivery()}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--ui-accent-border)] bg-[var(--ui-accent-soft-bg)] px-4 py-2 text-sm font-medium text-[var(--ui-nav-active-text)] disabled:opacity-50"
+            >
+              {t('confirmDelivery')}
+            </button>
+          ) : null}
         </div>
       </div>
 

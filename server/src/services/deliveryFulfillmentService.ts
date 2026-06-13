@@ -108,7 +108,7 @@ export async function listDeliveryQueue(
   const conds = [
     'si.company_id = $1',
     "si.document_status = 'CONFIRMED'",
-    "si.delivery_status = 'IN_DELIVERY'",
+    "si.delivery_status IN ('IN_DELIVERY', 'TAFNID_SAVED')",
   ];
   const params: unknown[] = [companyId];
   let p = 2;
@@ -141,6 +141,17 @@ export async function listDeliveryQueue(
   ]);
 
   return { rows: rows.rows, total: countRow.rows[0].total, page, pageSize };
+}
+
+export async function countPendingManagerApprovals(db: DbQuery, companyId: string): Promise<number> {
+  const r = await db.query<{ total: number }>(
+    `SELECT COUNT(*)::int AS total FROM sales_invoices si
+     WHERE si.company_id=$1
+       AND si.document_status='CONFIRMED'
+       AND si.delivery_status='TAFNID_SAVED'`,
+    [companyId],
+  );
+  return r.rows[0]?.total ?? 0;
 }
 
 export async function getDeliveryDetail(
@@ -221,6 +232,39 @@ export async function saveDeliveryTafnid(
         ln.lengthUnit,
         ln.notes ?? null,
       ],
+    );
+  }
+
+  const allLines = await client.query(
+    `SELECT sil.id, sil.line_no
+     FROM sales_invoice_lines sil
+     WHERE sil.invoice_id=$1 AND sil.company_id=$2`,
+    [invoiceId, companyId],
+  );
+  const tafnidRows = await client.query(
+    `SELECT invoice_line_id, tafnid_length
+     FROM delivery_fulfillment_lines
+     WHERE invoice_id=$1 AND company_id=$2 AND roll_seq=1`,
+    [invoiceId, companyId],
+  );
+  const tafnidByLine = new Map(
+    tafnidRows.rows.map((r) => [String(r.invoice_line_id), Number(r.tafnid_length)]),
+  );
+  const allTafnidComplete = allLines.rows.every((ln) => {
+    const len = tafnidByLine.get(String(ln.id));
+    return Number.isFinite(len) && (len as number) > 0;
+  });
+  if (allTafnidComplete) {
+    await client.query(
+      `UPDATE sales_invoices SET delivery_status='TAFNID_SAVED', updated_at=now()
+       WHERE id=$1 AND company_id=$2 AND delivery_status IN ('IN_DELIVERY', 'TAFNID_SAVED')`,
+      [invoiceId, companyId],
+    );
+  } else if (row.delivery_status === 'TAFNID_SAVED') {
+    await client.query(
+      `UPDATE sales_invoices SET delivery_status='IN_DELIVERY', updated_at=now()
+       WHERE id=$1 AND company_id=$2`,
+      [invoiceId, companyId],
     );
   }
 }
@@ -402,8 +446,11 @@ export async function confirmDeliveryFulfillment(
   if (inv.delivery_status === 'FULFILLED') {
     throw Object.assign(new Error('تم التسليم مسبقاً'), { code: 'INVALID_STATE' });
   }
-  if (inv.delivery_status !== 'IN_DELIVERY') {
-    throw Object.assign(new Error('الفاتورة ليست في قائمة التسليم'), { code: 'INVALID_STATE' });
+  if (inv.delivery_status !== 'TAFNID_SAVED') {
+    throw Object.assign(
+      new Error('يجب حفظ التفنيد وانتظار موافقة المدير قبل التسليم'),
+      { code: 'INVALID_STATE' },
+    );
   }
 
   const ccy = String(inv.currency_code || 'USD');
