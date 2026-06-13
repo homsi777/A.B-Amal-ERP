@@ -18,6 +18,7 @@ export interface ExtractedImportMetadata {
   declaredLengthUnit?: string;
   declaredRollCount?: number;
   documentDate?: string;
+  totalsSource?: 'footer' | 'header';
   warnings?: string[];
   [key: string]: unknown;
 }
@@ -226,6 +227,70 @@ function parseLooseNumber(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function isImportSummaryRow(row: unknown[]): boolean {
+  const joined = row.map((c) => String(c ?? '').trim()).filter(Boolean).join(' ');
+  if (!joined) return false;
+  const upper = joined.toUpperCase();
+  if (/^(TOTAL|GRAND\s+TOTAL|SUB\s*TOTAL|SUMMARY)\b/.test(upper)) return true;
+  if (/TOTAL\s+SHIPPED/i.test(upper)) return true;
+  if (/\bTOTAL\b/.test(upper) && (/\bROLLS?\b/.test(upper) || /\bMTS?\b/.test(upper) || /\bMETERS?\b/.test(upper))) return true;
+  return false;
+}
+
+function stripTrailingSummaryRows(rows: unknown[][]): unknown[][] {
+  let end = rows.length;
+  while (end > 0 && isImportSummaryRow(rows[end - 1] ?? [])) end--;
+  return rows.slice(0, end);
+}
+
+function matchTotalsInText(text: string, source: 'footer' | 'header'): Partial<ExtractedImportMetadata> | null {
+  let m = /TOTAL\s+SHIPPED\s+SITUATION\s*[:：]?\s*([\d,.]+)\s*([A-Z]+)\s+([\d,.]+)\s*ROLLS?/i.exec(text);
+  if (m) {
+    const length = parseLooseNumber(m[1]);
+    const rolls = parseLooseNumber(m[3]);
+    if (length != null && rolls != null) {
+      return {
+        declaredTotalLength: length,
+        declaredLengthUnit: m[2].toUpperCase(),
+        declaredRollCount: rolls,
+        totalsSource: source,
+      };
+    }
+  }
+  m = /TOTAL\s*[:：]?\s*([\d,.]+)\s*(MTS?|METERS?|YDS?|YARD)\s+([\d,.]+)\s*ROLLS?/i.exec(text);
+  if (m) {
+    const length = parseLooseNumber(m[1]);
+    const rolls = parseLooseNumber(m[3]);
+    if (length != null && rolls != null) {
+      return {
+        declaredTotalLength: length,
+        declaredLengthUnit: m[2].toUpperCase(),
+        declaredRollCount: rolls,
+        totalsSource: source,
+      };
+    }
+  }
+  m = /TOTAL\s*[:：]?\s*([\d,.]+)\s+([\d,.]+)\s*ROLLS?/i.exec(text);
+  if (m) {
+    const length = parseLooseNumber(m[1]);
+    const rolls = parseLooseNumber(m[2]);
+    if (length != null && rolls != null) {
+      return { declaredTotalLength: length, declaredRollCount: rolls, totalsSource: source };
+    }
+  }
+  return null;
+}
+
+function extractFooterTotalsMetadata(rows: unknown[][]): Partial<ExtractedImportMetadata> {
+  const text = rows
+    .slice(-30)
+    .flat()
+    .map((c) => String(c ?? '').trim())
+    .filter(Boolean)
+    .join('\n');
+  return matchTotalsInText(text, 'footer') ?? {};
+}
+
 function extractPreTableMetadata(rows: unknown[][]): ExtractedImportMetadata {
   const text = rows
     .flat()
@@ -249,17 +314,37 @@ function extractPreTableMetadata(rows: unknown[][]): ExtractedImportMetadata {
     }
   }
 
-  const total = /TOTAL\s+SHIPPED\s+SITUATION\s*[:：]?\s*([\d,.]+)\s*([A-Z]+)\s+([\d,.]+)\s*ROLLS?/i.exec(text);
-  if (total) {
-    metadata.declaredTotalLength = parseLooseNumber(total[1]) ?? undefined;
-    metadata.declaredLengthUnit = total[2].toUpperCase();
-    metadata.declaredRollCount = parseLooseNumber(total[3]) ?? undefined;
-  }
-
   const date = /DATE\s*[:：]?\s*([0-9]{1,2}\s*\/\s*[A-Za-z]{3,}\s*\/\s*[0-9]{2,4}|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}[\/.-][0-9]{1,2}[\/.-][0-9]{2,4})/i.exec(text);
   if (date) metadata.documentDate = date[1].trim();
 
   return metadata;
+}
+
+function mergeSheetTotalsMetadata(
+  headerRows: unknown[][],
+  dataRows: unknown[][],
+): Partial<ExtractedImportMetadata> {
+  const footer = extractFooterTotalsMetadata(dataRows);
+  if (footer.declaredRollCount != null || footer.declaredTotalLength != null) return footer;
+  const headerText = headerRows
+    .flat()
+    .map((c) => String(c ?? '').trim())
+    .filter(Boolean)
+    .join('\n');
+  return matchTotalsInText(headerText, 'header') ?? {};
+}
+
+function buildExtractedMetadata(preTableRows: unknown[][], dataRows: unknown[][]): ExtractedImportMetadata {
+  const headerMeta = extractPreTableMetadata(preTableRows);
+  const totalsMeta = mergeSheetTotalsMetadata(preTableRows, dataRows);
+  return {
+    ...headerMeta,
+    ...totalsMeta,
+    declaredTotalLength: totalsMeta.declaredTotalLength ?? headerMeta.declaredTotalLength,
+    declaredRollCount: totalsMeta.declaredRollCount ?? headerMeta.declaredRollCount,
+    declaredLengthUnit: totalsMeta.declaredLengthUnit ?? headerMeta.declaredLengthUnit,
+    totalsSource: totalsMeta.totalsSource ?? headerMeta.totalsSource,
+  };
 }
 
 /**
@@ -297,9 +382,10 @@ export async function parseExcelFile(file: File): Promise<{
 
   const headerRowIndex = findHeaderRow(rawRows as unknown[][]);
   const headers = ((rawRows[headerRowIndex] ?? []) as unknown[]).map(h => (h == null ? '' : String(h).trim()));
-  const rows = rawRows.slice(headerRowIndex + 1) as unknown[][];
+  const rawDataRows = rawRows.slice(headerRowIndex + 1) as unknown[][];
+  const rows = stripTrailingSummaryRows(rawDataRows);
   const preTableRows = rawRows.slice(0, headerRowIndex) as unknown[][];
-  const extractedMetadata = extractPreTableMetadata(preTableRows);
+  const extractedMetadata = buildExtractedMetadata(preTableRows, rawDataRows);
 
   return { sheetName, headers, rows, headerRowIndex, preTableRows, extractedMetadata };
 }

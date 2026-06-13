@@ -29,6 +29,11 @@ import {
   resolveImportMaterialCode,
 } from '../utils/purchaseImportMaterialCodes.js';
 import { expandChinaPackingListIfNeeded } from '../utils/chinaPackingListExpand.js';
+import {
+  isImportSummaryRow,
+  mergeSheetTotalsMetadata,
+  stripTrailingSummaryRows,
+} from '../utils/importSheetMetadata.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
 
@@ -623,10 +628,25 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // توسيع قوائم التعبئة الصينية (أعمدة متوازية ROLL | LENGTH | LOT)
+    const sheetTotals = mergeSheetTotalsMetadata(preTableRows as unknown[][], rows as unknown[][]);
+    const mergedExtractedMetadata = {
+      ...(extractedMetadata as Record<string, unknown>),
+      ...sheetTotals,
+      declaredTotalLength:
+        sheetTotals.declaredTotalLength ??
+        (extractedMetadata as { declaredTotalLength?: number }).declaredTotalLength,
+      declaredRollCount:
+        sheetTotals.declaredRollCount ??
+        (extractedMetadata as { declaredRollCount?: number }).declaredRollCount,
+      declaredLengthUnit:
+        sheetTotals.declaredLengthUnit ??
+        (extractedMetadata as { declaredLengthUnit?: string }).declaredLengthUnit,
+    };
+
     let workHeaders = headers;
-    let workRows = rows;
+    let workRows = stripTrailingSummaryRows(rows as unknown[][]);
     let chinaSourceType: string | null = null;
-    const chinaExpanded = expandChinaPackingListIfNeeded(headers, rows, extractedMetadata as Record<string, unknown>);
+    const chinaExpanded = expandChinaPackingListIfNeeded(headers, workRows, mergedExtractedMetadata);
     if (chinaExpanded) {
       workHeaders = chinaExpanded.headers;
       workRows = chinaExpanded.rows;
@@ -652,6 +672,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       // Skip completely empty rows
       const nonEmpty = rawRow.filter(v => v !== null && v !== undefined && String(v).trim() !== '');
       if (nonEmpty.length === 0) continue;
+      if (isImportSummaryRow(rawRow)) continue;
 
       const rawData: Record<string, unknown> = {};
       workHeaders.forEach((h, idx) => { rawData[h] = rawRow[idx]; });
@@ -675,7 +696,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         if (y != null) (nd as any).lengthM = Math.round(y * 0.9144 * 1000) / 1000;
       }
       if (chinaSourceType) {
-        applyChinaImportMetadata(nd, extractedMetadata as Record<string, unknown>, fileName);
+        applyChinaImportMetadata(nd, mergedExtractedMetadata as Record<string, unknown>, fileName);
       }
       const result = await validateAndMatchRow(
         nd, companyId, warehouseId, defaultLocationId ?? null,
@@ -713,16 +734,18 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       return s + (calcWeight(lm, wc, gs) ?? 0);
     }, 0);
     const metadataWarnings: string[] = [];
-    const declaredRollCount = Number((extractedMetadata as { declaredRollCount?: unknown }).declaredRollCount);
+    const declaredRollCount = Number((mergedExtractedMetadata as { declaredRollCount?: unknown }).declaredRollCount);
+    const totalsSource = String((mergedExtractedMetadata as { totalsSource?: string }).totalsSource || 'header');
+    const totalsLabel = totalsSource === 'footer' ? 'نهاية الملف' : 'رأس الملف';
     if (Number.isFinite(declaredRollCount) && declaredRollCount !== rowResults.length) {
-      metadataWarnings.push(`عدد الأتواب في رأس الملف ${declaredRollCount}، بينما عدد الصفوف المقروءة ${rowResults.length}`);
+      metadataWarnings.push(`عدد الأتواب في ${totalsLabel} ${declaredRollCount}، بينما عدد الصفوف المقروءة ${rowResults.length}`);
     }
-    const declaredTotalLength = Number((extractedMetadata as { declaredTotalLength?: unknown }).declaredTotalLength);
+    const declaredTotalLength = Number((mergedExtractedMetadata as { declaredTotalLength?: unknown }).declaredTotalLength);
     if (Number.isFinite(declaredTotalLength) && Math.abs(declaredTotalLength - totalLengthM) > 0.5) {
-      metadataWarnings.push(`إجمالي الأطوال في رأس الملف ${declaredTotalLength}، بينما مجموع الصفوف ${parseFloat(totalLengthM.toFixed(3))}`);
+      metadataWarnings.push(`إجمالي الأطوال في ${totalsLabel} ${declaredTotalLength}، بينما مجموع الصفوف ${parseFloat(totalLengthM.toFixed(3))}`);
     }
     const batchMetadata = {
-      ...extractedMetadata,
+      ...mergedExtractedMetadata,
       fabricFamily: inferFabricFamilyFromFileName(fileName),
       headerRowIndex: headerRowIndex ?? 0,
       preTableRows,
@@ -1599,6 +1622,14 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'VALIDATION') return sendError(reply, 400, err.message || ArabicErrors.validation, 'VALIDATION');
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || 'حالة غير صالحة', 'INVALID_STATE');
+      if (err.code === '23514') {
+        return sendError(
+          reply,
+          409,
+          'قاعدة البيانات تحتاج ترحيلاً جديداً (قيود القيود المحاسبية). شغّل npm run server:migrate ثم أعد المحاولة.',
+          'DB_CHECK_VIOLATION',
+        );
+      }
       if (err.code === 'GL_CONFIG' || err.code === 'GL_UNBALANCED') {
         return sendError(reply, 409, err.message || 'إعداد الحسابات العامة غير مكتمل', err.code);
       }
