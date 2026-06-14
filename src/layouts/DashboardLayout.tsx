@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   BookOpen,
@@ -31,6 +32,7 @@ import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { BRAND } from '../branding';
+import { useAnchoredPopoverStyle } from '../lib/useAnchoredPopoverStyle';
 
 /** أيام حتى موعد التوريد المتوقع (تاريخ محلي) */
 function daysUntilSupply(expectedDate: string): number {
@@ -70,6 +72,8 @@ const Topbar = () => {
   const customers = useStore((s) => s.customers);
 
   const pickupAlerts = useMemo(() => selectNearPickupOrders(customerOrders), [customerOrders]);
+  const notifyPanelStyle = useAnchoredPopoverStyle(notifyRef, notifyOpen);
+  const hasAlerts = pickupAlerts.length > 0;
 
   useEffect(() => {
     if (!notifyOpen) return;
@@ -216,58 +220,78 @@ const Topbar = () => {
             </span>
           </div>
         </div>
-        <div className="order-2 flex items-center justify-center gap-3 md:order-1 md:justify-self-start">
+        <div className="order-2 flex items-center justify-center gap-3 md:order-1 md:justify-self-start overflow-visible">
           <LanguageSwitcher />
-          <div ref={notifyRef} className="relative">
+          <div ref={notifyRef} className="relative shrink-0">
             <button
               type="button"
               onClick={() => setNotifyOpen((v) => !v)}
-              className="relative p-2 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)] hover:text-[var(--text-heading)] transition border border-transparent hover:border-[var(--border-default)]"
+              className={`relative rounded-xl p-2.5 transition border ${
+                notifyOpen
+                  ? 'border-amber-300 bg-amber-50 text-amber-700'
+                  : 'border-transparent text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)] hover:text-[var(--text-heading)] hover:border-[var(--border-default)]'
+              } ${hasAlerts && !notifyOpen ? 'notify-bell-glow bg-amber-50/80 text-amber-700 border-amber-200/80' : ''}`}
               title={t('notifications.title')}
               aria-expanded={notifyOpen}
               aria-haspopup="true"
             >
-              <Bell className="w-5 h-5" strokeWidth={2} />
-              {pickupAlerts.length > 0 && (
-                <span className="absolute top-1 end-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-[10px] font-bold text-white flex items-center justify-center shadow-sm">
+              <Bell className={`w-5 h-5 ${hasAlerts ? 'text-amber-600' : ''}`} strokeWidth={2} />
+              {hasAlerts && (
+                <span className="notify-badge-pulse absolute -top-0.5 -start-0.5 min-w-[20px] h-5 px-1 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-[10px] font-bold text-white flex items-center justify-center shadow-md ring-2 ring-white">
                   {pickupAlerts.length > 99 ? '99+' : pickupAlerts.length}
                 </span>
               )}
             </button>
-            {notifyOpen && (
-              <div className="absolute end-0 mt-2 w-[min(100vw-2rem,22rem)] rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-xl z-[120] overflow-hidden">
-                <div className="px-4 py-3 border-b border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
-                  <p className="text-sm font-bold text-[var(--text-heading)]">{t('notifications.pickupTitle')}</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            {notifyOpen && notifyPanelStyle && createPortal(
+              <div
+                style={notifyPanelStyle}
+                className={`rounded-2xl border border-amber-200/80 bg-[var(--surface-header)] overflow-hidden ${hasAlerts ? 'notify-panel-glow' : 'shadow-2xl ring-1 ring-black/5'}`}
+                role="dialog"
+                aria-label={t('notifications.title')}
+              >
+                <div className="px-4 py-3.5 border-b border-amber-100 bg-gradient-to-l from-amber-50 via-[var(--surface-muted-nav)] to-[var(--surface-header)]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-black text-[var(--text-heading)]">{t('notifications.pickupTitle')}</p>
+                    {hasAlerts && (
+                      <span className="shrink-0 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                        {pickupAlerts.length}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">
                     {t('notifications.pickupSubtitle')}
                   </p>
                 </div>
-                <div className="max-h-72 overflow-y-auto">
-                  {pickupAlerts.length === 0 ? (
-                    <p className="px-4 py-6 text-sm text-center text-[var(--text-muted)]">لا توجد تنبيهات حالياً</p>
+                <div className="max-h-[min(22rem,55vh)] overflow-y-auto custom-scrollbar">
+                  {!hasAlerts ? (
+                    <p className="px-4 py-8 text-sm text-center text-[var(--text-muted)]">لا توجد تنبيهات حالياً</p>
                   ) : (
-                    <ul className="divide-y divide-[var(--border-subtle)]">
+                    <ul className="divide-y divide-[var(--border-subtle)] p-2 space-y-1">
                       {pickupAlerts.slice(0, 12).map((o) => {
                         const c = customers.find((x) => x.id === o.customerId);
                         return (
                           <li key={o.id}>
                             <Link
                               to="/orders"
-                              className="block px-4 py-3 hover:bg-[var(--border-subtle)] transition text-right"
+                              className="block rounded-xl border border-transparent px-3 py-3 hover:border-amber-200/80 hover:bg-amber-50/60 transition text-right"
                               onClick={() => setNotifyOpen(false)}
                             >
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="font-mono font-semibold text-[var(--ui-accent)] text-sm">{o.orderNumber}</span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 whitespace-nowrap">
-                                  {ORDER_STATUS_LABELS[o.status]}
-                                </span>
+                              <div className="flex flex-col gap-1.5 min-w-0">
+                                <div className="flex items-center justify-between gap-2 min-w-0">
+                                  <span className="font-mono font-bold text-[var(--ui-accent)] text-sm truncate">
+                                    {o.orderNumber}
+                                  </span>
+                                  <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200/80">
+                                    {ORDER_STATUS_LABELS[o.status]}
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-[var(--text-heading)] truncate">{c?.name ?? 'عميل'}</p>
+                                {o.expectedDate && (
+                                  <p className="text-[11px] text-[var(--text-muted)]">
+                                    متوقع التوريد: {format(new Date(o.expectedDate), 'PP', { locale: ar })}
+                                  </p>
+                                )}
                               </div>
-                              <p className="text-xs text-[var(--text-heading)] mt-1">{c?.name ?? 'عميل'}</p>
-                              {o.expectedDate && (
-                                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                                  متوقع التوريد: {format(new Date(o.expectedDate), 'PP', { locale: ar })}
-                                </p>
-                              )}
                             </Link>
                           </li>
                         );
@@ -275,18 +299,19 @@ const Topbar = () => {
                     </ul>
                   )}
                 </div>
-                {pickupAlerts.length > 0 && (
-                  <div className="px-3 py-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
+                {hasAlerts && (
+                  <div className="px-3 py-2.5 border-t border-[var(--border-subtle)] bg-[var(--surface-muted-nav)]">
                     <Link
                       to="/orders"
-                      className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1"
+                      className="block text-center text-xs font-bold text-[var(--ui-accent)] hover:underline py-1.5 rounded-lg hover:bg-[var(--ui-accent-soft-bg)]"
                       onClick={() => setNotifyOpen(false)}
                     >
                       {t('notifications.openOrders')}
                     </Link>
                   </div>
                 )}
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
           <Link
