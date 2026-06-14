@@ -1,8 +1,10 @@
 /**
  * Single source of truth for the project's brand identity.
  *
- * To rebrand the app, change only this file (and re-run any backend seed
- * if the company name needs to change in the DB).
+ * Master logo file: `logo.png` (repo root).
+ * Favicon / static copy: `public/clotex-logo.png` — keep identical (see `npm run extract:logo`).
+ *
+ * To rebrand, replace logo.png then run: npm run extract:logo
  */
 
 import brandMarkUrl from '../logo.png?url';
