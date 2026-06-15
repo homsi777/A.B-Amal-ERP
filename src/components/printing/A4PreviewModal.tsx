@@ -1,5 +1,6 @@
 import React from 'react';
 import { Download, Loader2, Printer, X } from 'lucide-react';
+import { exportPdfFromHtmlString } from '../../lib/pdfExport';
 import { useToast } from '../NonBlockingToast';
 
 type PageSize = 'A4' | 'A5';
@@ -47,9 +48,12 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
   const handlePrint = async () => {
     setPrinting(true);
     try {
-      if (window.fabricApp?.printHtml) {
-        const settings = await window.fabricApp.getSettings();
-        const result = await window.fabricApp.printHtml(html, {
+      const useElectronPrint =
+        window.fabricApp?.isElectron === true && typeof window.fabricApp.printHtml === 'function';
+
+      if (useElectronPrint) {
+        const settings = await window.fabricApp!.getSettings();
+        const result = await window.fabricApp!.printHtml(html, {
           pageSize: pageSize as 'A4' | 'A5' | 'ROLL_LABEL',
           silent: Boolean(settings.silentA4PrintingEnabled),
           printerName: settings.defaultA4PrinterName ?? undefined,
@@ -79,20 +83,31 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
   const handleExportPdf = async () => {
     setExporting(true);
     try {
-      if (!window.fabricApp?.printToPdf) {
-        showToast({ type: 'warning', message: 'تصدير PDF متاح عبر نسخة سطح المكتب' });
+      const filePrefix = String(defaultFileName || title || 'document')
+        .trim()
+        .replace(/\.pdf$/i, '')
+        .replace(/[\\/:*?"<>|]+/g, '_');
+
+      const useElectronPdf =
+        window.fabricApp?.isElectron === true && typeof window.fabricApp.printToPdf === 'function';
+
+      if (useElectronPdf) {
+        const result = await window.fabricApp!.printToPdf(html, {
+          pageSize: pageSize as 'A4' | 'A5' | 'ROLL_LABEL',
+          defaultFileName: filePrefix,
+        });
+        if (result.ok) {
+          showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
+          onExported?.();
+        } else {
+          showToast({ type: 'error', message: result.error || 'تم إلغاء حفظ PDF' });
+        }
         return;
       }
-      const result = await window.fabricApp.printToPdf(html, {
-        pageSize: pageSize as 'A4' | 'A5' | 'ROLL_LABEL',
-        defaultFileName,
-      });
-      if (result.ok) {
-        showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
-        onExported?.();
-      } else {
-        showToast({ type: 'error', message: result.error || 'تم إلغاء حفظ PDF' });
-      }
+
+      await exportPdfFromHtmlString(html, filePrefix, { orientation: 'portrait' });
+      showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
+      onExported?.();
     } catch (error) {
       showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر تصدير PDF' });
     } finally {
