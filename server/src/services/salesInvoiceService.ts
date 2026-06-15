@@ -194,6 +194,56 @@ async function assertCustomer(client: PoolClient, companyId: string, customerId:
   return r.rows[0];
 }
 
+function parseSalesLineMetadata(ln: { metadata: unknown }): Record<string, unknown> {
+  try {
+    return typeof ln.metadata === 'string'
+      ? JSON.parse(ln.metadata) as Record<string, unknown>
+      : (ln.metadata as Record<string, unknown>) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** يعيد fabric_roll_id من السطر أو يبحث بالباركود/رقم الثوب في metadata. */
+async function resolveFabricRollIdForSalesLine(
+  client: PoolClient,
+  companyId: string,
+  ln: { fabric_roll_id: string | null; metadata: unknown },
+): Promise<string | null> {
+  const linked = ln.fabric_roll_id as string | null;
+  if (linked) return linked;
+
+  const meta = parseSalesLineMetadata(ln);
+  const tokens = [
+    meta.barcode,
+    meta.supplierBarcode,
+    meta.printBarcode,
+    meta.rollNo,
+    meta.rollNumber,
+  ]
+    .map((v) => String(v ?? '').trim())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    const r = await client.query<{ id: string }>(
+      `SELECT id FROM fabric_rolls
+       WHERE company_id = $1
+         AND status = 'AVAILABLE'
+         AND length_m > 0
+         AND (
+           lower(trim(barcode)) = lower($2::text)
+           OR lower(trim(coalesce(roll_no, ''))) = lower($2::text)
+           OR lower(trim(coalesce(supplier_roll_ref, ''))) = lower($2::text)
+         )
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [companyId, token],
+    );
+    if (r.rows.length) return r.rows[0].id;
+  }
+  return null;
+}
+
 async function insertLines(
   client: PoolClient,
   companyId: string,
@@ -611,8 +661,24 @@ export async function confirmSalesInvoice(
   const linesForCogs: { quantityMeters: number; unitCostPerMeter: number | null }[] = [];
 
   for (const ln of lines.rows) {
-    const rollId = ln.fabric_roll_id as string | null;
-    if (!rollId) continue;
+    const qtyM = quantityToMeters(Number(ln.quantity), ln.unit as 'meter' | 'yard');
+    let rollId = await resolveFabricRollIdForSalesLine(client, companyId, ln);
+    if (!rollId) {
+      if (qtyM > EPS) {
+        throw Object.assign(
+          new Error('سطر الفاتورة غير مربوط بثوب في المخزون — لا يمكن تأكيد البيع'),
+          { code: 'VALIDATION' },
+        );
+      }
+      continue;
+    }
+
+    if (!ln.fabric_roll_id) {
+      await client.query(
+        `UPDATE sales_invoice_lines SET fabric_roll_id=$3 WHERE id=$1 AND company_id=$2`,
+        [ln.id, companyId, rollId],
+      );
+    }
 
     const rollRow = await client.query<{
       id: string;
@@ -632,7 +698,6 @@ export async function confirmSalesInvoice(
       throw Object.assign(new Error(`الثوب ${rollId} غير متاح للبيع`), { code: 'INVALID_STOCK' });
     }
 
-    const qtyM = quantityToMeters(Number(ln.quantity), ln.unit as 'meter' | 'yard');
     const len = Number(roll.length_m);
     if (qtyM > len + EPS) {
       throw Object.assign(new Error('الكمية المباعة أكبر من رصيد المتر على الثوب'), { code: 'INVALID_STOCK' });
@@ -652,17 +717,9 @@ export async function confirmSalesInvoice(
 
     const soldQty = Math.min(qtyM, len);
     const newLen = round2(len - soldQty);
-    const fullSale = newLen <= EPS;
+    const fullSale = soldQty >= len - EPS || newLen <= EPS;
 
-    let meta: Record<string, unknown> = {};
-    try {
-      meta =
-        typeof ln.metadata === 'string'
-          ? JSON.parse(ln.metadata) as Record<string, unknown>
-          : (ln.metadata as Record<string, unknown>) ?? {};
-    } catch {
-      meta = {};
-    }
+    let meta: Record<string, unknown> = parseSalesLineMetadata(ln);
     meta.inventory = {
       fabric_roll_id: rollId,
       prev_length_m: len,

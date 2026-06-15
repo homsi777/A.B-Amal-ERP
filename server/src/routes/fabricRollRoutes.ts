@@ -218,6 +218,7 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     }
     if (barcode)     { conds.push(`fr.barcode ILIKE $${p}`);      params.push(`%${barcode}%`);    p++; }
     if (onlyAvailable) {
+      conds.push(`fr.status NOT IN ('SOLD', 'INACTIVE')`);
       conds.push(`fr.status = 'AVAILABLE'`);
       conds.push(`fr.length_m > 0`);
     } else if (status) {

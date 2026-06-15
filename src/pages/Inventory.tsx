@@ -26,6 +26,7 @@ import {
   displayInventoryMaterialCode,
 } from '../lib/importDisplay';
 import { rollColorSwatch } from '../lib/colorDisplay';
+import { getRollLengthMeters } from '../lib/inventory/rollAvailability';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -623,8 +624,14 @@ export const Inventory = () => {
         const sortedRows = sortInventoryRolls(allRows, sortBy, sortDir, materialSort);
 
        const uniqueRows = uniqueById(sortedRows);
-       setRolls(uniqueRows);
-       setTotal(Math.min(expectedTotal || uniqueRows.length, uniqueRows.length));
+       const visibleRows =
+         inventoryScope === 'available'
+           ? uniqueRows.filter(
+               (r) => r.status === 'AVAILABLE' && getRollLengthMeters(r) > 1e-6,
+             )
+           : uniqueRows;
+       setRolls(visibleRows);
+       setTotal(Math.min(expectedTotal || visibleRows.length, visibleRows.length));
      } catch (e: unknown) {
        setError((e as { message?: string }).message ?? 'تعذر تحميل بيانات المخزون');
      } finally {

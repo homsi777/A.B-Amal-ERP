@@ -1925,6 +1925,7 @@ export const InvoiceForm = () => {
       seenSave.add(k);
     }
 
+    let salesRollsAcc: FabricRollDto[] | null = null;
     if (isSales) {
       let rollsAcc = [...apiRolls];
       const mergeRollDuringSave = (r: FabricRollDto) => {
@@ -1978,6 +1979,7 @@ export const InvoiceForm = () => {
           }
         }
       }
+      salesRollsAcc = rollsAcc;
     }
 
     const paidAmount = saleType === 'cash' ? finalTotalAmount : numberValue(paymentAmount);
@@ -2004,9 +2006,37 @@ export const InvoiceForm = () => {
 
     const lineRound2 = (n: number) => Math.round(n * 100) / 100;
 
-    const apiLines = activeItems.map((item, index) => {
+    const resolveSalesFabricRollId = (item: typeof activeItems[number]): string | null => {
       const rollRaw = String(item.internalRollId || '').trim();
-      const fabricRollId = uuidRe.test(rollRaw) ? rollRaw : null;
+      if (uuidRe.test(rollRaw)) return rollRaw;
+      const rolls = salesRollsAcc ?? apiRolls;
+      const tokens = [
+        item.supplierBarcode,
+        item.printBarcode,
+        item.rollNo,
+        rollRaw,
+      ]
+        .map((v) => String(v ?? '').trim())
+        .filter(Boolean);
+      for (const token of tokens) {
+        const lc = token.toLowerCase();
+        const match = rolls.find(
+          (r) =>
+            r.id === rollRaw
+            || String(r.barcode ?? '').trim().toLowerCase() === lc
+            || String(r.roll_no ?? '').trim().toLowerCase() === lc
+            || String(r.supplier_roll_ref ?? '').trim().toLowerCase() === lc,
+        );
+        if (match?.id) return match.id;
+      }
+      return null;
+    };
+
+    const apiLines = activeItems.map((item, index) => {
+      const fabricRollId = isSales ? resolveSalesFabricRollId(item) : (() => {
+        const rollRaw = String(item.internalRollId || '').trim();
+        return uuidRe.test(rollRaw) ? rollRaw : null;
+      })();
       const quantity = numberValue(item.length);
       const unitPrice = Math.max(0, numberValue(item.price));
       const desc =
