@@ -188,12 +188,24 @@ export async function reportInventoryRolls(
             COALESCE(fr.actual_weight_kg, fr.calculated_weight_kg, 0)::numeric AS weight_kg,
             w.name AS warehouse_name,
             fr.status,
-            fr.created_at
+            fr.created_at,
+            draft_sale.draft_sales_invoice_no
      FROM fabric_rolls fr
      JOIN fabric_items fi ON fi.id = fr.item_id AND fi.company_id = fr.company_id
      LEFT JOIN fabric_colors fc ON fc.id = fr.color_id
      JOIN warehouses w ON w.id = fr.warehouse_id AND w.company_id = fr.company_id
      LEFT JOIN roll_lengths rl ON rl.roll_id = fr.id
+     LEFT JOIN LATERAL (
+       SELECT si.invoice_no AS draft_sales_invoice_no
+       FROM sales_invoice_lines sil
+       INNER JOIN sales_invoices si
+         ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+       WHERE sil.company_id = fr.company_id
+         AND sil.fabric_roll_id = fr.id
+         AND si.document_status = 'DRAFT'
+       ORDER BY si.updated_at DESC NULLS LAST, si.created_at DESC
+       LIMIT 1
+     ) draft_sale ON true
      WHERE ${where}
      ORDER BY COALESCE(fi.internal_code, '') ASC, fi.name ASC, fr.created_at DESC
      LIMIT $${p} OFFSET $${p + 1}`,
@@ -238,6 +250,7 @@ export async function reportInventoryRolls(
     { key: 'sold_length_m', label: 'المباع م', type: 'number' as const },
     { key: 'weight_kg', label: 'وزن KG', type: 'number' as const },
     { key: 'status', label: 'الحالة', type: 'text' as const },
+    { key: 'draft_sales_invoice_no', label: 'مسودة بيع', type: 'text' as const },
     { key: 'warehouse_name', label: 'المستودع', type: 'text' as const },
   ];
 
@@ -270,6 +283,7 @@ export async function reportInventoryRolls(
       // Keep weight empty when no meaningful value exists for this group.
       weight_kg: totalWeight > 0 ? `مجموع الأوزان: ${totalWeight.toFixed(2)}` : null,
       status: '',
+      draft_sales_invoice_no: '',
       warehouse_name: '',
       __is_group_summary: true,
     });
@@ -294,7 +308,12 @@ export async function reportInventoryRolls(
     totalWeight += toNum(row.weight_kg);
     const colorKey = toText(row.color_name) || toText(row.color_code);
     if (colorKey && colorKey !== '—') colors.add(colorKey.toLowerCase());
-    rows.push(row);
+    rows.push({
+      ...row,
+      draft_sales_invoice_no: toText(row.draft_sales_invoice_no)
+        ? `مسودة — ${toText(row.draft_sales_invoice_no)}`
+        : '—',
+    });
   }
   pushSummary();
 

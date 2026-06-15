@@ -24,6 +24,12 @@ export function isRollAvailableForSale(roll: FabricRollDto | Record<string, unkn
   return getRollLengthMeters(roll) > LEN_EPS;
 }
 
+/** Roll is linked to a draft sales invoice (shown in inventory with draft badge). */
+export function isRollInDraftSalesInvoice(roll: FabricRollDto | Record<string, unknown>): boolean {
+  const r = roll as Record<string, unknown>;
+  return Boolean(String(r.draft_sales_invoice_id ?? '').trim() || String(r.draft_sales_invoice_no ?? '').trim());
+}
+
 /** True if payload looks like a fabric roll row (has barcode) vs a bare fabric-item suggestion. */
 export function isFabricRollStockRow(stock: Record<string, unknown>): boolean {
   return Boolean(String(stock.barcode ?? '').trim());

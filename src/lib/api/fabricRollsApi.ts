@@ -50,6 +50,9 @@ export interface FabricRollDto {
   location_name?: string | null;
   label_print_count?: number;
   last_label_printed_at?: string | null;
+  /** مربوط بفاتورة مبيعات مسودة (لم تُؤكَّد بعد). */
+  draft_sales_invoice_id?: string | null;
+  draft_sales_invoice_no?: string | null;
 }
 
 export interface InventoryMovementDto {

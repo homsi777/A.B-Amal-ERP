@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, QrCode, Search, RefreshCw, Filter, ChevronDown,
   Eye, Pencil, MoveRight, ToggleLeft, Printer,
   Package, Ruler, Weight, FileSpreadsheet, Trash2,
-  ArrowUp, ArrowDown, Barcode, X, Loader2,
+  ArrowUp, ArrowDown, Barcode, X, Loader2, FileText,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -26,7 +26,7 @@ import {
   displayInventoryMaterialCode,
 } from '../lib/importDisplay';
 import { rollColorSwatch } from '../lib/colorDisplay';
-import { getRollLengthMeters } from '../lib/inventory/rollAvailability';
+import { getRollLengthMeters, isRollInDraftSalesInvoice } from '../lib/inventory/rollAvailability';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -580,6 +580,10 @@ export const Inventory = () => {
     meters: rolls.reduce((s, r) => s + parseFloat(r.length_m || '0'), 0),
     kg: rolls.reduce((s, r) => s + parseFloat(r.actual_weight_kg ?? r.calculated_weight_kg ?? '0'), 0),
   };
+  const draftSaleRollCount = useMemo(
+    () => rolls.filter((roll) => isRollInDraftSalesInvoice(roll)).length,
+    [rolls],
+  );
   const deletableRolls = rolls.filter((roll) => roll.status !== 'INACTIVE');
   const selectedRolls = rolls.filter((roll) => selectedRollIds.has(roll.id) && roll.status !== 'INACTIVE');
   const allVisibleSelected = deletableRolls.length > 0 && deletableRolls.every((roll) => selectedRollIds.has(roll.id));
@@ -889,6 +893,15 @@ return (
         />
       </div>
 
+      {draftSaleRollCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-sm text-amber-950">
+          <FileText className="h-4 w-4 shrink-0 text-amber-700" />
+          <span>
+            <strong>{draftSaleRollCount.toLocaleString()}</strong> ثوب/مادة مميزة بلون برتقالي — مربوطة بفاتورة مبيعات <strong>مسودة</strong> (لم تُؤكَّد بعد).
+          </span>
+        </div>
+      )}
+
       {/* Search + filters - مضمن في الشريط العلوي */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3">
         <div className="flex flex-wrap gap-2 items-end">
@@ -1164,6 +1177,7 @@ return (
                 const weight = roll.actual_weight_kg ?? roll.calculated_weight_kg ?? '0';
                 const isSelected = selectedRollIds.has(roll.id);
                 const canSelect = roll.status !== 'INACTIVE';
+                const inDraftSale = isRollInDraftSalesInvoice(roll);
                 const colorName = displayImportedColorName(roll.color_name_ar || roll.color_name_tr);
                 const colorSwatch = rollColorSwatch(roll);
                 const colorCodeDisplay = displayImportedColorCode(roll.color_code);
@@ -1171,11 +1185,14 @@ return (
                 return (
                   <tr
                     key={roll.id}
-                    className={`border-b border-slate-100 hover:bg-slate-50/60 transition ${
-                      isSelected ? 'bg-rose-50/60' :
-                      roll.status === 'SOLD' || parseFloat(roll.length_m || '0') <= 0
-                        ? 'bg-slate-50/80'
-                        : ''
+                    className={`border-b transition ${
+                      isSelected
+                        ? 'border-slate-100 bg-rose-50/60'
+                        : inDraftSale
+                          ? 'border-amber-200/80 bg-amber-50/90 ring-1 ring-inset ring-amber-200/70 hover:bg-amber-50'
+                          : roll.status === 'SOLD' || parseFloat(roll.length_m || '0') <= 0
+                            ? 'border-slate-100 bg-slate-50/80 hover:bg-slate-50/60'
+                            : 'border-slate-100 hover:bg-slate-50/60'
                     }`}
                   >
                     {bulkDeleteMode && (
@@ -1191,11 +1208,34 @@ return (
                       </td>
                     )}
                     <td className="py-2.5 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-slate-800">{roll.barcode}</span>
+                        {inDraftSale && (
+                          roll.draft_sales_invoice_id ? (
+                            <Link
+                              to={`/invoices/sales/${roll.draft_sales_invoice_id}/edit`}
+                              className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 hover:bg-amber-200"
+                              title={
+                                roll.draft_sales_invoice_no
+                                  ? `مسودة بيع — فاتورة ${roll.draft_sales_invoice_no}`
+                                  : 'مسودة بيع — فتح الفاتورة'
+                              }
+                            >
+                              <FileText className="h-3 w-3" />
+                              مسودة
+                            </Link>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                              <FileText className="h-3 w-3" />
+                              مسودة
+                            </span>
+                          )
+                        )}
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                            roll.status === 'AVAILABLE' ? 'bg-emerald-50 text-emerald-700' :
+                            inDraftSale
+                              ? 'bg-amber-200/80 text-amber-900'
+                              : roll.status === 'AVAILABLE' ? 'bg-emerald-50 text-emerald-700' :
                             roll.status === 'RESERVED' ? 'bg-amber-50 text-amber-700' :
                             roll.status === 'SOLD' ? 'bg-indigo-50 text-indigo-700' :
                             roll.status === 'DAMAGED' ? 'bg-rose-50 text-rose-700' :
@@ -1203,7 +1243,7 @@ return (
                             'bg-slate-100 text-slate-600'
                           }`}
                         >
-                          {STATUS_LABELS[roll.status]}
+                          {inDraftSale ? 'مسودة بيع' : STATUS_LABELS[roll.status]}
                         </span>
                       </div>
                     </td>

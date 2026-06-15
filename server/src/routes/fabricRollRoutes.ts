@@ -151,7 +151,9 @@ const ROLL_COLUMNS = `
   fiv.variant_code AS variant_code,
   s.name           AS supplier_name,
   w.name           AS warehouse_name,
-  wl.name          AS location_name
+  wl.name          AS location_name,
+  draft_sale.draft_sales_invoice_id,
+  draft_sale.draft_sales_invoice_no
 `;
 
 const ROLL_JOINS = `
@@ -167,6 +169,18 @@ const ROLL_JOINS = `
     FROM printed_labels printed
     WHERE printed.company_id = fr.company_id AND printed.roll_id = fr.id
   ) pl ON true
+  LEFT JOIN LATERAL (
+    SELECT si.id AS draft_sales_invoice_id,
+           si.invoice_no AS draft_sales_invoice_no
+    FROM sales_invoice_lines sil
+    INNER JOIN sales_invoices si
+      ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+    WHERE sil.company_id = fr.company_id
+      AND sil.fabric_roll_id = fr.id
+      AND si.document_status = 'DRAFT'
+    ORDER BY si.updated_at DESC NULLS LAST, si.created_at DESC
+    LIMIT 1
+  ) draft_sale ON true
 `;
 
 // ─── Route plugin ────────────────────────────────────────────────────────────
