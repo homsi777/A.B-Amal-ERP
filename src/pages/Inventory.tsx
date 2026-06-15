@@ -631,7 +631,9 @@ export const Inventory = () => {
        const visibleRows =
          inventoryScope === 'available'
            ? uniqueRows.filter(
-               (r) => r.status === 'AVAILABLE' && getRollLengthMeters(r) > 1e-6,
+               (r) =>
+                 (r.status === 'AVAILABLE' || r.status === 'RESERVED') &&
+                 getRollLengthMeters(r) > 1e-6,
              )
            : uniqueRows;
        setRolls(visibleRows);
@@ -897,7 +899,7 @@ return (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-sm text-amber-950">
           <FileText className="h-4 w-4 shrink-0 text-amber-700" />
           <span>
-            <strong>{draftSaleRollCount.toLocaleString()}</strong> ثوب/مادة مميزة بلون برتقالي — مربوطة بفاتورة مبيعات <strong>مسودة</strong> (لم تُؤكَّد بعد).
+            <strong>{draftSaleRollCount.toLocaleString()}</strong> ثوب/مادة مميزة بلون برتقالي — <strong>محجوز</strong> لفاتورة مبيعات <strong>مسودة</strong>.
           </span>
         </div>
       )}

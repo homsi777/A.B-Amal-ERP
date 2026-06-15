@@ -1673,7 +1673,10 @@ export const InvoiceForm = () => {
   const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price') => {
     const value = numberValue(item[field]);
     if (field === 'length' && value <= 0) return 'الطول يجب أن يكون أكبر من صفر';
-    if (field === 'price' && value < 0) return 'السعر لا يمكن أن يكون سالبا';
+    if (field === 'price') {
+      if (value < 0) return 'السعر لا يمكن أن يكون سالبا';
+      if (isSales && value <= 0) return 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر';
+    }
     if (field === 'weight' && value < 0) return 'الوزن لا يمكن أن يكون سالبا';
     return '';
   };
@@ -1704,9 +1707,11 @@ export const InvoiceForm = () => {
   };
 
   const activeItems = items.filter((item) => !isEmptyInvoiceItem(item));
-  const hasValidationErrors = activeItems.some(
-    (item) => getItemError(item, 'length') || getItemError(item, 'price') || getItemError(item, 'weight'),
+  const hasHardValidationErrors = activeItems.some(
+    (item) => getItemError(item, 'length') || getItemError(item, 'weight'),
   );
+  const hasPriceValidationErrors = isSales && activeItems.some((item) => Boolean(getItemError(item, 'price')));
+  const hasValidationErrors = hasHardValidationErrors || hasPriceValidationErrors;
 
   const mergeRollIntoApiRolls = (r: FabricRollDto) => {
     setApiRolls((prev) => {
@@ -1905,7 +1910,20 @@ export const InvoiceForm = () => {
   const handleSave = async (status: 'draft' | 'final') => {
     if (editBlocked || draftLoading) return;
     if (!activeItems.length) return;
-    if (hasValidationErrors) return;
+    if (hasValidationErrors) {
+      const blockedItem = activeItems.find(
+        (item) => getItemError(item, 'length') || getItemError(item, 'price') || getItemError(item, 'weight'),
+      );
+      if (blockedItem) {
+        const message =
+          getItemError(blockedItem, 'length') ||
+          getItemError(blockedItem, 'price') ||
+          getItemError(blockedItem, 'weight');
+        playWarningBeep();
+        showToast({ type: 'warning', message });
+      }
+      return;
+    }
 
     const uuidRe =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -2057,6 +2075,8 @@ export const InvoiceForm = () => {
           designCode: item.dsamNumber,
           colorCode: item.colorCode,
           colorName: item.colorName,
+          internalRollId: item.internalRollId || undefined,
+          fabricRollId: fabricRollId || undefined,
           barcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
           supplierBarcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
           printBarcode: item.printBarcode || printableShortBarcode(item.supplierBarcode) || printableShortBarcode(item.rawBarcodePayload) || '',
@@ -2487,11 +2507,11 @@ export const InvoiceForm = () => {
             <X className="w-4 h-4" />
             <span className="hidden sm:inline">إلغاء</span>
           </button>
-          <button onClick={() => handleSave('draft')} disabled={hasValidationErrors || draftLoading || editBlocked} className="bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition shadow-sm font-medium disabled:opacity-50">
+          <button onClick={() => handleSave('draft')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition shadow-sm font-medium disabled:opacity-50">
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">حفظ مسودة</span>
           </button>
-          <button onClick={() => handleSave('final')} disabled={hasValidationErrors || draftLoading || editBlocked} className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
+          <button onClick={() => handleSave('final')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
             <Save className="w-4 h-4" />
             <span className="hidden sm:inline">حفظ نهائي</span>
           </button>
@@ -2918,22 +2938,35 @@ export const InvoiceForm = () => {
                         <td className="p-3">{group.rollCount}</td>
                         <td className="p-3 font-mono">{group.totalMeters.toFixed(2)}</td>
                         <td className="p-3">
-                           <input
-                             type="number"
-                             min="0"
-                             data-invoice-summary-price
-                             data-summary-material={group.materialName}
-                             data-summary-design={group.designCode}
-                             value={group.pricePerMeter === 0 ? '' : group.pricePerMeter}
-                             onChange={(event) => updateGroupPrice(group.materialName, group.designCode, group.pricePerMeter, event.target.value)}
-                            onKeyDown={(ev) => {
-                              if (ev.key !== 'Enter' || ev.nativeEvent.isComposing) return;
-                              ev.preventDefault();
-                              focusNextFormControl(ev);
-                            }}
-                            className="w-28 bg-white border border-slate-200 rounded px-2 py-1.5 text-left font-mono focus:outline-none focus:border-indigo-500"
-                            dir="ltr"
-                          />
+                          {(() => {
+                            const summaryPriceError =
+                              isSales && group.pricePerMeter <= 0 ? 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر' : '';
+                            return (
+                              <input
+                                type="number"
+                                min={isSales ? '0.01' : '0'}
+                                data-invoice-summary-price
+                                data-summary-material={group.materialName}
+                                data-summary-design={group.designCode}
+                                value={group.pricePerMeter === 0 ? '' : group.pricePerMeter}
+                                onChange={(event) =>
+                                  updateGroupPrice(group.materialName, group.designCode, group.pricePerMeter, event.target.value)
+                                }
+                                onKeyDown={(ev) => {
+                                  if (ev.key !== 'Enter' || ev.nativeEvent.isComposing) return;
+                                  ev.preventDefault();
+                                  focusNextFormControl(ev);
+                                }}
+                                title={summaryPriceError || undefined}
+                                className={`w-28 bg-white border rounded px-2 py-1.5 text-left font-mono focus:outline-none ${
+                                  summaryPriceError
+                                    ? 'border-rose-400 focus:border-rose-500'
+                                    : 'border-slate-200 focus:border-indigo-500'
+                                }`}
+                                dir="ltr"
+                              />
+                            );
+                          })()}
                         </td>
                         <td className="p-3 font-mono font-bold text-indigo-700">{money(group.totalAmount, currency)}</td>
                         <td className="p-3 font-mono">{group.totalKg.toFixed(2)}</td>

@@ -22,6 +22,8 @@
     "audit:financial": "tsx server/src/scripts/runFinancialAudit.ts",
     "repair:import-colors": "tsx server/src/scripts/repairImportRollColors.ts",
     "repair:import-colors:apply": "tsx server/src/scripts/repairImportRollColors.ts --apply",
+    "repair:sales-roll-links": "tsx server/src/scripts/repairSalesInvoiceRollLinks.ts",
+    "repair:sales-roll-links:apply": "tsx server/src/scripts/repairSalesInvoiceRollLinks.ts --apply",
     "predeploy:check": "npm run server:check && npm run lint && npm run test",
     "server:dev": "tsx watch server/src/index.ts",
     "server:start": "tsx server/src/index.ts",

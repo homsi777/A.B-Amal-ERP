@@ -62,10 +62,22 @@ export const salesInvoiceCreateBaseSchema = z.object({
   partyNameForVoucher: z.string().optional().nullable(),
 });
 
-export const salesInvoiceCreateSchema = salesInvoiceCreateBaseSchema.refine(
-  (d) => Math.abs(d.subtotal - d.discountTotal + d.taxTotal - d.totalAmount) <= EPS,
-  { message: 'إجمالي الفاتورة لا يطابق (المجموع − الخصم + الضريبة)', path: ['totalAmount'] },
-);
+const salesLinesRequirePositiveUnitPrice = (
+  lines: z.infer<typeof invoiceLineSchema>[] | undefined,
+): boolean => {
+  if (!lines?.length) return true;
+  return lines.every((ln) => ln.quantity <= EPS || ln.unitPrice > 0);
+};
+
+export const salesInvoiceCreateSchema = salesInvoiceCreateBaseSchema
+  .refine(
+    (d) => Math.abs(d.subtotal - d.discountTotal + d.taxTotal - d.totalAmount) <= EPS,
+    { message: 'إجمالي الفاتورة لا يطابق (المجموع − الخصم + الضريبة)', path: ['totalAmount'] },
+  )
+  .refine((d) => salesLinesRequirePositiveUnitPrice(d.lines), {
+    message: 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر لكل سطر',
+    path: ['lines'],
+  });
 
 export const salesInvoiceUpdateDraftSchema = salesInvoiceCreateBaseSchema
   .omit({ confirm: true })
@@ -80,7 +92,11 @@ export const salesInvoiceUpdateDraftSchema = salesInvoiceCreateBaseSchema
       return Math.abs(subtotal - discount + tax - total) <= EPS;
     },
     { message: 'إجمالي الفاتورة لا يطابق (المجموع − الخصم + الضريبة)', path: ['totalAmount'] },
-  );
+  )
+  .refine((d) => salesLinesRequirePositiveUnitPrice(d.lines), {
+    message: 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر لكل سطر',
+    path: ['lines'],
+  });
 
 export type SalesInvoiceCreateInput = z.infer<typeof salesInvoiceCreateSchema>;
 
@@ -204,16 +220,43 @@ function parseSalesLineMetadata(ln: { metadata: unknown }): Record<string, unkno
   }
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /** يعيد fabric_roll_id من السطر أو يبحث بالباركود/رقم الثوب في metadata. */
+export async function resolveSalesInvoiceLineRollId(
+  client: PoolClient,
+  companyId: string,
+  ln: { fabric_roll_id: string | null; metadata: unknown },
+  opts: { requireAvailable?: boolean } = {},
+): Promise<string | null> {
+  return resolveFabricRollIdForSalesLine(client, companyId, ln, opts);
+}
+
 async function resolveFabricRollIdForSalesLine(
   client: PoolClient,
   companyId: string,
   ln: { fabric_roll_id: string | null; metadata: unknown },
+  opts: { requireAvailable?: boolean } = {},
 ): Promise<string | null> {
+  const requireAvailable = opts.requireAvailable !== false;
   const linked = ln.fabric_roll_id as string | null;
   if (linked) return linked;
 
   const meta = parseSalesLineMetadata(ln);
+  for (const key of ['internalRollId', 'fabricRollId']) {
+    const id = String(meta[key] ?? '').trim();
+    if (!UUID_RE.test(id)) continue;
+    const r = await client.query<{ id: string }>(
+      `SELECT id FROM fabric_rolls
+       WHERE company_id = $1 AND id = $2::uuid
+         ${requireAvailable ? "AND status = 'AVAILABLE' AND length_m > 0" : ''}
+       LIMIT 1`,
+      [companyId, id],
+    );
+    if (r.rows.length) return r.rows[0].id;
+  }
+
   const tokens = [
     meta.barcode,
     meta.supplierBarcode,
@@ -244,6 +287,201 @@ async function resolveFabricRollIdForSalesLine(
   return null;
 }
 
+/** يربط أسطر فاتورة المبيعات بأتواب المخزون عند غياب fabric_roll_id. */
+export async function backfillSalesInvoiceLineRollLinks(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<number> {
+  const lines = await client.query<{ id: string; fabric_roll_id: string | null; metadata: unknown }>(
+    `SELECT id, fabric_roll_id, metadata FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  let updated = 0;
+  for (const ln of lines.rows) {
+    if (ln.fabric_roll_id) continue;
+    const rollId = await resolveFabricRollIdForSalesLine(client, companyId, ln);
+    if (!rollId) continue;
+    await client.query(
+      `UPDATE sales_invoice_lines SET fabric_roll_id=$3 WHERE id=$1 AND company_id=$2`,
+      [ln.id, companyId, rollId],
+    );
+    updated += 1;
+  }
+  return updated;
+}
+
+const DRAFT_SALE_RESERVE_REF = 'SALES_INVOICE_DRAFT';
+
+async function rollLinkedToOtherDraftSale(
+  client: PoolClient,
+  companyId: string,
+  rollId: string,
+  excludeInvoiceId: string,
+): Promise<boolean> {
+  const r = await client.query<{ id: string }>(
+    `SELECT si.id
+     FROM sales_invoice_lines sil
+     INNER JOIN sales_invoices si
+       ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+     WHERE sil.company_id = $1
+       AND sil.fabric_roll_id = $2::uuid
+       AND si.document_status = 'DRAFT'
+       AND si.id <> $3::uuid
+     LIMIT 1`,
+    [companyId, rollId, excludeInvoiceId],
+  );
+  return r.rows.length > 0;
+}
+
+async function releaseDraftSalesRollReservation(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  rollId: string,
+  invoiceId: string,
+  invoiceNo: string,
+): Promise<void> {
+  if (await rollLinkedToOtherDraftSale(client, companyId, rollId, invoiceId)) return;
+
+  const rollRow = await client.query<{ status: string }>(
+    `SELECT status FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [rollId, companyId],
+  );
+  if (!rollRow.rows.length || rollRow.rows[0].status !== 'RESERVED') return;
+
+  await client.query(
+    `UPDATE fabric_rolls SET status='AVAILABLE', updated_at=now() WHERE id=$1 AND company_id=$2`,
+    [rollId, companyId],
+  );
+  await client.query(
+    `INSERT INTO inventory_movements (
+       company_id, roll_id, movement_type, old_status, new_status,
+       reference_type, reference_id, reference_no, notes, created_by_user_id
+     ) VALUES ($1,$2,'RELEASE_RESERVATION',$3,$4,$5,$6,$7,$8,$9)`,
+    [
+      companyId,
+      rollId,
+      'RESERVED',
+      'AVAILABLE',
+      DRAFT_SALE_RESERVE_REF,
+      invoiceId,
+      invoiceNo,
+      `إلغاء حجز — مسودة ${invoiceNo}`,
+      userId,
+    ],
+  );
+}
+
+async function reserveDraftSalesRoll(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  rollId: string,
+  invoiceId: string,
+  invoiceNo: string,
+): Promise<void> {
+  const rollRow = await client.query<{ status: string }>(
+    `SELECT status FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [rollId, companyId],
+  );
+  if (!rollRow.rows.length) return;
+  const status = rollRow.rows[0].status;
+  if (status === 'RESERVED') return;
+  if (status !== 'AVAILABLE') {
+    throw Object.assign(
+      new Error(`الثوب ${rollId} غير متاح للحجز (الحالة: ${status})`),
+      { code: 'INVALID_STOCK' },
+    );
+  }
+
+  await client.query(
+    `UPDATE fabric_rolls SET status='RESERVED', updated_at=now() WHERE id=$1 AND company_id=$2`,
+    [rollId, companyId],
+  );
+  await client.query(
+    `INSERT INTO inventory_movements (
+       company_id, roll_id, movement_type, old_status, new_status,
+       reference_type, reference_id, reference_no, notes, created_by_user_id
+     ) VALUES ($1,$2,'RESERVE',$3,$4,$5,$6,$7,$8,$9)`,
+    [
+      companyId,
+      rollId,
+      'AVAILABLE',
+      'RESERVED',
+      DRAFT_SALE_RESERVE_REF,
+      invoiceId,
+      invoiceNo,
+      `حجز — مسودة بيع ${invoiceNo}`,
+      userId,
+    ],
+  );
+}
+
+/** يحجز أتواب أسطر المسودة ويحرّر الأتواب التي أُزيلت من الفاتورة. */
+export async function syncDraftSalesInvoiceRollReservations(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  opts: { previousRollIds?: string[] } = {},
+): Promise<void> {
+  const inv = await client.query<{ invoice_no: string; document_status: string }>(
+    `SELECT invoice_no, document_status FROM sales_invoices WHERE id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  if (!inv.rows.length || inv.rows[0].document_status !== 'DRAFT') return;
+  const invoiceNo = String(inv.rows[0].invoice_no);
+
+  const lineRows = await client.query<{ fabric_roll_id: string }>(
+    `SELECT fabric_roll_id FROM sales_invoice_lines
+     WHERE invoice_id=$1 AND company_id=$2 AND fabric_roll_id IS NOT NULL`,
+    [invoiceId, companyId],
+  );
+  const nextRollIds = [...new Set(lineRows.rows.map((r) => r.fabric_roll_id))];
+  const prevRollIds = opts.previousRollIds ?? [];
+  const nextSet = new Set(nextRollIds);
+
+  for (const rollId of prevRollIds) {
+    if (!nextSet.has(rollId)) {
+      await releaseDraftSalesRollReservation(client, companyId, userId, rollId, invoiceId, invoiceNo);
+    }
+  }
+  for (const rollId of nextRollIds) {
+    await reserveDraftSalesRoll(client, companyId, userId, rollId, invoiceId, invoiceNo);
+  }
+}
+
+export async function releaseAllDraftSalesInvoiceRollReservations(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+): Promise<void> {
+  const inv = await client.query<{ invoice_no: string; document_status: string }>(
+    `SELECT invoice_no, document_status FROM sales_invoices WHERE id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  if (!inv.rows.length || inv.rows[0].document_status !== 'DRAFT') return;
+  const invoiceNo = String(inv.rows[0].invoice_no);
+
+  const lineRows = await client.query<{ fabric_roll_id: string }>(
+    `SELECT DISTINCT fabric_roll_id FROM sales_invoice_lines
+     WHERE invoice_id=$1 AND company_id=$2 AND fabric_roll_id IS NOT NULL`,
+    [invoiceId, companyId],
+  );
+  for (const row of lineRows.rows) {
+    await releaseDraftSalesRollReservation(
+      client,
+      companyId,
+      userId,
+      row.fabric_roll_id,
+      invoiceId,
+      invoiceNo,
+    );
+  }
+}
+
 async function insertLines(
   client: PoolClient,
   companyId: string,
@@ -254,6 +492,13 @@ async function insertLines(
   let i = 0;
   for (const ln of lines) {
     i++;
+    let fabricRollId = ln.fabricRollId ?? null;
+    if (!fabricRollId) {
+      fabricRollId = await resolveFabricRollIdForSalesLine(client, companyId, {
+        fabric_roll_id: null,
+        metadata: ln.metadata ?? {},
+      });
+    }
     const unitPriceUsd = ln.unitPriceUsd ?? computeUsd4(ln.unitPrice, exchangeRateToUsd);
     const lineDiscountUsd = ln.lineDiscountUsd ?? computeUsd(ln.lineDiscount, exchangeRateToUsd);
     const lineTaxUsd = ln.lineTaxUsd ?? computeUsd(ln.lineTax, exchangeRateToUsd);
@@ -268,7 +513,7 @@ async function insertLines(
         companyId,
         invoiceId,
         i,
-        ln.fabricRollId ?? null,
+        fabricRollId,
         ln.fabricItemId ?? null,
         ln.variantId ?? null,
         ln.warehouseId ?? null,
@@ -460,6 +705,8 @@ export async function createSalesInvoice(
   const invoiceId = ins.rows[0].id;
   const linesToSave = prepareSalesInvoiceLines(d.lines, d.discountTotal, d.subtotal, d.taxTotal, d.totalAmount);
   await insertLines(client, companyId, invoiceId, exchangeRateToUsd, linesToSave);
+  await backfillSalesInvoiceLineRollLinks(client, companyId, invoiceId);
+  await syncDraftSalesInvoiceRollReservations(client, companyId, userId, invoiceId);
 
   if (d.confirm) {
     await confirmSalesInvoice(client, companyId, userId, invoiceId, {
@@ -605,6 +852,13 @@ export async function updateSalesInvoiceDraft(
   );
 
   if (d.lines && d.lines.length > 0) {
+    const oldRollRows = await client.query<{ fabric_roll_id: string }>(
+      `SELECT DISTINCT fabric_roll_id FROM sales_invoice_lines
+       WHERE invoice_id=$1 AND company_id=$2 AND fabric_roll_id IS NOT NULL`,
+      [invoiceId, companyId],
+    );
+    const previousRollIds = oldRollRows.rows.map((r) => r.fabric_roll_id);
+
     const linesToSave = prepareSalesInvoiceLines(
       d.lines,
       nextDiscount,
@@ -614,6 +868,8 @@ export async function updateSalesInvoiceDraft(
     );
     await client.query(`DELETE FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2`, [invoiceId, companyId]);
     await insertLines(client, companyId, invoiceId, nextRate, linesToSave);
+    await backfillSalesInvoiceLineRollLinks(client, companyId, invoiceId);
+    await syncDraftSalesInvoiceRollReservations(client, companyId, userId, invoiceId, { previousRollIds });
   }
 }
 
@@ -626,6 +882,7 @@ export async function deleteSalesInvoiceDraft(client: PoolClient, companyId: str
   if (cur.rows[0].document_status !== 'DRAFT') {
     throw Object.assign(new Error('لا يمكن حذف فاتورة مؤكدة. استخدم الإلغاء.'), { code: 'INVALID_STATE' });
   }
+  await releaseAllDraftSalesInvoiceRollReservations(client, companyId, null, invoiceId);
   await client.query(`DELETE FROM sales_invoices WHERE id=$1 AND company_id=$2`, [invoiceId, companyId]);
 }
 
@@ -694,8 +951,19 @@ export async function confirmSalesInvoice(
       throw Object.assign(new Error('الثوب غير موجود'), { code: 'NOT_FOUND' });
     }
     const roll = rollRow.rows[0];
-    if (roll.status !== 'AVAILABLE') {
+    if (roll.status !== 'AVAILABLE' && roll.status !== 'RESERVED') {
       throw Object.assign(new Error(`الثوب ${rollId} غير متاح للبيع`), { code: 'INVALID_STOCK' });
+    }
+    if (roll.status === 'RESERVED') {
+      const reservedForThis = await client.query<{ id: string }>(
+        `SELECT id FROM sales_invoice_lines
+         WHERE invoice_id=$1 AND company_id=$2 AND fabric_roll_id=$3::uuid
+         LIMIT 1`,
+        [invoiceId, companyId, rollId],
+      );
+      if (!reservedForThis.rows.length) {
+        throw Object.assign(new Error('الثوب محجوز لفاتورة مسودة أخرى'), { code: 'INVALID_STOCK' });
+      }
     }
 
     const len = Number(roll.length_m);

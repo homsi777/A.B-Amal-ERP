@@ -1,6 +1,7 @@
 import { getPool } from '../db/pool.js';
 import type { UnifiedReportPayload } from './reportTypes.js';
 import { nowIso } from './reportTypes.js';
+import { DRAFT_SALE_LATERAL_JOIN } from '../utils/salesDraftRollLinkSql.js';
 
 const MAX_PAGE = 10000;
 
@@ -89,7 +90,7 @@ export async function reportInventoryRolls(
     itemId: itemId || null,
     colorId: colorId || null,
     supplierId: supplierId || null,
-    status: status || null,
+    status: status || 'active_stock',
     dateFrom: dateFrom || null,
     dateTo: dateTo || null,
     page,
@@ -136,6 +137,10 @@ export async function reportInventoryRolls(
     conditions.push(`fr.status = $${p}`);
     params.push(status);
     p++;
+  } else {
+    // افتراضي: مخزون نشط — يستبعد المباع والموقوف والصفرية (يمكن عرض المباع عبر فلتر الحالة)
+    conditions.push(`fr.status NOT IN ('SOLD', 'INACTIVE')`);
+    conditions.push(`fr.length_m > 0`);
   }
   if (dateFrom) {
     conditions.push(`fr.created_at::date >= $${p}::date`);
@@ -195,17 +200,7 @@ export async function reportInventoryRolls(
      LEFT JOIN fabric_colors fc ON fc.id = fr.color_id
      JOIN warehouses w ON w.id = fr.warehouse_id AND w.company_id = fr.company_id
      LEFT JOIN roll_lengths rl ON rl.roll_id = fr.id
-     LEFT JOIN LATERAL (
-       SELECT si.invoice_no AS draft_sales_invoice_no
-       FROM sales_invoice_lines sil
-       INNER JOIN sales_invoices si
-         ON si.id = sil.invoice_id AND si.company_id = sil.company_id
-       WHERE sil.company_id = fr.company_id
-         AND sil.fabric_roll_id = fr.id
-         AND si.document_status = 'DRAFT'
-       ORDER BY si.updated_at DESC NULLS LAST, si.created_at DESC
-       LIMIT 1
-     ) draft_sale ON true
+     ${DRAFT_SALE_LATERAL_JOIN}
      WHERE ${where}
      ORDER BY COALESCE(fi.internal_code, '') ASC, fi.name ASC, fr.created_at DESC
      LIMIT $${p} OFFSET $${p + 1}`,
@@ -310,6 +305,13 @@ export async function reportInventoryRolls(
     if (colorKey && colorKey !== '—') colors.add(colorKey.toLowerCase());
     rows.push({
       ...row,
+      status: toText(row.draft_sales_invoice_no)
+        ? 'محجوز — مسودة بيع'
+        : toText(row.status) === 'RESERVED'
+          ? 'محجوز'
+          : toText(row.status) === 'AVAILABLE'
+            ? 'متاح'
+            : toText(row.status) || '—',
       draft_sales_invoice_no: toText(row.draft_sales_invoice_no)
         ? `مسودة — ${toText(row.draft_sales_invoice_no)}`
         : '—',

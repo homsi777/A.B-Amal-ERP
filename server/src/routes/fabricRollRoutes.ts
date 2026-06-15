@@ -13,6 +13,7 @@ import {
   validateStatusTransition,
   type RollStatus,
 } from '../utils/rollHelpers.js';
+import { DRAFT_SALE_LATERAL_JOIN } from '../utils/salesDraftRollLinkSql.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
 
@@ -169,18 +170,7 @@ const ROLL_JOINS = `
     FROM printed_labels printed
     WHERE printed.company_id = fr.company_id AND printed.roll_id = fr.id
   ) pl ON true
-  LEFT JOIN LATERAL (
-    SELECT si.id AS draft_sales_invoice_id,
-           si.invoice_no AS draft_sales_invoice_no
-    FROM sales_invoice_lines sil
-    INNER JOIN sales_invoices si
-      ON si.id = sil.invoice_id AND si.company_id = sil.company_id
-    WHERE sil.company_id = fr.company_id
-      AND sil.fabric_roll_id = fr.id
-      AND si.document_status = 'DRAFT'
-    ORDER BY si.updated_at DESC NULLS LAST, si.created_at DESC
-    LIMIT 1
-  ) draft_sale ON true
+  ${DRAFT_SALE_LATERAL_JOIN}
 `;
 
 // ─── Route plugin ────────────────────────────────────────────────────────────
@@ -233,7 +223,7 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     if (barcode)     { conds.push(`fr.barcode ILIKE $${p}`);      params.push(`%${barcode}%`);    p++; }
     if (onlyAvailable) {
       conds.push(`fr.status NOT IN ('SOLD', 'INACTIVE')`);
-      conds.push(`fr.status = 'AVAILABLE'`);
+      conds.push(`fr.status IN ('AVAILABLE', 'RESERVED')`);
       conds.push(`fr.length_m > 0`);
     } else if (status) {
       conds.push(`fr.status = $${p}`);

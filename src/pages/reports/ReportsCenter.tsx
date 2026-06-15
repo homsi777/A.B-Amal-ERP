@@ -78,7 +78,7 @@ const ALL_REPORT_CARDS: ReportCardDef[] = [
   { id: 'pur_batch', title: 'المشتريات حسب الدفعة/اللوط', desc: '', path: '/purchases/by-batch', tab: 'purchases' },
   { id: 'pur_cost', title: 'اتجاه التكلفة', desc: 'متوسط تكلفة وحدة', path: '/purchases/cost-trend', tab: 'purchases' },
 
-  { id: 'inventory_rolls', title: 'كشف أتواب المخزون', desc: 'تدقيق وتصفية حسب الحالة — يشمل المباع والصفرية عند الحاجة؛ ليس بديلاً عن شاشة «المتاح للبيع».', path: '/inventory/rolls', tab: 'inventory' },
+  { id: 'inventory_rolls', title: 'كشف أتواب المخزون', desc: 'المخزون النشط (متاح + محجوز بمسودة بيع) — المباع مخفي افتراضياً؛ استخدم فلتر الحالة لعرضه.', path: '/inventory/rolls', tab: 'inventory' },
   { id: 'inventory_stock_audit_page', title: 'جرد مخزون المخزون', desc: 'التصميم التشغيلي السابق (صفحة كاملة)', path: '/inventory', tab: 'inventory' },
   { id: 'inventory_movements', title: 'حركة الأتواب', desc: '', path: '/inventory/movements', tab: 'inventory' },
   { id: 'inventory_by_wh', title: 'الأدواب حسب المستودع', desc: '', path: '/inventory/by-warehouse', tab: 'inventory' },
