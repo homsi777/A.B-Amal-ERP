@@ -551,7 +551,7 @@ export const InvoiceForm = () => {
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
   const [draftLoading, setDraftLoading] = useState(false);
   const [editBlocked, setEditBlocked] = useState(false);
-  const [savedSaleInvoice, setSavedSaleInvoice] = useState<{ invoice: Invoice; partyName: string } | null>(null);
+  const [savedInvoiceActions, setSavedInvoiceActions] = useState<{ invoice: Invoice; partyName: string } | null>(null);
   const [partyStatementBalance, setPartyStatementBalance] = useState<number | null>(null);
   const [partyStatementBalanceLoading, setPartyStatementBalanceLoading] = useState(false);
 
@@ -2272,7 +2272,7 @@ export const InvoiceForm = () => {
           };
           flushSync(() => {
             setInvoiceNumber(newNo);
-            setSavedSaleInvoice({
+            setSavedInvoiceActions({
               invoice: savedInvoiceForActions,
               partyName: partyNameForVoucher,
             });
@@ -2297,7 +2297,35 @@ export const InvoiceForm = () => {
             return;
           }
           invoicePayload.invoiceNumber = newNo;
-          setInvoiceNumber(newNo);
+          const savedInvoiceForActions: Invoice = {
+            ...invoicePayload,
+            id: created.data.id,
+            date,
+            type: 'purchase',
+            partyId,
+            partyDisplayName: partyNameForVoucher,
+            invoiceNumber: newNo,
+            currency,
+            warehouse: warehouseLabel,
+            notes: headerNotes.trim() || undefined,
+            totalAmount: finalTotalAmount,
+            paidAmount,
+            remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+            subtotalUsd,
+            discountUsd,
+            taxUsd,
+            totalAmountUsd: totalUsd,
+            paidAmountUsd: paidUsd,
+            remainingAmountUsd: remainingUsd,
+            status: status === 'draft' ? 'unpaid' : paymentStatus,
+          };
+          flushSync(() => {
+            setInvoiceNumber(newNo);
+            setSavedInvoiceActions({
+              invoice: savedInvoiceForActions,
+              partyName: partyNameForVoucher,
+            });
+          });
           showToast({
             type: 'success',
             message:
@@ -2347,7 +2375,7 @@ export const InvoiceForm = () => {
             status: paymentStatus,
           };
           flushSync(() => {
-            setSavedSaleInvoice({
+            setSavedInvoiceActions({
               invoice: savedInvoiceForActions,
               partyName: partyNameForVoucher,
             });
@@ -2374,7 +2402,36 @@ export const InvoiceForm = () => {
           });
           const confirmedNo =
             isInvoiceNoUiPlaceholder || !trimmedInvoiceNo ? INVOICE_NUMBER_MISSING_LABEL : trimmedInvoiceNo;
-          setInvoiceNumber(confirmedNo);
+          invoicePayload.invoiceNumber = confirmedNo;
+          const savedInvoiceForActions: Invoice = {
+            ...invoicePayload,
+            id: editInvoiceId,
+            date,
+            type: 'purchase',
+            partyId,
+            partyDisplayName: partyNameForVoucher,
+            invoiceNumber: confirmedNo,
+            currency,
+            warehouse: warehouseLabel,
+            notes: headerNotes.trim() || undefined,
+            totalAmount: finalTotalAmount,
+            paidAmount,
+            remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+            subtotalUsd,
+            discountUsd,
+            taxUsd,
+            totalAmountUsd: totalUsd,
+            paidAmountUsd: paidUsd,
+            remainingAmountUsd: remainingUsd,
+            status: paymentStatus,
+          };
+          flushSync(() => {
+            setInvoiceNumber(confirmedNo);
+            setSavedInvoiceActions({
+              invoice: savedInvoiceForActions,
+              partyName: partyNameForVoucher,
+            });
+          });
           showToast({
             type: 'success',
             message: `تم ترحيل فاتورة الشراء رقم: ${confirmedNo}`,
@@ -2404,9 +2461,7 @@ export const InvoiceForm = () => {
       return;
     }
 
-    if (!editInvoiceId || status === 'final') {
-      navigate('/invoices/purchases');
-    }
+    if (editInvoiceId && status === 'draft') return;
   };
 
   const inputClass = (hasError = false) =>
@@ -2417,12 +2472,15 @@ export const InvoiceForm = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <InvoiceSaveActionsModal
-        isOpen={Boolean(savedSaleInvoice)}
-        invoice={savedSaleInvoice?.invoice ?? null}
-        partyName={savedSaleInvoice?.partyName ?? ''}
+        isOpen={Boolean(savedInvoiceActions)}
+        invoice={savedInvoiceActions?.invoice ?? null}
+        partyName={savedInvoiceActions?.partyName ?? ''}
+        invoiceKind={savedInvoiceActions?.invoice.type === 'purchase' ? 'purchase' : 'sale'}
         onClose={() => {
-          setSavedSaleInvoice(null);
-          navigate('/invoices/sales');
+          const listPath =
+            savedInvoiceActions?.invoice.type === 'purchase' ? '/invoices/purchases' : '/invoices/sales';
+          setSavedInvoiceActions(null);
+          navigate(listPath);
         }}
       />
       {draftLoading && editInvoiceId ? (

@@ -330,11 +330,16 @@ const Topbar = () => {
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-2 md:flex-none md:gap-3">
+          <Link
+            to="/"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 md:flex-none md:gap-3 rounded-xl transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-accent)]"
+            aria-label={t('home', { ns: 'nav', defaultValue: 'الصفحة الرئيسية' })}
+          >
             <div className="grid h-10 w-10 md:h-12 md:w-12 place-items-center rounded-xl bg-white ring-1 ring-[var(--border-default)] shadow-sm transition-colors duration-300 shrink-0">
               <img
                 src={BRAND.logoPng}
-                alt={BRAND.name}
+                alt=""
                 className="h-8 w-8 md:h-9 md:w-9 object-contain"
                 draggable={false}
               />
@@ -347,7 +352,7 @@ const Topbar = () => {
                 {BRAND.tagline}
               </span>
             </div>
-          </div>
+          </Link>
         </div>
         <div className="flex items-center gap-2 shrink-0 md:order-1 md:justify-self-start md:gap-3">
           <LanguageSwitcher />

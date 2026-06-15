@@ -3,6 +3,7 @@ import { Download, FileText, Loader2, Printer, X } from 'lucide-react';
 import type { Invoice } from '../../types';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
 import { AR_INVOICE_STATEMENT } from '../../lib/i18n/arTerminology';
+import { exportPdfFromHtmlString } from '../../lib/pdfExport';
 import { useToast } from '../NonBlockingToast';
 import { A4PreviewModal } from '../printing/A4PreviewModal';
 
@@ -10,6 +11,7 @@ interface InvoiceSaveActionsModalProps {
   isOpen: boolean;
   invoice: Invoice | null;
   partyName: string;
+  invoiceKind?: 'sale' | 'purchase';
   onClose: () => void;
 }
 
@@ -23,6 +25,7 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
   isOpen,
   invoice,
   partyName,
+  invoiceKind = 'sale',
   onClose,
 }) => {
   const { showToast } = useToast();
@@ -45,10 +48,14 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
   const handleExportPdf = async () => {
     setExporting(true);
     try {
-      if (window.fabricApp?.printToPdf) {
-        const result = await window.fabricApp.printToPdf(buildHtml(), {
+      const filePrefix = defaultFileName.replace(/\.pdf$/i, '');
+      const useElectronPdf =
+        window.fabricApp?.isElectron === true && typeof window.fabricApp.printToPdf === 'function';
+
+      if (useElectronPdf) {
+        const result = await window.fabricApp!.printToPdf(buildHtml(), {
           pageSize: 'A4',
-          defaultFileName,
+          defaultFileName: filePrefix,
         });
         if (result.ok) {
           showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
@@ -59,7 +66,9 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
         return;
       }
 
-      showToast({ type: 'warning', message: 'تصدير PDF متاح عبر نسخة سطح المكتب' });
+      await exportPdfFromHtmlString(buildHtml(), filePrefix, { orientation: 'portrait' });
+      showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
+      onClose();
     } catch (error) {
       showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر تصدير PDF' });
     } finally {
@@ -67,12 +76,16 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
     }
   };
 
+  const isPurchase = invoiceKind === 'purchase';
+  const savedTitle = isPurchase ? 'تم حفظ فاتورة الشراء' : 'تم حفظ فاتورة البيع';
+  const partyLabel = isPurchase ? 'المورد' : 'العميل';
+
   return (
     <div className="fixed inset-0 z-[1200] bg-slate-950/55 p-4 flex items-center justify-center">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h3 className="text-lg font-black text-slate-900">تم حفظ فاتورة البيع</h3>
+            <h3 className="text-lg font-black text-slate-900">{savedTitle}</h3>
             <p className="mt-1 text-xs text-slate-500">اختر الإجراء المطلوب الآن لهذه الفاتورة</p>
           </div>
           <button
@@ -87,7 +100,7 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
         <div className="space-y-4 px-5 py-5 text-right">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             <div className="font-bold">الفاتورة: {invoice.invoiceNumber || invoice.id}</div>
-            <div className="mt-1 text-xs">العميل: {partyName || '—'}</div>
+            <div className="mt-1 text-xs">{partyLabel}: {partyName || '—'}</div>
           </div>
 
           <button
