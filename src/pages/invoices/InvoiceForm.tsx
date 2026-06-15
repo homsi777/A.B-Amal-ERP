@@ -1656,18 +1656,29 @@ export const InvoiceForm = () => {
 
   const groupText = (value: string) => value.trim() || 'غير محدد';
 
-  const updateGroupPrice = (materialName: string, designCode: string, pricePerMeter: number, price: string) => {
+  const updateGroupPrice = (materialName: string, designCode: string, _pricePerMeter: number, price: string) => {
     setItems((prev) =>
       prev.map((item) =>
         sanitizeInvoiceFormItemBarcode(
-          groupText(item.materialName) === materialName &&
-            groupText(item.dsamNumber) === designCode &&
-            Math.max(0, numberValue(item.price)) === pricePerMeter
+          groupText(item.materialName) === materialName && groupText(item.dsamNumber) === designCode
             ? { ...item, price }
             : item,
         ),
       ),
     );
+  };
+
+  const SALES_METER_PRICE_MSG =
+    'لا يمكن حفظ فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر';
+
+  const blockSalesSaveWithoutMeterPrice = (): boolean => {
+    if (!isSales) return false;
+    const missingLine = activeItems.some((item) => Boolean(getItemError(item, 'price')));
+    const missingGroup = summary.groups.some((group) => group.totalMeters > 1e-6 && group.pricePerMeter <= 0);
+    if (!missingLine && !missingGroup) return false;
+    playWarningBeep();
+    showToast({ type: 'warning', message: SALES_METER_PRICE_MSG });
+    return true;
   };
 
   const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price') => {
@@ -1910,6 +1921,7 @@ export const InvoiceForm = () => {
   const handleSave = async (status: 'draft' | 'final') => {
     if (editBlocked || draftLoading) return;
     if (!activeItems.length) return;
+    if (blockSalesSaveWithoutMeterPrice()) return;
     if (hasValidationErrors) {
       const blockedItem = activeItems.find(
         (item) => getItemError(item, 'length') || getItemError(item, 'price') || getItemError(item, 'weight'),

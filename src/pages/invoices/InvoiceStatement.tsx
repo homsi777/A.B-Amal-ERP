@@ -255,6 +255,19 @@ export const InvoiceStatement = () => {
         const detail =
           invoice.type === 'sale' ? await getSalesInvoice(invoice.id) : await getPurchaseInvoice(invoice.id);
         paidAmount = Number(detail.data.header.paid_amount ?? 0) || 0;
+        if (invoice.type === 'sale') {
+          for (const ln of detail.data.lines) {
+            const qty = Number(ln.quantity ?? 0);
+            const unitPrice = Number(ln.unit_price ?? 0);
+            if (qty > 1e-6 && unitPrice <= 0) {
+              showToast({
+                type: 'warning',
+                message: 'لا يمكن تأكيد فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر',
+              });
+              return;
+            }
+          }
+        }
       } catch {
         showToast({ type: 'error', message: 'تعذر قراءة بيانات المسودة قبل التأكيد' });
         return;

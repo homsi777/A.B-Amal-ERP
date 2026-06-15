@@ -69,13 +69,28 @@ const salesLinesRequirePositiveUnitPrice = (
   return lines.every((ln) => ln.quantity <= EPS || ln.unitPrice > 0);
 };
 
+const SALES_METER_PRICE_REQUIRED_MSG =
+  'لا يمكن حفظ فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر';
+
+function assertSalesInvoiceLinesHaveMeterPrice(
+  lines: Array<{ quantity: unknown; unit?: unknown; unit_price?: unknown; unitPrice?: unknown }>,
+): void {
+  for (const ln of lines) {
+    const qtyM = quantityToMeters(Number(ln.quantity), (ln.unit as 'meter' | 'yard') || 'meter');
+    const unitPrice = Number(ln.unitPrice ?? ln.unit_price ?? 0);
+    if (qtyM > EPS && (!Number.isFinite(unitPrice) || unitPrice <= 0)) {
+      throw Object.assign(new Error(SALES_METER_PRICE_REQUIRED_MSG), { code: 'VALIDATION' });
+    }
+  }
+}
+
 export const salesInvoiceCreateSchema = salesInvoiceCreateBaseSchema
   .refine(
     (d) => Math.abs(d.subtotal - d.discountTotal + d.taxTotal - d.totalAmount) <= EPS,
     { message: 'إجمالي الفاتورة لا يطابق (المجموع − الخصم + الضريبة)', path: ['totalAmount'] },
   )
   .refine((d) => salesLinesRequirePositiveUnitPrice(d.lines), {
-    message: 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر لكل سطر',
+    message: SALES_METER_PRICE_REQUIRED_MSG,
     path: ['lines'],
   });
 
@@ -94,7 +109,7 @@ export const salesInvoiceUpdateDraftSchema = salesInvoiceCreateBaseSchema
     { message: 'إجمالي الفاتورة لا يطابق (المجموع − الخصم + الضريبة)', path: ['totalAmount'] },
   )
   .refine((d) => salesLinesRequirePositiveUnitPrice(d.lines), {
-    message: 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر لكل سطر',
+    message: SALES_METER_PRICE_REQUIRED_MSG,
     path: ['lines'],
   });
 
@@ -629,6 +644,7 @@ export async function createSalesInvoice(
     throw Object.assign(new Error('بيانات الفاتورة غير صالحة'), { code: 'VALIDATION', details: parsed.error.flatten() });
   }
   const d = parsed.data;
+  assertSalesInvoiceLinesHaveMeterPrice(d.lines);
 
   const currencyCode = String(d.currencyCode || 'USD').trim().toUpperCase();
   let exchangeRateToUsd = d.exchangeRateToUsd != null ? Number(d.exchangeRateToUsd) : NaN;
@@ -871,6 +887,12 @@ export async function updateSalesInvoiceDraft(
     await backfillSalesInvoiceLineRollLinks(client, companyId, invoiceId);
     await syncDraftSalesInvoiceRollReservations(client, companyId, userId, invoiceId, { previousRollIds });
   }
+
+  const persistedLines = await client.query<{ quantity: string; unit: string; unit_price: string }>(
+    `SELECT quantity, unit, unit_price FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2 ORDER BY line_no`,
+    [invoiceId, companyId],
+  );
+  assertSalesInvoiceLinesHaveMeterPrice(persistedLines.rows);
 }
 
 export async function deleteSalesInvoiceDraft(client: PoolClient, companyId: string, invoiceId: string): Promise<void> {
@@ -914,6 +936,8 @@ export async function confirmSalesInvoice(
     `SELECT * FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2 ORDER BY line_no`,
     [invoiceId, companyId],
   );
+
+  assertSalesInvoiceLinesHaveMeterPrice(lines.rows);
 
   const linesForCogs: { quantityMeters: number; unitCostPerMeter: number | null }[] = [];
 
