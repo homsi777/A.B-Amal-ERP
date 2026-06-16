@@ -224,6 +224,19 @@ if [[ "${OBADA_SKIP_NGINX:-0}" != "1" ]]; then
     sudo cp "$TMP_NAT" "/etc/nginx/sites-available/$OBADA_NGINX_SITE_NAT"
     rm -f "$TMP_NAT"
     sudo ln -sf "/etc/nginx/sites-available/$OBADA_NGINX_SITE_NAT" "/etc/nginx/sites-enabled/$OBADA_NGINX_SITE_NAT"
+
+    echo ">> Obada = default_server الوحيد على :$OBADA_NAT_INTERNAL_PORT (abooerp.org يبقى بـ server_name)..."
+    for site in /etc/nginx/sites-enabled/* /etc/nginx/sites-available/*; do
+      [[ -f "$site" ]] || continue
+      base="$(basename "$site")"
+      [[ "$base" == "$OBADA_NGINX_SITE_NAT" ]] && continue
+      if grep -q "listen[[:space:]]\+${OBADA_NAT_INTERNAL_PORT}\b" "$site" 2>/dev/null \
+         && grep -q "default_server" "$site" 2>/dev/null; then
+        echo "   إزالة default_server من $base"
+        sudo sed -i "s/listen[[:space:]]\\+${OBADA_NAT_INTERNAL_PORT}\\([^;]*\\)[[:space:]]*default_server/listen ${OBADA_NAT_INTERNAL_PORT}\\1/g" "$site"
+        sudo sed -i "s/default_server[[:space:]]*;//g" "$site"
+      fi
+    done
   fi
 
   sudo nginx -t

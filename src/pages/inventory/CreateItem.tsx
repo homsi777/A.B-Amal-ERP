@@ -462,6 +462,7 @@ export const CreateItem = () => {
       const gsmNum = Number(weightMultiplier) || null;
 
       const hasFullClassification = Boolean(catL1Id && catL2Id && catL3Id && catL4Id);
+      const hasPartialClassification = Boolean(catL1Id && catL2Id);
       let resolved: {
         itemId: string;
         colorId: string | null;
@@ -484,16 +485,10 @@ export const CreateItem = () => {
           });
         } catch (error) {
           console.warn('resolveFabricClassification failed, falling back to manual item creation logic', error);
-          //Fallback: treat as non-classification path
           const internalCode = materialCodeValue || barcode.trim() || name.trim();
           let apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
             (item) => sameText(item.internal_code, internalCode),
           );
-          if (!apiItem) {
-            apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
-              (item) => sameText(item.name, name.trim()) || sameText(item.internal_code, internalCode),
-            );
-          }
           if (!apiItem) {
             try {
               apiItem = await createFabricItem({
@@ -508,7 +503,7 @@ export const CreateItem = () => {
             } catch (error2) {
               if (!(error2 instanceof ApiRequestError && error2.statusCode === 409)) throw error2;
               apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-                (item) => sameText(item.internal_code, internalCode) || sameText(item.name, name.trim()),
+                (item) => sameText(item.internal_code, internalCode),
               );
               if (!apiItem) throw error2;
             }
@@ -520,10 +515,10 @@ export const CreateItem = () => {
             itemId: apiItem.id,
             colorId,
             variantId: null,
-            articleCode: apiItem.internal_code || internalCode,
+            articleCode: internalCode,
             fabricColorName: colorNameValue || 'بدون لون',
             colorCode: colorCodeValue || '',
-            designNr: apiItem.internal_code || internalCode,
+            designNr: internalCode,
           };
         }
       } else {
@@ -531,9 +526,9 @@ export const CreateItem = () => {
         let apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
           (item) => sameText(item.internal_code, internalCode),
         );
-        if (!apiItem) {
+        if (!apiItem && !hasPartialClassification) {
           apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
-            (item) => sameText(item.name, name.trim()) || sameText(item.internal_code, internalCode),
+            (item) => sameText(item.name, name.trim()) && sameText(item.internal_code, internalCode),
           );
         }
         if (!apiItem) {
@@ -550,7 +545,7 @@ export const CreateItem = () => {
           } catch (error) {
             if (!(error instanceof ApiRequestError && error.statusCode === 409)) throw error;
             apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-              (item) => sameText(item.internal_code, internalCode) || sameText(item.name, name.trim()),
+              (item) => sameText(item.internal_code, internalCode),
             );
             if (!apiItem) throw error;
           }
@@ -562,10 +557,10 @@ export const CreateItem = () => {
           itemId: apiItem.id,
           colorId,
           variantId: null,
-          articleCode: apiItem.internal_code || internalCode,
+          articleCode: internalCode,
           fabricColorName: colorNameValue || 'بدون لون',
           colorCode: colorCodeValue || '',
-          designNr: apiItem.internal_code || internalCode,
+          designNr: internalCode,
         };
       }
 
