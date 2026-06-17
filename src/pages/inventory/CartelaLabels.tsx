@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Eye,
@@ -43,6 +43,7 @@ import {
 import { generateQrSvg } from '../../lib/printing/qrGenerator';
 import {
   buildCartelaLabelHtml,
+  buildCartelaLabelPreviewHtml,
   cartelaQrPayload,
   CARTELA_HEIGHT_MM,
   CARTELA_WIDTH_MM,
@@ -53,59 +54,18 @@ import { canUseSilentLabelPrinting, getPrintAdapter, isElectronRenderer } from '
 import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import { useToast } from '../../components/NonBlockingToast';
 
-/** mm → CSS px at 96dpi. */
-const MM_TO_PX = 96 / 25.4;
-
-function cartelaLabelPx() {
-  return {
-    width: CARTELA_WIDTH_MM * MM_TO_PX,
-    height: CARTELA_HEIGHT_MM * MM_TO_PX,
-  };
-}
-
 function CartelaPreviewFrame({ html }: { html: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const update = () => setContainerWidth(el.clientWidth);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const { width: labelW, height: labelH } = cartelaLabelPx();
-  const width = containerWidth > 0 ? containerWidth : 360;
-  const scale = width / labelW;
-  const height = labelH * scale;
-
   return (
-    <div ref={containerRef} className="w-full">
-      <div
-        className="mx-auto overflow-hidden rounded-lg border border-slate-300 bg-white shadow-md"
-        style={{ width, height }}
-      >
-        <div
-          style={{
-            width: labelW,
-            height: labelH,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-          }}
-        >
-          <iframe
-            title="cartela-preview"
-            srcDoc={html}
-            scrolling="no"
-            className="block border-0 bg-white"
-            style={{ width: labelW, height: labelH }}
-          />
-        </div>
-      </div>
+    <div
+      className="w-full overflow-hidden rounded-lg border border-slate-300 bg-white shadow-md"
+      style={{ aspectRatio: `${CARTELA_WIDTH_MM} / ${CARTELA_HEIGHT_MM}` }}
+    >
+      <iframe
+        title="cartela-preview"
+        srcDoc={html}
+        scrolling="no"
+        className="block h-full w-full border-0 bg-white"
+      />
     </div>
   );
 }
@@ -187,7 +147,7 @@ export const CartelaLabels: React.FC = () => {
     [form, qrSvg],
   );
 
-  const previewHtml = useMemo(() => buildCartelaLabelHtml(labelData), [labelData]);
+  const previewHtml = useMemo(() => buildCartelaLabelPreviewHtml(labelData), [labelData]);
 
   const compositionTotal = compositionSum(activeCompositionLines(form.compositionLines));
   const compositionError = validateCompositionLines(activeCompositionLines(form.compositionLines));
@@ -1003,7 +963,7 @@ export const CartelaLabels: React.FC = () => {
           <p className="text-[11px] text-slate-500 mb-3">
             معاينة مكبّرة بنفس النسب — الطباعة الفعلية 80×50 mm حراري.
           </p>
-          <div className="relative w-full">
+          <div className="w-full">
             <CartelaPreviewFrame html={previewHtml} />
           </div>
         </aside>

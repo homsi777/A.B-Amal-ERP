@@ -227,18 +227,7 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     }
     .brand-stripe span { display: block; }
     @media screen {
-      html, body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background: #fff;
-      }
-      .sheet {
-        width: 100%;
-        height: 100%;
-        background: #fff;
-        box-shadow: none;
-      }
+      body { background: #fff; }
     }
   </style>
 </head>
@@ -261,6 +250,44 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
   </main>
 </body>
 </html>`;
+}
+
+const LABEL_PX_PER_MM = 96 / 25.4;
+
+/** Fit label inside iframe viewport — scaling stays inside the document (no clipped iframe transform). */
+export function injectCartelaPreviewFitCss(html: string): string {
+  const labelWpx = CARTELA_WIDTH_MM * LABEL_PX_PER_MM;
+  const labelHpx = CARTELA_HEIGHT_MM * LABEL_PX_PER_MM;
+  const fitCss = `
+    <style id="cartela-preview-fit">
+      @media screen {
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          overflow: hidden !important;
+          background: #fff !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        .sheet {
+          width: ${CARTELA_WIDTH_MM}mm !important;
+          height: ${CARTELA_HEIGHT_MM}mm !important;
+          flex-shrink: 0 !important;
+          transform: scale(min(calc(100vw / ${labelWpx}px), calc(100vh / ${labelHpx}px))) !important;
+          transform-origin: center center !important;
+          box-shadow: none !important;
+          page-break-after: auto !important;
+        }
+      }
+    </style>`;
+  return html.includes('</head>') ? html.replace('</head>', `${fitCss}</head>`) : `${fitCss}${html}`;
+}
+
+export function buildCartelaLabelPreviewHtml(data: CartelaLabelData): string {
+  return injectCartelaPreviewFitCss(buildCartelaLabelHtml(data));
 }
 
 export function cartelaQrPayload(data: Pick<CartelaLabelData, 'artCode' | 'designNo' | 'serialNo'>): string {
