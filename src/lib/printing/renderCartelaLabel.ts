@@ -236,12 +236,17 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     .brand-stripe span { display: block; }
     @media screen {
       html, body {
-        width: ${CARTELA_WIDTH_MM}mm;
-        height: ${CARTELA_HEIGHT_MM}mm;
+        width: 100%;
+        height: 100%;
         overflow: hidden;
         background: #fff;
       }
-      .sheet { background: #fff; box-shadow: none; }
+      .sheet {
+        width: 100%;
+        height: 100%;
+        background: #fff;
+        box-shadow: none;
+      }
     }
   </style>
 </head>

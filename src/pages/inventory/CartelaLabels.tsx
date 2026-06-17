@@ -53,52 +53,59 @@ import { canUseSilentLabelPrinting, getPrintAdapter, isElectronRenderer } from '
 import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import { useToast } from '../../components/NonBlockingToast';
 
-/** mm → CSS px at 96dpi (matches browser mm units in iframe). */
-function cartelaLabelSizePx() {
-  const pxPerMm = 96 / 25.4;
+/** mm → CSS px at 96dpi. */
+const MM_TO_PX = 96 / 25.4;
+
+function cartelaLabelPx() {
   return {
-    width: CARTELA_WIDTH_MM * pxPerMm,
-    height: CARTELA_HEIGHT_MM * pxPerMm,
+    width: CARTELA_WIDTH_MM * MM_TO_PX,
+    height: CARTELA_HEIGHT_MM * MM_TO_PX,
   };
 }
 
 function CartelaPreviewFrame({ html }: { html: string }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(2.5);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   useEffect(() => {
-    const el = wrapRef.current;
+    const el = containerRef.current;
     if (!el) return;
 
-    const updateScale = () => {
-      const { width: labelW } = cartelaLabelSizePx();
-      const next = el.clientWidth / labelW;
-      setScale(Math.min(3.5, Math.max(1.8, next)));
-    };
-
-    updateScale();
-    const ro = new ResizeObserver(updateScale);
+    const update = () => setContainerWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
+  const { width: labelW, height: labelH } = cartelaLabelPx();
+  const width = containerWidth > 0 ? containerWidth : 360;
+  const scale = width / labelW;
+  const height = labelH * scale;
+
   return (
-    <div
-      ref={wrapRef}
-      className="relative w-full overflow-hidden rounded-lg border border-slate-300 bg-white shadow-md"
-      style={{ aspectRatio: `${CARTELA_WIDTH_MM} / ${CARTELA_HEIGHT_MM}` }}
-    >
-      <iframe
-        title="cartela-preview"
-        srcDoc={html}
-        scrolling="no"
-        className="absolute top-0 left-0 block border-0 origin-top-left"
-        style={{
-          width: `${CARTELA_WIDTH_MM}mm`,
-          height: `${CARTELA_HEIGHT_MM}mm`,
-          transform: `scale(${scale})`,
-        }}
-      />
+    <div ref={containerRef} className="w-full">
+      <div
+        className="mx-auto overflow-hidden rounded-lg border border-slate-300 bg-white shadow-md"
+        style={{ width, height }}
+      >
+        <div
+          style={{
+            width: labelW,
+            height: labelH,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        >
+          <iframe
+            title="cartela-preview"
+            srcDoc={html}
+            scrolling="no"
+            className="block border-0 bg-white"
+            style={{ width: labelW, height: labelH }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
