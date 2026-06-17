@@ -9,15 +9,19 @@ import {
   RefreshCw,
   Save,
   ScrollText,
+  Sparkles,
   Trash2,
   VolumeX,
+  Pencil,
+  Copy,
+  List,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   cartelaDtoToPayload,
   cartelaListLabel,
   createCartelaFiberType,
-  createCartelaLabel,
+  generateCartelaLabel,
   deleteCartelaFiberType,
   deleteCartelaLabel,
   getCartelaLabel,
@@ -50,6 +54,7 @@ import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import { useToast } from '../../components/NonBlockingToast';
 
 type PrintMode = 'dialog' | 'silent' | 'pdf';
+type CartelaTab = 'form' | 'registry';
 
 const emptyCompositionLine = (): CartelaCompositionLine => ({
   percent: 0,
@@ -100,6 +105,8 @@ export const CartelaLabels: React.FC = () => {
   const [qrSvg, setQrSvg] = useState('');
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<PrintMode | null>(null);
+  const [activeTab, setActiveTab] = useState<CartelaTab>('form');
+  const [registryPrintingId, setRegistryPrintingId] = useState<string | null>(null);
 
   const labelData: CartelaLabelData = useMemo(
     () => ({
@@ -233,24 +240,100 @@ export const CartelaLabels: React.FC = () => {
     compositionLines: activeCompositionLines(form.compositionLines),
   });
 
+  const validateBeforeSave = (): string | null => {
+    const active = activeCompositionLines(form.compositionLines);
+    return validateCompositionLines(active);
+  };
+
+  const payloadToLabelData = (payload: CartelaLabelPayload, qr: string): CartelaLabelData => ({
+    artCode: payload.artCode,
+    designNo: payload.designNo,
+    colour: payload.colour,
+    widthValue: payload.widthValue,
+    widthUnit: payload.widthUnit,
+    widthToleranceEnabled: payload.widthToleranceEnabled,
+    widthTolerancePercent: payload.widthTolerancePercent,
+    weightValue: payload.weightValue,
+    weightUnit: payload.weightUnit,
+    weightToleranceEnabled: payload.weightToleranceEnabled,
+    weightTolerancePercent: payload.weightTolerancePercent,
+    compositionLines: payload.compositionLines,
+    careSymbols: payload.careSymbols,
+    serialNo: payload.serialNo,
+    showLogo: payload.showLogo,
+    qrSvg: qr,
+  });
+
   const startNew = () => {
     setSelectedId(null);
     setForm(emptyPayload());
+    setActiveTab('form');
   };
 
-  const loadOne = async (id: string) => {
+  const printHtml = async (html: string, mode: PrintMode, fileStem: string) => {
+    if (mode === 'pdf') {
+      if (!isElectronRenderer()) {
+        showToast({ type: 'warning', message: 'تصدير PDF متاح داخل تطبيق Windows فقط.' });
+        return;
+      }
+      const adapter = new ElectronPrintAdapter();
+      const result = await adapter.exportToPdf(html, {
+        pageSize: 'ROLL_LABEL',
+        widthMm: CARTELA_WIDTH_MM,
+        heightMm: CARTELA_HEIGHT_MM,
+        defaultFileName: `${fileStem}.pdf`,
+      });
+      showToast({
+        type: result.ok ? 'success' : 'error',
+        message: result.ok ? 'تم تصدير PDF' : result.error || 'فشل تصدير PDF',
+      });
+      return;
+    }
+
+    const adapter = getPrintAdapter();
+    const result = await adapter.print(html, {
+      pageSize: 'label',
+      widthMm: CARTELA_WIDTH_MM,
+      heightMm: CARTELA_HEIGHT_MM,
+      copies: 1,
+      silent: mode === 'silent',
+      printerName: mode === 'silent' ? settings?.defaultLabelPrinterName || undefined : undefined,
+    });
+    showToast({
+      type: result.ok ? 'success' : 'error',
+      message: result.ok ? 'تم إرسال اللصاقة للطباعة الحرارية' : result.error || 'فشلت الطباعة',
+    });
+  };
+
+  const printPayload = async (payload: CartelaLabelPayload, mode: PrintMode) => {
+    const active = payload.compositionLines;
+    const validationError = validateCompositionLines(active);
+    if (active.length > 0 && validationError) {
+      showToast({ type: 'warning', message: validationError });
+      return;
+    }
+    const qr = await generateQrSvg(cartelaQrPayload(payload), { size: 96, margin: 0 });
+    const html = buildCartelaLabelHtml(payloadToLabelData(payload, qr));
+    await printHtml(html, mode, `cartela-${payload.serialNo || 'label'}`);
+  };
+
+  const loadOne = async (id: string, switchToForm = true) => {
     try {
       const row = await getCartelaLabel(id);
       setSelectedId(id);
       setForm(cartelaDtoToPayload(row));
+      if (switchToForm) setActiveTab('form');
     } catch (e) {
       showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر تحميل الكارتيلا' });
     }
   };
 
-  const handleSave = async () => {
-    const active = activeCompositionLines(form.compositionLines);
-    const validationError = validateCompositionLines(active);
+  const handleGenerate = async () => {
+    if (selectedId) {
+      showToast({ type: 'warning', message: 'لتوليد كارتيلا جديدة استخدم «حفظ ككارتيلا جديدة» أو «كارتيلا جديدة».' });
+      return;
+    }
+    const validationError = validateBeforeSave();
     if (validationError) {
       showToast({ type: 'warning', message: validationError });
       return;
@@ -258,20 +341,64 @@ export const CartelaLabels: React.FC = () => {
 
     setSaving(true);
     try {
-      const payload = buildSavePayload();
-      if (selectedId) {
-        const row = await updateCartelaLabel(selectedId, payload);
-        setForm(cartelaDtoToPayload(row));
-        showToast({ type: 'success', message: 'تم حفظ الكارتيلا' });
-      } else {
-        const row = await createCartelaLabel(payload);
-        setSelectedId(row.id);
-        setForm(cartelaDtoToPayload(row));
-        showToast({ type: 'success', message: 'تم إنشاء الكارتيلا' });
-      }
+      const row = await generateCartelaLabel(buildSavePayload());
+      setSelectedId(row.id);
+      setForm(cartelaDtoToPayload(row));
       await loadList();
+      showToast({
+        type: 'success',
+        message: `تم توليد الكارتيلا${row.serial_no ? ` — رقم ${row.serial_no}` : ''}`,
+      });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الحفظ' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر توليد الكارتيلا' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveUpdate = async () => {
+    if (!selectedId) {
+      showToast({ type: 'warning', message: 'لا توجد كارتيلا محفوظة للتعديل — استخدم «توليد الكارتيله».' });
+      return;
+    }
+    const validationError = validateBeforeSave();
+    if (validationError) {
+      showToast({ type: 'warning', message: validationError });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const row = await updateCartelaLabel(selectedId, buildSavePayload());
+      setForm(cartelaDtoToPayload(row));
+      await loadList();
+      showToast({ type: 'success', message: 'تم حفظ التعديل على نفس الكارتيلا' });
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر حفظ التعديل' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAsNew = async () => {
+    const validationError = validateBeforeSave();
+    if (validationError) {
+      showToast({ type: 'warning', message: validationError });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const row = await generateCartelaLabel({ ...buildSavePayload(), serialNo: '' });
+      setSelectedId(row.id);
+      setForm(cartelaDtoToPayload(row));
+      await loadList();
+      showToast({
+        type: 'success',
+        message: `تم حفظ نسخة جديدة${row.serial_no ? ` — رقم ${row.serial_no}` : ''}`,
+      });
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر حفظ النسخة الجديدة' });
     } finally {
       setSaving(false);
     }
@@ -291,51 +418,29 @@ export const CartelaLabels: React.FC = () => {
   };
 
   const runPrint = async (mode: PrintMode) => {
-    const active = activeCompositionLines(form.compositionLines);
-    const validationError = validateCompositionLines(active);
-    if (active.length > 0 && validationError) {
-      showToast({ type: 'warning', message: validationError });
-      return;
-    }
-
     setBusy(mode);
     try {
-      if (mode === 'pdf') {
-        if (!isElectronRenderer()) {
-          showToast({ type: 'warning', message: 'تصدير PDF متاح داخل تطبيق Windows فقط.' });
-          return;
-        }
-        const adapter = new ElectronPrintAdapter();
-        const result = await adapter.exportToPdf(previewHtml, {
-          pageSize: 'ROLL_LABEL',
-          widthMm: CARTELA_WIDTH_MM,
-          heightMm: CARTELA_HEIGHT_MM,
-          defaultFileName: `cartela-${form.serialNo || 'label'}.pdf`,
-        });
-        showToast({
-          type: result.ok ? 'success' : 'error',
-          message: result.ok ? 'تم تصدير PDF' : result.error || 'فشل تصدير PDF',
-        });
-        return;
-      }
-
-      const adapter = getPrintAdapter();
-      const result = await adapter.print(previewHtml, {
-        pageSize: 'label',
-        widthMm: CARTELA_WIDTH_MM,
-        heightMm: CARTELA_HEIGHT_MM,
-        copies: 1,
-        silent: mode === 'silent',
-        printerName: mode === 'silent' ? settings?.defaultLabelPrinterName || undefined : undefined,
-      });
-      showToast({
-        type: result.ok ? 'success' : 'error',
-        message: result.ok ? 'تم إرسال اللصاقة للطباعة الحرارية' : result.error || 'فشلت الطباعة',
-      });
+      await printPayload(buildSavePayload(), mode);
     } catch (e) {
       showToast({ type: 'error', message: e instanceof Error ? e.message : 'حدث خطأ أثناء الطباعة' });
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handleRegistryPrint = async (id: string) => {
+    setRegistryPrintingId(id);
+    try {
+      const row = await getCartelaLabel(id);
+      const payload = cartelaDtoToPayload(row);
+      await printPayload(
+        { ...payload, compositionLines: activeCompositionLines(payload.compositionLines) },
+        'dialog',
+      );
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الطباعة' });
+    } finally {
+      setRegistryPrintingId(null);
     }
   };
 
@@ -366,6 +471,26 @@ export const CartelaLabels: React.FC = () => {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={() => setActiveTab('form')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-bold transition ${
+              activeTab === 'form' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            توليد كارتيلا
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('registry')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-bold transition ${
+              activeTab === 'registry' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200'
+            }`}
+          >
+            <List className="w-4 h-4" />
+            سجل الكارتيلات
+          </button>
+          <button
+            type="button"
             onClick={() => patchForm({ showLogo: !form.showLogo })}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-bold transition ${
               form.showLogo
@@ -379,58 +504,122 @@ export const CartelaLabels: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_minmax(300px,420px)] gap-6 items-start">
-        <aside className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-bold text-slate-900 text-sm">محفوظات الكارتيله</h3>
-            <button
-              type="button"
-              onClick={startNew}
-              className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              جديد
-            </button>
-          </div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void loadList()}
-            placeholder="بحث..."
-            className={inputCls}
-          />
-          <button
-            type="button"
-            onClick={() => void loadList()}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-          >
-            تحديث القائمة
-          </button>
-          <div className="max-h-[520px] overflow-y-auto space-y-1">
-            {listLoading && <p className="text-xs text-slate-500 p-2">جاري التحميل...</p>}
-            {!listLoading && items.length === 0 && (
-              <p className="text-xs text-slate-500 p-2">لا توجد كارتيلات محفوظة بعد.</p>
-            )}
-            {items.map((item) => (
+      {activeTab === 'registry' && (
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-slate-900">سجل الكارتيلات</h3>
+              <p className="text-xs text-slate-500 mt-1">جميع اللصاقات المُولَّدة — تعديل، حفظ، وإعادة طباعة.</p>
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void loadList()}
+                placeholder="بحث..."
+                className={`${inputCls} max-w-xs`}
+              />
               <button
-                key={item.id}
                 type="button"
-                onClick={() => void loadOne(item.id)}
-                className={`w-full text-right rounded-lg border px-3 py-2 transition ${
-                  selectedId === item.id
-                    ? 'border-indigo-300 bg-indigo-50'
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={() => void loadList()}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
-                <div className="font-bold text-sm text-slate-900">{cartelaListLabel(item)}</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">{item.serial_no || 'بدون رقم'}</div>
+                تحديث
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={startNew}
+                className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                كارتيلا جديدة
+              </button>
+            </div>
           </div>
-        </aside>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="p-3 text-right font-bold">الرقم</th>
+                  <th className="p-3 text-right font-bold">ART CODE</th>
+                  <th className="p-3 text-right font-bold">DESIGN NO</th>
+                  <th className="p-3 text-right font-bold">COLOUR</th>
+                  <th className="p-3 text-right font-bold">آخر تحديث</th>
+                  <th className="p-3 text-right font-bold w-52">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listLoading && (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-slate-500">
+                      جاري التحميل...
+                    </td>
+                  </tr>
+                )}
+                {!listLoading && items.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-slate-500">
+                      لا توجد كارتيلات بعد — استخدم «توليد كارتيلا» لإضافة أول لصاقة.
+                    </td>
+                  </tr>
+                )}
+                {items.map((item) => (
+                  <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/80">
+                    <td className="p-3 font-mono font-bold text-slate-900" dir="ltr">
+                      {item.serial_no || '—'}
+                    </td>
+                    <td className="p-3 text-slate-800">{item.art_code || '—'}</td>
+                    <td className="p-3 text-slate-800">{item.design_no || '—'}</td>
+                    <td className="p-3 text-slate-600">{item.colour || '—'}</td>
+                    <td className="p-3 text-slate-500 text-xs">
+                      {new Date(item.updated_at).toLocaleString('ar-SY')}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void loadOne(item.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          تعديل
+                        </button>
+                        <button
+                          type="button"
+                          disabled={registryPrintingId === item.id}
+                          onClick={() => void handleRegistryPrint(item.id)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-black disabled:opacity-50"
+                        >
+                          {registryPrintingId === item.id ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Printer className="w-3.5 h-3.5" />
+                          )}
+                          طباعة
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
+      {activeTab === 'form' && (
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,420px)] gap-6 items-start">
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-          <h3 className="font-bold text-slate-900">بيانات اللصاقة</h3>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="font-bold text-slate-900">
+              {selectedId ? 'تعديل كارتيلا' : 'توليد كارتيلا جديدة'}
+            </h3>
+            {selectedId && (
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-full">
+                محفوظة — يمكن التعديل أو الحفظ كنسخة جديدة
+              </span>
+            )}
+          </div>
 
           <label className="space-y-1 block">
             <span className="text-sm font-bold text-slate-700">اسم مختصر (اختياري)</span>
@@ -665,20 +854,44 @@ export const CartelaLabels: React.FC = () => {
           </div>
 
           <label className="space-y-1 block">
-            <span className="text-sm font-bold text-slate-700">رقم تسلسلي / باركود (اختياري)</span>
-            <input value={form.serialNo} onChange={(e) => patchForm({ serialNo: e.target.value })} className={inputCls} placeholder="222109" />
+            <span className="text-sm font-bold text-slate-700">رقم تسلسلي / باركود</span>
+            <input value={form.serialNo} onChange={(e) => patchForm({ serialNo: e.target.value })} className={inputCls} placeholder="222109" dir="ltr" />
+            <span className="text-xs text-slate-500">اتركه فارغاً ليُولَّد رقم تلقائي عند «توليد الكارتيله».</span>
           </label>
 
           <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              حفظ
-            </button>
+            {!selectedId ? (
+              <button
+                type="button"
+                onClick={() => void handleGenerate()}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                توليد الكارتيله
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveUpdate()}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  حفظ التعديل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAsNew()}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-sm font-bold text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
+                >
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                  حفظ ككارتيلا جديدة
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => void runPrint('dialog')}
@@ -745,6 +958,7 @@ export const CartelaLabels: React.FC = () => {
           </div>
         </aside>
       </div>
+      )}
     </div>
   );
 };

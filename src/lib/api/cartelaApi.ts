@@ -90,6 +90,14 @@ export async function getCartelaLabel(id: string): Promise<CartelaLabelDto> {
   return res.data;
 }
 
+export async function generateCartelaLabel(payload: CartelaLabelPayload): Promise<CartelaLabelDto> {
+  const res = await apiFetch<{ ok: boolean; data: CartelaLabelDto }>('/api/cartela/generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return res.data;
+}
+
 export async function createCartelaLabel(payload: CartelaLabelPayload): Promise<CartelaLabelDto> {
   const res = await apiFetch<{ ok: boolean; data: CartelaLabelDto }>('/api/cartela', {
     method: 'POST',

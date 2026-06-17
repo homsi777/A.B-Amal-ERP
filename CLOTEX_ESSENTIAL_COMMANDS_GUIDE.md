@@ -12,8 +12,6 @@ chmod +x scripts/deploy-clotex-vps.sh
 
 
 
-
-
 cd ~/ab-amal-erp
 git fetch origin
 git checkout clotex
@@ -25,29 +23,6 @@ sudo rm -rf "${FRONTEND_ROOT}"/*
 sudo cp -r dist/* "${FRONTEND_ROOT}"/
 pm2 restart clotexerp-server --update-env
 sudo nginx -t && sudo systemctl reload nginx
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -4,6 +4,7 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
+import { allocateCartelaSerialNo, resolveCartelaSerialNo } from '../services/cartelaSerialService.js';
 
 const VALID_CARE_SYMBOLS = new Set([
   'wash_30', 'wash_40', 'wash_60',
@@ -196,6 +197,65 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     } catch (err) {
       if (mapCartelaDbError(reply, err)) return reply;
       throw err;
+    }
+  });
+
+  app.post('/generate', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const parsed = cartelaBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const payload = parseCartelaPayload(parsed.data);
+    if ('error' in payload && payload.error) {
+      return sendError(reply, 400, payload.error, 'VALIDATION');
+    }
+    const d = payload.data!;
+
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const autoSerial = await allocateCartelaSerialNo(client, companyId);
+      const serialNo = resolveCartelaSerialNo(d.serialNo, autoSerial);
+      const row = await client.query(
+        `INSERT INTO cartela_labels (
+           company_id, title, art_code, design_no, colour,
+           width_value, width_unit, width_tolerance_enabled, width_tolerance_percent,
+           weight_value, weight_unit, weight_tolerance_enabled, weight_tolerance_percent,
+           composition, composition_lines, care_symbols, serial_no, show_logo,
+           created_by_user_id, updated_by_user_id
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$19
+         )
+         RETURNING *`,
+        [
+          companyId,
+          d.title.trim(),
+          d.artCode.trim(),
+          d.designNo.trim(),
+          d.colour.trim(),
+          d.widthValue.trim(),
+          d.widthUnit.trim(),
+          d.widthToleranceEnabled,
+          d.widthTolerancePercent,
+          d.weightValue.trim(),
+          d.weightUnit.trim(),
+          d.weightToleranceEnabled,
+          d.weightTolerancePercent,
+          d.compositionText,
+          JSON.stringify(d.compositionLines),
+          JSON.stringify(d.careSymbols),
+          serialNo,
+          d.showLogo,
+          userId,
+        ],
+      );
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    } finally {
+      client.release();
     }
   });
 
