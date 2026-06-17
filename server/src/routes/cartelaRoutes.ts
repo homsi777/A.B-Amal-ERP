@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
@@ -106,17 +106,36 @@ function parseCartelaPayload(data: z.infer<typeof cartelaBody>) {
   };
 }
 
+function mapCartelaDbError(reply: FastifyReply, err: unknown): boolean {
+  const code = (err as { code?: string }).code;
+  if (code === '42P01' || code === '42703') {
+    void sendError(
+      reply,
+      503,
+      'جداول الكارتيله غير جاهزة على السيرفر. نفّذ: npm run server:migrate ثم pm2 restart clotexerp-server',
+      'CARTELA_SCHEMA_MISSING',
+    );
+    return true;
+  }
+  return false;
+}
+
 export const cartelaRoutes: FastifyPluginAsync = async (app) => {
   app.get('/fiber-types', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
-    const rows = await getPool().query(
-      `SELECT id, name_en, sort_order, created_at
-         FROM cartela_fiber_types
-        WHERE company_id = $1
-        ORDER BY sort_order ASC, name_en ASC`,
-      [companyId],
-    );
-    return reply.send({ ok: true, data: rows.rows });
+    try {
+      const rows = await getPool().query(
+        `SELECT id, name_en, sort_order, created_at
+           FROM cartela_fiber_types
+          WHERE company_id = $1
+          ORDER BY sort_order ASC, name_en ASC`,
+        [companyId],
+      );
+      return reply.send({ ok: true, data: rows.rows });
+    } catch (err) {
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    }
   });
 
   app.post('/fiber-types', { preHandler: authenticateRequest }, async (req, reply) => {
@@ -133,6 +152,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       );
       return reply.status(201).send({ ok: true, data: row.rows[0] });
     } catch (e: unknown) {
+      if (mapCartelaDbError(reply, e)) return reply;
       if ((e as { code?: string }).code === '23505') {
         return sendError(reply, 409, 'نوع الخامة موجود مسبقاً', 'DUPLICATE');
       }
@@ -163,15 +183,20 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       params.push(`%${search}%`);
     }
 
-    const rows = await getPool().query(
-      `SELECT id, title, art_code, design_no, colour, serial_no, show_logo, created_at, updated_at
-         FROM cartela_labels
-        WHERE ${conditions.join(' AND ')}
-        ORDER BY updated_at DESC
-        LIMIT 200`,
-      params,
-    );
-    return reply.send({ ok: true, data: rows.rows });
+    try {
+      const rows = await getPool().query(
+        `SELECT id, title, art_code, design_no, colour, serial_no, show_logo, created_at, updated_at
+           FROM cartela_labels
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY updated_at DESC
+          LIMIT 200`,
+        params,
+      );
+      return reply.send({ ok: true, data: rows.rows });
+    } catch (err) {
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    }
   });
 
   app.get('/:id', { preHandler: authenticateRequest }, async (req, reply) => {

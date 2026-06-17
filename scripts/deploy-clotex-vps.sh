@@ -65,6 +65,10 @@ assert_clotex_tree
 echo ">> npm install ..."
 npm install
 
+echo ">> بناء الخادم + ترحيلات قاعدة البيانات (مطلوب لأقسام جديدة مثل الكارتيله) ..."
+npm run server:build
+npm run server:migrate
+
 echo ">> بناء الواجهة ..."
 NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}" npm run build
 
