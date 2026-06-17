@@ -283,10 +283,9 @@ export const LabelCard: React.FC<LabelCardProps> = ({
           {cfg.showInternalCode && (
             <FieldRow label="كود الخامة" value={(roll.internalCode || roll.supplierCode || '').trim() || ''} />
           )}
-          {cfg.showSupplierCode && roll.supplierCode && roll.internalCode && roll.supplierCode !== roll.internalCode && (
-            <FieldRow label="كود المورد" value={roll.supplierCode} />
+          {(cfg.showColorName || cfg.showSupplierCode) && (
+            <FieldRow label="اسم اللون" value={color} />
           )}
-          {cfg.showColorName && <FieldRow label="اسم اللون" value={color} />}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingLeft: '2mm', borderLeft: '0.2mm dashed #999' }}>
           {cfg.showColorCode && (
@@ -465,11 +464,10 @@ export function buildPrintDocument(
           : ''
       }
       ${
-        cfg.showSupplierCode && roll.supplierCode && roll.internalCode && roll.supplierCode !== roll.internalCode
-          ? fieldRow('كود المورد', roll.supplierCode)
+        cfg.showColorName || cfg.showSupplierCode
+          ? fieldRow('اسم اللون', color)
           : ''
       }
-      ${cfg.showColorName ? fieldRow('اسم اللون', color) : ''}
     </div>
     <div class="right-col">
       ${cfg.showColorCode ? `
