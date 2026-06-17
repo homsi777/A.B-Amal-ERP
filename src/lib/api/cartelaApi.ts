@@ -1,4 +1,12 @@
 import { apiFetch } from './client';
+import type { CartelaCareSymbolId, CartelaCompositionLine } from '../cartela/careSymbols';
+
+export interface CartelaFiberType {
+  id: string;
+  name_en: string;
+  sort_order: number;
+  created_at: string;
+}
 
 export interface CartelaLabelDto {
   id: string;
@@ -15,6 +23,8 @@ export interface CartelaLabelDto {
   weight_tolerance_enabled: boolean;
   weight_tolerance_percent: number;
   composition: string;
+  composition_lines: CartelaCompositionLine[];
+  care_symbols: CartelaCareSymbolId[];
   serial_no: string;
   show_logo: boolean;
   created_at: string;
@@ -46,10 +56,28 @@ export type CartelaLabelPayload = {
   weightUnit: string;
   weightToleranceEnabled: boolean;
   weightTolerancePercent: number;
-  composition: string;
+  compositionLines: CartelaCompositionLine[];
+  careSymbols: CartelaCareSymbolId[];
   serialNo: string;
   showLogo: boolean;
 };
+
+export async function listCartelaFiberTypes(): Promise<CartelaFiberType[]> {
+  const res = await apiFetch<{ ok: boolean; data: CartelaFiberType[] }>('/api/cartela/fiber-types');
+  return res.data;
+}
+
+export async function createCartelaFiberType(nameEn: string): Promise<CartelaFiberType> {
+  const res = await apiFetch<{ ok: boolean; data: CartelaFiberType }>('/api/cartela/fiber-types', {
+    method: 'POST',
+    body: JSON.stringify({ nameEn }),
+  });
+  return res.data;
+}
+
+export async function deleteCartelaFiberType(id: string): Promise<void> {
+  await apiFetch(`/api/cartela/fiber-types/${id}`, { method: 'DELETE' });
+}
 
 export async function listCartelaLabels(search = ''): Promise<CartelaLabelListItem[]> {
   const qs = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
@@ -82,7 +110,22 @@ export async function deleteCartelaLabel(id: string): Promise<void> {
   await apiFetch(`/api/cartela/${id}`, { method: 'DELETE' });
 }
 
+function parseCompositionLines(raw: unknown): CartelaCompositionLine[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((line) => {
+      const row = line as Record<string, unknown>;
+      return {
+        percent: Number(row.percent ?? 0),
+        fiberTypeId: typeof row.fiberTypeId === 'string' ? row.fiberTypeId : null,
+        fiberName: String(row.fiberName ?? row.fiber_name ?? '').trim(),
+      };
+    })
+    .filter((line) => line.percent > 0 && line.fiberName);
+}
+
 export function cartelaDtoToPayload(row: CartelaLabelDto): CartelaLabelPayload {
+  const lines = parseCompositionLines(row.composition_lines);
   return {
     title: row.title ?? '',
     artCode: row.art_code ?? '',
@@ -96,7 +139,8 @@ export function cartelaDtoToPayload(row: CartelaLabelDto): CartelaLabelPayload {
     weightUnit: row.weight_unit ?? 'gr/m²',
     weightToleranceEnabled: Boolean(row.weight_tolerance_enabled),
     weightTolerancePercent: Number(row.weight_tolerance_percent ?? 5),
-    composition: row.composition ?? '',
+    compositionLines: lines.length ? lines : [{ percent: 0, fiberTypeId: null, fiberName: '' }],
+    careSymbols: Array.isArray(row.care_symbols) ? row.care_symbols : [],
     serialNo: row.serial_no ?? '',
     showLogo: Boolean(row.show_logo),
   };
@@ -107,3 +151,5 @@ export function cartelaListLabel(row: CartelaLabelListItem): string {
   if (row.title.trim()) return row.title.trim();
   return parts.length ? parts.join(' · ') : 'كارتيلا جديدة';
 }
+
+export const CARTELA_PERCENT_OPTIONS = Array.from({ length: 100 }, (_, index) => index + 1);

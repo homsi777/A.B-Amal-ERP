@@ -16,14 +16,26 @@ import { useNavigate } from 'react-router-dom';
 import {
   cartelaDtoToPayload,
   cartelaListLabel,
+  createCartelaFiberType,
   createCartelaLabel,
+  deleteCartelaFiberType,
   deleteCartelaLabel,
   getCartelaLabel,
+  listCartelaFiberTypes,
   listCartelaLabels,
   updateCartelaLabel,
+  CARTELA_PERCENT_OPTIONS,
+  type CartelaFiberType,
   type CartelaLabelListItem,
   type CartelaLabelPayload,
 } from '../../lib/api/cartelaApi';
+import {
+  CARTELA_CARE_SYMBOLS,
+  compositionSum,
+  validateCompositionLines,
+  type CartelaCareSymbolId,
+  type CartelaCompositionLine,
+} from '../../lib/cartela/careSymbols';
 import { generateQrSvg } from '../../lib/printing/qrGenerator';
 import {
   buildCartelaLabelHtml,
@@ -39,6 +51,12 @@ import { useToast } from '../../components/NonBlockingToast';
 
 type PrintMode = 'dialog' | 'silent' | 'pdf';
 
+const emptyCompositionLine = (): CartelaCompositionLine => ({
+  percent: 0,
+  fiberTypeId: null,
+  fiberName: '',
+});
+
 const emptyPayload = (): CartelaLabelPayload => ({
   title: '',
   artCode: '',
@@ -52,10 +70,15 @@ const emptyPayload = (): CartelaLabelPayload => ({
   weightUnit: 'gr/m²',
   weightToleranceEnabled: true,
   weightTolerancePercent: 5,
-  composition: '',
+  compositionLines: [emptyCompositionLine()],
+  careSymbols: [],
   serialNo: '',
   showLogo: true,
 });
+
+function activeCompositionLines(lines: CartelaCompositionLine[]): CartelaCompositionLine[] {
+  return lines.filter((line) => line.percent > 0 && line.fiberName.trim());
+}
 
 export const CartelaLabels: React.FC = () => {
   const navigate = useNavigate();
@@ -71,6 +94,9 @@ export const CartelaLabels: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<CartelaLabelPayload>(emptyPayload());
+  const [fiberTypes, setFiberTypes] = useState<CartelaFiberType[]>([]);
+  const [newFiberName, setNewFiberName] = useState('');
+  const [fiberSaving, setFiberSaving] = useState(false);
   const [qrSvg, setQrSvg] = useState('');
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<PrintMode | null>(null);
@@ -88,7 +114,8 @@ export const CartelaLabels: React.FC = () => {
       weightUnit: form.weightUnit,
       weightToleranceEnabled: form.weightToleranceEnabled,
       weightTolerancePercent: form.weightTolerancePercent,
-      composition: form.composition,
+      compositionLines: activeCompositionLines(form.compositionLines),
+      careSymbols: form.careSymbols,
       serialNo: form.serialNo,
       showLogo: form.showLogo,
       qrSvg,
@@ -97,6 +124,18 @@ export const CartelaLabels: React.FC = () => {
   );
 
   const previewHtml = useMemo(() => buildCartelaLabelHtml(labelData), [labelData]);
+
+  const compositionTotal = compositionSum(activeCompositionLines(form.compositionLines));
+  const compositionError = validateCompositionLines(activeCompositionLines(form.compositionLines));
+
+  const loadFiberTypes = async () => {
+    try {
+      const rows = await listCartelaFiberTypes();
+      setFiberTypes(rows);
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر تحميل أنواع الخامة' });
+    }
+  };
 
   const loadList = async () => {
     setListLoading(true);
@@ -112,6 +151,7 @@ export const CartelaLabels: React.FC = () => {
 
   useEffect(() => {
     void loadList();
+    void loadFiberTypes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -129,6 +169,70 @@ export const CartelaLabels: React.FC = () => {
     setForm((current) => ({ ...current, ...patch }));
   };
 
+  const patchCompositionLine = (index: number, patch: Partial<CartelaCompositionLine>) => {
+    setForm((current) => ({
+      ...current,
+      compositionLines: current.compositionLines.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    }));
+  };
+
+  const addCompositionLine = () => {
+    if (form.compositionLines.length >= 5) return;
+    patchForm({ compositionLines: [...form.compositionLines, emptyCompositionLine()] });
+  };
+
+  const removeCompositionLine = (index: number) => {
+    if (form.compositionLines.length <= 1) {
+      patchForm({ compositionLines: [emptyCompositionLine()] });
+      return;
+    }
+    patchForm({ compositionLines: form.compositionLines.filter((_, i) => i !== index) });
+  };
+
+  const toggleCareSymbol = (id: CartelaCareSymbolId) => {
+    setForm((current) => ({
+      ...current,
+      careSymbols: current.careSymbols.includes(id)
+        ? current.careSymbols.filter((sym) => sym !== id)
+        : [...current.careSymbols, id],
+    }));
+  };
+
+  const handleAddFiberType = async () => {
+    const name = newFiberName.trim();
+    if (!name) {
+      showToast({ type: 'warning', message: 'اكتب اسم نوع الخامة بالإنجليزي' });
+      return;
+    }
+    setFiberSaving(true);
+    try {
+      await createCartelaFiberType(name);
+      setNewFiberName('');
+      await loadFiberTypes();
+      showToast({ type: 'success', message: 'تمت إضافة نوع الخامة للقائمة' });
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر إضافة نوع الخامة' });
+    } finally {
+      setFiberSaving(false);
+    }
+  };
+
+  const handleDeleteFiberType = async (id: string) => {
+    if (!window.confirm('حذف نوع الخامة من القائمة؟')) return;
+    try {
+      await deleteCartelaFiberType(id);
+      await loadFiberTypes();
+      showToast({ type: 'success', message: 'تم الحذف' });
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الحذف' });
+    }
+  };
+
+  const buildSavePayload = (): CartelaLabelPayload => ({
+    ...form,
+    compositionLines: activeCompositionLines(form.compositionLines),
+  });
+
   const startNew = () => {
     setSelectedId(null);
     setForm(emptyPayload());
@@ -145,14 +249,22 @@ export const CartelaLabels: React.FC = () => {
   };
 
   const handleSave = async () => {
+    const active = activeCompositionLines(form.compositionLines);
+    const validationError = validateCompositionLines(active);
+    if (validationError) {
+      showToast({ type: 'warning', message: validationError });
+      return;
+    }
+
     setSaving(true);
     try {
+      const payload = buildSavePayload();
       if (selectedId) {
-        const row = await updateCartelaLabel(selectedId, form);
+        const row = await updateCartelaLabel(selectedId, payload);
         setForm(cartelaDtoToPayload(row));
         showToast({ type: 'success', message: 'تم حفظ الكارتيلا' });
       } else {
-        const row = await createCartelaLabel(form);
+        const row = await createCartelaLabel(payload);
         setSelectedId(row.id);
         setForm(cartelaDtoToPayload(row));
         showToast({ type: 'success', message: 'تم إنشاء الكارتيلا' });
@@ -179,6 +291,13 @@ export const CartelaLabels: React.FC = () => {
   };
 
   const runPrint = async (mode: PrintMode) => {
+    const active = activeCompositionLines(form.compositionLines);
+    const validationError = validateCompositionLines(active);
+    if (active.length > 0 && validationError) {
+      showToast({ type: 'warning', message: validationError });
+      return;
+    }
+
     setBusy(mode);
     try {
       if (mode === 'pdf') {
@@ -327,14 +446,148 @@ export const CartelaLabels: React.FC = () => {
               <span className="text-sm font-bold text-slate-700">DESIGN NO — كود الدسان</span>
               <input value={form.designNo} onChange={(e) => patchForm({ designNo: e.target.value })} className={inputCls} />
             </label>
-            <label className="space-y-1 block">
+            <label className="space-y-1 block md:col-span-2">
               <span className="text-sm font-bold text-slate-700">COLOUR — اللون</span>
               <input value={form.colour} onChange={(e) => patchForm({ colour: e.target.value })} className={inputCls} />
             </label>
-            <label className="space-y-1 block">
-              <span className="text-sm font-bold text-slate-700">COMP. — خليط الخامة</span>
-              <input value={form.composition} onChange={(e) => patchForm({ composition: e.target.value })} className={inputCls} />
-            </label>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h4 className="font-bold text-slate-900 text-sm">COMP. — خليط الخامة (مجموع 100%)</h4>
+              <span
+                className={`text-xs font-bold px-2 py-1 rounded-full ${
+                  activeCompositionLines(form.compositionLines).length === 0
+                    ? 'bg-slate-200 text-slate-600'
+                    : compositionTotal === 100
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-rose-100 text-rose-700'
+                }`}
+              >
+                المجموع: {compositionTotal}%
+              </span>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+              <div className="text-xs font-bold text-slate-600">قائمة أنواع الخامة (إنجليزي — تُعبّأ يدوياً مرة واحدة)</div>
+              <div className="flex flex-wrap gap-1.5">
+                {fiberTypes.map((fiber) => (
+                  <span
+                    key={fiber.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-800"
+                  >
+                    {fiber.name_en}
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteFiberType(fiber.id)}
+                      className="text-rose-500 hover:text-rose-700"
+                      title="حذف"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {fiberTypes.length === 0 && <span className="text-xs text-slate-500">أضف أنواعاً مثل COTTON, POLYESTER, ACRYLIC…</span>}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={newFiberName}
+                  onChange={(e) => setNewFiberName(e.target.value)}
+                  className={inputCls}
+                  placeholder="COTTON"
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  disabled={fiberSaving}
+                  onClick={() => void handleAddFiberType()}
+                  className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-black disabled:opacity-50"
+                >
+                  إضافة للقائمة
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {form.compositionLines.map((line, index) => (
+                <div key={index} className="grid grid-cols-1 sm:grid-cols-[88px_1fr_auto] gap-2 items-center">
+                  <select
+                    value={line.percent || ''}
+                    onChange={(e) => patchCompositionLine(index, { percent: Number(e.target.value) || 0 })}
+                    className={inputCls}
+                  >
+                    <option value="">%</option>
+                    {CARTELA_PERCENT_OPTIONS.map((pct) => (
+                      <option key={pct} value={pct}>
+                        {pct}%
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={line.fiberTypeId ?? ''}
+                    onChange={(e) => {
+                      const fiber = fiberTypes.find((f) => f.id === e.target.value);
+                      patchCompositionLine(index, {
+                        fiberTypeId: fiber?.id ?? null,
+                        fiberName: fiber?.name_en ?? '',
+                      });
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">نوع الخامة…</option>
+                    {fiberTypes.map((fiber) => (
+                      <option key={fiber.id} value={fiber.id}>
+                        {fiber.name_en}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => removeCompositionLine(index)}
+                    className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                  >
+                    حذف
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {form.compositionLines.length < 5 && (
+              <button
+                type="button"
+                onClick={addCompositionLine}
+                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                إضافة سطر ({form.compositionLines.length}/5)
+              </button>
+            )}
+            {compositionError && activeCompositionLines(form.compositionLines).length > 0 && (
+              <p className="text-xs font-bold text-rose-600">{compositionError}</p>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+            <h4 className="font-bold text-slate-900 text-sm">رموز العناية (اختيار حر — تظهر على اللصاقة بالإنجليزي)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {CARTELA_CARE_SYMBOLS.map((sym) => (
+                <label
+                  key={sym.id}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.careSymbols.includes(sym.id)}
+                    onChange={() => toggleCareSymbol(sym.id)}
+                    className="accent-indigo-600"
+                  />
+                  <span className="font-bold text-slate-800">{sym.labelAr}</span>
+                  <span className="text-xs text-slate-500" dir="ltr">
+                    ({sym.labelEn})
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

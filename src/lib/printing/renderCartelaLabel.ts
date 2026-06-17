@@ -1,4 +1,7 @@
 import { BRAND } from '../../branding';
+import { formatCompositionForLabel, type CartelaCompositionLine } from '../cartela/careSymbols';
+import { renderCareSymbolsHtml } from '../cartela/careSymbolSvg';
+import type { CartelaCareSymbolId } from '../cartela/careSymbols';
 
 export const CARTELA_WIDTH_MM = 80;
 export const CARTELA_HEIGHT_MM = 50;
@@ -15,7 +18,8 @@ export type CartelaLabelData = {
   weightUnit: string;
   weightToleranceEnabled: boolean;
   weightTolerancePercent: number;
-  composition: string;
+  compositionLines: CartelaCompositionLine[];
+  careSymbols: CartelaCareSymbolId[];
   serialNo: string;
   showLogo: boolean;
   qrSvg?: string;
@@ -87,16 +91,9 @@ function row(label: string, value: string): string {
     </div>`;
 }
 
-/** ISO care symbols — black only for thermal printing. */
-function careSymbolsHtml(): string {
-  return `
-  <div class="care" aria-hidden="true">
-    <svg viewBox="0 0 24 24" class="sym"><path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/><text x="12" y="14" text-anchor="middle" font-size="8" font-weight="700">30</text></svg>
-    <svg viewBox="0 0 24 24" class="sym"><path d="M6 4l12 8-12 8V4z"/><circle cx="17" cy="6" r="1.5"/></svg>
-    <svg viewBox="0 0 24 24" class="sym"><polygon points="12,3 21,20 3,20"/><line x1="5" y1="8" x2="19" y2="16" stroke="#000" stroke-width="2"/></svg>
-    <svg viewBox="0 0 24 24" class="sym"><rect x="5" y="5" width="14" height="14" fill="none" stroke="#000" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="none" stroke="#000" stroke-width="1.5"/><line x1="6" y1="6" x2="18" y2="18" stroke="#000" stroke-width="2"/></svg>
-    <svg viewBox="0 0 24 24" class="sym"><circle cx="12" cy="12" r="9" fill="none" stroke="#000" stroke-width="1.5"/><text x="12" y="15" text-anchor="middle" font-size="9" font-weight="700">P</text></svg>
-  </div>`;
+/** ISO care symbols — selected ids only, black for thermal printing. */
+function careSymbolsHtml(selected: CartelaCareSymbolId[]): string {
+  return renderCareSymbolsHtml(selected);
 }
 
 export function buildCartelaLabelHtml(data: CartelaLabelData): string {
@@ -109,13 +106,15 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     ? `<aside class="brand-stripe"><span>CLOTEX</span></aside>`
     : '';
 
+  const compositionText = formatCompositionForLabel(data.compositionLines);
+
   const rows = [
     row('ART CODE', data.artCode),
     row('DESIGN NO', data.designNo),
     row('COLOUR', data.colour),
     row('WIDTH', formatWidth(data)),
     row('WEIGHT', formatWeight(data)),
-    row('COMP.', data.composition),
+    row('COMP.', compositionText),
   ].join('');
 
   return `<!doctype html>
@@ -211,7 +210,7 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
         <div class="rows">${rows}</div>
         <div class="footer">
           ${qrBlock}
-          ${careSymbolsHtml()}
+          ${careSymbolsHtml(data.careSymbols)}
           <div class="bc-wrap">
             ${barcodeSvg ? `<div class="bc-svg">${barcodeSvg}</div>` : ''}
             ${serial ? `<div class="bc-num">${esc(serial)}</div>` : ''}
