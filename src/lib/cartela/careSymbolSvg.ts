@@ -1,31 +1,56 @@
 import type { CartelaCareSymbolId } from './careSymbols';
 
-const SVG_BY_ID: Record<CartelaCareSymbolId, string> = {
-  wash_30:
-    '<svg viewBox="0 0 24 24" class="sym"><path fill="none" stroke="#000" stroke-width="1.2" d="M4 7h16v11H4z"/><path d="M6 10h12M6 13h8" stroke="#000" stroke-width="1"/><text x="12" y="16" text-anchor="middle" font-size="7" font-weight="700">30</text></svg>',
-  wash_40:
-    '<svg viewBox="0 0 24 24" class="sym"><path fill="none" stroke="#000" stroke-width="1.2" d="M4 7h16v11H4z"/><text x="12" y="16" text-anchor="middle" font-size="7" font-weight="700">40</text></svg>',
-  wash_60:
-    '<svg viewBox="0 0 24 24" class="sym"><path fill="none" stroke="#000" stroke-width="1.2" d="M4 7h16v11H4z"/><text x="12" y="16" text-anchor="middle" font-size="7" font-weight="700">60</text></svg>',
-  iron_low:
-    '<svg viewBox="0 0 24 24" class="sym"><path d="M6 4l12 8-12 8V4z" fill="#000"/><circle cx="17" cy="6" r="1.2" fill="#fff"/></svg>',
-  iron_medium:
-    '<svg viewBox="0 0 24 24" class="sym"><path d="M6 4l12 8-12 8V4z" fill="#000"/><circle cx="17" cy="6" r="1.2" fill="#fff"/><circle cx="19" cy="6" r="1.2" fill="#fff"/></svg>',
-  iron_high:
-    '<svg viewBox="0 0 24 24" class="sym"><path d="M6 4l12 8-12 8V4z" fill="#000"/><circle cx="15.5" cy="6" r="1.1" fill="#fff"/><circle cx="17.5" cy="6" r="1.1" fill="#fff"/><circle cx="19.5" cy="6" r="1.1" fill="#fff"/></svg>',
-  no_bleach:
-    '<svg viewBox="0 0 24 24" class="sym"><polygon points="12,3 21,20 3,20" fill="none" stroke="#000" stroke-width="1.2"/><line x1="5" y1="8" x2="19" y2="16" stroke="#000" stroke-width="1.8"/></svg>',
-  no_tumble_dry:
-    '<svg viewBox="0 0 24 24" class="sym"><rect x="5" y="5" width="14" height="14" fill="none" stroke="#000" stroke-width="1.2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#000" stroke-width="1.2"/><line x1="6" y1="6" x2="18" y2="18" stroke="#000" stroke-width="1.8"/></svg>',
-  tumble_dry:
-    '<svg viewBox="0 0 24 24" class="sym"><rect x="5" y="5" width="14" height="14" fill="none" stroke="#000" stroke-width="1.2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#000" stroke-width="1.2"/></svg>',
-  dry_clean_p:
-    '<svg viewBox="0 0 24 24" class="sym"><circle cx="12" cy="12" r="9" fill="none" stroke="#000" stroke-width="1.2"/><text x="12" y="15" text-anchor="middle" font-size="8" font-weight="700">P</text></svg>',
-  dry_clean_f:
-    '<svg viewBox="0 0 24 24" class="sym"><circle cx="12" cy="12" r="9" fill="none" stroke="#000" stroke-width="1.2"/><text x="12" y="15" text-anchor="middle" font-size="8" font-weight="700">F</text></svg>',
-  line_dry:
-    '<svg viewBox="0 0 24 24" class="sym"><rect x="4" y="10" width="16" height="2" fill="#000"/><path d="M8 12v6M12 12v8M16 12v6" stroke="#000" stroke-width="1.2"/></svg>',
+import wash30 from '../../assets/care-symbols/wash_30.svg?raw';
+import wash40 from '../../assets/care-symbols/wash_40.svg?raw';
+import wash60 from '../../assets/care-symbols/wash_60.svg?raw';
+import ironLow from '../../assets/care-symbols/iron_low.svg?raw';
+import ironMedium from '../../assets/care-symbols/iron_medium.svg?raw';
+import ironHigh from '../../assets/care-symbols/iron_high.svg?raw';
+import noBleach from '../../assets/care-symbols/no_bleach.svg?raw';
+import noTumbleDry from '../../assets/care-symbols/no_tumble_dry.svg?raw';
+import tumbleDry from '../../assets/care-symbols/tumble_dry.svg?raw';
+import dryCleanP from '../../assets/care-symbols/dry_clean_p.svg?raw';
+import dryCleanF from '../../assets/care-symbols/dry_clean_f.svg?raw';
+import lineDry from '../../assets/care-symbols/line_dry.svg?raw';
+
+/** ISO 3758 / GINETEX-style symbols (Wikimedia Commons reference, black for thermal). */
+const SVG_RAW_BY_ID: Record<CartelaCareSymbolId, string> = {
+  wash_30: wash30,
+  wash_40: wash40,
+  wash_60: wash60,
+  iron_low: ironLow,
+  iron_medium: ironMedium,
+  iron_high: ironHigh,
+  no_bleach: noBleach,
+  no_tumble_dry: noTumbleDry,
+  tumble_dry: tumbleDry,
+  dry_clean_p: dryCleanP,
+  dry_clean_f: dryCleanF,
+  line_dry: lineDry,
 };
+
+function inlineCareSvg(raw: string): string {
+  const inner = raw
+    .replace(/<\?xml[^?]*\?>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .trim()
+    .replace(/^<svg\b([^>]*)>/i, (_match, attrs: string) => {
+      const viewBox = /viewBox="([^"]+)"/i.exec(attrs)?.[1] ?? '0 0 375 375';
+      return `<svg class="sym" viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`;
+    });
+  return inner;
+}
+
+const SVG_BY_ID: Record<CartelaCareSymbolId, string> = Object.fromEntries(
+  (Object.entries(SVG_RAW_BY_ID) as Array<[CartelaCareSymbolId, string]>).map(([id, raw]) => [
+    id,
+    inlineCareSvg(raw),
+  ]),
+) as Record<CartelaCareSymbolId, string>;
+
+export function getCareSymbolSvg(id: CartelaCareSymbolId): string {
+  return SVG_BY_ID[id] ?? '';
+}
 
 export function renderCareSymbolsHtml(selected: string[]): string {
   const ids = selected.filter((id): id is CartelaCareSymbolId => id in SVG_BY_ID);

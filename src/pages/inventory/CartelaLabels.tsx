@@ -40,6 +40,7 @@ import {
   type CartelaCareSymbolId,
   type CartelaCompositionLine,
 } from '../../lib/cartela/careSymbols';
+import { getCareSymbolSvg } from '../../lib/cartela/careSymbolSvg';
 import { generateQrSvg } from '../../lib/printing/qrGenerator';
 import {
   buildCartelaLabelHtml,
@@ -47,6 +48,9 @@ import {
   cartelaQrPayload,
   CARTELA_HEIGHT_MM,
   CARTELA_WIDTH_MM,
+  CARTELA_DEFAULT_FONT_SIZE_PT,
+  CARTELA_MIN_FONT_SIZE_PT,
+  CARTELA_MAX_FONT_SIZE_PT,
   type CartelaLabelData,
 } from '../../lib/printing/renderCartelaLabel';
 import { ElectronPrintAdapter } from '../../lib/printing/electronPrintAdapter';
@@ -96,6 +100,7 @@ const emptyPayload = (): CartelaLabelPayload => ({
   careSymbols: [],
   serialNo: '',
   showLogo: true,
+  fontSizePt: CARTELA_DEFAULT_FONT_SIZE_PT,
 });
 
 function activeCompositionLines(lines: CartelaCompositionLine[]): CartelaCompositionLine[] {
@@ -142,6 +147,7 @@ export const CartelaLabels: React.FC = () => {
       careSymbols: form.careSymbols,
       serialNo: form.serialNo,
       showLogo: form.showLogo,
+      fontSizePt: form.fontSizePt,
       qrSvg,
     }),
     [form, qrSvg],
@@ -278,6 +284,7 @@ export const CartelaLabels: React.FC = () => {
     careSymbols: payload.careSymbols,
     serialNo: payload.serialNo,
     showLogo: payload.showLogo,
+    fontSizePt: payload.fontSizePt,
     qrSvg: qr,
   });
 
@@ -643,6 +650,32 @@ export const CartelaLabels: React.FC = () => {
             <input value={form.title} onChange={(e) => patchForm({ title: e.target.value })} className={inputCls} />
           </label>
 
+          <label className="space-y-1 block max-w-[200px]">
+            <span className="text-sm font-bold text-slate-700">قياس الخط (pt)</span>
+            <input
+              type="number"
+              min={CARTELA_MIN_FONT_SIZE_PT}
+              max={CARTELA_MAX_FONT_SIZE_PT}
+              step={0.1}
+              value={form.fontSizePt}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (!Number.isFinite(n)) return;
+                patchForm({
+                  fontSizePt: Math.min(
+                    CARTELA_MAX_FONT_SIZE_PT,
+                    Math.max(CARTELA_MIN_FONT_SIZE_PT, Math.round(n * 10) / 10),
+                  ),
+                });
+              }}
+              className={inputCls}
+              dir="ltr"
+            />
+            <span className="text-xs text-slate-500">
+              من {CARTELA_MIN_FONT_SIZE_PT} إلى {CARTELA_MAX_FONT_SIZE_PT} — الافتراضي {CARTELA_DEFAULT_FONT_SIZE_PT}
+            </span>
+          </label>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="space-y-1 block">
               <span className="text-sm font-bold text-slate-700">ART CODE — اسم الخامة</span>
@@ -786,6 +819,11 @@ export const CartelaLabels: React.FC = () => {
                     checked={form.careSymbols.includes(sym.id)}
                     onChange={() => toggleCareSymbol(sym.id)}
                     className="accent-indigo-600"
+                  />
+                  <span
+                    className="w-9 h-9 shrink-0 flex items-center justify-center [&_svg]:w-full [&_svg]:h-full"
+                    dangerouslySetInnerHTML={{ __html: getCareSymbolSvg(sym.id) }}
+                    aria-hidden
                   />
                   <span className="font-bold text-slate-800">{sym.labelAr}</span>
                   <span className="text-xs text-slate-500" dir="ltr">

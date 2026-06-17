@@ -36,6 +36,7 @@ const cartelaBody = z.object({
   careSymbols: z.array(z.string()).optional().default([]),
   serialNo: z.string().optional().default(''),
   showLogo: z.boolean().optional().default(true),
+  fontSizePt: z.number().min(4.5).max(11).optional().default(6.8),
 });
 
 const fiberTypeBody = z.object({
@@ -82,6 +83,7 @@ function mapCartelaRow(row: Record<string, unknown>) {
     care_symbols: row.care_symbols ?? [],
     serial_no: row.serial_no,
     show_logo: row.show_logo,
+    font_size_pt: row.font_size_pt ?? 6.8,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -220,10 +222,10 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
            company_id, title, art_code, design_no, colour,
            width_value, width_unit, width_tolerance_enabled, width_tolerance_percent,
            weight_value, weight_unit, weight_tolerance_enabled, weight_tolerance_percent,
-           composition, composition_lines, care_symbols, serial_no, show_logo,
+           composition, composition_lines, care_symbols, serial_no, show_logo, font_size_pt,
            created_by_user_id, updated_by_user_id
          ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$19
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$20
          )
          RETURNING *`,
         [
@@ -245,6 +247,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           JSON.stringify(d.careSymbols),
           serialNo,
           d.showLogo,
+          d.fontSizePt,
           userId,
         ],
       );
@@ -285,10 +288,10 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
          company_id, title, art_code, design_no, colour,
          width_value, width_unit, width_tolerance_enabled, width_tolerance_percent,
          weight_value, weight_unit, weight_tolerance_enabled, weight_tolerance_percent,
-         composition, composition_lines, care_symbols, serial_no, show_logo,
+         composition, composition_lines, care_symbols, serial_no, show_logo, font_size_pt,
          created_by_user_id, updated_by_user_id
        ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$19
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$20
        )
        RETURNING *`,
       [
@@ -310,6 +313,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
         JSON.stringify(d.careSymbols),
         d.serialNo.trim(),
         d.showLogo,
+        d.fontSizePt,
         userId,
       ],
     );
@@ -346,7 +350,8 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
               care_symbols = $17::jsonb,
               serial_no = $18,
               show_logo = $19,
-              updated_by_user_id = $20,
+              font_size_pt = $20,
+              updated_by_user_id = $21,
               updated_at = now()
         WHERE id = $1 AND company_id = $2
         RETURNING *`,
@@ -370,6 +375,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
         JSON.stringify(d.careSymbols),
         d.serialNo.trim(),
         d.showLogo,
+        d.fontSizePt,
         userId,
       ],
     );

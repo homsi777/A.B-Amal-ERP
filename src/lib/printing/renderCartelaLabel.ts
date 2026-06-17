@@ -5,6 +5,9 @@ import type { CartelaCareSymbolId } from '../cartela/careSymbols';
 
 export const CARTELA_WIDTH_MM = 80;
 export const CARTELA_HEIGHT_MM = 50;
+export const CARTELA_DEFAULT_FONT_SIZE_PT = 6.8;
+export const CARTELA_MIN_FONT_SIZE_PT = 4.5;
+export const CARTELA_MAX_FONT_SIZE_PT = 11;
 
 export type CartelaLabelData = {
   artCode: string;
@@ -22,6 +25,7 @@ export type CartelaLabelData = {
   careSymbols: CartelaCareSymbolId[];
   serialNo: string;
   showLogo: boolean;
+  fontSizePt?: number;
   qrSvg?: string;
 };
 
@@ -102,13 +106,31 @@ function compositionRow(lines: CartelaCompositionLine[]): string {
     </div>`;
 }
 
-/** ISO care symbols — selected ids only, black for thermal printing. */
 function careSymbolsHtml(selected: CartelaCareSymbolId[]): string {
   return renderCareSymbolsHtml(selected);
 }
 
+function clampFontSizePt(value: number | undefined): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return CARTELA_DEFAULT_FONT_SIZE_PT;
+  return Math.min(CARTELA_MAX_FONT_SIZE_PT, Math.max(CARTELA_MIN_FONT_SIZE_PT, Math.round(n * 10) / 10));
+}
+
+function cartelaFontCss(fontSizePt: number) {
+  const pt = (n: number) => `${Math.round(n * 10) / 10}pt`;
+  return {
+    lbl: pt(fontSizePt - 0.6),
+    val: pt(fontSizePt),
+    comp: pt(fontSizePt - 0.6),
+    bcNum: pt(fontSizePt - 0.8),
+    brand: pt(fontSizePt + 4.2),
+  };
+}
+
 export function buildCartelaLabelHtml(data: CartelaLabelData): string {
   const serial = data.serialNo.trim();
+  const fontSizePt = clampFontSizePt(data.fontSizePt);
+  const fonts = cartelaFontCss(fontSizePt);
   const barcodeSvg = serial ? buildCode128Svg(serial, 22) : '';
   const qrBlock = data.qrSvg
     ? `<div class="qr">${data.qrSvg.replace('<svg ', '<svg class="qr-svg" ')}</div>`
@@ -167,9 +189,9 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       line-height: 1.15;
       margin-bottom: 0.35mm;
     }
-    .lbl { font-size: 6.2pt; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap; }
-    .sep { font-size: 6.2pt; font-weight: 700; text-align: center; }
-    .val { font-size: 6.8pt; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lbl { font-size: ${fonts.lbl}; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap; }
+    .sep { font-size: ${fonts.lbl}; font-weight: 700; text-align: center; }
+    .val { font-size: ${fonts.val}; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .row-comp { align-items: start; }
     .val-comp {
       white-space: normal;
@@ -177,7 +199,7 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       overflow-wrap: break-word;
       word-break: normal;
       line-height: 1.1;
-      font-size: 6.2pt;
+      font-size: ${fonts.comp};
       min-width: 0;
     }
     .footer {
@@ -208,10 +230,10 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       gap: 0.6mm;
       flex-wrap: nowrap;
     }
-    .sym { width: 4.2mm; height: 4.2mm; fill: #000; stroke: #000; stroke-width: 0.8; }
+    .sym { width: 5mm; height: 5mm; flex-shrink: 0; display: block; overflow: visible; }
     .bc-wrap { text-align: center; min-width: 0; }
     .bc-svg svg { width: 100%; max-width: 28mm; height: 5.5mm; display: block; margin: 0 auto; }
-    .bc-num { font-size: 6pt; font-weight: 700; letter-spacing: 0.8px; margin-top: 0.3mm; }
+    .bc-num { font-size: ${fonts.bcNum}; font-weight: 700; letter-spacing: 0.8px; margin-top: 0.3mm; }
     .brand-stripe {
       border-left: 0.25mm solid #000;
       display: flex;
@@ -220,7 +242,7 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       writing-mode: vertical-rl;
       text-orientation: mixed;
       transform: rotate(180deg);
-      font-size: 11pt;
+      font-size: ${fonts.brand};
       font-weight: 900;
       letter-spacing: 1.5px;
       padding: 1mm 0;

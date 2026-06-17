@@ -27,6 +27,7 @@ export interface CartelaLabelDto {
   care_symbols: CartelaCareSymbolId[];
   serial_no: string;
   show_logo: boolean;
+  font_size_pt: number;
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +61,7 @@ export type CartelaLabelPayload = {
   careSymbols: CartelaCareSymbolId[];
   serialNo: string;
   showLogo: boolean;
+  fontSizePt: number;
 };
 
 export async function listCartelaFiberTypes(): Promise<CartelaFiberType[]> {
@@ -151,6 +153,7 @@ export function cartelaDtoToPayload(row: CartelaLabelDto): CartelaLabelPayload {
     careSymbols: Array.isArray(row.care_symbols) ? row.care_symbols : [],
     serialNo: row.serial_no ?? '',
     showLogo: Boolean(row.show_logo),
+    fontSizePt: Number(row.font_size_pt ?? 6.8),
   };
 }
 
