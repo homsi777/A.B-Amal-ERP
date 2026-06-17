@@ -76,6 +76,16 @@ export interface SupplierStatementExportData {
 
 const PDF_CANVAS_SCALE = 1.35;
 const PDF_JPEG_QUALITY = 0.78;
+const PDF_SHARP_CANVAS_SCALE = 2;
+const PDF_SHARP_JPEG_QUALITY = 0.92;
+
+export type PdfExportOptions = {
+  orientation?: 'portrait' | 'landscape';
+  jpegQuality?: number;
+  canvasScale?: number;
+  containerWidth?: string;
+  pageFormat?: 'a4' | 'a5';
+};
 
 const appendHtml2CanvasCompatibilityStyle = (doc: Document) => {
   const style = doc.createElement('style');
@@ -83,7 +93,7 @@ const appendHtml2CanvasCompatibilityStyle = (doc: Document) => {
   style.textContent = `
     html,
     body {
-      color: #0f172a !important;
+      color: #000000 !important;
       background: #ffffff !important;
       background-color: #ffffff !important;
       color-scheme: light !important;
@@ -97,9 +107,15 @@ const appendHtml2CanvasCompatibilityStyle = (doc: Document) => {
     }
 
     #pdf-export-container {
-      color: #0f172a !important;
+      color: #000000 !important;
       background: #ffffff !important;
       background-color: #ffffff !important;
+    }
+
+    #pdf-export-container td,
+    #pdf-export-container th {
+      overflow: visible !important;
+      color: #000000 !important;
     }
   `;
   doc.head.appendChild(style);
@@ -119,15 +135,15 @@ const addCompressedImageToPDF = (pdf: jsPDF, imageData: string, x: number, y: nu
   pdf.addImage(imageData, 'JPEG', x, y, width, height, undefined, 'FAST');
 };
 
-const createPdfContainer = () => {
+const createPdfContainer = (width = '1200px') => {
   const container = document.createElement('div');
   container.id = 'pdf-export-container';
   container.style.position = 'absolute';
   container.style.left = '-9999px';
   container.style.top = '0';
-  container.style.width = '1200px';
+  container.style.width = width;
   container.style.backgroundColor = '#ffffff';
-  container.style.color = '#0f172a';
+  container.style.color = '#000000';
   container.style.padding = '20px';
   container.style.fontFamily = 'Arial, sans-serif';
   container.style.direction = 'rtl';
@@ -695,14 +711,18 @@ export function renderSupplierAccountStatementPdfHtml(data: {
 const saveContainerAsPDF = async (
   container: HTMLElement,
   filenamePrefix: string,
-  options: { orientation?: 'portrait' | 'landscape' } = {},
+  options: PdfExportOptions = {},
 ) => {
   document.body.appendChild(container);
   const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(document);
 
+  const canvasScale = options.canvasScale ?? PDF_CANVAS_SCALE;
+  const jpegQuality = options.jpegQuality ?? PDF_JPEG_QUALITY;
+  const pageFormat = options.pageFormat ?? 'a4';
+
   try {
     const canvas = await html2canvas(container, {
-      scale: PDF_CANVAS_SCALE,
+      scale: canvasScale,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
@@ -714,13 +734,13 @@ const saveContainerAsPDF = async (
 
     removeElement(container);
 
-    const imgData = canvas.toDataURL('image/jpeg', PDF_JPEG_QUALITY);
+    const imgData = canvas.toDataURL('image/jpeg', jpegQuality);
     const orientation =
       options.orientation || (container.innerHTML.includes('TOPLAM TUTAR') ? 'portrait' : canvas.height > canvas.width ? 'portrait' : 'landscape');
     const pdf = new jsPDF({
       orientation,
       unit: 'mm',
-      format: 'a4'
+      format: pageFormat
     });
 
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -752,15 +772,83 @@ const saveContainerAsPDF = async (
 export async function exportPdfFromHtmlString(
   html: string,
   filenamePrefix: string,
-  options: { orientation?: 'portrait' | 'landscape' } = {},
+  options: PdfExportOptions = {},
 ): Promise<void> {
-  const container = createPdfContainer();
+  const container = createPdfContainer(options.containerWidth ?? '1200px');
   container.innerHTML = html;
   try {
     await saveContainerAsPDF(container, filenamePrefix, options);
   } catch (error) {
     console.error('Error generating PDF:', error);
     throw error;
+  }
+}
+
+/** تصدير PDF من مستند HTML كامل (كشوف فواتير A4، …) بجودة أعلى وعرض صفحة صحيح. */
+export async function exportHtmlDocumentToPdf(
+  html: string,
+  filenamePrefix: string,
+  options: PdfExportOptions = {},
+): Promise<void> {
+  const pageFormat = options.pageFormat ?? 'a4';
+  const containerWidth = options.containerWidth ?? (pageFormat === 'a5' ? '148mm' : '210mm');
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = `position:absolute;left:-9999px;top:0;width:${containerWidth};border:0;`;
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+  if (!doc) {
+    document.body.removeChild(iframe);
+    throw new Error('تعذر تجهيز PDF');
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+  await new Promise((resolve) => window.setTimeout(resolve, 200));
+
+  const target = doc.body;
+  const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(doc);
+
+  try {
+    const canvas = await html2canvas(target, {
+      scale: options.canvasScale ?? PDF_SHARP_CANVAS_SCALE,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width: target.scrollWidth,
+      height: target.scrollHeight,
+      onclone: (clonedDocument) => {
+        appendHtml2CanvasCompatibilityStyle(clonedDocument);
+      },
+    });
+
+    const jpegQuality = options.jpegQuality ?? PDF_SHARP_JPEG_QUALITY;
+    const imgData = canvas.toDataURL('image/jpeg', jpegQuality);
+    const orientation = options.orientation ?? 'portrait';
+    const pdf = new jsPDF({ orientation, unit: 'mm', format: pageFormat });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    addCompressedImageToPDF(pdf, imgData, 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      addCompressedImageToPDF(pdf, imgData, 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const currentDate = new Date().toISOString().split('T')[0];
+    pdf.save(`${filenamePrefix}_${currentDate}.pdf`);
+  } finally {
+    cleanupCompatibilityStyle();
+    document.body.removeChild(iframe);
   }
 }
 

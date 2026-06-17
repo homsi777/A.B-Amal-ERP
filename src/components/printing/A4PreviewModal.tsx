@@ -1,6 +1,6 @@
 import React from 'react';
 import { Download, Loader2, Printer, X } from 'lucide-react';
-import { exportPdfFromHtmlString } from '../../lib/pdfExport';
+import { exportHtmlDocumentToPdf } from '../../lib/pdfExport';
 import { useToast } from '../NonBlockingToast';
 
 type PageSize = 'A4' | 'A5';
@@ -105,7 +105,11 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
         return;
       }
 
-      await exportPdfFromHtmlString(html, filePrefix, { orientation: 'portrait' });
+      await exportHtmlDocumentToPdf(html, filePrefix, {
+        orientation: 'portrait',
+        pageFormat: pageSize === 'A5' ? 'a5' : 'a4',
+        containerWidth: pageSize === 'A5' ? '148mm' : '210mm',
+      });
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
       onExported?.();
     } catch (error) {

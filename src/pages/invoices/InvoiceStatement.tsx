@@ -22,6 +22,7 @@ import { mapSalesInvoiceDetailToInvoice, mapPurchaseInvoiceDetailToInvoice, disp
 import type { Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
+import { exportHtmlDocumentToPdf } from '../../lib/pdfExport';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import {
   AR_INVOICE_STATEMENT,
@@ -497,14 +498,10 @@ export const InvoiceStatement = () => {
 
   const handleExportPdf = async () => {
     if (!invoice) return;
-    if (!window.fabricApp?.isElectron) {
-      showToast({ type: 'warning', message: 'تصدير PDF متاح عبر نسخة سطح المكتب' });
-      return;
-    }
     setExportingPdf(true);
     try {
       const safeInvoiceNo = displayStoredInvoiceNo(invoice.invoiceNumber).replace(/[<>:"/\\|?*]/g, '_').trim();
-      const defaultFileName = `كشف_فاتورة_${safeInvoiceNo}.pdf`;
+      const defaultFileName = `كشف_فاتورة_${safeInvoiceNo}`;
       const html = renderInvoiceStatementA4Html({
         invoice,
         partyName,
@@ -512,12 +509,29 @@ export const InvoiceStatement = () => {
         title: AR_INVOICE_STATEMENT.printTitle,
         subtitle: AR_INVOICE_STATEMENT.printSubtitle,
       });
-      const result = await window.fabricApp.printToPdf(html, { pageSize: 'A4', defaultFileName });
-      if (result.ok) {
-        showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
-      } else {
-        showToast({ type: 'error', message: result.error || 'تم إلغاء حفظ PDF' });
+
+      const useElectronPdf =
+        window.fabricApp?.isElectron === true && typeof window.fabricApp.printToPdf === 'function';
+
+      if (useElectronPdf) {
+        const result = await window.fabricApp!.printToPdf(html, {
+          pageSize: 'A4',
+          defaultFileName,
+        });
+        if (result.ok) {
+          showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
+        } else {
+          showToast({ type: 'error', message: result.error || 'تم إلغاء حفظ PDF' });
+        }
+        return;
       }
+
+      await exportHtmlDocumentToPdf(html, defaultFileName, {
+        orientation: 'portrait',
+        pageFormat: 'a4',
+        containerWidth: '210mm',
+      });
+      showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
     } catch (err) {
       showToast({ type: 'error', message: err instanceof Error ? err.message : 'تعذر تصدير PDF' });
     } finally {

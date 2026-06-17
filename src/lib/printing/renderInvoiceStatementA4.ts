@@ -464,10 +464,11 @@ export function renderInvoiceStatementA4Html(opts: {
             border: 1px solid #000;
             padding: 6px 6px;
             font-size: 10.5px;
-            line-height: 1.2;
+            line-height: 1.3;
             vertical-align: middle;
             font-weight: 700;
             direction: rtl;
+            color: #000000;
           }
           .meta-label {
             text-align: center;
@@ -504,18 +505,20 @@ export function renderInvoiceStatementA4Html(opts: {
           .summary-table .sum-amount { width: 14%; }
           .main-table thead th,
           .summary-table thead th {
-            font-size: 9px;
-            padding: 2px 4px 4px;
-            line-height: 1.1;
+            font-size: 9.5px;
+            padding: 3px 4px 5px;
+            line-height: 1.25;
             text-align: center;
             font-weight: 900;
             border-bottom: 1px solid #000;
+            color: #000000;
+            overflow: visible;
           }
           .main-table th,
           .main-table td,
           .summary-table th,
           .summary-table td {
-            overflow: hidden;
+            overflow: visible;
           }
           .main-table th:nth-child(1), .main-table td:nth-child(1),
           .main-table th:nth-child(2), .main-table td:nth-child(2),
@@ -537,28 +540,31 @@ export function renderInvoiceStatementA4Html(opts: {
             text-align: center;
           }
           .cell {
-            padding: 2px 4px;
-            font-size: 8.8px;
-            line-height: 1.15;
+            padding: 4px 5px;
+            font-size: 9.2px;
+            line-height: 1.35;
             vertical-align: middle;
+            color: #000000;
+            font-weight: 700;
           }
           .line-row .cell { border-bottom: none; }
           .line-row .col-material-cell {
-            white-space: nowrap;
-            word-break: normal;
-            overflow-wrap: normal;
-            text-overflow: clip;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
           }
           .text {
             text-align: right;
             word-break: break-word;
             overflow-wrap: anywhere;
+            color: #000000;
           }
           .num {
             text-align: right;
             font-family: Consolas, "Courier New", monospace;
             direction: ltr;
             unicode-bidi: embed;
+            color: #000000;
           }
           .center {
             text-align: center;
@@ -570,11 +576,13 @@ export function renderInvoiceStatementA4Html(opts: {
           }
           .subtotal-cell {
             text-align: center;
-            font-size: 9.2px;
+            font-size: 9.5px;
             font-weight: 900;
-            padding: 4px 4px;
+            padding: 5px 4px;
+            line-height: 1.3;
             border-top: none;
             border-bottom: 1px solid #000;
+            color: #000000;
           }
           .subtotal-label {
             text-align: center;
@@ -602,10 +610,11 @@ export function renderInvoiceStatementA4Html(opts: {
             margin-bottom: 2px;
           }
           .notes-line {
-            font-size: 8.2px;
-            line-height: 1.2;
+            font-size: 8.8px;
+            line-height: 1.35;
             font-weight: 700;
-            margin-bottom: 1px;
+            margin-bottom: 2px;
+            color: #000000;
           }
           .signatures {
             display: flex;
@@ -661,6 +670,7 @@ export function renderInvoiceStatementA4Html(opts: {
             gap: 12px;
             padding: 3px 0;
             border-bottom: 1px solid #ddd;
+            color: #000000;
           }
           .financial-row.strong {
             font-weight: 900;
@@ -674,6 +684,10 @@ export function renderInvoiceStatementA4Html(opts: {
         </style>
       </head>
       <body>
+        <style>
+          .main-table th, .main-table td, .summary-table th, .summary-table td { overflow: visible !important; }
+          .cell, .text, .num, .subtotal-cell, .meta-table td, .notes-line { color: #000000 !important; }
+        </style>
         <div class="page">
           <div class="brand-wrap">
             <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
