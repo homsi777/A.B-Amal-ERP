@@ -1,5 +1,5 @@
 import { BRAND } from '../../branding';
-import { formatCompositionForLabel, type CartelaCompositionLine } from '../cartela/careSymbols';
+import { formatCompositionLinesForLabel, type CartelaCompositionLine } from '../cartela/careSymbols';
 import { renderCareSymbolsHtml } from '../cartela/careSymbolSvg';
 import type { CartelaCareSymbolId } from '../cartela/careSymbols';
 
@@ -91,6 +91,18 @@ function row(label: string, value: string): string {
     </div>`;
 }
 
+function compositionRow(lines: CartelaCompositionLine[]): string {
+  const compLines = formatCompositionLinesForLabel(lines);
+  if (!compLines.length) return '';
+  const linesHtml = compLines.map((line) => `<span class="comp-line">${esc(line)}</span>`).join('');
+  return `
+    <div class="row row-comp">
+      <span class="lbl">COMP.</span>
+      <span class="sep">:</span>
+      <div class="val val-comp">${linesHtml}</div>
+    </div>`;
+}
+
 /** ISO care symbols — selected ids only, black for thermal printing. */
 function careSymbolsHtml(selected: CartelaCareSymbolId[]): string {
   return renderCareSymbolsHtml(selected);
@@ -106,15 +118,13 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     ? `<aside class="brand-stripe"><span>CLOTEX</span></aside>`
     : '';
 
-  const compositionText = formatCompositionForLabel(data.compositionLines);
-
   const rows = [
     row('ART CODE', data.artCode),
     row('DESIGN NO', data.designNo),
     row('COLOUR', data.colour),
     row('WIDTH', formatWidth(data)),
     row('WEIGHT', formatWeight(data)),
-    row('COMP.', compositionText),
+    compositionRow(data.compositionLines),
   ].join('');
 
   return `<!doctype html>
@@ -161,17 +171,44 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     .lbl { font-size: 6.2pt; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap; }
     .sep { font-size: 6.2pt; font-weight: 700; text-align: center; }
     .val { font-size: 6.8pt; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row-comp { align-items: start; }
+    .val-comp {
+      white-space: normal;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 0.12mm;
+      line-height: 1.08;
+      font-size: 6.2pt;
+      min-width: 0;
+    }
+    .comp-line {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .footer {
       display: grid;
-      grid-template-columns: 13mm 1fr 1fr;
+      grid-template-columns: ${data.qrSvg ? '13mm 1fr 1fr' : '1fr 1fr'};
       align-items: end;
       gap: 1mm;
       margin-top: 0.5mm;
       min-height: 14mm;
     }
-    .qr { width: 12mm; height: 12mm; display: flex; align-items: center; justify-content: center; }
-    .qr svg, .qr-svg { width: 12mm !important; height: 12mm !important; display: block; }
-    .qr svg path, .qr svg rect { fill: #000 !important; stroke: none !important; }
+    .qr {
+      width: 12mm;
+      height: 12mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+    }
+    .qr svg, .qr-svg {
+      width: 12mm !important;
+      height: 12mm !important;
+      display: block;
+    }
     .care {
       display: flex;
       align-items: center;

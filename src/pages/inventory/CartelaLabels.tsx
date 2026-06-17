@@ -214,7 +214,7 @@ export const CartelaLabels: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    void generateQrSvg(cartelaQrPayload(form), { size: 96, margin: 0 }).then((svg) => {
+    void generateQrSvg(cartelaQrPayload(form), { size: 96, margin: 1 }).then((svg) => {
       if (!cancelled) setQrSvg(svg);
     });
     return () => {
@@ -362,7 +362,7 @@ export const CartelaLabels: React.FC = () => {
       showToast({ type: 'warning', message: validationError });
       return;
     }
-    const qr = await generateQrSvg(cartelaQrPayload(payload), { size: 96, margin: 0 });
+    const qr = await generateQrSvg(cartelaQrPayload(payload), { size: 96, margin: 1 });
     const html = buildCartelaLabelHtml(payloadToLabelData(payload, qr));
     await printHtml(html, mode, `cartela-${payload.serialNo || 'label'}`);
   };

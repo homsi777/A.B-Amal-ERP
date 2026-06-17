@@ -39,12 +39,45 @@ export type CartelaCompositionLine = {
   fiberName: string;
 };
 
-export function formatCompositionForLabel(lines: CartelaCompositionLine[]): string {
+/** ISO-style abbreviations for compact thermal labels. */
+const FIBER_ABBREVIATIONS: Record<string, string> = {
+  COTTON: 'CO',
+  POLYESTER: 'PES',
+  POLYAMIDE: 'PA',
+  NYLON: 'PA',
+  ACRYLIC: 'PAN',
+  WOOL: 'WO',
+  LINEN: 'LI',
+  VISCOSE: 'CV',
+  RAYON: 'CV',
+  ELASTANE: 'EL',
+  SPANDEX: 'EL',
+  LYCRA: 'EL',
+  MODAL: 'CMD',
+  POLYPROPYLENE: 'PP',
+  SILK: 'SE',
+  BAMBOO: 'BAM',
+};
+
+export function abbreviateFiberName(name: string): string {
+  const upper = name.trim().toUpperCase();
+  if (!upper) return '';
+  if (FIBER_ABBREVIATIONS[upper]) return FIBER_ABBREVIATIONS[upper];
+  if (upper.length <= 4) return upper;
+  return upper.slice(0, 3);
+}
+
+/** One compact line per fiber — sorted by % descending. */
+export function formatCompositionLinesForLabel(lines: CartelaCompositionLine[]): string[] {
   return [...lines]
     .filter((line) => line.percent > 0 && line.fiberName.trim())
     .sort((a, b) => b.percent - a.percent)
-    .map((line) => `${Math.round(line.percent)}% ${line.fiberName.trim().toUpperCase()}`)
-    .join('  ');
+    .map((line) => `${Math.round(line.percent)}% ${abbreviateFiberName(line.fiberName)}`);
+}
+
+/** Single-line summary (legacy / list views). */
+export function formatCompositionForLabel(lines: CartelaCompositionLine[]): string {
+  return formatCompositionLinesForLabel(lines).join(' ');
 }
 
 export function compositionSum(lines: Array<{ percent: number }>): number {
