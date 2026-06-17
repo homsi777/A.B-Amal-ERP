@@ -6,6 +6,7 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
+import { purgeBusinessData } from '../services/purgeBusinessDataService.js';
 
 const settingBody = z.object({
   key: z.string().min(1),
@@ -28,6 +29,11 @@ const roleBody = z.object({
 const telegramTestBody = z.object({
   botToken: z.string().trim().optional().default(''),
   chatId: z.string().trim().optional().default(''),
+});
+
+const purgeBusinessDataBody = z.object({
+  confirmPhrase: z.literal('مسح البيانات'),
+  password: z.string().min(1),
 });
 
 function requirePermission(user: { role: string; permissions: string[] } | undefined, code: string) {
@@ -389,5 +395,38 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
 
     if (!row.rows.length) return sendError(reply, 404, 'المستخدم غير موجود', 'NOT_FOUND');
     return reply.send({ ok: true, data: row.rows[0] });
+  });
+
+  app.post('/purge-business-data', { preHandler: authenticateRequest }, async (req, reply) => {
+    const user = req.user!;
+    if (user.role !== 'admin') {
+      return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    }
+
+    const parsed = purgeBusinessDataBody.safeParse(req.body);
+    if (!parsed.success) {
+      return sendError(reply, 400, 'يجب كتابة «مسح البيانات» وتأكيد كلمة المرور', 'VALIDATION');
+    }
+
+    const passwordRow = await getPool().query<{ password_hash: string }>(
+      `SELECT password_hash FROM users WHERE id = $1 AND company_id = $2`,
+      [user.sub, user.companyId],
+    );
+    if (!passwordRow.rows.length) {
+      return sendError(reply, 401, ArabicErrors.unauthorized, 'UNAUTHORIZED');
+    }
+
+    const passwordOk = await bcrypt.compare(parsed.data.password, passwordRow.rows[0].password_hash);
+    if (!passwordOk) {
+      return sendError(reply, 401, 'كلمة المرور غير صحيحة', 'INVALID_PASSWORD');
+    }
+
+    try {
+      const summary = await purgeBusinessData(user.companyId, user.sub);
+      return reply.send({ ok: true, data: summary });
+    } catch (error) {
+      req.log.error({ err: error }, 'purge-business-data failed');
+      return sendError(reply, 500, 'تعذر مسح بيانات الأعمال. حاول بعد أخذ نسخة احتياطية.', 'PURGE_FAILED');
+    }
   });
 };

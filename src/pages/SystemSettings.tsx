@@ -9,6 +9,7 @@ import {
   Database,
   Save,
   Sparkles,
+  AlertTriangle,
   Construction,
   Monitor,
   Users,
@@ -30,6 +31,7 @@ import {
   getPermissionsOverview,
   getSystemSettings,
   listSystemUsers,
+  purgeBusinessData,
   saveRolePermissions,
   saveSystemSetting,
   testTelegramBot,
@@ -40,6 +42,7 @@ import {
   type ApiUser,
   type TelegramChatCandidate,
 } from '../lib/api/settingsApi';
+import { fetchMe, type AuthUser } from '../lib/api/authApi';
 import { listExchangeRates, updateExchangeRate, type ExchangeRateDto, type SupportedCurrencyCode } from '../lib/api/exchangeRatesApi';
 import { useToast } from '../components/NonBlockingToast';
 
@@ -138,6 +141,11 @@ export const SystemSettings = () => {
   const [exchangeRatesDraft, setExchangeRatesDraft] = useState<Record<string, { rate: string; isActive: boolean }>>({});
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false);
   const [exchangeRatesSaving, setExchangeRatesSaving] = useState<Record<string, boolean>>({});
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [purgeAcknowledged, setPurgeAcknowledged] = useState(false);
+  const [purgeConfirmPhrase, setPurgeConfirmPhrase] = useState('');
+  const [purgePassword, setPurgePassword] = useState('');
+  const [purgeLoading, setPurgeLoading] = useState(false);
 
   // Sync active tab when URL ?tab= changes (e.g., redirected from /settings/desktop)
   useEffect(() => {
@@ -182,6 +190,59 @@ export const SystemSettings = () => {
       cancelled = true;
     };
   }, [activeSection, showToast]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMe()
+      .then((user) => {
+        if (!cancelled) setCurrentUser(user);
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUser(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handlePurgeBusinessData = async () => {
+    if (currentUser?.role !== 'admin') {
+      showToast({ type: 'error', message: 'هذا الإجراء متاح لمدير النظام فقط.' });
+      return;
+    }
+    if (!purgeAcknowledged) {
+      showToast({ type: 'warning', message: 'يجب تأكيد فهمك للتحذير أولاً.' });
+      return;
+    }
+    if (purgeConfirmPhrase.trim() !== 'مسح البيانات') {
+      showToast({ type: 'warning', message: 'اكتب «مسح البيانات» بالضبط للتأكيد.' });
+      return;
+    }
+    if (!purgePassword.trim()) {
+      showToast({ type: 'warning', message: 'أدخل كلمة مرور حسابك الحالي.' });
+      return;
+    }
+
+    setPurgeLoading(true);
+    try {
+      const summary = await purgeBusinessData({
+        confirmPhrase: 'مسح البيانات',
+        password: purgePassword,
+      });
+      const totalRows = Object.values(summary.tables).reduce((sum, count) => sum + count, 0);
+      showToast({
+        type: 'success',
+        message: `تم مسح بيانات الأعمال (${totalRows} سجل). يُنصح بإعادة تحميل الصفحة.`,
+      });
+      setPurgeAcknowledged(false);
+      setPurgeConfirmPhrase('');
+      setPurgePassword('');
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر مسح بيانات الأعمال' });
+    } finally {
+      setPurgeLoading(false);
+    }
+  };
 
   const saveExchangeRateRow = async (currencyCode: SupportedCurrencyCode) => {
     const draft = exchangeRatesDraft[currencyCode];
@@ -614,16 +675,76 @@ export const SystemSettings = () => {
           {activeSection === 'activation' && <ActivationSettingsPanel />}
 
           {activeSection === 'backup' && (
-            <SettingsPanel
-              title="قواعد البيانات والنسخ الاحتياطي"
-              description="سياسة النسخ الاحتياطي والاحتفاظ بدون عرض كلمات مرور أو مفاتيح اتصال."
-              rows={[
-                { label: 'تفعيل النسخ الاحتياطي التلقائي', type: 'checkbox', value: settingsValues.backup.autoBackup, onChange: (value) => updateSetting('backup', 'autoBackup', value) },
-                { label: 'وقت النسخ اليومي', type: 'text', value: settingsValues.backup.backupTime, onChange: (value) => updateSetting('backup', 'backupTime', value) },
-                { label: 'مدة الاحتفاظ بالأيام', type: 'number', value: settingsValues.backup.retentionDays, onChange: (value) => updateSetting('backup', 'retentionDays', value) },
-                { label: 'مسار النسخ المحلي', type: 'text', value: settingsValues.backup.backupPath, onChange: (value) => updateSetting('backup', 'backupPath', value) },
-              ]}
-            />
+            <div className="space-y-6">
+              <SettingsPanel
+                title="قواعد البيانات والنسخ الاحتياطي"
+                description="سياسة النسخ الاحتياطي والاحتفاظ بدون عرض كلمات مرور أو مفاتيح اتصال."
+                rows={[
+                  { label: 'تفعيل النسخ الاحتياطي التلقائي', type: 'checkbox', value: settingsValues.backup.autoBackup, onChange: (value) => updateSetting('backup', 'autoBackup', value) },
+                  { label: 'وقت النسخ اليومي', type: 'text', value: settingsValues.backup.backupTime, onChange: (value) => updateSetting('backup', 'backupTime', value) },
+                  { label: 'مدة الاحتفاظ بالأيام', type: 'number', value: settingsValues.backup.retentionDays, onChange: (value) => updateSetting('backup', 'retentionDays', value) },
+                  { label: 'مسار النسخ المحلي', type: 'text', value: settingsValues.backup.backupPath, onChange: (value) => updateSetting('backup', 'backupPath', value) },
+                ]}
+              />
+
+              {currentUser?.role === 'admin' && (
+                <div className="bg-[var(--surface-header)] border-2 border-red-300 dark:border-red-800 rounded-xl shadow-sm p-6 space-y-5">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-xl font-bold text-red-700 dark:text-red-400">منطقة خطرة — مسح بيانات الأعمال</h3>
+                      <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
+                        يحذف هذا الإجراء الأقمشة والمخزون والفواتير والعملاء والموردين والسندات وحركات الصندوق والقيود المحاسبية المرتبطة بها.
+                        يُبقي المستخدمين والمستودعات الفارغة وإعدادات النظام والرواتب وقالب اللصاقات.
+                        <strong className="block mt-2 text-red-700 dark:text-red-400">لا يمكن التراجع عن هذا الإجراء — خذ نسخة احتياطية أولاً.</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="flex items-start gap-3 text-sm font-bold text-[var(--text-heading)] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={purgeAcknowledged}
+                      onChange={(e) => setPurgeAcknowledged(e.target.checked)}
+                      className="accent-red-600 mt-1"
+                    />
+                    <span>أفهم أن جميع بيانات الأعمال ستُحذف نهائياً وأنني أخذت نسخة احتياطية أو أتحمل المسؤولية.</span>
+                  </label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">اكتب «مسح البيانات» للتأكيد</label>
+                      <input
+                        className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
+                        value={purgeConfirmPhrase}
+                        onChange={(e) => setPurgeConfirmPhrase(e.target.value)}
+                        placeholder="مسح البيانات"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">كلمة مرور حسابك الحالي</label>
+                      <input
+                        type="password"
+                        className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
+                        value={purgePassword}
+                        onChange={(e) => setPurgePassword(e.target.value)}
+                        autoComplete="current-password"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={purgeLoading || !purgeAcknowledged || purgeConfirmPhrase.trim() !== 'مسح البيانات' || !purgePassword.trim()}
+                    onClick={() => void handlePurgeBusinessData()}
+                    className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    {purgeLoading ? 'جاري المسح...' : 'مسح بيانات الأعمال نهائياً'}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {activeSection === 'users' && (

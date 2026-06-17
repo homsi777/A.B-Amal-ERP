@@ -1,4 +1,6 @@
-/** كلمة مرور المستخدم admin في البذرة / التهيئة التلقائية بعد التفعيل */
+/** اسم مستخدم وكلمة مرور المدير في البذرة / التهيئة التلقائية بعد التفعيل */
+
+export const DEFAULT_ADMIN_USERNAME = 'بشیر';
 
 export function resolveAdminPassword(): string {
   const fromEnv = process.env.SEED_ADMIN_PASSWORD?.trim();
@@ -6,12 +8,12 @@ export function resolveAdminPassword(): string {
 
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
-      'SEED_ADMIN_PASSWORD مطلوب في الإنتاج. عيّن كلمة مرور قوية للمستخدم admin (لا تُكتب في السجلات).',
+      `SEED_ADMIN_PASSWORD مطلوب في الإنتاج. عيّن كلمة مرور قوية للمستخدم ${DEFAULT_ADMIN_USERNAME} (لا تُكتب في السجلات).`,
     );
   }
 
   console.warn(
-    '[env] تنبيه (تطوير): لم يُعرّف SEED_ADMIN_PASSWORD — استخدام admin123 للتطوير المحلي فقط.',
+    `[env] تنبيه (تطوير): لم يُعرّف SEED_ADMIN_PASSWORD — استخدام 101010 للتطوير المحلي فقط (المستخدم: ${DEFAULT_ADMIN_USERNAME}).`,
   );
-  return 'admin123';
+  return '101010';
 }

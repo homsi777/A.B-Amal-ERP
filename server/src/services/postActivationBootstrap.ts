@@ -4,7 +4,7 @@
  */
 import bcrypt from 'bcryptjs';
 import type { PoolClient } from 'pg';
-import { resolveAdminPassword } from '../db/adminSeedPassword.js';
+import { DEFAULT_ADMIN_USERNAME, resolveAdminPassword } from '../db/adminSeedPassword.js';
 import { PERMISSIONS, ROLES } from '../db/seedConstants.js';
 import { getPool } from '../db/pool.js';
 import { ensureCompanyGlCoa } from '../services/glCoaService.js';
@@ -135,7 +135,7 @@ export async function runPostActivationBootstrap(companyId: string): Promise<voi
       plain = resolveAdminPassword();
     } catch (e) {
       console.warn(
-        '[bootstrap] لم يُنشَأ admin تلقائياً (ضبط SEED_ADMIN_PASSWORD ثم npm run server:seed):',
+        '[bootstrap] لم يُنشَأ مدير النظام تلقائياً (ضبط SEED_ADMIN_PASSWORD ثم npm run server:seed):',
         e instanceof Error ? e.message : e,
       );
       await client.query('COMMIT');
@@ -145,12 +145,12 @@ export async function runPostActivationBootstrap(companyId: string): Promise<voi
     const passwordHash = await bcrypt.hash(plain, 12);
     await client.query(
       `INSERT INTO users (company_id, username, full_name, password_hash, role, is_active)
-       VALUES ($1, 'admin', 'مدير النظام', $2, 'admin', true)`,
-      [companyId, passwordHash],
+       VALUES ($1, $2, 'مدير النظام', $3, 'admin', true)`,
+      [companyId, DEFAULT_ADMIN_USERNAME, passwordHash],
     );
 
     await client.query('COMMIT');
-    console.log('[bootstrap] تم إنشاء مستخدم admin بعد التفعيل (كلمة المرور من SEED_ADMIN_PASSWORD أو admin123 في التطوير).');
+    console.log(`[bootstrap] تم إنشاء مستخدم ${DEFAULT_ADMIN_USERNAME} بعد التفعيل (كلمة المرور من SEED_ADMIN_PASSWORD أو 101010 في التطوير).`);
   } catch (e) {
     try {
       await client.query('ROLLBACK');

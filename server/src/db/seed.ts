@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
-import { resolveAdminPassword } from './adminSeedPassword.js';
+import { DEFAULT_ADMIN_USERNAME, resolveAdminPassword } from './adminSeedPassword.js';
 import { PERMISSIONS, ROLES } from './seedConstants.js';
 import { generateDevKeysIfEnabled } from '../services/activationService.js';
 import { ensureCompanyGlCoa } from '../services/glCoaService.js';
@@ -131,27 +131,43 @@ async function main() {
     const plain = resolveAdminPassword();
     const passwordHash = await bcrypt.hash(plain, 12);
 
-    const existing = await client.query<{ id: string }>(
+    const bashir = await client.query<{ id: string }>(
       `SELECT id FROM users WHERE username = $1`,
-      ['admin'],
+      [DEFAULT_ADMIN_USERNAME],
     );
-    if (existing.rows.length === 0) {
-      await client.query(
-        `INSERT INTO users (company_id, username, full_name, password_hash, role, is_active)
-         VALUES ($1, 'admin', 'مدير النظام', $2, 'admin', true)`,
-        [companyId, passwordHash],
-      );
-      console.log('[seed] تم إنشاء مستخدم admin (كلمة المرور غير مُعرَضة في السجلات).');
-    } else {
+    const legacyAdmin = await client.query<{ id: string }>(
+      `SELECT id FROM users WHERE username = 'admin'`,
+    );
+
+    if (bashir.rows.length > 0) {
       await client.query(
         `UPDATE users
             SET password_hash = $2,
                 is_active = true,
                 updated_at = now()
           WHERE id = $1`,
-        [existing.rows[0].id, passwordHash],
+        [bashir.rows[0].id, passwordHash],
       );
-      console.log('[seed] مستخدم admin موجود مسبقاً — تم تحديث كلمة المرور من SEED_ADMIN_PASSWORD.');
+      console.log(`[seed] مستخدم ${DEFAULT_ADMIN_USERNAME} موجود — تم تحديث كلمة المرور من SEED_ADMIN_PASSWORD.`);
+    } else if (legacyAdmin.rows.length > 0) {
+      await client.query(
+        `UPDATE users
+            SET username = $2,
+                full_name = 'مدير النظام',
+                password_hash = $3,
+                is_active = true,
+                updated_at = now()
+          WHERE id = $1`,
+        [legacyAdmin.rows[0].id, DEFAULT_ADMIN_USERNAME, passwordHash],
+      );
+      console.log(`[seed] تم ترقية مستخدم admin إلى ${DEFAULT_ADMIN_USERNAME} وتحديث كلمة المرور.`);
+    } else {
+      await client.query(
+        `INSERT INTO users (company_id, username, full_name, password_hash, role, is_active)
+         VALUES ($1, $2, 'مدير النظام', $3, 'admin', true)`,
+        [companyId, DEFAULT_ADMIN_USERNAME, passwordHash],
+      );
+      console.log(`[seed] تم إنشاء مستخدم ${DEFAULT_ADMIN_USERNAME} (كلمة المرور غير مُعرَضة في السجلات).`);
     }
 
     const companySeed = await client.query<{ id: string }>('SELECT id FROM companies LIMIT 1');

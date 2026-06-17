@@ -60,7 +60,7 @@ async function main() {
       `SELECT username, role, is_active,
               length(password_hash)::text AS hash_len,
               left(password_hash, 4) AS prefix
-       FROM users WHERE username = 'admin'`,
+       FROM users WHERE username IN ('admin', 'بشیر') ORDER BY CASE WHEN username = 'بشیر' THEN 0 ELSE 1 END LIMIT 1`,
     );
 
     console.log(JSON.stringify({ exists, counts: counts.rows, admin: admin.rows[0] ?? null }, null, 2));

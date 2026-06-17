@@ -128,3 +128,19 @@ export async function updateSystemUser(
   });
   return res.data;
 }
+
+export type PurgeBusinessDataSummary = {
+  purgedAt: string;
+  tables: Record<string, number>;
+};
+
+export async function purgeBusinessData(payload: {
+  confirmPhrase: 'مسح البيانات';
+  password: string;
+}): Promise<PurgeBusinessDataSummary> {
+  const res = await apiFetch<{ ok: boolean; data: PurgeBusinessDataSummary }>('/api/system/purge-business-data', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return res.data;
+}
