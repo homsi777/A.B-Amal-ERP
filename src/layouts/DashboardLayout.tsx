@@ -96,6 +96,7 @@ const Topbar = () => {
         { labelKey: 'inventory.categories', to: '/inventory/categories' },
         { labelKey: 'inventory.labels', to: '/inventory/labels' },
         { labelKey: 'inventory.customLabel', to: '/inventory/custom-label' },
+        { labelKey: 'inventory.cartela', to: '/inventory/cartela' },
         { labelKey: 'inventory.printJobs', to: '/inventory/print-jobs' },
         { labelKey: 'inventory.settings', to: '/inventory/settings' },
         { labelKey: 'inventory.bulkPricing', to: '/inventory/bulk-pricing' },

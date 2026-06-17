@@ -6,6 +6,7 @@
   "inventory.categories": "Kumaş Kategorileri",
   "inventory.labels": "Etiket Yazdırma",
   "inventory.customLabel": "Özel Etiket Yazdırma",
+  "inventory.cartela": "Kartela",
   "inventory.printJobs": "Yazdırma Kayıtları",
   "inventory.settings": "Stok Ayarları",
   "inventory.bulkPricing": "Malzeme Adına Göre Toplu Fiyatlandırma",

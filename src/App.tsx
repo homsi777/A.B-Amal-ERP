@@ -75,6 +75,7 @@ import { CreateItem } from './pages/inventory/CreateItem';
 import { InventorySettings } from './pages/inventory/InventorySettings';
 import { StickerPrinting } from './pages/inventory/StickerPrinting';
 import { CustomStickerPrinting } from './pages/inventory/CustomStickerPrinting';
+import { CartelaLabels } from './pages/inventory/CartelaLabels';
 import { BulkPricing } from './pages/inventory/BulkPricing';
 import { Warehouses } from './pages/inventory/Warehouses';
 import { Transfers } from './pages/inventory/Transfers';
@@ -150,6 +151,7 @@ export default function App() {
             <Route path="inventory/settings" element={<InventorySettings />} />
             <Route path="inventory/labels" element={<StickerPrinting />} />
             <Route path="inventory/custom-label" element={<CustomStickerPrinting />} />
+            <Route path="inventory/cartela" element={<CartelaLabels />} />
             <Route path="inventory/bulk-pricing" element={<BulkPricing />} />
             <Route path="inventory/warehouses" element={<Warehouses />} />
             <Route path="inventory/transfers" element={<Transfers />} />
