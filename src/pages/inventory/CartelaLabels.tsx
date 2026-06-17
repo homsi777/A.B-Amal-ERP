@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Eye,
@@ -52,6 +52,56 @@ import { ElectronPrintAdapter } from '../../lib/printing/electronPrintAdapter';
 import { canUseSilentLabelPrinting, getPrintAdapter, isElectronRenderer } from '../../lib/printing/printAdapters';
 import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import { useToast } from '../../components/NonBlockingToast';
+
+/** mm → CSS px at 96dpi (matches browser mm units in iframe). */
+function cartelaLabelSizePx() {
+  const pxPerMm = 96 / 25.4;
+  return {
+    width: CARTELA_WIDTH_MM * pxPerMm,
+    height: CARTELA_HEIGHT_MM * pxPerMm,
+  };
+}
+
+function CartelaPreviewFrame({ html }: { html: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(2.5);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const updateScale = () => {
+      const { width: labelW } = cartelaLabelSizePx();
+      const next = el.clientWidth / labelW;
+      setScale(Math.min(3.5, Math.max(1.8, next)));
+    };
+
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={wrapRef}
+      className="relative w-full overflow-hidden rounded-lg border border-slate-300 bg-white shadow-md"
+      style={{ aspectRatio: `${CARTELA_WIDTH_MM} / ${CARTELA_HEIGHT_MM}` }}
+    >
+      <iframe
+        title="cartela-preview"
+        srcDoc={html}
+        scrolling="no"
+        className="absolute top-0 left-0 block border-0 origin-top-left"
+        style={{
+          width: `${CARTELA_WIDTH_MM}mm`,
+          height: `${CARTELA_HEIGHT_MM}mm`,
+          transform: `scale(${scale})`,
+        }}
+      />
+    </div>
+  );
+}
 
 type PrintMode = 'dialog' | 'silent' | 'pdf';
 type CartelaTab = 'form' | 'registry';
@@ -608,7 +658,7 @@ export const CartelaLabels: React.FC = () => {
       )}
 
       {activeTab === 'form' && (
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(300px,420px)] gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] gap-6 items-start">
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="font-bold text-slate-900">
@@ -936,25 +986,18 @@ export const CartelaLabels: React.FC = () => {
           </div>
         </section>
 
-        <aside className="bg-slate-100 rounded-xl border border-slate-200 p-4 overflow-auto sticky top-4">
+        <aside className="bg-slate-100 rounded-xl border border-slate-200 p-4 sticky top-4">
           <div className="mb-3 flex items-center justify-between gap-2 text-sm">
             <span className="font-bold text-slate-800">معاينة قبل الطباعة</span>
             <span className="font-mono text-xs text-slate-500" dir="ltr">
               {CARTELA_WIDTH_MM}×{CARTELA_HEIGHT_MM} mm
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 mb-3">محسّنة للطابعة الحرارية — أسود فقط على خلفية بيضاء.</p>
-          <div className="flex justify-center">
-            <iframe
-              title="cartela-preview"
-              srcDoc={previewHtml}
-              className="bg-white border border-slate-300"
-              style={{
-                width: `${CARTELA_WIDTH_MM}mm`,
-                height: `${CARTELA_HEIGHT_MM}mm`,
-                maxWidth: '100%',
-              }}
-            />
+          <p className="text-[11px] text-slate-500 mb-3">
+            معاينة مكبّرة بنفس النسب — الطباعة الفعلية 80×50 mm حراري.
+          </p>
+          <div className="relative w-full">
+            <CartelaPreviewFrame html={previewHtml} />
           </div>
         </aside>
       </div>

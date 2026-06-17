@@ -198,8 +198,13 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     }
     .brand-stripe span { display: block; }
     @media screen {
-      body { background: #e5e7eb; }
-      .sheet { background: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+      html, body {
+        width: ${CARTELA_WIDTH_MM}mm;
+        height: ${CARTELA_HEIGHT_MM}mm;
+        overflow: hidden;
+        background: #fff;
+      }
+      .sheet { background: #fff; box-shadow: none; }
     }
   </style>
 </head>
