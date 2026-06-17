@@ -53,6 +53,7 @@ const FIBER_ABBREVIATIONS: Record<string, string> = {
   ELASTANE: 'EL',
   SPANDEX: 'EL',
   LYCRA: 'EL',
+  LIKRA: 'EL',
   MODAL: 'CMD',
   POLYPROPYLENE: 'PP',
   SILK: 'SE',
@@ -67,7 +68,7 @@ export function abbreviateFiberName(name: string): string {
   return upper.slice(0, 3);
 }
 
-/** One compact line per fiber — sorted by % descending. */
+/** Compact parts sorted by % descending — joined side-by-side on the label. */
 export function formatCompositionLinesForLabel(lines: CartelaCompositionLine[]): string[] {
   return [...lines]
     .filter((line) => line.percent > 0 && line.fiberName.trim())
@@ -75,9 +76,9 @@ export function formatCompositionLinesForLabel(lines: CartelaCompositionLine[]):
     .map((line) => `${Math.round(line.percent)}% ${abbreviateFiberName(line.fiberName)}`);
 }
 
-/** Single-line summary (legacy / list views). */
+/** Side-by-side text; wraps to next line only when too long for one row. */
 export function formatCompositionForLabel(lines: CartelaCompositionLine[]): string {
-  return formatCompositionLinesForLabel(lines).join(' ');
+  return formatCompositionLinesForLabel(lines).join('  ');
 }
 
 export function compositionSum(lines: Array<{ percent: number }>): number {

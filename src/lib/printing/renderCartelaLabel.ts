@@ -1,5 +1,5 @@
 import { BRAND } from '../../branding';
-import { formatCompositionLinesForLabel, type CartelaCompositionLine } from '../cartela/careSymbols';
+import { formatCompositionForLabel, type CartelaCompositionLine } from '../cartela/careSymbols';
 import { renderCareSymbolsHtml } from '../cartela/careSymbolSvg';
 import type { CartelaCareSymbolId } from '../cartela/careSymbols';
 
@@ -92,14 +92,13 @@ function row(label: string, value: string): string {
 }
 
 function compositionRow(lines: CartelaCompositionLine[]): string {
-  const compLines = formatCompositionLinesForLabel(lines);
-  if (!compLines.length) return '';
-  const linesHtml = compLines.map((line) => `<span class="comp-line">${esc(line)}</span>`).join('');
+  const text = formatCompositionForLabel(lines);
+  if (!text.trim()) return '';
   return `
     <div class="row row-comp">
       <span class="lbl">COMP.</span>
       <span class="sep">:</span>
-      <div class="val val-comp">${linesHtml}</div>
+      <span class="val val-comp">${esc(text)}</span>
     </div>`;
 }
 
@@ -175,18 +174,11 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     .val-comp {
       white-space: normal;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      gap: 0.12mm;
-      line-height: 1.08;
+      overflow-wrap: break-word;
+      word-break: normal;
+      line-height: 1.1;
       font-size: 6.2pt;
       min-width: 0;
-    }
-    .comp-line {
-      display: block;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
     .footer {
       display: grid;
