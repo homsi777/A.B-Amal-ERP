@@ -805,10 +805,22 @@ export async function exportHtmlDocumentToPdf(
   doc.open();
   doc.write(html);
   doc.close();
-  await new Promise((resolve) => window.setTimeout(resolve, 200));
+  await new Promise((resolve) => window.setTimeout(resolve, 220));
 
   const target = doc.body;
   const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(doc);
+
+  const measureWidth = () =>
+    Math.max(
+      target.scrollWidth,
+      target.offsetWidth,
+      doc.documentElement.scrollWidth,
+      doc.documentElement.offsetWidth,
+    );
+
+  const captureWidth = measureWidth() + 24;
+  iframe.style.width = `${captureWidth}px`;
+  await new Promise((resolve) => window.setTimeout(resolve, 60));
 
   try {
     const canvas = await html2canvas(target, {
@@ -816,10 +828,18 @@ export async function exportHtmlDocumentToPdf(
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
-      width: target.scrollWidth,
-      height: target.scrollHeight,
+      windowWidth: captureWidth,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
       onclone: (clonedDocument) => {
         appendHtml2CanvasCompatibilityStyle(clonedDocument);
+        const clonedBody = clonedDocument.body;
+        if (clonedBody) {
+          clonedBody.style.overflow = 'visible';
+          clonedBody.style.width = `${captureWidth}px`;
+        }
       },
     });
 
@@ -829,18 +849,20 @@ export async function exportHtmlDocumentToPdf(
     const pdf = new jsPDF({ orientation, unit: 'mm', format: pageFormat });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
+    const sideMarginMm = 4;
+    const imgWidth = pageWidth - sideMarginMm * 2;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
     let heightLeft = imgHeight;
     let position = 0;
+    const xOffset = sideMarginMm;
 
-    addCompressedImageToPDF(pdf, imgData, 0, position, imgWidth, imgHeight);
+    addCompressedImageToPDF(pdf, imgData, xOffset, position, imgWidth, imgHeight);
     heightLeft -= pageHeight;
 
     while (heightLeft > 0) {
       position = heightLeft - imgHeight;
       pdf.addPage();
-      addCompressedImageToPDF(pdf, imgData, 0, position, imgWidth, imgHeight);
+      addCompressedImageToPDF(pdf, imgData, xOffset, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
     }
 

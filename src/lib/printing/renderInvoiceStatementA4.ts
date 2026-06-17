@@ -417,20 +417,26 @@ export function renderInvoiceStatementA4Html(opts: {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>${escapeHtml(title)}</title>
         <style>
-          @page { size: A4; margin: 8mm 7mm 7mm; }
+          @page { size: A4; margin: 8mm; }
           * { box-sizing: border-box; }
-          html, body { width: 100%; height: auto; }
+          html, body {
+            width: 100%;
+            height: auto;
+            overflow: visible;
+          }
           body {
-            margin: 0;
+            margin: 0 auto;
             background: #ffffff;
             color: #000000;
             direction: rtl;
             font-family: Arial, Tahoma, "Segoe UI", sans-serif;
+            max-width: 194mm;
           }
           .page {
             width: 100%;
             min-height: 100%;
-            padding: 0 1mm;
+            padding: 0 2mm;
+            overflow: visible;
           }
           .brand-wrap {
             display: flex;
@@ -487,7 +493,9 @@ export function renderInvoiceStatementA4Html(opts: {
           .meta-side-value-col { width: 28%; }
           .meta-side-label-col { width: 15%; }
           .main-table,
-          .summary-table { border-top: 1px solid #000; border-bottom: 1px solid #000; }
+          .summary-table {
+            border: 1px solid #000;
+          }
           .main-table .col-material { width: 22%; }
           .main-table .col-design { width: 12%; }
           .main-table .col-color-code { width: 10%; }
