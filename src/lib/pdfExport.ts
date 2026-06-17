@@ -837,6 +837,8 @@ export function renderVoucherA5Html(data: {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
       <style>
         @page {
           size: A5 portrait;
@@ -847,32 +849,36 @@ export function renderVoucherA5Html(data: {
           font-family: 'Arial', sans-serif; 
           background: white; 
           padding: 0;
-          direction: rtl; 
+          direction: rtl;
+          width: 148mm;
+          max-width: 148mm;
+          margin: 0 auto;
         }
         .a5-container {
           width: 100%;
+          max-width: 148mm;
           background: white;
           border: 1px solid #e5e7eb;
-          padding: 14px;
+          padding: 12px 14px;
         }
         .header {
           text-align: center;
           border-bottom: 2px solid ${typeColor};
-          padding-bottom: 10px;
-          margin-bottom: 15px;
+          padding-bottom: 8px;
+          margin-bottom: 10px;
         }
         .header-logo {
           display: flex;
           justify-content: center;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
         .header-logo img {
-          height: 40px;
+          height: 54px;
           width: auto;
           object-fit: contain;
         }
         .voucher-title {
-          font-size: 26px;
+          font-size: 28px;
           font-weight: 800;
           color: ${typeColor};
         }
@@ -880,114 +886,118 @@ export function renderVoucherA5Html(data: {
           display: inline-block;
           background: ${typeBgColor};
           color: ${typeColor};
-          padding: 5px 12px;
+          padding: 4px 14px;
           border-radius: 4px;
           font-weight: bold;
-          font-size: 17px;
-          margin: 10px 0;
-        }
-        .voucher-no {
-          font-size: 24px;
-          font-weight: bold;
-          color: #1e293b;
-          margin: 10px 0;
-          font-family: monospace;
+          font-size: 18px;
+          margin: 6px 0;
         }
         .voucher-number-inline {
-          text-align: left;
-          direction: ltr;
-          font-size: 15px;
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+          direction: rtl;
+          font-size: 17px;
           font-weight: 800;
           color: #0f172a;
-          margin: 6px 0 8px;
+          margin: 4px 0 6px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid #f3f4f6;
         }
         .voucher-number-label {
           color: #64748b;
-          margin-right: 6px;
+          font-weight: 600;
+          flex-shrink: 0;
         }
         .info-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 8px 0;
+          display: grid;
+          grid-template-columns: 24mm minmax(0, 1fr);
+          column-gap: 3mm;
+          align-items: baseline;
+          padding: 5px 0;
           border-bottom: 1px solid #f3f4f6;
-          font-size: 15px;
+          font-size: 16px;
+          line-height: 1.35;
         }
         .info-label {
           color: #64748b;
           font-weight: 600;
+          white-space: nowrap;
         }
         .info-value {
           color: #1e293b;
-          font-weight: 500;
-          text-align: left;
+          font-weight: 600;
+          text-align: right;
+          word-break: break-word;
         }
         .amount-section {
           background: ${typeBgColor};
           border: 2px solid ${typeColor};
           border-radius: 6px;
-          padding: 12px;
-          margin: 15px 0;
+          padding: 10px 12px;
+          margin: 10px 0;
           text-align: center;
         }
         .amount-label {
-          font-size: 10px;
+          font-size: 12px;
           color: ${typeColor};
-          margin-bottom: 5px;
+          margin-bottom: 4px;
+          font-weight: 700;
         }
         .amount-value {
-          font-size: 30px;
+          font-size: 34px;
           font-weight: bold;
           color: ${typeColor};
           font-family: monospace;
+          line-height: 1.1;
         }
         .amount-currency {
-          font-size: 14px;
+          font-size: 16px;
           color: ${typeColor};
-          margin-top: 3px;
+          margin-top: 2px;
+          font-weight: 700;
         }
         .description-section {
-          margin: 15px 0;
+          margin: 10px 0;
           padding: 10px;
           background: #f8fafc;
           border-radius: 4px;
           border-right: 3px solid ${BRAND.primaryColor};
-          min-height: 60px;
+          min-height: 52px;
         }
         .description-label {
-          font-size: 10px;
+          font-size: 12px;
           color: #64748b;
           font-weight: 600;
-          margin-bottom: 5px;
+          margin-bottom: 4px;
         }
         .description-text {
-          font-size: 13px;
+          font-size: 15px;
           color: #1e293b;
-          line-height: 1.4;
+          line-height: 1.45;
           word-wrap: break-word;
         }
         .signature-line {
           display: flex;
           justify-content: space-around;
-          margin-top: 18px;
-          padding-top: 20px;
+          margin-top: 12px;
+          padding-top: 14px;
           border-top: 1px solid #e5e7eb;
         }
         .signature-box {
           text-align: center;
         }
         .signature-space {
-          width: 80px;
-          height: 40px;
+          width: 88px;
+          height: 42px;
           border: 1px dashed #cbd5e1;
-          margin-bottom: 5px;
+          margin-bottom: 4px;
         }
         .signature-label {
-          font-size: 9px;
+          font-size: 10px;
           color: #64748b;
         }
       </style>
-    </head>
-    <body>
       <div class="a5-container">
         <div class="header">
           <div class="header-logo">
@@ -1027,7 +1037,7 @@ export function renderVoucherA5Html(data: {
             <div class="amount-value">${Number(data.amount).toLocaleString('ar')}</div>
             <div class="amount-currency">${safeCurrencyCode}</div>
             ${data.amountUsd && data.currencyCode !== 'USD' ? `
-              <div style="font-size: 10px; color: ${typeColor}; margin-top: 5px;">
+              <div style="font-size: 11px; color: ${typeColor}; margin-top: 5px;">
                 ≈ ${Number(data.amountUsd).toLocaleString('ar')} USD
               </div>
             ` : ''}
@@ -1056,4 +1066,49 @@ export function renderVoucherA5Html(data: {
     </body>
     </html>
   `;
+}
+
+export type VoucherPrintData = Parameters<typeof renderVoucherA5Html>[0];
+
+/** Browser/Electron-safe PDF export for receipt/payment vouchers (A5). */
+export async function exportVoucherToPdf(data: VoucherPrintData, filenamePrefix: string): Promise<void> {
+  const html = renderVoucherA5Html(data);
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:absolute;left:-9999px;top:0;width:148mm;height:210mm;border:0;';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+  if (!doc) {
+    document.body.removeChild(iframe);
+    throw new Error('تعذر تجهيز PDF');
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+  await new Promise((resolve) => window.setTimeout(resolve, 180));
+
+  try {
+    const { default: html2canvas } = await import('html2canvas');
+    const { default: jsPDF } = await import('jspdf');
+    const target = doc.body;
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      width: target.scrollWidth,
+      height: target.scrollHeight,
+    });
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const y = imgHeight <= pageHeight ? Math.max(0, (pageHeight - imgHeight) / 2) : 0;
+    pdf.addImage(imgData, 'JPEG', 0, y, imgWidth, Math.min(imgHeight, pageHeight));
+    pdf.save(`${filenamePrefix}.pdf`);
+  } finally {
+    document.body.removeChild(iframe);
+  }
 }

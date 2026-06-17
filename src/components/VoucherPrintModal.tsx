@@ -2,7 +2,7 @@ import React from 'react';
 import { Download, Printer, X, Loader2 } from 'lucide-react';
 import type { VoucherRow } from '../lib/api/vouchersApi';
 import { useToast } from './NonBlockingToast';
-import { renderVoucherA5Html } from '../lib/pdfExport';
+import { exportVoucherToPdf, renderVoucherA5Html } from '../lib/pdfExport';
 
 interface VoucherPrintModalProps {
   isOpen: boolean;
@@ -142,36 +142,24 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           showToast({ type: 'error', message: `خطأ في التصدير: ${result.error || 'تم إلغاء العملية'}` });
         }
       } else {
-        const container = document.createElement('div');
-        container.style.position = 'absolute';
-        container.style.left = '-9999px';
-        container.style.top = '0';
-        container.style.width = '1200px';
-        container.style.backgroundColor = '#ffffff';
-        container.style.color = '#0f172a';
-        container.style.direction = 'rtl';
-        container.innerHTML = voucherHtml;
-        document.body.appendChild(container);
-        try {
-          const { default: html2canvas } = await import('html2canvas');
-          const { default: jsPDF } = await import('jspdf');
-          const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-          const imgData = canvas.toDataURL('image/jpeg', 0.9);
-          const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
-          const pageWidth = pdf.internal.pageSize.getWidth();
-          const pageHeight = pdf.internal.pageSize.getHeight();
-          const imgWidth = pageWidth;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          const y = Math.max(0, (pageHeight - imgHeight) / 2);
-          pdf.addImage(imgData, 'JPEG', 0, y, imgWidth, imgHeight);
-          pdf.save(`${fileName}.pdf`);
-          showToast({ type: 'success', message: 'تم تصدير السند كـ PDF بنجاح' });
-          onClose();
-        } catch {
-          showToast({ type: 'error', message: 'تعذر تصدير PDF. تأكد من السماح بالنوافذ المنبثقة.' });
-        } finally {
-          document.body.removeChild(container);
-        }
+        await exportVoucherToPdf(
+          {
+            voucherNo: String(voucher.voucher_no ?? '—'),
+            voucherType: normalizedType,
+            voucherDate: normalizedDate,
+            partyName: normalizedPartyName,
+            partyType: voucher.party_type ?? undefined,
+            amount: normalizedAmount,
+            currencyCode: normalizedCurrency,
+            exchangeRateToUsd: voucher.exchange_rate_to_usd ?? undefined,
+            amountUsd: voucher.amount_usd ?? undefined,
+            cashboxName: voucher.cashbox_name ?? undefined,
+            description: voucher.description,
+          },
+          fileName,
+        );
+        showToast({ type: 'success', message: 'تم تصدير السند كـ PDF بنجاح' });
+        onClose();
       }
     } catch (error) {
       showToast({ type: 'error', message: `خطأ في التصدير: ${error instanceof Error ? error.message : 'خطأ غير معروف'}` });
