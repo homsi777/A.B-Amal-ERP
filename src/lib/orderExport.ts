@@ -13,11 +13,91 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#039;');
 }
 
-/** إيقاع تصميم محاسبي هادئ — خطوط سوداء موحّدة كأنظمة الطباعة القديمة */
-const PDF_BORDER = '#000000';
-const PDF_TOTAL_FILL = '#ffffff';
-const PDF_TOTAL_HEADER_FILL = '#ffffff';
-const PDF_FONT = "Arial,Tahoma,'Segoe UI','Arabic Typesetting',sans-serif";
+/** إيقاع تصميم محاسبي هادئ — خطوط موحّدة */
+const PDF_BORDER = '#cbd5e1';
+const PDF_BORDER_STRONG = '#2C405A';
+const PDF_HEADER_BG = '#2C405A';
+const PDF_HEADER_TEXT = '#ffffff';
+const PDF_ALT_ROW = '#f8fafc';
+const PDF_TOTAL_FILL = '#f1f5f9';
+const PDF_FONT = "Tahoma,Arial,'Segoe UI','Arabic Typesetting',sans-serif";
+
+function formatOrderCurrency(amount: number, currency: string): string {
+  const code = currency.trim() || 'USD';
+  if (code === 'USD') return `$ ${amount.toFixed(2)}`;
+  if (code === 'SAR') return `${amount.toFixed(2)} ر.س`;
+  return `${amount.toFixed(2)} ${code}`;
+}
+
+/** رأس مستند الطلبية — شعار واحد فقط بدون تكرار النص */
+function renderOrderDocumentHeader(title: string): string {
+  return `
+<div dir="rtl" style="max-width:760px;margin:0 auto 18px;font-family:${PDF_FONT};">
+  <div style="border:1px solid ${PDF_BORDER};border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
+    <div style="padding:22px 24px 14px;text-align:center;background:#fff;">
+      <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" style="height:54px;width:auto;max-width:300px;object-fit:contain;display:inline-block;" />
+    </div>
+    <div style="background:${PDF_HEADER_BG};color:${PDF_HEADER_TEXT};text-align:center;padding:11px 20px;font-size:15px;font-weight:800;">
+      ${escapeHtml(title)}
+    </div>
+    <div style="background:#f8fafc;color:#64748b;text-align:center;padding:6px 12px;font-size:10px;font-weight:600;border-top:1px solid ${PDF_BORDER};">
+      ${escapeHtml(BRAND.descriptionAr)}
+    </div>
+  </div>
+</div>`;
+}
+
+function renderOrderMetaGridHtml(
+  order: CustomerOrder,
+  customer: Customer,
+  statusLabelAr: string,
+): string {
+  const warehouseLabel =
+    order.warehouse === 'sub' ? 'مستودع الجملة' : 'المستودع الرئيسي';
+  const expectedLabel = order.expectedDate ? formatPdfLocaleDate(order.expectedDate) : '—';
+  const notesVal = order.notes?.trim() ? escapeHtml(order.notes) : '—';
+
+  const cellLabel =
+    'width:38%;padding:9px 12px;font-weight:800;color:#334155;background:#f8fafc;border:1px solid ' +
+    PDF_BORDER +
+    ';font-size:11px;';
+  const cellValue =
+    'padding:9px 12px;font-weight:600;color:#0f172a;border:1px solid ' + PDF_BORDER + ';font-size:11px;';
+
+  return `
+<table dir="rtl" style="width:760px;margin:0 auto 16px;border-collapse:collapse;font-family:${PDF_FONT};font-size:11px;">
+  <tbody>
+    <tr>
+      <td style="${cellLabel}">العميل</td>
+      <td style="${cellValue}">${escapeHtml(customer.name)}</td>
+      <td style="${cellLabel}">رقم الطلبية</td>
+      <td style="${cellValue};font-family:monospace;">${escapeHtml(order.orderNumber)}</td>
+    </tr>
+    <tr>
+      <td style="${cellLabel}">تاريخ الطلب</td>
+      <td style="${cellValue}">${escapeHtml(formatPdfLocaleDate(order.date))}</td>
+      <td style="${cellLabel}">موعد التوريد</td>
+      <td style="${cellValue}">${escapeHtml(expectedLabel)}</td>
+    </tr>
+    <tr>
+      <td style="${cellLabel}">المستودع</td>
+      <td style="${cellValue}">${escapeHtml(warehouseLabel)}</td>
+      <td style="${cellLabel}">العملة</td>
+      <td style="${cellValue}">${escapeHtml(order.currency)}</td>
+    </tr>
+    <tr>
+      <td style="${cellLabel}">حالة الطلبية</td>
+      <td style="${cellValue}">${escapeHtml(statusLabelAr)}</td>
+      <td style="${cellLabel}">جوال العميل</td>
+      <td style="${cellValue};direction:ltr;text-align:right;">${escapeHtml(customer.phone || '—')}</td>
+    </tr>
+    <tr>
+      <td style="${cellLabel}">ملاحظات</td>
+      <td colspan="3" style="${cellValue}">${notesVal}</td>
+    </tr>
+  </tbody>
+</table>`;
+}
 
 function renderTotalsAccountingStripHtml(
   materialLinesCount: number,
@@ -48,24 +128,9 @@ function renderTotalsAccountingStripHtml(
 </table>`;
 }
 
-/** شعار CLOTEX — رأس المستندات الرسمية (PDF) */
+/** شعار CLOTEX — قائمة التعبئة التفصيلية (شعار واحد) */
 function renderTextoriaStyleLogoHtml(): string {
-  const navy = BRAND.primaryColor;
-  const soft = BRAND.primaryColorSoft;
-  return `
-<div dir="rtl" style="margin:0 auto 18px;width:760px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid ${navy};padding:10px 18px;font-family:Arial,sans-serif;">
-  <div style="display:flex;align-items:center;gap:10px;">
-    <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" style="height:58px;width:auto;object-fit:contain;" />
-    <div style="line-height:1.05;">
-      <div style="font-size:24px;font-weight:800;letter-spacing:1px;color:${navy};">${BRAND.name}</div>
-      <div style="font-size:10px;letter-spacing:2px;color:${soft};margin-top:4px;">${BRAND.tagline}</div>
-    </div>
-  </div>
-  <div style="text-align:right;font-size:10.5px;font-weight:700;line-height:1.55;color:${navy};max-width:300px;">
-    <div style="font-size:12px;font-weight:800;">${BRAND.descriptionAr}</div>
-    <div style="color:${soft};font-weight:600;">هوية بصرية معتمدة</div>
-  </div>
-</div>`;
+  return renderOrderDocumentHeader('قائمة التعبئة التفصيلية');
 }
 
 function formatPdfLocaleDate(dateIso: string): string {
@@ -98,8 +163,7 @@ function renderOrderPackingListMetaHtml(order: CustomerOrder, customer: Customer
   return `
 <div dir="rtl" style="direction:rtl;font-family:${PDF_FONT};color:#111;margin-bottom:16px;">
   ${renderTextoriaStyleLogoHtml()}
-  <h2 dir="rtl" style="direction:rtl;unicode-bidi:embed;text-align:center;margin:0 0 10px;font-size:17px;font-weight:900;color:#000;letter-spacing:0.5px;font-family:${PDF_FONT};">&#x642;&#x627;&#x626;&#x645;&#x629; &#x627;&#x644;&#x62A;&#x639;&#x628;&#x626;&#x629; &#x627;&#x644;&#x62A;&#x641;&#x635;&#x64A;&#x644;&#x64A;&#x629;</h2>
-  <p dir="rtl" style="direction:rtl;unicode-bidi:embed;text-align:center;margin:0 0 14px;font-size:11px;color:#444;">&#x645;&#x631;&#x62C;&#x639; &#x627;&#x644;&#x637;&#x644;&#x628;&#x64A;&#x629;: <strong>${escapeHtml(order.orderNumber)}</strong></p>
+  <p dir="rtl" style="direction:rtl;unicode-bidi:embed;text-align:center;margin:0 0 14px;font-size:11px;color:#444;">مرجع الطلبية: <strong>${escapeHtml(order.orderNumber)}</strong></p>
   ${accountBanner}
 
   <table style="width:100%;border-collapse:collapse;border:1px solid ${PDF_BORDER};font-size:11px;background:#fff;">
@@ -279,118 +343,126 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
   const totalLength = orderTotalLength(order);
   const advancePayment = Number(order.advancePayment || 0);
   const totalDue = Math.max(0, totalPrice - advancePayment);
-  const dateLabel = formatPdfLocaleDate(order.date);
-  const countryLabel = order.warehouse === 'sub' ? 'مستودع الجملة' : 'المستودع الرئيسي';
 
   const groups = order.items.reduce<
     Array<{ materialName: string; designNo: string; lines: CustomerOrder['items'] }>
   >((acc, line) => {
-    const materialName = line.materialName || '-';
+    const materialName = line.materialName || '—';
     const designNo = orderLineDesignNo(line);
     const existing = acc.find(
       (group) => group.materialName === materialName && group.designNo === designNo,
     );
-    if (existing) {
-      existing.lines.push(line);
-    } else {
-      acc.push({ materialName, designNo, lines: [line] });
-    }
+    if (existing) existing.lines.push(line);
+    else acc.push({ materialName, designNo, lines: [line] });
     return acc;
   }, []);
 
+  const thStyle = `padding:10px 8px;text-align:center;font-weight:800;font-size:11px;color:${PDF_HEADER_TEXT};background:${PDF_HEADER_BG};border:1px solid ${PDF_BORDER_STRONG};`;
+  const tdBase = `padding:9px 8px;text-align:center;font-size:11px;border:1px solid ${PDF_BORDER};vertical-align:middle;`;
+  const tdGroup = `${tdBase}font-weight:800;color:#0f172a;background:#fff;`;
+
+  let lineNo = 0;
   const rows = groups
     .map((group, groupIndex) => {
       const groupRows = group.lines
         .map((line, index) => {
+          lineNo += 1;
           const total = orderLineTotal(line);
-          const unit = line.unitType === 'yard' ? 'YD' : 'MT';
           const isFirstInGroup = index === 0;
-          const isLastInGroup = index === group.lines.length - 1;
-          const groupEdgeStyle = `${isFirstInGroup ? `border-top:3px solid ${PDF_BORDER};` : ''}${isLastInGroup ? `border-bottom:3px solid ${PDF_BORDER};` : ''}`;
-          const groupCells =
-            index === 0
-              ? `
-          <td rowspan="${group.lines.length}" style="width:120px;border:3px solid ${PDF_BORDER};padding:8px;text-align:center;vertical-align:middle;font-weight:900;font-size:13px;">${escapeHtml(group.materialName)}</td>
-          <td rowspan="${group.lines.length}" style="width:120px;border:3px solid ${PDF_BORDER};padding:8px;text-align:center;vertical-align:middle;font-weight:900;font-size:13px;">${escapeHtml(group.designNo)}</td>`
-              : '';
+          const rowBg = lineNo % 2 === 0 ? PDF_ALT_ROW : '#ffffff';
+          const groupCells = isFirstInGroup
+            ? `
+          <td rowspan="${group.lines.length}" style="${tdGroup}">${escapeHtml(group.materialName)}</td>
+          <td rowspan="${group.lines.length}" style="${tdGroup};font-family:monospace;font-size:12px;">${escapeHtml(group.designNo)}</td>`
+            : '';
 
           return `
-        <tr style="page-break-inside:avoid;">
+        <tr style="background:${rowBg};page-break-inside:avoid;">
+          <td style="${tdBase};font-family:monospace;color:#64748b;">${lineNo}</td>
           ${groupCells}
-          <td style="width:190px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 8px;text-align:center;font-weight:800;font-size:13px;">${escapeHtml(orderLineColorLabel(line))}</td>
-          <td style="width:74px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 8px;text-align:center;font-weight:900;font-size:13px;">${line.length.toFixed(0)}</td>
-          <td style="width:40px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 4px;text-align:center;font-weight:900;font-size:13px;">${unit}</td>
-          <td style="width:64px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 6px;text-align:center;font-weight:800;"></td>
-          <td style="width:52px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 6px;text-align:center;font-weight:900;font-size:13px;">${line.price.toFixed(2)}</td>
-          <td style="width:96px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 7px;text-align:center;background:${PDF_TOTAL_FILL};font-weight:900;font-size:13px;">
-            <span style="float:left;margin-left:4px;">${escapeHtml(order.currency === 'USD' ? '$' : order.currency)}</span>
-            <span>${total.toFixed(2)}</span>
-          </td>
+          <td style="${tdBase};font-weight:700;">${escapeHtml(orderLineColorLabel(line))}</td>
+          <td style="${tdBase};font-family:monospace;font-weight:800;">${line.length.toFixed(2)} <span style="font-size:9px;color:#64748b;">م</span></td>
+          <td style="${tdBase};font-family:monospace;">${line.price.toFixed(2)}</td>
+          <td style="${tdBase};font-family:monospace;font-weight:800;background:${PDF_TOTAL_FILL};">${formatOrderCurrency(total, order.currency)}</td>
         </tr>`;
         })
         .join('');
+
       const separator =
         groupIndex < groups.length - 1
-          ? `<tr><td colspan="8" style="height:7px;padding:0;border-left:2px solid ${PDF_BORDER};border-right:2px solid ${PDF_BORDER};border-top:3px solid ${PDF_BORDER};border-bottom:3px solid ${PDF_BORDER};background:#ffffff;"></td></tr>`
+          ? `<tr><td colspan="7" style="height:6px;padding:0;border:none;background:#fff;"></td></tr>`
           : '';
       return groupRows + separator;
     })
     .join('');
 
+  const advanceBlock =
+    advancePayment > 0
+      ? `
+    <tr>
+      <td style="padding:8px 12px;font-weight:800;color:#334155;background:#f8fafc;border:1px solid ${PDF_BORDER};font-size:11px;">الدفعة المقدمة</td>
+      <td style="padding:8px 12px;font-weight:800;color:#15803d;border:1px solid ${PDF_BORDER};font-size:12px;text-align:center;">${formatOrderCurrency(advancePayment, order.currency)}</td>
+      <td style="padding:8px 12px;font-weight:800;color:#334155;background:#f8fafc;border:1px solid ${PDF_BORDER};font-size:11px;">المبلغ المتبقي</td>
+      <td style="padding:8px 12px;font-weight:900;color:#b91c1c;border:1px solid ${PDF_BORDER};font-size:12px;text-align:center;">${formatOrderCurrency(totalDue, order.currency)}</td>
+    </tr>`
+      : '';
+
   return `
-  <div dir="rtl" style="width:820px;margin:0 auto;background:#fff;color:#000;font-family:${PDF_FONT};font-size:12px;font-weight:700;">
-    ${renderTextoriaStyleLogoHtml()}
-    <h1 style="margin:0 0 2px;text-align:center;font-size:20px;font-weight:900;line-height:1.25;">استمارة الطلب</h1>
-    <table dir="rtl" style="width:760px;margin:0 auto;border-collapse:collapse;border:2px solid ${PDF_BORDER};font-size:12px;">
-      <tbody>
-        <tr>
-          <td rowspan="4" style="width:430px;border:2px solid ${PDF_BORDER};padding:18px 10px;text-align:center;vertical-align:middle;font-size:13px;"><strong>السيد/ة : </strong>${escapeHtml(customer.name)}</td>
-          <td style="border:1px solid ${PDF_BORDER};padding:7px 8px;text-align:right;"><strong>التاريخ:</strong> ${escapeHtml(dateLabel)}</td>
-        </tr>
-        <tr><td style="border:1px solid ${PDF_BORDER};padding:7px 8px;text-align:right;"><strong>رقم النموذج :</strong> ${escapeHtml(order.orderNumber)}</td></tr>
-        <tr><td style="border:1px solid ${PDF_BORDER};padding:7px 8px;text-align:right;"><strong>موعد التسليم :</strong> ${escapeHtml(order.expectedDate ? formatPdfLocaleDate(order.expectedDate) : statusLabelAr || '-')}</td></tr>
-        <tr><td style="border:1px solid ${PDF_BORDER};padding:7px 8px;text-align:center;"><strong>البلد:</strong> ${escapeHtml(countryLabel)}</td></tr>
-      </tbody>
-    </table>
-    <table dir="rtl" style="width:760px;margin:0 auto;border-collapse:collapse;font-size:12px;border-left:2px solid ${PDF_BORDER};border-right:2px solid ${PDF_BORDER};border-bottom:2px solid ${PDF_BORDER};">
+  <div dir="rtl" style="width:820px;margin:0 auto;background:#fff;color:#0f172a;font-family:${PDF_FONT};font-size:12px;padding:8px 0 24px;">
+    ${renderOrderDocumentHeader('طلبية حجز')}
+    ${renderOrderMetaGridHtml(order, customer, statusLabelAr)}
+
+    <table dir="rtl" style="width:760px;margin:0 auto;border-collapse:collapse;font-size:11px;border:1px solid ${PDF_BORDER_STRONG};">
       <thead>
         <tr>
-          <th style="border:2px solid ${PDF_BORDER};padding:10px 6px;text-align:center;">الخامة</th>
-          <th style="border:2px solid ${PDF_BORDER};padding:10px 6px;text-align:center;">رقم النقشة</th>
-          <th style="border:2px solid ${PDF_BORDER};padding:10px 6px;text-align:center;">اللون</th>
-          <th colspan="2" style="border:2px solid ${PDF_BORDER};padding:10px 6px;text-align:center;">الكمية</th>
-          <th style="border:2px solid ${PDF_BORDER};padding:10px 6px;text-align:center;">الحالة</th>
-          <th style="border:2px solid ${PDF_BORDER};padding:10px 6px;text-align:center;">السعر</th>
-          <th style="border:2px solid ${PDF_BORDER};padding:10px 6px;text-align:center;">الإجمالي</th>
+          <th style="${thStyle};width:36px;">#</th>
+          <th style="${thStyle}">اسم الخامة</th>
+          <th style="${thStyle}">DESIGN NO</th>
+          <th style="${thStyle}">اللون</th>
+          <th style="${thStyle}">الأمتار</th>
+          <th style="${thStyle}">سعر المتر</th>
+          <th style="${thStyle}">إجمالي السطر</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <table dir="rtl" style="width:330px;margin:0 88px 18px auto;border-collapse:collapse;font-size:12px;">
+
+    <table dir="rtl" style="width:380px;margin:14px 0 18px auto;border-collapse:collapse;font-size:11px;">
       <tbody>
         <tr>
-          <td style="width:150px;border:2px solid ${PDF_BORDER};background:#fff4ce;text-align:center;padding:5px;font-weight:900;">TOPLAM MT</td>
-          <td style="width:180px;border:2px solid ${PDF_BORDER};background:${PDF_TOTAL_HEADER_FILL};text-align:center;padding:5px;font-weight:900;">TOPLAM TUTAR</td>
+          <td style="padding:8px 12px;font-weight:800;color:#334155;background:#f8fafc;border:1px solid ${PDF_BORDER};font-size:11px;">إجمالي الأمتار</td>
+          <td style="padding:8px 12px;font-weight:900;border:1px solid ${PDF_BORDER};font-size:13px;text-align:center;font-family:monospace;">${totalLength.toFixed(2)} م</td>
+          <td style="padding:8px 12px;font-weight:800;color:#334155;background:${PDF_HEADER_BG};color:${PDF_HEADER_TEXT};border:1px solid ${PDF_BORDER_STRONG};font-size:11px;">إجمالي المبلغ</td>
+          <td style="padding:8px 12px;font-weight:900;border:1px solid ${PDF_BORDER_STRONG};background:${PDF_TOTAL_FILL};font-size:13px;text-align:center;">${formatOrderCurrency(totalPrice, order.currency)}</td>
+        </tr>
+        ${advanceBlock}
+      </tbody>
+    </table>
+
+    <table dir="rtl" style="width:760px;margin:0 auto;border-collapse:collapse;border:1px solid ${PDF_BORDER};border-radius:8px;overflow:hidden;font-size:11px;">
+      <tbody>
+        <tr style="background:${PDF_HEADER_BG};color:${PDF_HEADER_TEXT};">
+          <td style="width:50%;padding:10px;text-align:center;font-weight:800;border:1px solid ${PDF_BORDER_STRONG};">موافقة العميل</td>
+          <td style="width:50%;padding:10px;text-align:center;font-weight:800;border:1px solid ${PDF_BORDER_STRONG};">مندوب المبيعات — ${escapeHtml(BRAND.name)}</td>
         </tr>
         <tr>
-          <td style="border:2px solid ${PDF_BORDER};text-align:center;padding:10px;font-weight:900;font-size:14px;">${totalLength.toFixed(0)}</td>
-          <td style="border:2px solid ${PDF_BORDER};background:${PDF_TOTAL_FILL};text-align:center;padding:10px;font-weight:900;font-size:14px;"><span style="float:left;">${escapeHtml(order.currency === 'USD' ? '$' : order.currency)}</span>${totalPrice.toFixed(2)}</td>
+          <td style="height:100px;padding:16px 20px;vertical-align:top;border:1px solid ${PDF_BORDER};">
+            <div><strong>الاسم:</strong> ${escapeHtml(customer.name)}</div>
+            <div style="margin-top:20px;"><strong>التوقيع:</strong></div>
+            <div style="margin-top:24px;text-align:center;font-size:10px;color:#64748b;font-weight:600;">يرجى مراجعة البيانات والتوقيع عند الموافقة</div>
+          </td>
+          <td style="height:100px;padding:16px 20px;vertical-align:top;border:1px solid ${PDF_BORDER};">
+            <div><strong>الاسم:</strong> _________________</div>
+            <div style="margin-top:20px;"><strong>التوقيع:</strong></div>
+            ${advancePayment > 0 ? `<div style="margin-top:24px;text-align:center;font-weight:800;color:${PDF_BORDER_STRONG};">المتبقي للتحصيل: ${formatOrderCurrency(totalDue, order.currency)}</div>` : ''}
+          </td>
         </tr>
       </tbody>
     </table>
-    <table dir="rtl" style="width:760px;margin:0 auto;border-collapse:collapse;border:2px solid ${PDF_BORDER};font-size:13px;">
-      <tbody>
-        <tr>
-          <td style="width:50%;border:2px solid ${PDF_BORDER};text-align:center;padding:9px;font-weight:900;">موافقة العميل</td>
-          <td style="width:50%;border:2px solid ${PDF_BORDER};text-align:center;padding:9px;font-weight:900;">مقدم العرض / مستلم الطلب</td>
-        </tr>
-        <tr>
-          <td style="border:2px solid ${PDF_BORDER};height:112px;padding:18px 28px;vertical-align:top;"><div>الاسم الكامل : ${escapeHtml(customer.name)}</div><div style="margin-top:22px;">التوقيع :</div><div style="margin-top:26px;text-align:center;font-weight:900;">"يرجى مراجعة المعلومات والتأكد من صحتها"</div></td>
-          <td style="border:2px solid ${PDF_BORDER};height:112px;padding:18px 28px;vertical-align:top;"><div>الاسم الكامل : مدير النظام</div><div style="margin-top:22px;">التوقيع :</div><div style="margin-top:28px;text-align:center;color:#000;font-weight:900;">عيون : ${totalDue.toFixed(2)} ${escapeHtml(order.currency)}</div></td>
-        </tr>
-      </tbody>
-    </table>
-    <div style="height:18px;"></div>
+
+    <div style="max-width:760px;margin:16px auto 0;text-align:center;font-size:9px;color:#94a3b8;">
+      ${escapeHtml(BRAND.fullName)} · ${escapeHtml(new Date().toLocaleDateString('ar-SA'))}
+    </div>
   </div>`;
 }
 
