@@ -61,15 +61,13 @@ interface FormLine {
   materialName: string;
   dsamNumber: string;
   rollNo: string;
+  /** من الكارتيلا فقط — لا يُعرض في الطلبية */
   widthCm: string;
   gsm: string;
   weight: string;
   note: string;
   imageUrl?: string;
 }
-
-const DEFAULT_WIDTH_CM = '150';
-const DEFAULT_GSM = '150';
 
 const YARDS_TO_METERS = 0.9144;
 
@@ -102,12 +100,41 @@ const emptyLine = (): FormLine => ({
   materialName: '',
   dsamNumber: '',
   rollNo: '',
-  widthCm: DEFAULT_WIDTH_CM,
-  gsm: DEFAULT_GSM,
-  weight: String(calculateFabricWeightKg(0, Number(DEFAULT_WIDTH_CM), Number(DEFAULT_GSM))),
+  widthCm: '0',
+  gsm: '0',
+  weight: '0',
   note: '',
   imageUrl: undefined,
 });
+
+function recalcCartelaWeight(line: FormLine): string {
+  const widthCm = numberValue(line.widthCm);
+  const gsm = numberValue(line.gsm);
+  if (widthCm <= 0 || gsm <= 0) return '0';
+  return String(calculateFabricWeightKg(numberValue(line.length), widthCm, gsm));
+}
+
+/** السطر التالي: يرث الباركود والكميات والسعر وكل بيانات الخامة — فقط اللون يُترك فارغاً */
+function inheritNextLineFrom(source: FormLine): FormLine {
+  const inherited = syncLineQuantities({
+    ...emptyLine(),
+    scanBarcode: source.scanBarcode,
+    fabricCode: source.fabricCode,
+    dsamNumber: source.dsamNumber,
+    materialName: source.materialName,
+    rollNo: source.rollNo,
+    price: source.price,
+    metersPerRoll: source.metersPerRoll,
+    rollCount: source.rollCount,
+    widthCm: source.widthCm,
+    gsm: source.gsm,
+    imageUrl: source.imageUrl,
+    colorCode: '',
+    colorName: '',
+  });
+  inherited.weight = recalcCartelaWeight(inherited);
+  return inherited;
+}
 
 function syncLineQuantities(line: FormLine): FormLine {
   const metersPerRoll = numberValue(line.metersPerRoll);
@@ -149,7 +176,10 @@ const toFormLine = (row: CustomerOrderLine): FormLine => {
   });
   return {
     ...synced,
-    weight: String(row.weight || calculateFabricWeightKg(numberValue(synced.length), row.widthCm, row.gsm)),
+    weight: String(
+      row.weight ||
+        recalcCartelaWeight({ ...synced, widthCm: String(row.widthCm), gsm: String(row.gsm) }),
+    ),
   };
 };
 
@@ -237,24 +267,16 @@ export function OrderFormModal({
     return codes.sort((a, b) => a.localeCompare(b, 'ar'));
   }, [inventory]);
 
-  const recalcWeight = useCallback((line: FormLine): string => {
-    const m = numberValue(line.length);
-    return String(calculateFabricWeightKg(m, numberValue(line.widthCm), numberValue(line.gsm)));
+  const patchLine = useCallback((id: string, patch: Partial<FormLine>) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const next = syncLineQuantities({ ...item, ...patch });
+        next.weight = recalcCartelaWeight(next);
+        return next;
+      }),
+    );
   }, []);
-
-  const patchLine = useCallback(
-    (id: string, patch: Partial<FormLine>) => {
-      setItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== id) return item;
-          const next = syncLineQuantities({ ...item, ...patch });
-          next.weight = recalcWeight(next);
-          return next;
-        }),
-      );
-    },
-    [recalcWeight],
-  );
 
   useEffect(() => {
     if (!open) return;
@@ -295,7 +317,6 @@ export function OrderFormModal({
           colorName: item.colorName,
           rollNo: item.rollNo,
           lengthMeters: numberValue(item.length),
-          weightKg: item.weight,
           pricePerMeter: item.price,
         })),
       ),
@@ -311,13 +332,13 @@ export function OrderFormModal({
     if (!scan) return;
 
     const commitLine = (merged: Partial<FormLine>) => {
-      const nl = emptyLine();
+      let focusRowId = '';
       setItems((prev) => {
         const source = prev.find((it) => it.id === lineId);
         const filled = source
           ? (() => {
               const u = syncLineQuantities({ ...source, ...merged });
-              u.weight = recalcWeight(u);
+              u.weight = recalcCartelaWeight(u);
               return u;
             })()
           : null;
@@ -325,27 +346,11 @@ export function OrderFormModal({
           if (it.id !== lineId) return it;
           return filled ?? syncLineQuantities({ ...it, ...merged });
         });
-        const inherited = filled
-          ? (() => {
-              const u = syncLineQuantities({
-                ...nl,
-                fabricCode: filled.fabricCode,
-                dsamNumber: filled.dsamNumber,
-                materialName: filled.materialName,
-                rollNo: filled.rollNo,
-                price: filled.price,
-                widthCm: filled.widthCm,
-                gsm: filled.gsm,
-                metersPerRoll: filled.metersPerRoll,
-                rollCount: '1',
-              });
-              u.weight = recalcWeight(u);
-              return u;
-            })()
-          : nl;
+        const inherited = filled ? inheritNextLineFrom(filled) : emptyLine();
+        focusRowId = inherited.id;
         return [...next, inherited];
       });
-      setTimeout(() => colorCodeInputRefs.current[nl.id]?.focus(), 50);
+      setTimeout(() => colorCodeInputRefs.current[focusRowId]?.focus(), 50);
     };
 
     try {
@@ -393,18 +398,7 @@ export function OrderFormModal({
       setItems([emptyLine()]);
       return;
     }
-    const inherited = syncLineQuantities({
-      ...emptyLine(),
-      fabricCode: last.fabricCode,
-      dsamNumber: last.dsamNumber,
-      materialName: last.materialName,
-      rollNo: last.rollNo,
-      price: last.price,
-      widthCm: last.widthCm,
-      gsm: last.gsm,
-      metersPerRoll: last.metersPerRoll,
-      rollCount: '1',
-    });
+    const inherited = inheritNextLineFrom(last);
     setItems([...items, inherited]);
     setTimeout(() => colorCodeInputRefs.current[inherited.id]?.focus(), 50);
   };
@@ -425,9 +419,9 @@ export function OrderFormModal({
           colorCode: line.colorCode,
           colorName: line.colorName,
           length: String(line.length),
-          widthCm: String(line.widthCm),
-          gsm: String(line.gsm),
-          weight: String(calculateFabricWeightKg(line.length, line.widthCm, line.gsm)),
+          widthCm: String(line.widthCm || 0),
+          gsm: String(line.gsm || 0),
+          weight: '0',
           price: String(line.price),
           note: line.note || '',
         };
@@ -453,7 +447,7 @@ export function OrderFormModal({
       items.map((item) =>
         groupText(item.materialName || item.fabricCode) === materialName &&
         groupText(item.fabricCode || item.dsamNumber) === designCode
-          ? { ...item, price, weight: recalcWeight({ ...item, price }) }
+          ? { ...item, price }
           : item,
       ),
     );
@@ -592,7 +586,7 @@ export function OrderFormModal({
                 {editingOrder ? 'تعديل طلبية حجز' : 'طلبية حجز جديدة'}
               </div>
               <p className="text-sm text-slate-500 mt-0.5">
-                الباركود → اسم الخامة → كود الخامة — ثم اللون والكمية يدوياً.
+                الباركود → اسم الخامة → كود الخامة — اللون يدوياً. السطر التالي يرث الباركود والكميات.
               </p>
             </div>
           </div>
@@ -630,8 +624,8 @@ export function OrderFormModal({
           <div className="rounded-xl border border-cyan-200 bg-cyan-50/80 px-4 py-3 text-sm text-cyan-900 flex flex-wrap gap-2 items-center">
             <strong>تنبيه:</strong>
             <span>
-              امسح <strong>باركود/QR الكارتيلا</strong> في «الباركود» لتعبئة اسم الخامة وكود الخامة وDESIGN — ثم أكمل{' '}
-              <strong>كود اللون</strong> و<strong>اللون</strong> و<strong>متر/رول</strong> يدوياً. السطر التالي يرث نفس الخامة.
+              امسح <strong>باركود/QR الكارتيلا</strong> لتعبئة الخامة والباركود — ثم أكمل{' '}
+              <strong>كود اللون</strong> و<strong>اللون</strong> يدوياً. السطر التالي يرث نفس الباركود والكميات والسعر.
             </span>
           </div>
 
@@ -990,7 +984,6 @@ export function OrderFormModal({
                         <th className="p-2">أمتار</th>
                         <th className="p-2">سعر المتر</th>
                         <th className="p-2">إجمالي</th>
-                        <th className="p-2">وزن KG</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1014,16 +1007,14 @@ export function OrderFormModal({
                             />
                           </td>
                           <td className="p-2 font-mono font-bold text-indigo-700">{money(group.totalAmount, currency)}</td>
-                          <td className="p-2 font-mono">{group.totalKg.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <SummaryStat label="رولات" value={String(summary.totals.rollCount)} />
                   <SummaryStat label="أمتار" value={summary.totals.totalMeters.toFixed(2)} />
-                  <SummaryStat label="وزن KG" value={summary.totals.totalKg.toFixed(2)} />
                   <SummaryStat label={`إجمالي ${currency}`} value={money(summary.totals.totalAmount, currency)} />
                   <SummaryStat label="مجموعات" value={String(summary.totals.groupCount)} />
                 </div>
