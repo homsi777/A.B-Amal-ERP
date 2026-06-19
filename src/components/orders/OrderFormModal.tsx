@@ -608,7 +608,7 @@ export function OrderFormModal({
                 {editingOrder ? 'تعديل طلبية حجز' : 'طلبية حجز جديدة'}
               </div>
               <p className="text-sm text-slate-500 mt-0.5">
-                امسح باركود الكارتيلa لاسم الخامة وكودها — أكمل اللون والكمية يدوياً.
+                الباركود → اسم الخامة → كود الخامة — ثم اللون والكمية يدوياً.
               </p>
             </div>
           </div>
@@ -782,9 +782,9 @@ export function OrderFormModal({
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
                     <th className="p-2 font-bold w-10 text-center">#</th>
-                    <th className="p-2 font-bold w-16 text-center">صورة</th>
-                    <th className="p-2 font-bold min-w-[140px]">الخامة / مرجع</th>
-                    <th className="p-2 font-bold min-w-[120px]">كود خامة</th>
+                    <th className="p-2 font-bold min-w-[120px]">الباركود</th>
+                    <th className="p-2 font-bold min-w-[130px]">اسم الخامة</th>
+                    <th className="p-2 font-bold min-w-[110px]">كود الخامة</th>
                     <th className="p-2 font-bold min-w-[100px]">كود لون</th>
                     <th className="p-2 font-bold min-w-[110px]">لون</th>
                     <th className="p-2 font-bold min-w-[90px]">متر/رول</th>
@@ -792,6 +792,7 @@ export function OrderFormModal({
                     <th className="p-2 font-bold min-w-[80px]">إجمالي م</th>
                     <th className="p-2 font-bold w-24">السعر</th>
                     <th className="p-2 font-bold w-24">إجمالي</th>
+                    <th className="p-2 font-bold w-14 text-center">صورة</th>
                     <th className="p-2 w-10" />
                   </tr>
                 </thead>
@@ -815,28 +816,6 @@ export function OrderFormModal({
                     return (
                       <tr key={item.id} className="border-b border-slate-100">
                         <td className="p-1.5 text-center font-bold text-slate-400">{index + 1}</td>
-                        <td className="p-1.5 align-middle">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            ref={(el) => {
-                              fileInputRefs.current[item.id] = el;
-                            }}
-                            onChange={(e) => handleImagePick(item.id, e.target.files?.[0] ?? null)}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => fileInputRefs.current[item.id]?.click()}
-                            className="w-12 h-12 rounded-lg border border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50 hover:border-indigo-400 transition"
-                          >
-                            {item.imageUrl ? (
-                              <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <ImagePlus className="w-5 h-5 text-slate-400" />
-                            )}
-                          </button>
-                        </td>
                         <td className="p-1.5">
                           <div className="relative">
                             <QrCode className="w-3.5 h-3.5 absolute right-2 top-2 text-slate-400 pointer-events-none" />
@@ -845,19 +824,29 @@ export function OrderFormModal({
                                 barcodeInputRefs.current[item.id] = el;
                               }}
                               type="text"
-                              placeholder="باركود أو مرجع"
+                              placeholder="امسح الباركود"
                               value={item.scanBarcode}
                               onChange={(e) => patchLine(item.id, { scanBarcode: e.target.value })}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
-                                  handleBarcodeCommit(item.id);
+                                  void handleBarcodeCommit(item.id);
                                 }
                               }}
                               className="w-full bg-white border border-slate-200 rounded pr-7 pl-1.5 py-1.5 text-xs font-mono"
                               dir="ltr"
                             />
                           </div>
+                        </td>
+                        <td className="p-1.5">
+                          <input
+                            type="text"
+                            placeholder="اسم الخامة"
+                            value={item.materialName}
+                            onChange={(e) => patchLine(item.id, { materialName: e.target.value })}
+                            onKeyDown={handleKeyDownTable}
+                            className={inputClass()}
+                          />
                         </td>
                         <td className="p-1.5">
                           <select
@@ -880,7 +869,7 @@ export function OrderFormModal({
                             }}
                             className={selectClass}
                           >
-                            <option value="">— كود خامة —</option>
+                            <option value="">— كود —</option>
                             {item.fabricCode && !fabricCodesSorted.includes(item.fabricCode) ? (
                               <option value={item.fabricCode}>{item.fabricCode}</option>
                             ) : null}
@@ -890,9 +879,6 @@ export function OrderFormModal({
                               </option>
                             ))}
                           </select>
-                          {item.materialName.trim() ? (
-                            <div className="text-[10px] font-bold text-slate-800 mt-0.5 leading-snug">{item.materialName}</div>
-                          ) : null}
                           {item.rollNo.trim() ? (
                             <div className="text-[10px] text-indigo-600 font-mono mt-0.5 px-0.5" dir="ltr">
                               DESIGN: {item.rollNo}
@@ -985,6 +971,28 @@ export function OrderFormModal({
                         <td className="p-1.5 font-bold text-slate-700 bg-slate-50/80 text-center font-mono text-[11px]">
                           {lineTotal.toFixed(2)}
                         </td>
+                        <td className="p-1.5 align-middle">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={(el) => {
+                              fileInputRefs.current[item.id] = el;
+                            }}
+                            onChange={(e) => handleImagePick(item.id, e.target.files?.[0] ?? null)}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => fileInputRefs.current[item.id]?.click()}
+                            className="w-10 h-10 mx-auto rounded-lg border border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50 hover:border-indigo-400 transition"
+                          >
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <ImagePlus className="w-4 h-4 text-slate-400" />
+                            )}
+                          </button>
+                        </td>
                         <td className="p-1.5 text-center">
                           <button
                             type="button"
@@ -1007,7 +1015,7 @@ export function OrderFormModal({
                     <td className="p-2 font-mono">{summary.totals.totalMeters.toFixed(2)}</td>
                     <td className="p-2" />
                     <td className="p-2 font-mono text-indigo-700">{money(totalAmount, currency)}</td>
-                    <td className="p-2" />
+                    <td className="p-2" colSpan={2} />
                   </tr>
                 </tfoot>
               </table>
