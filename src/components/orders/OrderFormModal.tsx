@@ -448,9 +448,23 @@ export function OrderFormModal({
 
   const groupText = (value: string) => value.trim() || 'غير محدد';
 
+  const groupKey = (materialName: string, designCode: string) => `${materialName}|||${designCode}`;
+
+  const getGroupPriceValue = (materialName: string, designCode: string): string => {
+    const hit = items.find(
+      (item) =>
+        groupText(item.materialName || item.fabricCode) === materialName &&
+        groupText(item.fabricCode || item.dsamNumber) === designCode,
+    );
+    return hit?.price ?? '';
+  };
+
+  const isValidPriceInput = (value: string) => value === '' || /^\d*\.?\d*$/.test(value);
+
   const updateGroupPrice = (materialName: string, designCode: string, price: string) => {
-    setItems(
-      items.map((item) =>
+    if (!isValidPriceInput(price)) return;
+    setItems((prev) =>
+      prev.map((item) =>
         groupText(item.materialName || item.fabricCode) === materialName &&
         groupText(item.fabricCode || item.dsamNumber) === designCode
           ? { ...item, price }
@@ -980,7 +994,10 @@ export function OrderFormModal({
                     </thead>
                     <tbody>
                       {summary.groups.map((group) => (
-                        <tr key={`${group.materialName}-${group.designCode}-${group.pricePerMeter}`} className="border-t border-slate-100">
+                        <tr
+                          key={groupKey(group.materialName, group.designCode)}
+                          className="border-t border-slate-100"
+                        >
                           <td className="p-2 font-bold">{group.materialName}</td>
                           <td className="p-2 font-mono text-[11px]">{group.designCode}</td>
                           <td className="p-2">{group.colorCount}</td>
@@ -988,14 +1005,16 @@ export function OrderFormModal({
                           <td className="p-2 font-mono">{group.totalMeters.toFixed(2)}</td>
                           <td className="p-2">
                             <input
-                              type="number"
-                              min="0"
-                              value={group.pricePerMeter}
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={getGroupPriceValue(group.materialName, group.designCode)}
                               onChange={(event) =>
                                 updateGroupPrice(group.materialName, group.designCode, event.target.value)
                               }
                               className="w-24 bg-white border border-slate-200 rounded px-1.5 py-1 font-mono text-left"
                               dir="ltr"
+                              aria-label={`سعر المتر — ${group.materialName}`}
                             />
                           </td>
                           <td className="p-2 font-mono font-bold text-indigo-700">{money(group.totalAmount, currency)}</td>
