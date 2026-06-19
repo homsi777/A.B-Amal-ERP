@@ -210,6 +210,14 @@ function isSavableOrderLine(line: FormLine): boolean {
   return hasFabric && hasQty && hasColor;
 }
 
+/** سطر يظهر في الملخص — خامة + كمية (اللون ليس شرطاً للعرض) */
+function isSummaryLine(line: FormLine): boolean {
+  if (isBlankOrderLine(line)) return false;
+  const hasFabric = !!(line.materialName.trim() || line.fabricCode.trim() || line.scanBarcode.trim());
+  const hasQty = numberValue(line.metersPerRoll) > 0;
+  return hasFabric && hasQty;
+}
+
 function applyCartelaToLinePatch(cartela: {
   title: string;
   art_code: string;
@@ -320,12 +328,13 @@ export function OrderFormModal({
     }
   }, [open, editingOrder]);
 
-  const activeItems = useMemo(() => items.filter(isSavableOrderLine), [items]);
+  const summaryItems = useMemo(() => items.filter(isSummaryLine), [items]);
+  const savableItems = useMemo(() => items.filter(isSavableOrderLine), [items]);
 
   const summary = useMemo(
     () =>
       calculateFabricInvoiceSummary(
-        activeItems.map((item) => ({
+        summaryItems.map((item) => ({
           materialName: item.materialName || item.fabricCode,
           designCode: item.fabricCode || item.dsamNumber,
           colorCode: item.colorCode,
@@ -335,7 +344,7 @@ export function OrderFormModal({
           pricePerMeter: item.price,
         })),
       ),
-    [activeItems],
+    [summaryItems],
   );
 
   const totalAmount = summary.totals.totalAmount;
@@ -496,14 +505,14 @@ export function OrderFormModal({
   };
 
   const hasValidationErrors =
-    activeItems.length === 0 ||
-    activeItems.some(
+    savableItems.length === 0 ||
+    savableItems.some(
       (item) => getItemError(item, 'metersPerRoll') || getItemError(item, 'rollCount'),
     );
 
   const buildPayload = (): OrderFormSubmitPayload | null => {
     if (hasValidationErrors || !partyId) return null;
-    const lines: CustomerOrderLine[] = activeItems.map((item) => {
+    const lines: CustomerOrderLine[] = savableItems.map((item) => {
       const synced = syncLineQuantities(item);
       const rollCount = Math.max(1, Math.round(numberValue(synced.rollCount)) || 1);
       const metersPerRoll = numberValue(synced.metersPerRoll);
@@ -549,8 +558,10 @@ export function OrderFormModal({
         type: 'error',
         message: !partyId
           ? 'اختر العميل قبل الحفظ'
-          : activeItems.length === 0
-            ? 'أضف سطراً واحداً على الأقل (خامة + كمية + لون)'
+          : savableItems.length === 0
+            ? summaryItems.length > 0
+              ? 'أكمل اللون في كل سطر قبل الحفظ'
+              : 'أضف سطراً واحداً على الأقل (خامة + كمية + لون)'
             : 'تحقق من الكميات في بنود الطلبية',
       });
       return;
@@ -1002,7 +1013,16 @@ export function OrderFormModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {summary.groups.map((group) => (
+                      {summary.groups.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-4 text-center text-slate-400 text-sm">
+                            {items.some(isSummaryLine)
+                              ? 'أدخل سعر المتر لكل خامة/تصميم'
+                              : 'امسح الباركود وأدخل الكمية — يظهر الملخص تلقائياً'}
+                          </td>
+                        </tr>
+                      ) : (
+                        summary.groups.map((group) => (
                         <tr
                           key={groupKey(group.materialName, group.designCode)}
                           className="border-t border-slate-100"
@@ -1028,7 +1048,8 @@ export function OrderFormModal({
                           </td>
                           <td className="p-2 font-mono font-bold text-indigo-700">{money(group.totalAmount, currency)}</td>
                         </tr>
-                      ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
