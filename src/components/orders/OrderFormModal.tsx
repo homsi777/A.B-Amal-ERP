@@ -23,6 +23,9 @@ import type {
 } from '../../types';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_FLOW } from '../../pages/orders/orderStatusUi';
 import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
+import { lookupCartelaByScan } from '../../lib/api/cartelaApi';
+import { ApiRequestError } from '../../lib/api/client';
+import { useToast } from '../NonBlockingToast';
 
 export interface OrderFormSubmitPayload {
   orderNumber?: string;
@@ -151,6 +154,38 @@ const toFormLine = (row: CustomerOrderLine): FormLine => {
 };
 
 const numberValue = (value: string) => Number(value) || 0;
+
+function numericFromCartelaField(value: string | undefined): number {
+  const n = Number(String(value ?? '').replace(/[^\d.]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function applyCartelaToLinePatch(cartela: {
+  title: string;
+  art_code: string;
+  design_no: string;
+  serial_no: string;
+  width_value: string;
+  weight_value: string;
+}, scanFallback: string, inventory: FabricItem[]): Partial<FormLine> {
+  const art = cartela.art_code.trim();
+  const title = (cartela.title.trim() || art).trim();
+  const widthCm = numericFromCartelaField(cartela.width_value);
+  const gsm = numericFromCartelaField(cartela.weight_value);
+  const invHit = art ? inventory.find((i) => i.fabricCode.trim().toLowerCase() === art.toLowerCase()) : undefined;
+  return {
+    scanBarcode: cartela.serial_no.trim() || scanFallback,
+    fabricCode: art,
+    dsamNumber: art,
+    materialName: title,
+    rollNo: cartela.design_no.trim(),
+    colorCode: '',
+    colorName: '',
+    ...(widthCm > 0 ? { widthCm: String(widthCm) } : {}),
+    ...(gsm > 0 ? { gsm: String(gsm) } : {}),
+    ...(invHit ? { price: String(invHit.sellingPrice) } : {}),
+  };
+}
 const money = (value: number, currency: string) =>
   `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'SAR'}`;
 
@@ -173,6 +208,7 @@ export function OrderFormModal({
   editingOrder,
   onSubmit,
 }: OrderFormModalProps) {
+  const { showToast } = useToast();
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [orderNumber, setOrderNumber] = useState('');
   const [partyId, setPartyId] = useState('');
@@ -309,13 +345,54 @@ export function OrderFormModal({
     patchLine(lineId, patch);
   };
 
-  const handleBarcodeCommit = (lineId: string) => {
+  const handleBarcodeCommit = async (lineId: string) => {
     const row = items.find((i) => i.id === lineId);
     if (!row) return;
-    const hit = matchFabric(inventory, row.scanBarcode);
-    if (!hit) return;
+    const scan = row.scanBarcode.trim();
+    if (!scan) return;
 
-    const merged: Partial<FormLine> = {
+    const commitLine = (merged: Partial<FormLine>) => {
+      const nl = emptyLine();
+      setItems((prev) => {
+        const next = prev.map((it) => {
+          if (it.id !== lineId) return it;
+          const u = syncLineQuantities({ ...it, ...merged });
+          u.weight = recalcWeight(u);
+          return u;
+        });
+        return [...next, nl];
+      });
+      setTimeout(() => barcodeInputRefs.current[nl.id]?.focus(), 50);
+    };
+
+    try {
+      const cartela = await lookupCartelaByScan(scan);
+      commitLine(applyCartelaToLinePatch(cartela, scan, inventory));
+      showToast({
+        type: 'success',
+        message: `كارتيلا: ${cartela.title || cartela.art_code} · ${cartela.art_code}${cartela.design_no ? ` · ${cartela.design_no}` : ''} — أكمل اللون والكمية`,
+      });
+      return;
+    } catch (e) {
+      if (!(e instanceof ApiRequestError) || e.statusCode !== 404) {
+        showToast({
+          type: 'error',
+          message: e instanceof ApiRequestError ? e.message : 'تعذر البحث في الكارتيلا',
+        });
+        return;
+      }
+    }
+
+    const hit = matchFabric(inventory, scan);
+    if (!hit) {
+      showToast({
+        type: 'warning',
+        message: 'لم تُعثر على كارتيلا أو مخزون بهذا الباركود — تحقق من الرقم أو اختر يدوياً',
+      });
+      return;
+    }
+
+    commitLine({
       fabricCode: hit.fabricCode,
       dsamNumber: hit.fabricCode,
       materialName: hit.name,
@@ -324,20 +401,7 @@ export function OrderFormModal({
       price: String(hit.sellingPrice),
       rollNo: hit.rollNumber ?? '',
       imageUrl: hit.imageUrl ?? undefined,
-    };
-
-    const nl = emptyLine();
-    setItems((prev) => {
-      const next = prev.map((it) => {
-        if (it.id !== lineId) return it;
-        const u = { ...it, ...merged };
-        u.weight = recalcWeight(u);
-        return u;
-      });
-      return [...next, nl];
     });
-
-    setTimeout(() => barcodeInputRefs.current[nl.id]?.focus(), 50);
   };
 
   const handleAddItem = () => {
@@ -544,7 +608,7 @@ export function OrderFormModal({
                 {editingOrder ? 'تعديل طلبية حجز' : 'طلبية حجز جديدة'}
               </div>
               <p className="text-sm text-slate-500 mt-0.5">
-                امسح الباركود في «الخامة / مرجع» لتعبئة السطر من المخزون وفتح سطر جديد؛ أو اختر كود خامة والألوان من القوائم.
+                امسح باركود الكارتيلa لاسم الخامة وكودها — أكمل اللون والكمية يدوياً.
               </p>
             </div>
           </div>
@@ -582,8 +646,8 @@ export function OrderFormModal({
           <div className="rounded-xl border border-cyan-200 bg-cyan-50/80 px-4 py-3 text-sm text-cyan-900 flex flex-wrap gap-2 items-center">
             <strong>تنبيه:</strong>
             <span>
-              خانة «الخامة / مرجع» للباركود — عند التطابق مع المخزون تُعبَّأ الحقول وتُضاف صف جديد. بدون مطابقة يمكن الاختيار يدوياً من
-              القوائم المنسدلة المرتبطة بنفس الصف.
+              امسح <strong>باركود/QR الكارتيلا</strong> في «الخامة / مرجع» لتعبئة اسم الخامة وART وDESIGN — ثم أكمل{' '}
+              <strong>اللون</strong> و<strong>متر/رول</strong> و<strong>عدد الرول</strong> يدوياً. أو اختر من قوائم المخزون.
             </span>
           </div>
 
@@ -817,12 +881,23 @@ export function OrderFormModal({
                             className={selectClass}
                           >
                             <option value="">— كود خامة —</option>
+                            {item.fabricCode && !fabricCodesSorted.includes(item.fabricCode) ? (
+                              <option value={item.fabricCode}>{item.fabricCode}</option>
+                            ) : null}
                             {fabricCodesSorted.map((fc) => (
                               <option key={fc} value={fc}>
                                 {fc}
                               </option>
                             ))}
                           </select>
+                          {item.materialName.trim() ? (
+                            <div className="text-[10px] font-bold text-slate-800 mt-0.5 leading-snug">{item.materialName}</div>
+                          ) : null}
+                          {item.rollNo.trim() ? (
+                            <div className="text-[10px] text-indigo-600 font-mono mt-0.5 px-0.5" dir="ltr">
+                              DESIGN: {item.rollNo}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="p-1.5">
                           <select

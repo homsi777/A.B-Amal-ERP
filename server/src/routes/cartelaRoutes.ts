@@ -262,6 +262,48 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get('/lookup', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const scan = String((req.query as Record<string, string>).scan ?? '').trim();
+    if (!scan) return sendError(reply, 400, 'أدخل باركود أو QR الكارتيلا', 'VALIDATION');
+
+    let serial = scan;
+    let artCode = '';
+    let designNo = '';
+    if (/^CLOTEX\|/i.test(scan)) {
+      const parts = scan.split('|').map((p) => p.trim());
+      artCode = parts[1] ?? '';
+      designNo = parts[2] ?? '';
+      serial = parts[3] ?? '';
+    } else if (/^\d{4,10}$/.test(scan)) {
+      serial = scan;
+    }
+
+    try {
+      const row = await getPool().query(
+        `SELECT *
+           FROM cartela_labels
+          WHERE company_id = $1
+            AND (
+              ($2 <> '' AND serial_no = $2)
+              OR ($3 <> '' AND $4 <> '' AND art_code ILIKE $3 AND design_no ILIKE $4)
+              OR serial_no ILIKE $5
+              OR art_code ILIKE $5
+            )
+          ORDER BY
+            CASE WHEN $2 <> '' AND serial_no = $2 THEN 0 ELSE 1 END,
+            updated_at DESC
+          LIMIT 1`,
+        [companyId, serial, artCode, designNo, scan],
+      );
+      if (!row.rows.length) return sendError(reply, 404, 'كارتيلا غير موجودة بهذا الباركود', 'NOT_FOUND');
+      return reply.send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+    } catch (err) {
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    }
+  });
+
   app.get('/:id', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const { id } = req.params as { id: string };

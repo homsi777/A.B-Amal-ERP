@@ -120,6 +120,22 @@ export async function deleteCartelaLabel(id: string): Promise<void> {
   await apiFetch(`/api/cartela/${id}`, { method: 'DELETE' });
 }
 
+export type CartelaOrderLookup = {
+  id: string;
+  title: string;
+  art_code: string;
+  design_no: string;
+  serial_no: string;
+  width_value: string;
+  weight_value: string;
+};
+
+export async function lookupCartelaByScan(scan: string): Promise<CartelaOrderLookup> {
+  const qs = encodeURIComponent(scan.trim());
+  const res = await apiFetch<{ ok: boolean; data: CartelaOrderLookup }>(`/api/cartela/lookup?scan=${qs}`);
+  return res.data;
+}
+
 function parseCompositionLines(raw: unknown): CartelaCompositionLine[] {
   if (!Array.isArray(raw)) return [];
   return raw
