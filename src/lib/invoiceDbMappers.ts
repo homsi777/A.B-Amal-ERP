@@ -130,6 +130,7 @@ export type InvoiceFormLineDraft = {
   internalRollId: string;
   rawQrPayload: string;
   rawBarcodePayload: string;
+  customerOrderLineId?: string;
 };
 
 export function buildInvoiceFormLineDraftsFromDbLines(lines: Record<string, unknown>[]): InvoiceFormLineDraft[] {
@@ -164,6 +165,10 @@ export function buildInvoiceFormLineDraftsFromDbLines(lines: Record<string, unkn
       internalRollId: rollId,
       rawQrPayload: stringFromMeta(meta, ['rawQrPayload']) || '',
       rawBarcodePayload: stringFromMeta(meta, ['rawBarcodePayload']) || '',
+      customerOrderLineId:
+        l.customer_order_line_id != null
+          ? String(l.customer_order_line_id)
+          : stringFromMeta(meta, ['customerOrderLineId']) || undefined,
     };
   });
 }

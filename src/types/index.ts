@@ -202,8 +202,17 @@ export interface CustomerOrderLine {
   rollNo: string;
   colorCode: string;
   colorName: string;
-  /** الكمية بالمتر أو باليارد حسب unitType */
+  /** إجمالي الأمتار (متر/رول × عدد الرول) */
   length: number;
+  /** متر لكل رول */
+  metersPerRoll?: number;
+  /** عدد الرول */
+  rollCount?: number;
+  /** منُفّذ من فواتير مؤكدة */
+  fulfilledMeters?: number;
+  /** متبقٍ للتوريد */
+  remainingMeters?: number;
+  orderedMeters?: number;
   widthCm: number;
   gsm: number;
   weight: number;

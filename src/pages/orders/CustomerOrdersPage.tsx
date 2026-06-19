@@ -18,6 +18,7 @@ import { OrderDetailModal } from '../../components/orders/OrderDetailModal';
 import { OrderFormModal } from '../../components/orders/OrderFormModal';
 import type { OrderFormSubmitPayload } from '../../components/orders/OrderFormModal';
 import { ORDER_STATUS_LABELS, statusBadgeClass } from './orderStatusUi';
+import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import {
   createCustomerOrderApi,
@@ -331,7 +332,9 @@ export function CustomerOrdersPage() {
                       className="hover:bg-indigo-50/40 cursor-pointer transition-colors"
                       onClick={() => setDetailOrder(o)}
                     >
-                      <td className="px-4 py-3 font-mono font-semibold text-indigo-600">{o.orderNumber}</td>
+                      <td className="px-4 py-3 font-mono font-semibold text-indigo-600">
+                        {displayCustomerOrderNumber(o.orderNumber)}
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{format(new Date(o.date), 'PP', { locale: ar })}</td>
                       <td className="px-4 py-3 font-bold text-slate-800">{customer?.name ?? '—'}</td>
                       <td className="px-4 py-3 text-slate-600">{o.items.length}</td>

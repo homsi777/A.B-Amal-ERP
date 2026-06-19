@@ -13,6 +13,7 @@ export interface SalesInvoiceLinePayload {
   lineTax?: number;
   lineTotal: number;
   metadata?: Record<string, unknown> | null;
+  customerOrderLineId?: string | null;
 }
 
 export interface SalesInvoiceCreatePayload {
@@ -39,6 +40,7 @@ export interface SalesInvoiceCreatePayload {
   paymentStatus?: 'unpaid' | 'partial' | 'paid';
   lines: SalesInvoiceLinePayload[];
   confirm?: boolean;
+  customerOrderId?: string | null;
   cashboxId?: string | null;
   partyNameForVoucher?: string | null;
 }

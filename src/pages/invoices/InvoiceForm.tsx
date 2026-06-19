@@ -20,6 +20,8 @@ import { ApiRequestError } from '../../lib/api/client';
 import { listCashboxes } from '../../lib/api/cashboxesApi';
 import { createSalesInvoice as postSalesInvoice, getSalesInvoice, updateSalesInvoice, confirmSalesInvoice } from '../../lib/api/salesInvoicesApi';
 import type { SalesInvoiceCreatePayload } from '../../lib/api/salesInvoicesApi';
+import { fetchCustomerOrderImportPreview } from '../../lib/api/customerOrdersApi';
+import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
 import {
   createPurchaseInvoice as postPurchaseInvoice,
   getPurchaseInvoice,
@@ -96,6 +98,7 @@ interface InvoiceFormItem {
   internalRollId: string;
   rawQrPayload: string;
   rawBarcodePayload: string;
+  customerOrderLineId?: string;
 }
 
 interface StagedRollItemPayload {
@@ -549,6 +552,10 @@ export const InvoiceForm = () => {
   const [discount, setDiscount] = useState('');
   const [headerNotes, setHeaderNotes] = useState('');
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
+  const [customerOrderId, setCustomerOrderId] = useState<string | null>(null);
+  const [linkedOrderNumber, setLinkedOrderNumber] = useState('');
+  const [importOrderInput, setImportOrderInput] = useState('');
+  const [importOrderBusy, setImportOrderBusy] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
   const [editBlocked, setEditBlocked] = useState(false);
   const [savedInvoiceActions, setSavedInvoiceActions] = useState<{ invoice: Invoice; partyName: string } | null>(null);
@@ -566,6 +573,9 @@ export const InvoiceForm = () => {
     setStagedRoll(null);
     setHeaderNotes('');
     setSupplierInvoiceNo('');
+    setCustomerOrderId(null);
+    setLinkedOrderNumber('');
+    setImportOrderInput('');
     setEditBlocked(false);
     scanParseTimersRef.current = {};
   }, [isSales, editInvoiceId]);
@@ -600,6 +610,13 @@ export const InvoiceForm = () => {
         setDiscount(String(Number(h.discount_total ?? 0) || ''));
         setHeaderNotes(h.notes != null ? String(h.notes) : '');
         setSupplierInvoiceNo(!isSales && h.supplier_invoice_no != null ? String(h.supplier_invoice_no) : '');
+        if (isSales && h.customer_order_id) {
+          setCustomerOrderId(String(h.customer_order_id));
+          setLinkedOrderNumber('');
+        } else {
+          setCustomerOrderId(null);
+          setLinkedOrderNumber('');
+        }
         const paid = Number(h.paid_amount ?? 0) || 0;
         const total = Number(h.total_amount ?? 0) || 0;
         if (total > 0 && paid >= total - 1e-4) {
@@ -1668,6 +1685,67 @@ export const InvoiceForm = () => {
   const SALES_METER_PRICE_MSG =
     'لا يمكن حفظ فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر';
 
+  const handleImportCustomerOrder = async () => {
+    const orderNo = importOrderInput.trim();
+    if (!orderNo) {
+      showToast({ type: 'warning', message: 'أدخل رقم الطلبية للاستيراد' });
+      return;
+    }
+    setImportOrderBusy(true);
+    try {
+      const data = await fetchCustomerOrderImportPreview(orderNo);
+      if (partyId && partyId !== data.customerId) {
+        showToast({
+          type: 'error',
+          message: 'العميل في الفاتورة لا يطابق عميل الطلبية — غيّر العميل أو أنشئ فاتورة جديدة',
+        });
+        return;
+      }
+      if (!partyId) setPartyId(data.customerId);
+      if (data.warehouse) setWarehouse(data.warehouse === 'sub' ? 'sub' : 'main');
+      if (data.currency) setCurrency(data.currency);
+      setCustomerOrderId(data.orderId);
+      setLinkedOrderNumber(displayCustomerOrderNumber(data.orderNumber));
+
+      const importedLines: InvoiceFormItem[] = data.lines.map((line) => ({
+        ...emptyItem(),
+        materialName: line.materialName || '',
+        dsamNumber: line.dsamNumber || '',
+        rollNo: line.rollNo || (line.rollCount ? String(line.rollCount) : ''),
+        colorCode: line.colorCode || '',
+        colorName: line.colorName || '',
+        length: line.remainingMeters > 0 ? String(line.remainingMeters) : '',
+        widthCm: line.widthCm != null ? String(line.widthCm) : '',
+        gsm: line.gsm != null ? String(line.gsm) : '',
+        weight: line.weight != null ? String(line.weight) : '',
+        price: line.price > 0 ? String(line.price) : '',
+        note: line.note || '',
+        supplierBarcode: line.referenceBarcode || '',
+        customerOrderLineId: line.orderLineId,
+      }));
+
+      setItems((prev) => {
+        const meaningful = prev.filter((row) => !isEmptyInvoiceItem(row));
+        if (!meaningful.length) {
+          return importedLines.length ? importedLines : [emptyItem()];
+        }
+        return [...meaningful, ...importedLines];
+      });
+
+      showToast({
+        type: 'success',
+        message: `تم استيراد ${importedLines.length} سطر من طلبية ${displayCustomerOrderNumber(data.orderNumber)} (المتبقي — قابل للتعديل)`,
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'تعذر استيراد الطلبية',
+      });
+    } finally {
+      setImportOrderBusy(false);
+    }
+  };
+
   const blockSalesSaveWithoutMeterPrice = (): boolean => {
     if (!isSales) return false;
     const missingLine = activeItems.some((item) => Boolean(getItemError(item, 'price')));
@@ -2078,6 +2156,7 @@ export const InvoiceForm = () => {
         lineDiscount: 0,
         lineTax: 0,
         lineTotal: lineRound2(quantity * unitPrice),
+        customerOrderLineId: item.customerOrderLineId || null,
         metadata: {
           materialName: item.materialName,
           fabricName: item.materialName,
@@ -2086,6 +2165,7 @@ export const InvoiceForm = () => {
           colorName: item.colorName,
           internalRollId: item.internalRollId || undefined,
           fabricRollId: fabricRollId || undefined,
+          customerOrderLineId: item.customerOrderLineId || undefined,
           barcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
           supplierBarcode: meaningfulBarcode(item.supplierBarcode, [item.materialName, item.dsamNumber, item.colorName, item.colorCode]) || '',
           printBarcode: item.printBarcode || printableShortBarcode(item.supplierBarcode) || printableShortBarcode(item.rawBarcodePayload) || '',
@@ -2204,11 +2284,13 @@ export const InvoiceForm = () => {
       invoiceNo: CREATE_INVOICE_API_NO_STUB,
       ...invoicePersistCommon,
       customerId: partyId,
+      customerOrderId,
     };
 
     const salesPersistBodyUpdate: Partial<SalesInvoiceCreatePayload> = {
       ...invoicePersistCommon,
       customerId: partyId,
+      customerOrderId,
       ...(isInvoiceNoUiPlaceholder || !trimmedInvoiceNo ? {} : { invoiceNo: trimmedInvoiceNo }),
     };
 
@@ -2647,6 +2729,46 @@ export const InvoiceForm = () => {
               )}
             </div>
           </div>
+          {isSales ? (
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-bold text-slate-700">استيراد طلبية</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={importOrderInput}
+                  onChange={(e) => setImportOrderInput(e.target.value.replace(/[^\d]/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleImportCustomerOrder();
+                    } else {
+                      focusNextFormControl(e);
+                    }
+                  }}
+                  placeholder="رقم الطلبية"
+                  disabled={importOrderBusy || editBlocked}
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 font-mono"
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleImportCustomerOrder()}
+                  disabled={importOrderBusy || editBlocked}
+                  className="shrink-0 bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {importOrderBusy ? '…' : 'استيراد'}
+                </button>
+              </div>
+              {linkedOrderNumber ? (
+                <p className="text-xs text-violet-700 font-bold">مرتبطة بطلبية رقم {linkedOrderNumber}</p>
+              ) : customerOrderId ? (
+                <p className="text-xs text-violet-700 font-bold">مرتبطة بطلبية محفوظة</p>
+              ) : (
+                <p className="text-xs text-slate-500">يُستورد المتبقي فقط — يمكن تعديل الأمتار بعد الاستيراد</p>
+              )}
+            </div>
+          ) : null}
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700">العملة</label>
             <select value={currency} onChange={(e) => setCurrency(e.target.value)} onKeyDown={focusNextFormControl} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500">

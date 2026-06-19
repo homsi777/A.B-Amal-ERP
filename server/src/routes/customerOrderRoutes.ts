@@ -5,7 +5,10 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
-import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
+import { generateCustomerOrderNo } from '../utils/documentNumbers.js';
+import {
+  getOrderLineFulfilledMeters,
+} from '../services/customerOrderFulfillmentService.js';
 
 const statusSchema = z.enum([
   'draft',
@@ -24,6 +27,8 @@ const orderLineSchema = z.object({
   colorCode: z.string().optional().default(''),
   colorName: z.string().optional().default(''),
   length: z.coerce.number().nonnegative().default(0),
+  metersPerRoll: z.coerce.number().nonnegative().optional(),
+  rollCount: z.coerce.number().int().positive().optional().default(1),
   widthCm: z.coerce.number().nonnegative().default(0),
   gsm: z.coerce.number().nonnegative().default(0),
   weight: z.coerce.number().nonnegative().default(0),
@@ -72,6 +77,44 @@ function toDateOrNull(value: string | undefined): string | null {
   return v ? v.slice(0, 10) : null;
 }
 
+function normalizeOrderLineQuantities(line: z.infer<typeof orderLineSchema>) {
+  const rollCount = Math.max(1, line.rollCount ?? 1);
+  const metersPerRoll =
+    line.metersPerRoll != null && line.metersPerRoll > 0
+      ? line.metersPerRoll
+      : rollCount > 0 && line.length > 0
+        ? line.length / rollCount
+        : line.length;
+  const length = metersPerRoll * rollCount;
+  return { rollCount, metersPerRoll, length };
+}
+
+function orderNoLookupVariants(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  const variants = new Set<string>([trimmed]);
+  if (/^\d+$/.test(trimmed)) {
+    variants.add(`CO${trimmed.padStart(7, '0')}`);
+  }
+  const coMatch = trimmed.match(/^CO0*(\d+)$/i);
+  if (coMatch) variants.add(coMatch[1]);
+  return [...variants];
+}
+
+async function findOrderByNumber(client: PoolClient, companyId: string, orderNoRaw: string) {
+  const variants = orderNoLookupVariants(orderNoRaw);
+  if (!variants.length) return null;
+  const row = await client.query(
+    `SELECT id FROM customer_orders
+     WHERE company_id = $1 AND order_no = ANY($2::text[])
+     LIMIT 1`,
+    [companyId, variants],
+  );
+  const id = row.rows[0]?.id as string | undefined;
+  if (!id) return null;
+  return getOrderById(client, companyId, id);
+}
+
 async function assertCustomerExists(client: PoolClient, companyId: string, customerId: string) {
   const row = await client.query('SELECT id FROM customers WHERE id=$1 AND company_id=$2 LIMIT 1', [
     customerId,
@@ -97,13 +140,14 @@ async function insertOrderLines(
 ) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const qty = normalizeOrderLineQuantities(line);
     await client.query(
       `INSERT INTO customer_order_lines (
          company_id, order_id, line_no, material_name, dsam_number, roll_no,
-         color_code, color_name, length, width_cm, gsm, weight, price,
+         color_code, color_name, length, meters_per_roll, roll_count, width_cm, gsm, weight, price,
          note, image_url, reference_barcode, unit_type
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
       [
         companyId,
         orderId,
@@ -113,7 +157,9 @@ async function insertOrderLines(
         line.rollNo,
         line.colorCode,
         line.colorName,
-        line.length,
+        qty.length,
+        qty.metersPerRoll,
+        qty.rollCount,
         line.widthCm,
         line.gsm,
         line.weight,
@@ -153,6 +199,8 @@ async function getOrderById(client: PoolClient, companyId: string, id: string) {
              'colorCode', l.color_code,
              'colorName', l.color_name,
              'length', l.length::float,
+             'metersPerRoll', l.meters_per_roll::float,
+             'rollCount', l.roll_count,
              'widthCm', l.width_cm::float,
              'gsm', l.gsm::float,
              'weight', l.weight::float,
@@ -175,6 +223,30 @@ async function getOrderById(client: PoolClient, companyId: string, id: string) {
   return row.rows[0] ?? null;
 }
 
+async function enrichOrderWithFulfillment(
+  client: PoolClient,
+  companyId: string,
+  order: Record<string, unknown> | null,
+): Promise<Record<string, unknown> | null> {
+  if (!order) return null;
+  const items = (order.items as Record<string, unknown>[]) ?? [];
+  const enrichedItems = [];
+  for (const item of items) {
+    const lineId = String(item.id ?? '');
+    const unitType = String(item.unitType ?? 'meter');
+    const length = Number(item.length ?? 0);
+    const orderedMeters = unitType === 'yard' ? Math.round(length * 0.9144 * 1000) / 1000 : length;
+    const fulfilledMeters = lineId ? await getOrderLineFulfilledMeters(client, companyId, lineId) : 0;
+    enrichedItems.push({
+      ...item,
+      orderedMeters,
+      fulfilledMeters,
+      remainingMeters: Math.max(0, Math.round((orderedMeters - fulfilledMeters) * 1000) / 1000),
+    });
+  }
+  return { ...order, items: enrichedItems };
+}
+
 async function listTemplates(client: PoolClient, companyId: string) {
   const rows = await client.query(
     `SELECT
@@ -191,6 +263,8 @@ async function listTemplates(client: PoolClient, companyId: string) {
              'colorCode', l.color_code,
              'colorName', l.color_name,
              'length', l.length::float,
+             'metersPerRoll', l.meters_per_roll::float,
+             'rollCount', l.roll_count,
              'widthCm', l.width_cm::float,
              'gsm', l.gsm::float,
              'price', l.price::float,
@@ -363,6 +437,61 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true });
   });
 
+  app.get('/import-preview/:orderNo', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { orderNo } = req.params as { orderNo: string };
+    const client = await getPool().connect();
+    try {
+      const order = await findOrderByNumber(client, companyId, orderNo);
+      if (!order) return sendError(reply, 404, 'طلبية غير موجودة', 'NOT_FOUND');
+      if (order.status === 'cancelled') {
+        return sendError(reply, 400, 'لا يمكن استيراد طلبية ملغاة — يمكنك تعديلها وإعادة تفعيلها', 'VALIDATION');
+      }
+
+      const enriched = await enrichOrderWithFulfillment(client, companyId, order);
+      const importLines = (enriched?.items as Record<string, unknown>[] ?? [])
+        .map((line) => ({
+          orderLineId: line.id,
+          materialName: line.materialName,
+          dsamNumber: line.dsamNumber,
+          rollNo: line.rollNo,
+          colorCode: line.colorCode,
+          colorName: line.colorName,
+          metersPerRoll: line.metersPerRoll,
+          rollCount: line.rollCount,
+          orderedMeters: line.orderedMeters,
+          fulfilledMeters: line.fulfilledMeters,
+          remainingMeters: line.remainingMeters,
+          price: line.price,
+          referenceBarcode: line.referenceBarcode,
+          widthCm: line.widthCm,
+          gsm: line.gsm,
+          weight: line.weight,
+          note: line.note,
+        }))
+        .filter((line) => Number(line.remainingMeters) > 1e-3);
+
+      if (!importLines.length) {
+        return sendError(reply, 400, 'لا يوجد متبقٍ للاستيراد من هذه الطلبية', 'VALIDATION');
+      }
+
+      return reply.send({
+        ok: true,
+        data: {
+          orderId: enriched?.id,
+          orderNumber: enriched?.orderNumber,
+          customerId: enriched?.customerId,
+          currency: enriched?.currency,
+          warehouse: enriched?.warehouse,
+          status: enriched?.status,
+          lines: importLines,
+        },
+      });
+    } finally {
+      client.release();
+    }
+  });
+
   app.get('/:id', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const { id } = req.params as { id: string };
@@ -370,7 +499,8 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
     try {
       const data = await getOrderById(client, companyId, id);
       if (!data) return sendError(reply, 404, 'Order not found', 'NOT_FOUND');
-      return reply.send({ ok: true, data });
+      const enriched = await enrichOrderWithFulfillment(client, companyId, data);
+      return reply.send({ ok: true, data: enriched });
     } finally {
       client.release();
     }
@@ -386,7 +516,12 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
       await client.query('BEGIN');
       await assertCustomerExists(client, companyId, d.customerId);
       await assertTemplateExists(client, companyId, d.templateId);
-      const orderNo = d.orderNumber?.trim() || (await generateSequentialDocumentNo(client, companyId, 'CUSTOMER_ORDER'));
+      const orderNo =
+        d.orderNumber?.trim() ||
+        (await generateCustomerOrderNo(client, companyId));
+      if (d.orderNumber?.trim() && !/^\d+$/.test(d.orderNumber.trim())) {
+        return sendError(reply, 400, 'رقم الطلبية يجب أن يكون أرقاماً فقط', 'VALIDATION');
+      }
       const created = await client.query(
         `INSERT INTO customer_orders (
            company_id, order_no, order_date, customer_id, currency_code, warehouse_label,
@@ -412,7 +547,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
       const id = created.rows[0].id as string;
       await insertOrderLines(client, companyId, id, d.items);
       await client.query('COMMIT');
-      return reply.status(201).send({ ok: true, data: await getOrderById(client, companyId, id) });
+      return reply.status(201).send({ ok: true, data: await enrichOrderWithFulfillment(client, companyId, await getOrderById(client, companyId, id)) });
     } catch (e) {
       await client.query('ROLLBACK');
       const err = e as { code?: string; message?: string };
@@ -435,6 +570,9 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
       await client.query('BEGIN');
       await assertCustomerExists(client, companyId, d.customerId);
       await assertTemplateExists(client, companyId, d.templateId);
+      if (d.orderNumber?.trim() && !/^\d+$/.test(d.orderNumber.trim())) {
+        return sendError(reply, 400, 'رقم الطلبية يجب أن يكون أرقاماً فقط', 'VALIDATION');
+      }
       const updated = await client.query(
         `UPDATE customer_orders
          SET order_no=COALESCE($3, order_no),
@@ -471,7 +609,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
       await client.query('DELETE FROM customer_order_lines WHERE order_id=$1 AND company_id=$2', [id, companyId]);
       await insertOrderLines(client, companyId, id, d.items);
       await client.query('COMMIT');
-      return reply.send({ ok: true, data: await getOrderById(client, companyId, id) });
+      return reply.send({ ok: true, data: await enrichOrderWithFulfillment(client, companyId, await getOrderById(client, companyId, id)) });
     } catch (e) {
       await client.query('ROLLBACK');
       const err = e as { code?: string; message?: string };

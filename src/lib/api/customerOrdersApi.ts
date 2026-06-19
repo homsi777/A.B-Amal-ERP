@@ -74,3 +74,41 @@ export async function createOrderTemplateApi(payload: Omit<OrderTemplate, 'id' |
 export async function deleteOrderTemplateApi(id: string): Promise<void> {
   await apiFetch<{ ok: boolean }>(`/api/customer-orders/templates/${id}`, { method: 'DELETE' });
 }
+
+export type CustomerOrderImportLine = {
+  orderLineId: string;
+  materialName: string;
+  dsamNumber: string;
+  rollNo: string;
+  colorCode: string;
+  colorName: string;
+  metersPerRoll: number;
+  rollCount: number;
+  orderedMeters: number;
+  fulfilledMeters: number;
+  remainingMeters: number;
+  price: number;
+  referenceBarcode?: string;
+  widthCm?: number;
+  gsm?: number;
+  weight?: number;
+  note?: string;
+};
+
+export type CustomerOrderImportPreview = {
+  orderId: string;
+  orderNumber: string;
+  customerId: string;
+  currency: string;
+  warehouse?: string;
+  status: CustomerOrderStatus;
+  lines: CustomerOrderImportLine[];
+};
+
+export async function fetchCustomerOrderImportPreview(orderNo: string): Promise<CustomerOrderImportPreview> {
+  const encoded = encodeURIComponent(orderNo.trim());
+  const res = await apiFetch<{ ok: boolean; data: CustomerOrderImportPreview }>(
+    `/api/customer-orders/import-preview/${encoded}`,
+  );
+  return res.data;
+}

@@ -28,6 +28,22 @@ const SEQUENTIAL_DOCUMENTS: Record<
   ACCOUNT_STATEMENT: { prefix: '', width: 10, table: 'journal_entries', column: 'entry_no', lockKey: 'ACCOUNT_STATEMENT' },
 };
 
+/** أرقام طلبيات العملاء — أرقام فقط (1، 2، 3…) مع دعم التسلسل القديم CO0000001 */
+export async function generateCustomerOrderNo(client: PoolClient, companyId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1), hashtext('CUSTOMER_ORDER_NUM'))`, [companyId]);
+  const result = await client.query<{ max_seq: string | null }>(
+    `SELECT GREATEST(
+      COALESCE((SELECT MAX(order_no::bigint) FROM customer_orders WHERE company_id = $1 AND order_no ~ '^[0-9]+$'), 0),
+      COALESCE(
+        (SELECT MAX((substring(order_no from 3))::bigint) FROM customer_orders WHERE company_id = $1 AND order_no ~ '^CO[0-9]+$'),
+        0
+      )
+    )::text AS max_seq`,
+    [companyId],
+  );
+  return String(Number(result.rows[0]?.max_seq ?? 0) + 1);
+}
+
 export async function generateSequentialDocumentNo(
   client: PoolClient,
   companyId: string,

@@ -22,6 +22,7 @@ import type {
   OrderTemplate,
 } from '../../types';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_FLOW } from '../../pages/orders/orderStatusUi';
+import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
 
 export interface OrderFormSubmitPayload {
   orderNumber?: string;
@@ -47,7 +48,11 @@ interface FormLine {
   fabricCode: string;
   colorCode: string;
   colorName: string;
-  /** الكمية بالمتر (رقم واحد يظهر في عمود متر / يارد) */
+  /** متر لكل رول */
+  metersPerRoll: string;
+  /** عدد الرول */
+  rollCount: string;
+  /** إجمالي الأمتار (محسوب) */
   length: string;
   price: string;
   materialName: string;
@@ -87,7 +92,9 @@ const emptyLine = (): FormLine => ({
   fabricCode: '',
   colorCode: '',
   colorName: '',
-  length: '',
+  metersPerRoll: '',
+  rollCount: '1',
+  length: '0',
   price: '',
   materialName: '',
   dsamNumber: '',
@@ -99,17 +106,33 @@ const emptyLine = (): FormLine => ({
   imageUrl: undefined,
 });
 
+function syncLineQuantities(line: FormLine): FormLine {
+  const metersPerRoll = numberValue(line.metersPerRoll);
+  const rollCount = Math.max(1, Math.round(numberValue(line.rollCount)) || 1);
+  const totalM = Math.round(metersPerRoll * rollCount * 100) / 100;
+  return {
+    ...line,
+    rollCount: String(rollCount),
+    length: String(totalM),
+  };
+};
+
 const toFormLine = (row: CustomerOrderLine): FormLine => {
   let len = row.length;
   if (row.unitType === 'yard') {
     len = Math.round(row.length * YARDS_TO_METERS * 100) / 100;
   }
-  return {
+  const rollCount = row.rollCount && row.rollCount > 0 ? row.rollCount : 1;
+  const metersPerRoll =
+    row.metersPerRoll != null && row.metersPerRoll > 0 ? row.metersPerRoll : len / rollCount;
+  const synced = syncLineQuantities({
     id: row.id,
     scanBarcode: row.referenceBarcode ?? '',
     fabricCode: row.dsamNumber || '',
     colorCode: row.colorCode,
     colorName: row.colorName,
+    metersPerRoll: String(metersPerRoll),
+    rollCount: String(rollCount),
     length: String(len),
     price: String(row.price),
     materialName: row.materialName,
@@ -120,6 +143,10 @@ const toFormLine = (row: CustomerOrderLine): FormLine => {
     weight: String(row.weight),
     note: row.note ?? '',
     imageUrl: row.imageUrl,
+  });
+  return {
+    ...synced,
+    weight: String(row.weight || calculateFabricWeightKg(numberValue(synced.length), row.widthCm, row.gsm)),
   };
 };
 
@@ -192,7 +219,7 @@ export function OrderFormModal({
       setItems((prev) =>
         prev.map((item) => {
           if (item.id !== id) return item;
-          const next = { ...item, ...patch };
+          const next = syncLineQuantities({ ...item, ...patch });
           next.weight = recalcWeight(next);
           return next;
         }),
@@ -205,7 +232,7 @@ export function OrderFormModal({
     if (!open) return;
     if (editingOrder) {
       setDate(editingOrder.date);
-      setOrderNumber(editingOrder.orderNumber);
+      setOrderNumber(displayCustomerOrderNumber(editingOrder.orderNumber));
       setPartyId(editingOrder.customerId);
       setWarehouse(editingOrder.warehouse || 'main');
       setCurrency(editingOrder.currency);
@@ -313,7 +340,26 @@ export function OrderFormModal({
     setTimeout(() => barcodeInputRefs.current[nl.id]?.focus(), 50);
   };
 
-  const handleAddItem = () => setItems([...items, emptyLine()]);
+  const handleAddItem = () => {
+    const last = items[items.length - 1];
+    if (!last) {
+      setItems([emptyLine()]);
+      return;
+    }
+    const inherited = syncLineQuantities({
+      ...emptyLine(),
+      fabricCode: last.fabricCode,
+      dsamNumber: last.dsamNumber,
+      materialName: last.materialName,
+      price: last.price,
+      widthCm: last.widthCm,
+      gsm: last.gsm,
+      metersPerRoll: last.metersPerRoll,
+      rollCount: '1',
+    });
+    inherited.weight = recalcWeight(inherited);
+    setItems([...items, inherited]);
+  };
   const handleRemoveItem = (id: string) => setItems(items.filter((item) => item.id !== id));
 
   const applyTemplate = (tid: string) => {
@@ -365,36 +411,55 @@ export function OrderFormModal({
     );
   };
 
-  const getItemError = (item: FormLine, field: 'length' | 'price') => {
-    const value = numberValue(item[field]);
-    if (field === 'length' && value <= 0) return 'الكمية يجب أن تكون أكبر من صفر';
-    if (field === 'price' && value < 0) return 'السعر لا يمكن أن يكون سالبا';
+  const getItemError = (item: FormLine, field: 'metersPerRoll' | 'rollCount' | 'price') => {
+    if (field === 'metersPerRoll') {
+      const value = numberValue(item.metersPerRoll);
+      if (value <= 0) return 'متر/رول يجب أن يكون أكبر من صفر';
+    }
+    if (field === 'rollCount') {
+      const value = Math.round(numberValue(item.rollCount));
+      if (value <= 0) return 'عدد الرول يجب أن يكون أكبر من صفر';
+    }
+    if (field === 'price') {
+      const value = numberValue(item.price);
+      if (value < 0) return 'السعر لا يمكن أن يكون سالبا';
+    }
     return '';
   };
 
   const hasValidationErrors = items.some(
-    (item) => getItemError(item, 'length') || getItemError(item, 'price'),
+    (item) =>
+      getItemError(item, 'metersPerRoll') ||
+      getItemError(item, 'rollCount') ||
+      getItemError(item, 'price'),
   );
 
   const buildPayload = (): OrderFormSubmitPayload | null => {
     if (hasValidationErrors || !partyId) return null;
-    const lines: CustomerOrderLine[] = items.map((item) => ({
-      id: item.id,
-      materialName: item.materialName || item.fabricCode || '—',
-      dsamNumber: item.fabricCode || item.dsamNumber,
-      rollNo: item.rollNo,
-      colorCode: item.colorCode,
-      colorName: item.colorName,
-      length: numberValue(item.length),
-      widthCm: numberValue(item.widthCm),
-      gsm: numberValue(item.gsm),
-      weight: numberValue(item.weight),
-      price: numberValue(item.price),
-      note: item.note.trim() || undefined,
-      imageUrl: item.imageUrl,
-      referenceBarcode: item.scanBarcode.trim() || undefined,
-      unitType: 'meter',
-    }));
+    const lines: CustomerOrderLine[] = items.map((item) => {
+      const synced = syncLineQuantities(item);
+      const rollCount = Math.max(1, Math.round(numberValue(synced.rollCount)) || 1);
+      const metersPerRoll = numberValue(synced.metersPerRoll);
+      return {
+        id: item.id,
+        materialName: item.materialName || item.fabricCode || '—',
+        dsamNumber: item.fabricCode || item.dsamNumber,
+        rollNo: item.rollNo,
+        colorCode: item.colorCode,
+        colorName: item.colorName,
+        length: numberValue(synced.length),
+        metersPerRoll,
+        rollCount,
+        widthCm: numberValue(item.widthCm),
+        gsm: numberValue(item.gsm),
+        weight: numberValue(item.weight),
+        price: numberValue(item.price),
+        note: item.note.trim() || undefined,
+        imageUrl: item.imageUrl,
+        referenceBarcode: item.scanBarcode.trim() || undefined,
+        unitType: 'meter',
+      };
+    });
     return {
       orderNumber: orderNumber.trim() || undefined,
       date,
@@ -529,7 +594,7 @@ export function OrderFormModal({
                 type="text"
                 value={orderNumber}
                 onChange={(e) => setOrderNumber(e.target.value)}
-                placeholder="يُولَّد تلقائياً إن تُرك فارغاً"
+                placeholder="يُولَّد تلقائياً (رقم فقط)"
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
               />
             </div>
@@ -649,7 +714,7 @@ export function OrderFormModal({
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-right text-xs sm:text-sm border-collapse min-w-[920px]">
+              <table className="w-full text-right text-xs sm:text-sm border-collapse min-w-[1020px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
                     <th className="p-2 font-bold w-10 text-center">#</th>
@@ -658,7 +723,9 @@ export function OrderFormModal({
                     <th className="p-2 font-bold min-w-[120px]">كود خامة</th>
                     <th className="p-2 font-bold min-w-[100px]">كود لون</th>
                     <th className="p-2 font-bold min-w-[110px]">لون</th>
-                    <th className="p-2 font-bold min-w-[130px]">متر / يارد</th>
+                    <th className="p-2 font-bold min-w-[90px]">متر/رول</th>
+                    <th className="p-2 font-bold min-w-[70px]">عدد رول</th>
+                    <th className="p-2 font-bold min-w-[80px]">إجمالي م</th>
                     <th className="p-2 font-bold w-24">السعر</th>
                     <th className="p-2 font-bold w-24">إجمالي</th>
                     <th className="p-2 w-10" />
@@ -666,7 +733,8 @@ export function OrderFormModal({
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
-                    const lengthError = getItemError(item, 'length');
+                    const lengthError = getItemError(item, 'metersPerRoll');
+                    const rollCountError = getItemError(item, 'rollCount');
                     const ccOptions = item.fabricCode ? colorCodesForFabric(item.fabricCode) : [];
                     const nameOptions =
                       item.fabricCode && item.colorCode
@@ -801,14 +869,31 @@ export function OrderFormModal({
                             type="number"
                             min="0.01"
                             step="0.01"
-                            value={item.length}
-                            onChange={(e) => patchLine(item.id, { length: e.target.value })}
+                            value={item.metersPerRoll}
+                            onChange={(e) => patchLine(item.id, { metersPerRoll: e.target.value })}
                             onKeyDown={handleKeyDownTable}
                             title={lengthError}
                             placeholder="0"
-                            className={`${inputClass(Boolean(lengthError))} min-w-[5rem]`}
+                            className={`${inputClass(Boolean(lengthError))} min-w-[4.5rem]`}
                             dir="ltr"
                           />
+                        </td>
+                        <td className="p-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={item.rollCount}
+                            onChange={(e) => patchLine(item.id, { rollCount: e.target.value })}
+                            onKeyDown={handleKeyDownTable}
+                            title={rollCountError}
+                            placeholder="1"
+                            className={`${inputClass(Boolean(rollCountError))} min-w-[3.5rem]`}
+                            dir="ltr"
+                          />
+                        </td>
+                        <td className="p-1.5 font-bold text-slate-700 bg-slate-50/80 text-center font-mono text-[11px]">
+                          {numberValue(item.length).toFixed(2)}
                         </td>
                         <td className="p-1.5">
                           <input
@@ -841,7 +926,7 @@ export function OrderFormModal({
                 </tbody>
                 <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-slate-700 text-xs">
                   <tr>
-                    <td colSpan={6} className="p-2 text-left">
+                    <td colSpan={8} className="p-2 text-left">
                       المجموع
                     </td>
                     <td className="p-2 font-mono">{summary.totals.totalMeters.toFixed(2)}</td>

@@ -8,6 +8,10 @@ import { applyVoucherConfirmation, cancelConfirmedVoucher, insertDraftVoucher } 
 import { getExchangeRateToUsdTx } from './exchangeRateService.js';
 import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
 import {
+  assertSalesInvoiceCustomerMatchesOrder,
+  syncCustomerOrderFulfillmentForInvoice,
+} from './customerOrderFulfillmentService.js';
+import {
   allocateHeaderDiscountToLines,
   INVOICE_AMOUNT_EPS,
   validateInvoiceLineAmounts,
@@ -32,6 +36,7 @@ export const invoiceLineSchema = z.object({
   lineTaxUsd: z.coerce.number().nonnegative().optional(),
   lineTotalUsd: z.coerce.number().nonnegative().optional(),
   metadata: z.record(z.unknown()).optional().nullable(),
+  customerOrderLineId: z.string().uuid().optional().nullable(),
 });
 
 export const salesInvoiceCreateBaseSchema = z.object({
@@ -58,6 +63,7 @@ export const salesInvoiceCreateBaseSchema = z.object({
   paymentStatus: z.enum(['unpaid', 'partial', 'paid']).default('unpaid'),
   lines: z.array(invoiceLineSchema).min(1),
   confirm: z.boolean().optional().default(false),
+  customerOrderId: z.string().uuid().optional().nullable(),
   cashboxId: z.string().uuid().optional().nullable(),
   partyNameForVoucher: z.string().optional().nullable(),
 });
@@ -660,8 +666,8 @@ async function insertLines(
       `INSERT INTO sales_invoice_lines (
          company_id, invoice_id, line_no, fabric_roll_id, fabric_item_id, variant_id, warehouse_id,
          description, quantity, unit, unit_price, line_discount, line_tax, line_total,
-         unit_price_usd, line_discount_usd, line_tax_usd, line_total_usd, metadata
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb)`,
+         unit_price_usd, line_discount_usd, line_tax_usd, line_total_usd, metadata, customer_order_line_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20)`,
       [
         companyId,
         invoiceId,
@@ -682,6 +688,8 @@ async function insertLines(
         lineTaxUsd,
         lineTotalUsd,
         JSON.stringify(ln.metadata ?? {}),
+        ln.customerOrderLineId ??
+          (typeof ln.metadata?.customerOrderLineId === 'string' ? ln.metadata.customerOrderLineId : null),
       ],
     );
   }
@@ -815,6 +823,9 @@ export async function createSalesInvoice(
   }
 
   await assertCustomer(client, companyId, d.customerId);
+  if (d.customerOrderId) {
+    await assertSalesInvoiceCustomerMatchesOrder(client, companyId, d.customerOrderId, d.customerId);
+  }
 
   const pay = paymentStatuses(d.totalAmount, d.paidAmount);
   const remainingUsd = computeUsd(pay.remaining, exchangeRateToUsd);
@@ -825,9 +836,9 @@ export async function createSalesInvoice(
        currency_code, notes, subtotal, discount_total, tax_total, total_amount,
        paid_amount, remaining_amount, payment_status, document_status,
        exchange_rate_to_usd, subtotal_usd, discount_total_usd, tax_total_usd, total_amount_usd,
-       paid_amount_usd, remaining_amount_usd,
+       paid_amount_usd, remaining_amount_usd, customer_order_id,
        created_by_user_id, updated_by_user_id
-     ) VALUES ($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'DRAFT',$16,$17,$18,$19,$20,$21,$22,$23,$23)
+     ) VALUES ($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'DRAFT',$16,$17,$18,$19,$20,$21,$22,$23,$24,$24)
      RETURNING id`,
     [
       companyId,
@@ -852,6 +863,7 @@ export async function createSalesInvoice(
       totalAmountUsd,
       paidAmountUsd,
       remainingUsd,
+      d.customerOrderId ?? null,
       userId,
     ],
   );
@@ -912,6 +924,12 @@ export async function updateSalesInvoiceDraft(
 
   const d = parsed.data as Partial<SalesInvoiceCreateInput> & { lines?: z.infer<typeof invoiceLineSchema>[] };
   if (d.customerId) await assertCustomer(client, companyId, d.customerId);
+  if (d.customerOrderId) {
+    const customerId = d.customerId ?? (await client.query(`SELECT customer_id FROM sales_invoices WHERE id=$1`, [invoiceId])).rows[0]?.customer_id;
+    if (customerId) {
+      await assertSalesInvoiceCustomerMatchesOrder(client, companyId, d.customerOrderId, String(customerId));
+    }
+  }
 
   if (d.invoiceNo?.trim()) {
     const dup = await client.query(
@@ -974,6 +992,7 @@ export async function updateSalesInvoiceDraft(
        total_amount_usd = $22,
        paid_amount_usd = $23,
        remaining_amount_usd = $24,
+       customer_order_id = COALESCE($25, customer_order_id),
        updated_by_user_id = $3,
        updated_at = now()
      WHERE id=$1 AND company_id=$2`,
@@ -1002,6 +1021,7 @@ export async function updateSalesInvoiceDraft(
       totalUsd,
       paidUsd,
       remainingUsd,
+      d.customerOrderId ?? null,
     ],
   );
 
@@ -1329,6 +1349,8 @@ export async function confirmSalesInvoice(
      WHERE id=$1 AND company_id=$2`,
     [invoiceId, companyId, pay.remaining, pay.paymentStatus, voucherIdOut, userId, remainingUsd, totalUsd, paidUsd],
   );
+
+  await syncCustomerOrderFulfillmentForInvoice(client, companyId, invoiceId, userId);
 }
 
 type VoucherReceiptRef = {
@@ -1541,4 +1563,6 @@ export async function voidSalesInvoice(
      WHERE id=$1 AND company_id=$2`,
     [invoiceId, companyId, userId],
   );
+
+  await syncCustomerOrderFulfillmentForInvoice(client, companyId, invoiceId, userId);
 }
