@@ -413,22 +413,31 @@ export function buildPrintDocument(
     pageSize?: 'label' | 'A4' | 'A4_SHEET_6';
     printDate?: string;
     qrSvgs?: Record<string, string>;
+    /**
+     * wide = تدوير 90° لطابعات الرول في Electron فقط.
+     * normal = صفحة واحدة بالأبعاد الفعلية (مطلوب للمتصفح).
+     * auto = wide عندما العرض > الارتفاع (افتراضي لطباعة الأتواب من المكتب).
+     */
+    rollLayout?: 'auto' | 'normal' | 'wide';
   } = {},
 ): string {
   const {
     config = {},
-    widthMm = 100,
-    heightMm = 80,
+    widthMm = 80,
+    heightMm = 60,
     pageSize = 'label',
     qrSvgs  = {},
+    rollLayout = 'auto',
   } = opts;
   const cfg: Required<LabelConfig> = { ...DEFAULT_CONFIG, ...config };
 
   const safeMm = LABEL_SAFE_MARGIN_MM;
   const BARCODE_PRINT_H = 38;
-  /** لصاقة أعرض من ارتفاعها (100×80): صفحة طباعة «طولية» فيزيائياً (80×100) + تدوير المحتوى 90° — طابعات الرول تتجاهل landscape في Chromium */
-
-  const isWideRollLabel = pageSize === 'label' && widthMm > heightMm;
+  const singleLabel = rolls.length === 1;
+  const compactLabel = pageSize === 'label' && heightMm <= 65;
+  /** لصاقة أعرض من ارتفاعها: تدوير 90° — للمتصفح نستخدم normal دائماً */
+  const isWideRollLabel =
+    pageSize === 'label' && widthMm > heightMm && rollLayout !== 'normal';
 
   const fieldRow = (label: string, value: string | null | undefined, emphasize = false) => `
     <div class="row">
@@ -527,33 +536,35 @@ export function buildPrintDocument(
     labelsHtml = rolls.map(renderLabel).join('\n');
   }
 
+  const pageBreakAfter = singleLabel ? 'avoid' : 'always';
+  const pageBreakAfterLast = singleLabel ? 'avoid' : 'auto';
+
   const pageCssRollNormal = `
       @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
       html {
         margin: 0 !important;
         padding: 0 !important;
         width: ${widthMm}mm;
-        min-height: ${heightMm}mm;
+        height: ${heightMm}mm;
         background: #fff;
       }
       body {
         margin: 0 !important;
         padding: 0 !important;
         width: ${widthMm}mm;
-        min-height: ${heightMm}mm;
+        height: ${heightMm}mm;
+        max-width: ${widthMm}mm;
+        max-height: ${heightMm}mm;
         background: #fff;
-        overflow: visible !important;
-      }
-      @media screen {
-        html, body { height: ${heightMm}mm; }
+        overflow: hidden !important;
       }
       @media print {
         html, body {
           margin: 0 !important;
           padding: 0 !important;
           width: ${widthMm}mm;
-          min-height: ${heightMm}mm;
-          overflow: visible !important;
+          height: ${heightMm}mm;
+          overflow: hidden !important;
         }
       }
       .label-page {
@@ -564,12 +575,12 @@ export function buildPrintDocument(
         box-sizing: border-box;
         padding: ${safeMm}mm;
         overflow: hidden !important;
-        page-break-after: always;
-        break-after: page;
+        page-break-after: ${pageBreakAfter};
+        break-after: ${pageBreakAfter};
         page-break-inside: avoid;
         break-inside: avoid;
       }
-      .label-page:last-child { page-break-after: auto; break-after: auto; }
+      .label-page:last-child { page-break-after: ${pageBreakAfterLast}; break-after: ${pageBreakAfterLast}; }
     `;
 
   /** Physical page = narrow × long (matches swapped Electron pageSize); label box rotated 90° to read horizontal on the roll */
@@ -748,17 +759,17 @@ ${lblBoxCss}
   border-bottom: 0.25mm solid #000;
 }
 .brand-logo {
-  height: 22mm;
+  height: ${compactLabel ? '14mm' : '22mm'};
   width: auto;
-  max-width: 78mm;
+  max-width: ${compactLabel ? '72mm' : '78mm'};
   object-fit: contain;
   display: block;
   margin: 0 auto;
   filter: ${THERMAL_LOGO_FILTER};
 }
-.brand-empty { height: 22mm; }
-.brand-mark { font-size: 5.8mm; font-weight: 900; letter-spacing: 0.65mm; line-height: 1.05; }
-.brand-tag  { font-size: 2.4mm; letter-spacing: 0.45mm; color: #222; margin-top: 0.25mm; }
+.brand-empty { height: ${compactLabel ? '14mm' : '22mm'}; }
+.brand-mark { font-size: ${compactLabel ? '4.8mm' : '5.8mm'}; font-weight: 900; letter-spacing: 0.65mm; line-height: 1.05; }
+.brand-tag  { font-size: ${compactLabel ? '2.1mm' : '2.4mm'}; letter-spacing: 0.45mm; color: #222; margin-top: 0.25mm; }
 
 .block { padding: 0.8mm 0 0.45mm 0; border-bottom: 0.25mm solid #000; flex-shrink: 0; }
 .grid-2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 0.45mm; }
@@ -794,9 +805,9 @@ ${lblBoxCss}
 
 .bc { margin-top: auto; padding-top: 0.35mm; text-align: center; }
 .bc-svg {
-  width: 58mm;
+  width: ${compactLabel ? '52mm' : '58mm'};
   max-width: 100%;
-  height: 12mm;
+  height: ${compactLabel ? '9mm' : '12mm'};
   margin: 0 auto;
   padding: 0 1mm;
   display: flex;
@@ -804,7 +815,7 @@ ${lblBoxCss}
   align-items: center;
   overflow: hidden;
 }
-.bc-svg svg { width: 56mm !important; max-width: 56mm !important; height: 12mm !important; display: block; }
+.bc-svg svg { width: ${compactLabel ? '50mm' : '56mm'} !important; max-width: ${compactLabel ? '50mm' : '56mm'} !important; height: ${compactLabel ? '9mm' : '12mm'} !important; display: block; }
 .bc-text {
   font-family: Consolas, monospace;
   font-size: 2.8mm;
@@ -822,9 +833,9 @@ ${lblBoxCss}
 
 .qr { display: flex; align-items: center; justify-content: center; }
 .qr svg {
-  width: 22mm !important;
-  height: 22mm !important;
-  max-width: 22mm !important;
+  width: ${compactLabel ? '18mm' : '22mm'} !important;
+  height: ${compactLabel ? '18mm' : '22mm'} !important;
+  max-width: ${compactLabel ? '18mm' : '22mm'} !important;
   opacity: 1 !important;
   shape-rendering: crispEdges;
 }
@@ -890,6 +901,7 @@ export function buildSingleRollPrintHtml(
     heightMm?: number;
     config?: LabelConfig;
     qrSvg?: string;
+    rollLayout?: 'auto' | 'normal' | 'wide';
   } = {},
 ): string {
   const dto: RollLabelPreviewDto = {
@@ -923,10 +935,11 @@ export function buildSingleRollPrintHtml(
   };
 
   return buildPrintDocument([dto], {
-    widthMm:  opts.widthMm  ?? 100,
-    heightMm: opts.heightMm ?? 80,
+    widthMm:  opts.widthMm  ?? 80,
+    heightMm: opts.heightMm ?? 60,
     pageSize: 'label',
     config:   opts.config,
     qrSvgs:   opts.qrSvg ? { [dto.rollId]: opts.qrSvg } : {},
+    rollLayout: opts.rollLayout ?? 'normal',
   });
 }

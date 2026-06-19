@@ -26,6 +26,9 @@ import { ElectronPrintAdapter } from './electronPrintAdapter';
 import { generateQrSvg } from './qrGenerator';
 import type { AppSettings } from '../../electron-env.d';
 
+export const DEFAULT_LABEL_WIDTH_MM = 80;
+export const DEFAULT_LABEL_HEIGHT_MM = 60;
+
 export interface AutoPrintResult {
   ok: boolean;
   /** True if printed silently via Electron with no dialog. */
@@ -59,16 +62,22 @@ function canPrintSilent(settings: AppSettings | null): boolean {
   return true;
 }
 
+function resolveLabelSize(settings: AppSettings | null, opts: AutoPrintOptions) {
+  return {
+    widthMm: opts.widthMm ?? settings?.labelWidthMm ?? DEFAULT_LABEL_WIDTH_MM,
+    heightMm: opts.heightMm ?? settings?.labelHeightMm ?? DEFAULT_LABEL_HEIGHT_MM,
+  };
+}
+
 /**
  * Build the print HTML once and dispatch through the right adapter for the
  * current environment. Silent-when-possible, dialog-as-fallback.
  */
 export async function autoPrintLabel(opts: AutoPrintOptions): Promise<AutoPrintResult> {
-  const widthMm  = opts.widthMm  ?? opts.settings?.labelWidthMm  ?? 100;
-  const heightMm = opts.heightMm ?? opts.settings?.labelHeightMm ?? 80;
+  const { widthMm, heightMm } = resolveLabelSize(opts.settings, opts);
+  const inElectron = Boolean(typeof window !== 'undefined' && window.fabricApp?.isElectron);
+  const rollLayout = inElectron && widthMm > heightMm ? 'auto' : 'normal';
 
-  // Pre-generate QR SVG so the HTML stays self-contained (works for both
-  // Electron's hidden BrowserWindow and a renderer iframe).
   let qrSvg = '';
   try {
     qrSvg = await generateQrSvg(opts.input.qrPayload || opts.input.barcode);
@@ -81,6 +90,7 @@ export async function autoPrintLabel(opts: AutoPrintOptions): Promise<AutoPrintR
     heightMm,
     qrSvg,
     config: opts.config,
+    rollLayout,
   });
 
   // ── Silent Electron path ──
@@ -103,49 +113,55 @@ export async function autoPrintLabel(opts: AutoPrintOptions): Promise<AutoPrintR
         error:       res.error,
       };
     } catch (e: unknown) {
-      // Fall through to dialog path on unexpected IPC failure.
       const msg = e instanceof Error ? e.message : 'Silent print failed';
       return { ok: false, silent: false, error: msg };
     }
   }
 
   // ── Browser / dialog fallback path ──
-  return printHtmlInIframe(html);
+  return printHtmlInIframe(html, widthMm, heightMm);
 }
 
 /**
  * Renders an HTML document inside a hidden iframe and triggers
- * `iframe.contentWindow.print()`. The iframe is removed after a short delay
- * so the browser has time to flush the print job to the OS spooler.
- *
- * This is the same approach the legacy CreateItem page used, but extracted
- * so multiple pages can share it without drifting.
+ * `iframe.contentWindow.print()`.
  */
-function printHtmlInIframe(html: string): Promise<AutoPrintResult> {
+function printHtmlInIframe(html: string, widthMm: number, heightMm: number): Promise<AutoPrintResult> {
   return new Promise((resolve) => {
     if (typeof document === 'undefined') {
       resolve({ ok: false, silent: false, error: 'document not available' });
       return;
     }
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right    = '-9999px';
-    iframe.style.bottom   = '-9999px';
-    iframe.style.width    = '1px';
-    iframe.style.height   = '1px';
-    iframe.style.border   = '0';
 
-    iframe.onload = () => {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('title', 'label-print');
+    iframe.style.position = 'fixed';
+    iframe.style.right    = '0';
+    iframe.style.bottom   = '0';
+    iframe.style.width    = `${widthMm}mm`;
+    iframe.style.height   = `${heightMm}mm`;
+    iframe.style.border   = '0';
+    iframe.style.opacity  = '0';
+    iframe.style.pointerEvents = 'none';
+
+    const cleanup = () => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    };
+
+    const finish = (ok: boolean, error?: string) => {
+      setTimeout(() => {
+        cleanup();
+        resolve({ ok, silent: false, error });
+      }, 800);
+    };
+
+    const triggerPrint = () => {
       try {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
-        // Give the browser a beat to hand the doc off to the spooler before tearing the iframe down.
-        setTimeout(() => {
-          if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-          resolve({ ok: true, silent: false });
-        }, 800);
+        finish(true);
       } catch (e: unknown) {
-        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        cleanup();
         resolve({
           ok: false,
           silent: false,
@@ -154,10 +170,32 @@ function printHtmlInIframe(html: string): Promise<AutoPrintResult> {
       }
     };
 
+    iframe.onload = () => {
+      const doc = iframe.contentWindow?.document;
+      const images = doc?.images;
+      if (!images?.length) {
+        window.setTimeout(triggerPrint, 150);
+        return;
+      }
+      let pending = images.length;
+      const done = () => {
+        pending -= 1;
+        if (pending <= 0) window.setTimeout(triggerPrint, 100);
+      };
+      for (let i = 0; i < images.length; i += 1) {
+        const img = images[i];
+        if (img.complete) done();
+        else {
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+        }
+      }
+    };
+
     document.body.appendChild(iframe);
     const doc = iframe.contentWindow?.document;
     if (!doc) {
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      cleanup();
       resolve({ ok: false, silent: false, error: 'iframe has no document' });
       return;
     }

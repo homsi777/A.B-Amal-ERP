@@ -19,8 +19,8 @@ const BROWSER_DEFAULTS: AppSettings = {
   silentA4PrintingEnabled: false,
   defaultLabelTemplateId: null,
   defaultPrintMode: 'ROLL_LABEL',
-  labelWidthMm: 100,
-  labelHeightMm: 80,
+  labelWidthMm: 80,
+  labelHeightMm: 60,
   lastExcelFolder: null,
   lastPdfFolder: null,
 };
