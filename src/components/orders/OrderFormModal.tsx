@@ -169,16 +169,23 @@ function applyCartelaToLinePatch(cartela: {
   weight_value: string;
 }, scanFallback: string, inventory: FabricItem[]): Partial<FormLine> {
   const art = cartela.art_code.trim();
-  const title = (cartela.title.trim() || art).trim();
+  const title = cartela.title.trim();
+  const design = cartela.design_no.trim();
   const widthCm = numericFromCartelaField(cartela.width_value);
   const gsm = numericFromCartelaField(cartela.weight_value);
   const invHit = art ? inventory.find((i) => i.fabricCode.trim().toLowerCase() === art.toLowerCase()) : undefined;
+  // اسم الخامة = Title | كود الخامة = ART CODE فقط (لا نكرر الاسم في عمود الكود)
+  const materialName = title || art;
+  const fabricCode =
+    art && title && art.toLowerCase() === title.toLowerCase()
+      ? design || art
+      : art || design;
   return {
     scanBarcode: cartela.serial_no.trim() || scanFallback,
-    fabricCode: art,
-    dsamNumber: art,
-    materialName: title,
-    rollNo: cartela.design_no.trim(),
+    fabricCode,
+    dsamNumber: fabricCode,
+    materialName,
+    rollNo: design,
     colorCode: '',
     colorName: '',
     ...(widthCm > 0 ? { widthCm: String(widthCm) } : {}),
@@ -223,27 +230,12 @@ export function OrderFormModal({
   const [summaryOpen, setSummaryOpen] = useState(true);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const barcodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const colorCodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const fabricCodesSorted = useMemo(() => {
     const codes = [...new Set(inventory.map((i) => i.fabricCode).filter(Boolean))];
     return codes.sort((a, b) => a.localeCompare(b, 'ar'));
   }, [inventory]);
-
-  const colorCodesForFabric = useCallback(
-    (fc: string) =>
-      [...new Set(inventory.filter((i) => i.fabricCode === fc).map((i) => i.colorCode))].sort(),
-    [inventory],
-  );
-
-  const colorNamesForFabricColor = useCallback(
-    (fc: string, cc: string) =>
-      [
-        ...new Set(
-          inventory.filter((i) => i.fabricCode === fc && i.colorCode === cc).map((i) => i.colorName),
-        ),
-      ].sort(),
-    [inventory],
-  );
 
   const recalcWeight = useCallback((line: FormLine): string => {
     const m = numberValue(line.length);
@@ -312,39 +304,6 @@ export function OrderFormModal({
 
   const totalAmount = summary.totals.totalAmount;
 
-  const handleFabricSelect = (lineId: string, fc: string) => {
-    const variants = inventory.filter((i) => i.fabricCode === fc);
-    const first = variants[0];
-    patchLine(lineId, {
-      fabricCode: fc,
-      dsamNumber: fc,
-      materialName: first?.name ?? '',
-      colorCode: first?.colorCode ?? '',
-      colorName: first?.colorName ?? '',
-      price: first ? String(first.sellingPrice) : '',
-      rollNo: first?.rollNumber ?? '',
-      imageUrl: first?.imageUrl,
-    });
-  };
-
-  const handleColorCodeSelect = (lineId: string, fc: string, cc: string) => {
-    const names = colorNamesForFabricColor(fc, cc);
-    patchLine(lineId, {
-      colorCode: cc,
-      colorName: names[0] ?? '',
-    });
-  };
-
-  const handleColorNameSelect = (lineId: string, fc: string, cn: string) => {
-    const hit = inventory.find((i) => i.fabricCode === fc && i.colorName === cn);
-    const patch: Partial<FormLine> = {
-      colorName: cn,
-      colorCode: hit?.colorCode ?? '',
-    };
-    if (hit) patch.price = String(hit.sellingPrice);
-    patchLine(lineId, patch);
-  };
-
   const handleBarcodeCommit = async (lineId: string) => {
     const row = items.find((i) => i.id === lineId);
     if (!row) return;
@@ -354,15 +313,39 @@ export function OrderFormModal({
     const commitLine = (merged: Partial<FormLine>) => {
       const nl = emptyLine();
       setItems((prev) => {
+        const source = prev.find((it) => it.id === lineId);
+        const filled = source
+          ? (() => {
+              const u = syncLineQuantities({ ...source, ...merged });
+              u.weight = recalcWeight(u);
+              return u;
+            })()
+          : null;
         const next = prev.map((it) => {
           if (it.id !== lineId) return it;
-          const u = syncLineQuantities({ ...it, ...merged });
-          u.weight = recalcWeight(u);
-          return u;
+          return filled ?? syncLineQuantities({ ...it, ...merged });
         });
-        return [...next, nl];
+        const inherited = filled
+          ? (() => {
+              const u = syncLineQuantities({
+                ...nl,
+                fabricCode: filled.fabricCode,
+                dsamNumber: filled.dsamNumber,
+                materialName: filled.materialName,
+                rollNo: filled.rollNo,
+                price: filled.price,
+                widthCm: filled.widthCm,
+                gsm: filled.gsm,
+                metersPerRoll: filled.metersPerRoll,
+                rollCount: '1',
+              });
+              u.weight = recalcWeight(u);
+              return u;
+            })()
+          : nl;
+        return [...next, inherited];
       });
-      setTimeout(() => barcodeInputRefs.current[nl.id]?.focus(), 50);
+      setTimeout(() => colorCodeInputRefs.current[nl.id]?.focus(), 50);
     };
 
     try {
@@ -396,8 +379,8 @@ export function OrderFormModal({
       fabricCode: hit.fabricCode,
       dsamNumber: hit.fabricCode,
       materialName: hit.name,
-      colorCode: hit.colorCode,
-      colorName: hit.colorName,
+      colorCode: '',
+      colorName: '',
       price: String(hit.sellingPrice),
       rollNo: hit.rollNumber ?? '',
       imageUrl: hit.imageUrl ?? undefined,
@@ -415,14 +398,15 @@ export function OrderFormModal({
       fabricCode: last.fabricCode,
       dsamNumber: last.dsamNumber,
       materialName: last.materialName,
+      rollNo: last.rollNo,
       price: last.price,
       widthCm: last.widthCm,
       gsm: last.gsm,
       metersPerRoll: last.metersPerRoll,
       rollCount: '1',
     });
-    inherited.weight = recalcWeight(inherited);
     setItems([...items, inherited]);
+    setTimeout(() => colorCodeInputRefs.current[inherited.id]?.focus(), 50);
   };
   const handleRemoveItem = (id: string) => setItems(items.filter((item) => item.id !== id));
 
@@ -646,8 +630,8 @@ export function OrderFormModal({
           <div className="rounded-xl border border-cyan-200 bg-cyan-50/80 px-4 py-3 text-sm text-cyan-900 flex flex-wrap gap-2 items-center">
             <strong>تنبيه:</strong>
             <span>
-              امسح <strong>باركود/QR الكارتيلا</strong> في «الخامة / مرجع» لتعبئة اسم الخامة وART وDESIGN — ثم أكمل{' '}
-              <strong>اللون</strong> و<strong>متر/رول</strong> و<strong>عدد الرول</strong> يدوياً. أو اختر من قوائم المخزون.
+              امسح <strong>باركود/QR الكارتيلا</strong> في «الباركود» لتعبئة اسم الخامة وكود الخامة وDESIGN — ثم أكمل{' '}
+              <strong>كود اللون</strong> و<strong>اللون</strong> و<strong>متر/رول</strong> يدوياً. السطر التالي يرث نفس الخامة.
             </span>
           </div>
 
@@ -800,17 +784,6 @@ export function OrderFormModal({
                   {items.map((item, index) => {
                     const lengthError = getItemError(item, 'metersPerRoll');
                     const rollCountError = getItemError(item, 'rollCount');
-                    const ccOptions = item.fabricCode ? colorCodesForFabric(item.fabricCode) : [];
-                    const nameOptions =
-                      item.fabricCode && item.colorCode
-                        ? colorNamesForFabricColor(item.fabricCode, item.colorCode)
-                        : item.fabricCode
-                          ? [
-                              ...new Set(
-                                inventory.filter((i) => i.fabricCode === item.fabricCode).map((i) => i.colorName),
-                              ),
-                            ].sort()
-                          : [];
                     const lineTotal = numberValue(item.length) * numberValue(item.price);
 
                     return (
@@ -849,36 +822,18 @@ export function OrderFormModal({
                           />
                         </td>
                         <td className="p-1.5">
-                          <select
+                          <input
+                            type="text"
+                            placeholder="كود الخامة"
                             value={item.fabricCode}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (!v) {
-                                patchLine(item.id, {
-                                  fabricCode: '',
-                                  dsamNumber: '',
-                                  materialName: '',
-                                  colorCode: '',
-                                  colorName: '',
-                                  price: '',
-                                  rollNo: '',
-                                });
-                                return;
-                              }
-                              handleFabricSelect(item.id, v);
-                            }}
-                            className={selectClass}
-                          >
-                            <option value="">— كود —</option>
-                            {item.fabricCode && !fabricCodesSorted.includes(item.fabricCode) ? (
-                              <option value={item.fabricCode}>{item.fabricCode}</option>
-                            ) : null}
-                            {fabricCodesSorted.map((fc) => (
-                              <option key={fc} value={fc}>
-                                {fc}
-                              </option>
-                            ))}
-                          </select>
+                            list="order-fabric-codes"
+                            onChange={(e) =>
+                              patchLine(item.id, { fabricCode: e.target.value, dsamNumber: e.target.value })
+                            }
+                            onKeyDown={handleKeyDownTable}
+                            className={`${inputClass()} font-mono text-xs`}
+                            dir="ltr"
+                          />
                           {item.rollNo.trim() ? (
                             <div className="text-[10px] text-indigo-600 font-mono mt-0.5 px-0.5" dir="ltr">
                               DESIGN: {item.rollNo}
@@ -886,44 +841,27 @@ export function OrderFormModal({
                           ) : null}
                         </td>
                         <td className="p-1.5">
-                          <select
-                            value={item.colorCode}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (!item.fabricCode) return;
-                              if (!v) patchLine(item.id, { colorCode: '', colorName: '' });
-                              else handleColorCodeSelect(item.id, item.fabricCode, v);
+                          <input
+                            ref={(el) => {
+                              colorCodeInputRefs.current[item.id] = el;
                             }}
-                            disabled={!item.fabricCode}
-                            className={`${selectClass} disabled:opacity-50`}
-                          >
-                            <option value="">— كود لون —</option>
-                            {ccOptions.map((cc) => (
-                              <option key={cc} value={cc}>
-                                {cc}
-                              </option>
-                            ))}
-                          </select>
+                            type="text"
+                            placeholder="كود لون"
+                            value={item.colorCode}
+                            onChange={(e) => patchLine(item.id, { colorCode: e.target.value })}
+                            onKeyDown={handleKeyDownTable}
+                            className={inputClass()}
+                          />
                         </td>
                         <td className="p-1.5">
-                          <select
+                          <input
+                            type="text"
+                            placeholder="لون"
                             value={item.colorName}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (!item.fabricCode) return;
-                              if (!v) patchLine(item.id, { colorName: '', colorCode: '' });
-                              else handleColorNameSelect(item.id, item.fabricCode, v);
-                            }}
-                            disabled={!item.fabricCode}
-                            className={`${selectClass} disabled:opacity-50`}
-                          >
-                            <option value="">— لون —</option>
-                            {nameOptions.map((nm) => (
-                              <option key={nm} value={nm}>
-                                {nm}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(e) => patchLine(item.id, { colorName: e.target.value })}
+                            onKeyDown={handleKeyDownTable}
+                            className={inputClass()}
+                          />
                         </td>
                         <td className="p-1.5">
                           <input
@@ -1019,6 +957,11 @@ export function OrderFormModal({
                   </tr>
                 </tfoot>
               </table>
+              <datalist id="order-fabric-codes">
+                {fabricCodesSorted.map((fc) => (
+                  <option key={fc} value={fc} />
+                ))}
+              </datalist>
             </div>
           </div>
 
