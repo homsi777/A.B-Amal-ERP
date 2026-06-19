@@ -22,6 +22,7 @@ import {
   orderTotalWeight,
 } from '../../lib/orderExport';
 import { ORDER_STATUS_LABELS, statusBadgeClass } from '../../pages/orders/orderStatusUi';
+import { orderLineColorLabel, orderLineDesignNo } from '../../lib/orderDisplay';
 
 export interface OrderDetailModalProps {
   open: boolean;
@@ -279,17 +280,8 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
                           </td>
                           <td className="px-3 py-2 font-mono text-xs">{line.referenceBarcode || '—'}</td>
                           <td className="px-3 py-2 font-medium text-slate-900">{line.materialName}</td>
-                          <td className="px-3 py-2 font-mono text-xs">{line.dsamNumber}</td>
-                          <td className="px-3 py-2">
-                            <span className="inline-flex items-center gap-1">
-                              <span
-                                className="inline-block w-3 h-3 rounded-full border border-slate-300 shrink-0"
-                                style={{ backgroundColor: line.colorCode || '#ccc' }}
-                                title={line.colorCode}
-                              />
-                              <span>{line.colorName}</span>
-                            </span>
-                          </td>
+                          <td className="px-3 py-2 font-mono text-xs">{orderLineDesignNo(line)}</td>
+                          <td className="px-3 py-2">{orderLineColorLabel(line)}</td>
                           <td className="px-3 py-2 font-mono">{line.length.toFixed(2)}</td>
                           <td className="px-3 py-2 font-mono">{line.price.toFixed(2)}</td>
                           <td className="px-3 py-2 font-mono font-bold text-indigo-700">

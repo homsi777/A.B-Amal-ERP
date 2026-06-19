@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { Customer, CustomerOrder } from '../types';
 import { exportPdfFromHtmlString } from './pdfExport';
 import { BRAND } from '../branding';
+import { orderLineColorLabel, orderLineDesignNo } from './orderDisplay';
 
 function escapeHtml(s: string): string {
   return s
@@ -228,9 +229,9 @@ export function renderCustomerOrderPdfHtml(order: CustomerOrder, customer: Custo
           <td style="padding:8px;border:${cellBorder};text-align:center;vertical-align:middle;">${imgCell}</td>
           <td style="padding:10px;border:${cellBorder};">${escapeHtml(line.referenceBarcode || '—')}</td>
           <td style="padding:10px;border:${cellBorder};">${escapeHtml(line.materialName)}</td>
-          <td style="padding:10px;border:${cellBorder};font-family:monospace;">${escapeHtml(line.dsamNumber)}</td>
-          <td style="padding:10px;border:${cellBorder};">${escapeHtml(line.colorCode)}</td>
-          <td style="padding:10px;border:${cellBorder};">${escapeHtml(line.colorName)}</td>
+          <td style="padding:10px;border:${cellBorder};font-family:monospace;">${escapeHtml(orderLineDesignNo(line))}</td>
+          <td style="padding:10px;border:${cellBorder};">${escapeHtml(line.colorCode || '—')}</td>
+          <td style="padding:10px;border:${cellBorder};">${escapeHtml(line.colorName || '—')}</td>
           <td style="padding:10px;border:${cellBorder};text-align:center;">${line.length.toFixed(2)}</td>
           <td style="padding:10px;border:${cellBorder};text-align:center;">${line.price.toFixed(2)}</td>
           <td style="padding:10px;border:${cellBorder};text-align:center;font-weight:800;color:#000;">${lt.toFixed(2)}</td>
@@ -281,20 +282,21 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
   const dateLabel = formatPdfLocaleDate(order.date);
   const countryLabel = order.warehouse === 'sub' ? 'مستودع الجملة' : 'المستودع الرئيسي';
 
-  const groups = order.items.reduce<Array<{ materialName: string; dsamNumber: string; lines: CustomerOrder['items'] }>>(
-    (acc, line) => {
-      const materialName = line.materialName || '-';
-      const dsamNumber = line.dsamNumber || '-';
-      const existing = acc.find((group) => group.materialName === materialName && group.dsamNumber === dsamNumber);
-      if (existing) {
-        existing.lines.push(line);
-      } else {
-        acc.push({ materialName, dsamNumber, lines: [line] });
-      }
-      return acc;
-    },
-    [],
-  );
+  const groups = order.items.reduce<
+    Array<{ materialName: string; designNo: string; lines: CustomerOrder['items'] }>
+  >((acc, line) => {
+    const materialName = line.materialName || '-';
+    const designNo = orderLineDesignNo(line);
+    const existing = acc.find(
+      (group) => group.materialName === materialName && group.designNo === designNo,
+    );
+    if (existing) {
+      existing.lines.push(line);
+    } else {
+      acc.push({ materialName, designNo, lines: [line] });
+    }
+    return acc;
+  }, []);
 
   const rows = groups
     .map((group, groupIndex) => {
@@ -309,13 +311,13 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
             index === 0
               ? `
           <td rowspan="${group.lines.length}" style="width:120px;border:3px solid ${PDF_BORDER};padding:8px;text-align:center;vertical-align:middle;font-weight:900;font-size:13px;">${escapeHtml(group.materialName)}</td>
-          <td rowspan="${group.lines.length}" style="width:120px;border:3px solid ${PDF_BORDER};padding:8px;text-align:center;vertical-align:middle;font-weight:900;font-size:13px;">${escapeHtml(group.dsamNumber)}</td>`
+          <td rowspan="${group.lines.length}" style="width:120px;border:3px solid ${PDF_BORDER};padding:8px;text-align:center;vertical-align:middle;font-weight:900;font-size:13px;">${escapeHtml(group.designNo)}</td>`
               : '';
 
           return `
         <tr style="page-break-inside:avoid;">
           ${groupCells}
-          <td style="width:190px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 8px;text-align:center;font-weight:800;font-size:13px;">${escapeHtml(line.colorName || line.colorCode || '-')}</td>
+          <td style="width:190px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 8px;text-align:center;font-weight:800;font-size:13px;">${escapeHtml(orderLineColorLabel(line))}</td>
           <td style="width:74px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 8px;text-align:center;font-weight:900;font-size:13px;">${line.length.toFixed(0)}</td>
           <td style="width:40px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 4px;text-align:center;font-weight:900;font-size:13px;">${unit}</td>
           <td style="width:64px;border:1px solid ${PDF_BORDER};${groupEdgeStyle}padding:10px 6px;text-align:center;font-weight:800;"></td>
@@ -427,7 +429,7 @@ export function exportCustomerOrderExcel(order: CustomerOrder, customer: Custome
     line.imageUrl || '',
     line.referenceBarcode || '',
     line.materialName,
-    line.dsamNumber,
+    orderLineDesignNo(line),
     line.colorCode,
     line.colorName,
     line.length,
@@ -463,7 +465,7 @@ export function buildCustomerOrderWhatsAppText(order: CustomerOrder, customer: C
     `إجمالي السعر (${order.currency}): ${total.toFixed(2)}`,
     '',
     'بنود مختصرة:',
-    ...order.items.slice(0, 8).map((l, i) => `${i + 1}) ${l.materialName} — ${l.dsamNumber} — ${l.length} × ${l.price} = ${orderLineTotal(l).toFixed(2)}`),
+    ...order.items.slice(0, 8).map((l, i) => `${i + 1}) ${l.materialName} — ${orderLineDesignNo(l)} — ${orderLineColorLabel(l)} — ${l.length} × ${l.price} = ${orderLineTotal(l).toFixed(2)}`),
     order.items.length > 8 ? `… و${order.items.length - 8} بنداً إضافياً` : '',
     '',
     `— من نظام ${BRAND.name} (${BRAND.tagline}) —`,

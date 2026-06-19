@@ -201,6 +201,15 @@ function isBlankOrderLine(line: FormLine): boolean {
   );
 }
 
+/** سطر جاهز للحفظ — يجب أن يكون فيه خامة وكمية ولون */
+function isSavableOrderLine(line: FormLine): boolean {
+  if (isBlankOrderLine(line)) return false;
+  const hasFabric = !!(line.materialName.trim() || line.fabricCode.trim() || line.scanBarcode.trim());
+  const hasQty = numberValue(line.metersPerRoll) > 0;
+  const hasColor = !!(line.colorCode.trim() || line.colorName.trim());
+  return hasFabric && hasQty && hasColor;
+}
+
 function applyCartelaToLinePatch(cartela: {
   title: string;
   art_code: string;
@@ -311,7 +320,7 @@ export function OrderFormModal({
     }
   }, [open, editingOrder]);
 
-  const activeItems = useMemo(() => items.filter((item) => !isBlankOrderLine(item)), [items]);
+  const activeItems = useMemo(() => items.filter(isSavableOrderLine), [items]);
 
   const summary = useMemo(
     () =>
@@ -498,13 +507,13 @@ export function OrderFormModal({
       const synced = syncLineQuantities(item);
       const rollCount = Math.max(1, Math.round(numberValue(synced.rollCount)) || 1);
       const metersPerRoll = numberValue(synced.metersPerRoll);
-      const designNo = item.fabricCode.trim();
+      const designNo = item.fabricCode.trim() || item.rollNo.trim();
       return {
-        materialName: item.materialName || designNo || '—',
-        dsamNumber: item.dsamNumber.trim() || designNo,
-        rollNo: designNo || item.rollNo,
-        colorCode: item.colorCode,
-        colorName: item.colorName,
+        materialName: item.materialName.trim() || designNo || '—',
+        dsamNumber: item.dsamNumber.trim(),
+        rollNo: designNo,
+        colorCode: item.colorCode.trim(),
+        colorName: item.colorName.trim(),
         length: numberValue(synced.length),
         metersPerRoll,
         rollCount,
@@ -541,7 +550,7 @@ export function OrderFormModal({
         message: !partyId
           ? 'اختر العميل قبل الحفظ'
           : activeItems.length === 0
-            ? 'أضف سطراً واحداً على الأقل في الطلبية'
+            ? 'أضف سطراً واحداً على الأقل (خامة + كمية + لون)'
             : 'تحقق من الكميات في بنود الطلبية',
       });
       return;
@@ -798,7 +807,7 @@ export function OrderFormModal({
                     <th className="p-2 font-bold w-10 text-center">#</th>
                     <th className="p-2 font-bold min-w-[120px]">الباركود</th>
                     <th className="p-2 font-bold min-w-[130px]">اسم الخامة</th>
-                    <th className="p-2 font-bold min-w-[90px]">كود الخامة</th>
+                    <th className="p-2 font-bold min-w-[90px]">DESIGN NO</th>
                     <th className="p-2 font-bold min-w-[100px]">كود لون</th>
                     <th className="p-2 font-bold min-w-[110px]">لون</th>
                     <th className="p-2 font-bold min-w-[90px]">متر/رول</th>
