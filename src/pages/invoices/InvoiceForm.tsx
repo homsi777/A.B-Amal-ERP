@@ -1126,24 +1126,21 @@ export const InvoiceForm = () => {
               type: 'warning',
               message: 'هذا الرول غير متاح للبيع (مباع أو لا يحتوي على طول متاح).',
             });
-            barcodeLookupCacheRef.current.set(cacheKey, null);
             return null;
           }
         }
 
         if (match && isSales && !isRollAvailableForSale(match)) {
           showToast({ type: 'warning', message: 'هذا الرول غير متاح للبيع.' });
-          barcodeLookupCacheRef.current.set(cacheKey, null);
           return null;
         }
 
         if (match) {
           setApiRolls((prev) => (prev.some((r) => r.id === match!.id) ? prev : [match!, ...prev]));
+          barcodeLookupCacheRef.current.set(cacheKey, match);
         }
-        barcodeLookupCacheRef.current.set(cacheKey, match);
         return match;
       } catch {
-        barcodeLookupCacheRef.current.set(cacheKey, null);
         return null;
       } finally {
         barcodeLookupInFlightRef.current.delete(cacheKey);

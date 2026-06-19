@@ -5,6 +5,7 @@ import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { confirmPurchaseInvoice, createPurchaseInvoice } from '../services/purchaseInvoiceService.js';
+import { repairRollStuckAfterVoidedSale } from '../services/salesInvoiceService.js';
 import { postPurchaseInvoiceToGl, reversePurchaseInvoiceGl } from '../services/glPostingService.js';
 import {
   VALID_STATUSES,
@@ -252,6 +253,20 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
 
     const where = conds.join(' AND ');
     const pool = getPool();
+
+    if (onlyAvailable && (barcode || search)) {
+      const identity = (barcode || search).trim();
+      if (identity && identity.length <= 64) {
+        const repairClient = await pool.connect();
+        try {
+          await repairRollStuckAfterVoidedSale(repairClient, companyId, req.user?.sub ?? null, identity);
+        } catch {
+          /* non-blocking repair */
+        } finally {
+          repairClient.release();
+        }
+      }
+    }
 
     const dirSql = sortDir === 'asc' ? 'ASC' : 'DESC';
     const orderExpr =

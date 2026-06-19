@@ -235,6 +235,144 @@ function parseSalesLineMetadata(ln: { metadata: unknown }): Record<string, unkno
   }
 }
 
+/** After voiding a sale, roll must be sellable again (not stuck RESERVED/SOLD from the old flow). */
+function rollStatusAfterSalesVoid(prevStatus: string, restoredLengthM: number): string {
+  const st = String(prevStatus || 'AVAILABLE').toUpperCase();
+  if (restoredLengthM <= EPS) {
+    if (st === 'DAMAGED' || st === 'INACTIVE') return st;
+    return 'INACTIVE';
+  }
+  if (st === 'RESERVED' || st === 'SOLD') return 'AVAILABLE';
+  if (st === 'DAMAGED' || st === 'INACTIVE' || st === 'TRANSFERRED') return st;
+  return 'AVAILABLE';
+}
+
+function resolveVoidRollRestoreTarget(
+  ln: { quantity: unknown; unit: unknown; fabric_roll_id: string | null; metadata: unknown },
+  snap: {
+    prev_length_m?: number;
+    prev_status?: string;
+    qty_sold_m?: number;
+    fabric_roll_id?: string;
+  } | undefined,
+  currentLengthM: number,
+  currentStatus: string,
+): { rollId: string | null; lengthM: number; status: string } {
+  const rollId = String(snap?.fabric_roll_id ?? ln.fabric_roll_id ?? '').trim() || null;
+  if (!rollId) return { rollId: null, lengthM: currentLengthM, status: currentStatus };
+
+  const qtyM = quantityToMeters(Number(ln.quantity), (ln.unit as 'meter' | 'yard') || 'meter');
+  const snapPrevLen = snap?.prev_length_m;
+  const hasSnapLen = snapPrevLen != null && Number.isFinite(Number(snapPrevLen));
+
+  let lengthM: number;
+  if (hasSnapLen) {
+    lengthM = round2(Number(snapPrevLen));
+  } else {
+    const qtySold = Number(snap?.qty_sold_m ?? qtyM);
+    lengthM = round2(currentLengthM + (Number.isFinite(qtySold) ? qtySold : 0));
+  }
+
+  const prevSt = hasSnapLen ? String(snap?.prev_status ?? 'AVAILABLE') : currentStatus;
+  const status = rollStatusAfterSalesVoid(prevSt, lengthM);
+  return { rollId, lengthM, status };
+}
+
+/**
+ * إصلاح أتواب عالقة (SOLD/RESERVED) بعد إلغاء فاتورة بيع سابقة — يُستدعى عند البحث للبيع.
+ */
+export async function repairRollStuckAfterVoidedSale(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  identityToken: string,
+): Promise<boolean> {
+  const token = String(identityToken ?? '').trim();
+  if (!token) return false;
+
+  const stuck = await client.query<{
+    roll_id: string;
+    length_m: string;
+    status: string;
+    metadata: unknown;
+    quantity: string;
+    unit: string;
+    invoice_id: string;
+    invoice_no: string;
+  }>(
+    `SELECT fr.id AS roll_id, fr.length_m, fr.status,
+            sil.metadata, sil.quantity, sil.unit,
+            si.id AS invoice_id, si.invoice_no
+       FROM fabric_rolls fr
+       INNER JOIN sales_invoice_lines sil
+         ON sil.fabric_roll_id = fr.id AND sil.company_id = fr.company_id
+       INNER JOIN sales_invoices si
+         ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+      WHERE fr.company_id = $1
+        AND si.document_status = 'VOIDED'
+        AND fr.status IN ('SOLD', 'RESERVED')
+        AND (
+          lower(trim(fr.barcode)) = lower($2::text)
+          OR lower(trim(coalesce(fr.roll_no, ''))) = lower($2::text)
+          OR lower(trim(coalesce(fr.supplier_roll_ref, ''))) = lower($2::text)
+        )
+      ORDER BY si.voided_at DESC NULLS LAST, si.updated_at DESC
+      LIMIT 1`,
+    [companyId, token],
+  );
+  if (!stuck.rows.length) return false;
+
+  const row = stuck.rows[0];
+  const snap = parseSalesLineMetadata({ metadata: row.metadata }).inventory as
+    | {
+        fabric_roll_id?: string;
+        prev_length_m?: number;
+        prev_status?: string;
+        qty_sold_m?: number;
+      }
+    | undefined;
+
+  const target = resolveVoidRollRestoreTarget(
+    {
+      quantity: row.quantity,
+      unit: row.unit,
+      fabric_roll_id: row.roll_id,
+      metadata: row.metadata,
+    },
+    snap,
+    Number(row.length_m),
+    row.status,
+  );
+  if (!target.rollId) return false;
+
+  const qtySold = round2(target.lengthM - Number(row.length_m));
+  await client.query(
+    `UPDATE fabric_rolls SET length_m=$3, status=$4, updated_at=now() WHERE id=$1 AND company_id=$2`,
+    [target.rollId, companyId, target.lengthM, target.status],
+  );
+  await client.query(
+    `INSERT INTO inventory_movements (
+       company_id, roll_id, movement_type, old_status, new_status,
+       length_delta_m, reference_type, reference_id, reference_no, notes, created_by_user_id
+     ) VALUES ($1,$2,'RETURN',$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [
+      companyId,
+      target.rollId,
+      row.status,
+      target.status,
+      qtySold > EPS
+        ? qtySold
+        : snap?.qty_sold_m ?? quantityToMeters(Number(row.quantity), (row.unit as 'meter' | 'yard') || 'meter'),
+      'SALES_INVOICE_VOID',
+      row.invoice_id,
+      row.invoice_no,
+      `إصلاح تلقائي بعد إلغاء — ${row.invoice_no}`,
+      userId,
+    ],
+  );
+  return true;
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -1010,12 +1148,13 @@ export async function confirmSalesInvoice(
     const soldQty = Math.min(qtyM, len);
     const newLen = round2(len - soldQty);
     const fullSale = soldQty >= len - EPS || newLen <= EPS;
+    const preSaleStatus = roll.status === 'RESERVED' ? 'AVAILABLE' : roll.status;
 
     let meta: Record<string, unknown> = parseSalesLineMetadata(ln);
     meta.inventory = {
       fabric_roll_id: rollId,
       prev_length_m: len,
-      prev_status: roll.status,
+      prev_status: preSaleStatus,
       qty_sold_m: soldQty,
       final_length_m: fullSale ? 0 : newLen,
       final_status: fullSale ? 'SOLD' : 'AVAILABLE',
@@ -1324,15 +1463,7 @@ export async function voidSalesInvoice(
   ]);
 
   for (const ln of lines.rows) {
-    let meta: Record<string, unknown> = {};
-    try {
-      meta =
-        typeof ln.metadata === 'string'
-          ? JSON.parse(ln.metadata) as Record<string, unknown>
-          : (ln.metadata as Record<string, unknown>) ?? {};
-    } catch {
-      meta = {};
-    }
+    const meta = parseSalesLineMetadata(ln);
     const snap = meta.inventory as
       | {
           fabric_roll_id?: string;
@@ -1341,22 +1472,31 @@ export async function voidSalesInvoice(
           qty_sold_m?: number;
         }
       | undefined;
-    if (!snap?.fabric_roll_id) continue;
 
-    const rollId = snap.fabric_roll_id;
+    const rollId = String(snap?.fabric_roll_id ?? ln.fabric_roll_id ?? '').trim();
+    if (!rollId) continue;
+
     const r = await client.query<{ length_m: string; status: string }>(
       `SELECT length_m, status FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
       [rollId, companyId],
     );
     if (!r.rows.length) continue;
 
-    const prevLen = snap.prev_length_m ?? 0;
-    const prevSt = snap.prev_status ?? 'AVAILABLE';
-    const qtySold = snap.qty_sold_m ?? 0;
+    const target = resolveVoidRollRestoreTarget(
+      ln,
+      snap,
+      Number(r.rows[0].length_m),
+      r.rows[0].status,
+    );
+    if (!target.rollId) continue;
+
+    const qtySold = round2(
+      target.lengthM - Number(r.rows[0].length_m),
+    );
 
     await client.query(
       `UPDATE fabric_rolls SET length_m=$3, status=$4, updated_at=now() WHERE id=$1 AND company_id=$2`,
-      [rollId, companyId, prevLen, prevSt],
+      [rollId, companyId, target.lengthM, target.status],
     );
     await client.query(
       `INSERT INTO inventory_movements (
@@ -1367,8 +1507,10 @@ export async function voidSalesInvoice(
         companyId,
         rollId,
         r.rows[0].status,
-        prevSt,
-        qtySold,
+        target.status,
+        qtySold > EPS
+          ? qtySold
+          : snap?.qty_sold_m ?? quantityToMeters(Number(ln.quantity), (ln.unit as 'meter' | 'yard') || 'meter'),
         'SALES_INVOICE_VOID',
         invoiceId,
         inv.invoice_no,
