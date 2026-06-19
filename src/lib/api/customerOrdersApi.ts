@@ -35,7 +35,10 @@ function sanitizeOrderPayload(payload: CustomerOrderPayload): CustomerOrderPaylo
       colorCode: line.colorCode ?? '',
       colorName: line.colorName ?? '',
       note: line.note?.trim() || undefined,
-      imageUrl: line.imageUrl?.trim() || undefined,
+      imageUrl:
+        line.imageUrl && String(line.imageUrl).trim().startsWith('data:image/')
+          ? String(line.imageUrl).trim()
+          : line.imageUrl?.trim() || undefined,
       referenceBarcode: line.referenceBarcode?.trim() || undefined,
     })),
   };

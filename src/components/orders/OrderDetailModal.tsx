@@ -41,6 +41,7 @@ const FALLBACK_CUSTOMER: Customer = {
 
 export function OrderDetailModal({ open, order, customer, onClose }: OrderDetailModalProps) {
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const party = customer ?? FALLBACK_CUSTOMER;
   const statusLabel = order ? ORDER_STATUS_LABELS[order.status] : '';
 
@@ -81,6 +82,7 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
     <>
       <style>{`
         @media print {
+          #order-detail-print-root img { display: block !important; max-width: 48px; max-height: 48px; }
           body * { visibility: hidden !important; }
           #order-detail-print-root, #order-detail-print-root * { visibility: visible !important; }
           #order-detail-print-root {
@@ -267,13 +269,20 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
                           <td className="px-3 py-2 text-center font-mono text-slate-500">{idx + 1}</td>
                           <td className="px-3 py-2 align-middle">
                             {line.imageUrl ? (
-                              <img
-                                src={line.imageUrl}
-                                alt=""
-                                crossOrigin="anonymous"
-                                referrerPolicy="no-referrer"
-                                className="w-11 h-11 object-cover rounded-lg border border-slate-200 mx-auto"
-                              />
+                              <button
+                                type="button"
+                                onClick={() => setImagePreview(line.imageUrl!)}
+                                className="block mx-auto rounded-lg border border-slate-200 overflow-hidden hover:ring-2 hover:ring-indigo-400 transition"
+                                title="اضغط لتكبير الصورة"
+                              >
+                                <img
+                                  src={line.imageUrl}
+                                  alt=""
+                                  crossOrigin="anonymous"
+                                  referrerPolicy="no-referrer"
+                                  className="w-11 h-11 object-cover"
+                                />
+                              </button>
                             ) : (
                               <span className="text-slate-300 flex justify-center">—</span>
                             )}
@@ -302,6 +311,30 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
           </div>
         </div>
       </div>
+      {imagePreview ? (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/80 p-4 print:hidden"
+          onClick={() => setImagePreview(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="معاينة الصورة"
+        >
+          <button
+            type="button"
+            onClick={() => setImagePreview(null)}
+            className="absolute top-4 left-4 p-2 rounded-full bg-white/90 text-slate-700 hover:bg-white"
+            aria-label="إغلاق"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={imagePreview}
+            alt=""
+            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </>
   );
 }

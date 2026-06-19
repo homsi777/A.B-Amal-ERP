@@ -29,6 +29,16 @@ function formatOrderCurrency(amount: number, currency: string): string {
   return `${amount.toFixed(2)} ${code}`;
 }
 
+/** صورة سطر الكارتيلا في PDF — لا تستخدم escapeHtml على src */
+function renderOrderLineImageCell(imageUrl?: string | null): string {
+  const src = String(imageUrl ?? '').trim();
+  if (!src.startsWith('data:image/') && !src.startsWith('http://') && !src.startsWith('https://')) {
+    return '<span style="color:#cbd5e1;font-size:10px;">—</span>';
+  }
+  const safeSrc = src.replace(/"/g, '&quot;');
+  return `<img src="${safeSrc}" alt="" crossorigin="anonymous" style="width:46px;height:46px;object-fit:cover;border-radius:4px;border:1px solid ${PDF_BORDER};display:block;margin:0 auto;background:#fff;" />`;
+}
+
 /** رأس مستند الطلبية — شعار واحد فقط بدون تكرار النص */
 function renderOrderDocumentHeader(title: string): string {
   return `
@@ -379,6 +389,7 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
           return `
         <tr style="background:${rowBg};page-break-inside:avoid;">
           <td style="${tdBase};font-family:monospace;color:#64748b;">${lineNo}</td>
+          <td style="${tdBase};width:58px;">${renderOrderLineImageCell(line.imageUrl)}</td>
           ${groupCells}
           <td style="${tdBase};font-weight:700;">${escapeHtml(orderLineColorLabel(line))}</td>
           <td style="${tdBase};font-family:monospace;font-weight:800;">${line.length.toFixed(2)} <span style="font-size:9px;color:#64748b;">م</span></td>
@@ -390,7 +401,7 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
 
       const separator =
         groupIndex < groups.length - 1
-          ? `<tr><td colspan="7" style="height:6px;padding:0;border:none;background:#fff;"></td></tr>`
+          ? `<tr><td colspan="8" style="height:4px;padding:0;border:none;background:#fff;"></td></tr>`
           : '';
       return groupRows + separator;
     })
@@ -408,14 +419,15 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
       : '';
 
   return `
-  <div dir="rtl" style="width:820px;margin:0 auto;background:#fff;color:#0f172a;font-family:${PDF_FONT};font-size:12px;padding:8px 0 24px;">
+  <div dir="rtl" style="width:760px;margin:0 auto;background:#fff;color:#0f172a;font-family:${PDF_FONT};font-size:12px;padding:0 0 8px;">
     ${renderOrderDocumentHeader('طلبية حجز')}
     ${renderOrderMetaGridHtml(order, customer, statusLabelAr)}
 
     <table dir="rtl" style="width:760px;margin:0 auto;border-collapse:collapse;font-size:11px;border:1px solid ${PDF_BORDER_STRONG};">
       <thead>
         <tr>
-          <th style="${thStyle};width:36px;">#</th>
+          <th style="${thStyle};width:32px;">#</th>
+          <th style="${thStyle};width:58px;">صورة</th>
           <th style="${thStyle}">اسم الخامة</th>
           <th style="${thStyle}">DESIGN NO</th>
           <th style="${thStyle}">اللون</th>
@@ -446,12 +458,12 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
           <td style="width:50%;padding:10px;text-align:center;font-weight:800;border:1px solid ${PDF_BORDER_STRONG};">مندوب المبيعات — ${escapeHtml(BRAND.name)}</td>
         </tr>
         <tr>
-          <td style="height:100px;padding:16px 20px;vertical-align:top;border:1px solid ${PDF_BORDER};">
+          <td style="height:72px;padding:12px 16px;vertical-align:top;border:1px solid ${PDF_BORDER};">
             <div><strong>الاسم:</strong> ${escapeHtml(customer.name)}</div>
             <div style="margin-top:20px;"><strong>التوقيع:</strong></div>
             <div style="margin-top:24px;text-align:center;font-size:10px;color:#64748b;font-weight:600;">يرجى مراجعة البيانات والتوقيع عند الموافقة</div>
           </td>
-          <td style="height:100px;padding:16px 20px;vertical-align:top;border:1px solid ${PDF_BORDER};">
+          <td style="height:72px;padding:12px 16px;vertical-align:top;border:1px solid ${PDF_BORDER};">
             <div><strong>الاسم:</strong> _________________</div>
             <div style="margin-top:20px;"><strong>التوقيع:</strong></div>
             ${advancePayment > 0 ? `<div style="margin-top:24px;text-align:center;font-weight:800;color:${PDF_BORDER_STRONG};">المتبقي للتحصيل: ${formatOrderCurrency(totalDue, order.currency)}</div>` : ''}
@@ -469,7 +481,15 @@ function renderClotexOrderPdfHtml(order: CustomerOrder, customer: Customer, stat
 export async function exportCustomerOrderPdf(order: CustomerOrder, customer: Customer, statusLabelAr: string): Promise<void> {
   const html = renderClotexOrderPdfHtml(order, customer, statusLabelAr);
   const safeName = order.orderNumber.replace(/[^\w\u0600-\u06FF-]/g, '_');
-  await exportPdfFromHtmlString(html, `طلبية_${safeName}`);
+  await exportPdfFromHtmlString(html, `طلبية_${safeName}`, {
+    containerWidth: '760px',
+    containerPadding: '0',
+    pageFormat: 'a4',
+    orientation: 'portrait',
+    fitSinglePage: true,
+    canvasScale: 2,
+    jpegQuality: 0.92,
+  });
 }
 
 export function exportCustomerOrderExcel(order: CustomerOrder, customer: Customer, statusLabelAr: string): void {

@@ -84,7 +84,10 @@ export type PdfExportOptions = {
   jpegQuality?: number;
   canvasScale?: number;
   containerWidth?: string;
+  containerPadding?: string;
   pageFormat?: 'a4' | 'a5';
+  /** ضغط المحتوى في صفحة A4 واحدة (طلبيات الحجز) */
+  fitSinglePage?: boolean;
 };
 
 const appendHtml2CanvasCompatibilityStyle = (doc: Document) => {
@@ -708,11 +711,27 @@ export function renderSupplierAccountStatementPdfHtml(data: {
   });
 }
 
+const waitForContainerImages = (container: HTMLElement) =>
+  Promise.all(
+    Array.from(container.querySelectorAll('img')).map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        }),
+    ),
+  );
+
 const saveContainerAsPDF = async (
   container: HTMLElement,
   filenamePrefix: string,
   options: PdfExportOptions = {},
 ) => {
+  container.style.padding = options.containerPadding ?? '20px';
   document.body.appendChild(container);
   const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(document);
 
@@ -721,43 +740,68 @@ const saveContainerAsPDF = async (
   const pageFormat = options.pageFormat ?? 'a4';
 
   try {
+    await waitForContainerImages(container);
+
     const canvas = await html2canvas(container, {
       scale: canvasScale,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
       windowHeight: container.scrollHeight,
+      height: container.scrollHeight,
       onclone: (clonedDocument) => {
         appendHtml2CanvasCompatibilityStyle(clonedDocument);
-      }
+        const clonedContainer = clonedDocument.getElementById('pdf-export-container');
+        if (clonedContainer) {
+          clonedContainer.style.height = 'auto';
+          clonedContainer.style.minHeight = '0';
+          clonedContainer.style.overflow = 'visible';
+        }
+      },
     });
 
     removeElement(container);
 
     const imgData = canvas.toDataURL('image/jpeg', jpegQuality);
     const orientation =
-      options.orientation || (container.innerHTML.includes('TOPLAM TUTAR') ? 'portrait' : canvas.height > canvas.width ? 'portrait' : 'landscape');
+      options.orientation ||
+      (container.innerHTML.includes('TOPLAM TUTAR') ? 'portrait' : canvas.height > canvas.width ? 'portrait' : 'landscape');
     const pdf = new jsPDF({
       orientation,
       unit: 'mm',
-      format: pageFormat
+      format: pageFormat,
     });
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
+    const sideMargin = options.fitSinglePage ? 5 : 0;
+    const usablePageWidth = pageWidth - sideMargin * 2;
+    const usablePageHeight = pageHeight - sideMargin * 2;
 
-    addCompressedImageToPDF(pdf, imgData, 0, position, pageWidth, imgHeight);
-    heightLeft -= pageHeight;
+    let imgWidth = usablePageWidth;
+    let imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
+    if (options.fitSinglePage && imgHeight > usablePageHeight) {
+      imgHeight = usablePageHeight;
+      imgWidth = (canvas.width * imgHeight) / canvas.height;
+    }
+
+    const xOffset = sideMargin + (usablePageWidth - imgWidth) / 2;
+
+    if (options.fitSinglePage || imgHeight <= usablePageHeight) {
+      addCompressedImageToPDF(pdf, imgData, xOffset, sideMargin, imgWidth, imgHeight);
+    } else {
+      let heightLeft = imgHeight;
+      let position = 0;
       addCompressedImageToPDF(pdf, imgData, 0, position, pageWidth, imgHeight);
       heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        addCompressedImageToPDF(pdf, imgData, 0, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
     }
 
     const currentDate = new Date().toISOString().split('T')[0];
