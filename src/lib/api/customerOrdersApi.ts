@@ -15,6 +15,32 @@ export type CustomerOrderPayload = {
   advancePayment?: number;
 };
 
+function sanitizeOrderPayload(payload: CustomerOrderPayload): CustomerOrderPayload {
+  return {
+    ...payload,
+    orderNumber: payload.orderNumber?.trim() || undefined,
+    warehouse: payload.warehouse?.trim() || undefined,
+    notes: payload.notes?.trim() || undefined,
+    expectedDate: payload.expectedDate?.trim() || undefined,
+    templateId: payload.templateId?.trim() || undefined,
+    advancePayment:
+      payload.advancePayment != null && Number.isFinite(payload.advancePayment)
+        ? payload.advancePayment
+        : undefined,
+    items: payload.items.map((line) => ({
+      ...line,
+      materialName: line.materialName ?? '',
+      dsamNumber: line.dsamNumber ?? '',
+      rollNo: line.rollNo ?? '',
+      colorCode: line.colorCode ?? '',
+      colorName: line.colorName ?? '',
+      note: line.note?.trim() || undefined,
+      imageUrl: line.imageUrl?.trim() || undefined,
+      referenceBarcode: line.referenceBarcode?.trim() || undefined,
+    })),
+  };
+}
+
 export type CustomerOrdersListResult = {
   data: CustomerOrder[];
   total: number;
@@ -34,7 +60,7 @@ export async function listCustomerOrders(params: { search?: string; status?: Cus
 export async function createCustomerOrderApi(payload: CustomerOrderPayload): Promise<CustomerOrder> {
   const res = await apiFetch<{ ok: boolean; data: CustomerOrder }>('/api/customer-orders', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(sanitizeOrderPayload(payload)),
   });
   return res.data;
 }
@@ -42,7 +68,7 @@ export async function createCustomerOrderApi(payload: CustomerOrderPayload): Pro
 export async function updateCustomerOrderApi(id: string, payload: CustomerOrderPayload): Promise<CustomerOrder> {
   const res = await apiFetch<{ ok: boolean; data: CustomerOrder }>(`/api/customer-orders/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(sanitizeOrderPayload(payload)),
   });
   return res.data;
 }

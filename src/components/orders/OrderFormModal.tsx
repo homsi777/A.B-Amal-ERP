@@ -303,7 +303,7 @@ export function OrderFormModal({
       setExpectedDate(editingOrder.expectedDate || '');
       setAdvancePayment(editingOrder.advancePayment != null ? String(editingOrder.advancePayment) : '');
       setStatus(editingOrder.status);
-      setTemplateId(editingOrder.templateId);
+      setTemplateId(editingOrder.templateId ?? undefined);
       setItems(editingOrder.items.length ? editingOrder.items.map(toFormLine) : [emptyLine()]);
     } else {
       setDate(format(new Date(), 'yyyy-MM-dd'));
@@ -522,9 +522,9 @@ export function OrderFormModal({
         weight: numberValue(item.weight),
         price: numberValue(item.price),
         note: item.note.trim() || undefined,
-        imageUrl: item.imageUrl,
+        imageUrl: item.imageUrl?.trim() || undefined,
         referenceBarcode: item.scanBarcode.trim() || undefined,
-        unitType: 'meter',
+        unitType: 'meter' as const,
       };
     });
     return {
@@ -532,12 +532,12 @@ export function OrderFormModal({
       date,
       customerId: partyId,
       currency,
-      warehouse,
+      warehouse: warehouse.trim() || undefined,
       notes: notes.trim() || undefined,
       items: lines,
       status,
-      expectedDate: expectedDate || undefined,
-      templateId,
+      expectedDate: expectedDate.trim() || undefined,
+      templateId: templateId || undefined,
       advancePayment: advancePayment.trim() ? Number(advancePayment) || undefined : undefined,
     };
   };

@@ -19,6 +19,11 @@ const statusSchema = z.enum([
   'cancelled',
 ]);
 
+const optionalString = z.preprocess(
+  (v) => (v === null || v === undefined || v === '' ? undefined : v),
+  z.string().optional(),
+);
+
 const orderLineSchema = z.object({
   id: z.string().optional(),
   materialName: z.string().optional().default(''),
@@ -33,25 +38,35 @@ const orderLineSchema = z.object({
   gsm: z.coerce.number().nonnegative().default(0),
   weight: z.coerce.number().nonnegative().default(0),
   price: z.coerce.number().nonnegative().default(0),
-  note: z.string().optional(),
-  imageUrl: z.string().optional(),
-  referenceBarcode: z.string().optional(),
+  note: optionalString,
+  imageUrl: optionalString,
+  referenceBarcode: optionalString,
   unitType: z.enum(['meter', 'yard']).optional().default('meter'),
 });
 
 const orderBodySchema = z.object({
-  orderNumber: z.string().trim().optional(),
+  orderNumber: optionalString,
   date: z.string().min(1),
   customerId: z.string().uuid(),
   currency: z.string().trim().min(1).default('USD'),
-  warehouse: z.string().optional(),
-  notes: z.string().optional(),
+  warehouse: optionalString,
+  notes: optionalString,
   items: z.array(orderLineSchema).min(1),
   status: statusSchema.default('draft'),
-  templateId: z.string().uuid().optional(),
-  expectedDate: z.string().optional(),
+  templateId: z.preprocess(
+    (v) => (v === null || v === undefined || v === '' ? undefined : v),
+    z.string().uuid().optional(),
+  ),
+  expectedDate: optionalString,
   advancePayment: z.coerce.number().nonnegative().optional().default(0),
 });
+
+function validationErrorMessage(parsed: { success: false; error: z.ZodError }): string {
+  const issue = parsed.error.issues[0];
+  if (!issue) return ArabicErrors.validation;
+  const path = issue.path.length ? issue.path.join('.') : 'body';
+  return `${ArabicErrors.validation} (${path})`;
+}
 
 const templateLineSchema = z.object({
   materialName: z.string().optional().default(''),
@@ -376,7 +391,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
   app.post('/templates', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
     const parsed = templateBodySchema.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) return sendError(reply, 400, validationErrorMessage(parsed), 'VALIDATION');
     const d = parsed.data;
     const client = await getPool().connect();
     try {
@@ -509,7 +524,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
   app.post('/', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
     const parsed = orderBodySchema.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) return sendError(reply, 400, validationErrorMessage(parsed), 'VALIDATION');
     const d = parsed.data;
     const client = await getPool().connect();
     try {
@@ -563,7 +578,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = orderBodySchema.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) return sendError(reply, 400, validationErrorMessage(parsed), 'VALIDATION');
     const d = parsed.data;
     const client = await getPool().connect();
     try {
@@ -625,7 +640,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = z.object({ status: statusSchema }).safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) return sendError(reply, 400, validationErrorMessage(parsed), 'VALIDATION');
     const row = await getPool().query(
       `UPDATE customer_orders
        SET status=$3, updated_by_user_id=$4, updated_at=now()
