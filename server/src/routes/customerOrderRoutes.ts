@@ -20,7 +20,7 @@ const statusSchema = z.enum([
 ]);
 
 const orderLineSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().optional(),
   materialName: z.string().optional().default(''),
   dsamNumber: z.string().optional().default(''),
   rollNo: z.string().optional().default(''),

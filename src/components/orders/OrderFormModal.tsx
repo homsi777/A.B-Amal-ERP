@@ -88,7 +88,7 @@ function matchFabric(inv: FabricItem[], scan: string): FabricItem | undefined {
 }
 
 const emptyLine = (): FormLine => ({
-  id: `L-${Date.now()}-${Math.floor(Math.random() * 9999)}`,
+  id: crypto.randomUUID(),
   scanBarcode: '',
   fabricCode: '',
   colorCode: '',
@@ -158,7 +158,7 @@ const toFormLine = (row: CustomerOrderLine): FormLine => {
   const synced = syncLineQuantities({
     id: row.id,
     scanBarcode: row.referenceBarcode ?? '',
-    fabricCode: row.dsamNumber || '',
+    fabricCode: row.rollNo || row.dsamNumber || '',
     colorCode: row.colorCode,
     colorName: row.colorName,
     metersPerRoll: String(metersPerRoll),
@@ -190,6 +190,17 @@ function numericFromCartelaField(value: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+function isBlankOrderLine(line: FormLine): boolean {
+  return (
+    !line.scanBarcode.trim() &&
+    !line.materialName.trim() &&
+    !line.fabricCode.trim() &&
+    !line.colorCode.trim() &&
+    !line.colorName.trim() &&
+    numberValue(line.metersPerRoll) <= 0
+  );
+}
+
 function applyCartelaToLinePatch(cartela: {
   title: string;
   art_code: string;
@@ -204,16 +215,13 @@ function applyCartelaToLinePatch(cartela: {
   const widthCm = numericFromCartelaField(cartela.width_value);
   const gsm = numericFromCartelaField(cartela.weight_value);
   const invHit = art ? inventory.find((i) => i.fabricCode.trim().toLowerCase() === art.toLowerCase()) : undefined;
-  // اسم الخامة = Title | كود الخامة = ART CODE فقط (لا نكرر الاسم في عمود الكود)
   const materialName = title || art;
-  const fabricCode =
-    art && title && art.toLowerCase() === title.toLowerCase()
-      ? design || art
-      : art || design;
+  // كود الخامة في الجدول = DESIGN NO (مثل 7025)
+  const fabricCode = design || art;
   return {
     scanBarcode: cartela.serial_no.trim() || scanFallback,
     fabricCode,
-    dsamNumber: fabricCode,
+    dsamNumber: art || design,
     materialName,
     rollNo: design,
     colorCode: '',
@@ -258,14 +266,10 @@ export function OrderFormModal({
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<FormLine[]>([emptyLine()]);
   const [summaryOpen, setSummaryOpen] = useState(true);
+  const [saving, setSaving] = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const barcodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const colorCodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const fabricCodesSorted = useMemo(() => {
-    const codes = [...new Set(inventory.map((i) => i.fabricCode).filter(Boolean))];
-    return codes.sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [inventory]);
 
   const patchLine = useCallback((id: string, patch: Partial<FormLine>) => {
     setItems((prev) =>
@@ -307,10 +311,12 @@ export function OrderFormModal({
     }
   }, [open, editingOrder]);
 
+  const activeItems = useMemo(() => items.filter((item) => !isBlankOrderLine(item)), [items]);
+
   const summary = useMemo(
     () =>
       calculateFabricInvoiceSummary(
-        items.map((item) => ({
+        activeItems.map((item) => ({
           materialName: item.materialName || item.fabricCode,
           designCode: item.fabricCode || item.dsamNumber,
           colorCode: item.colorCode,
@@ -320,7 +326,7 @@ export function OrderFormModal({
           pricePerMeter: item.price,
         })),
       ),
-    [items],
+    [activeItems],
   );
 
   const totalAmount = summary.totals.totalAmount;
@@ -381,13 +387,13 @@ export function OrderFormModal({
     }
 
     commitLine({
-      fabricCode: hit.fabricCode,
+      fabricCode: hit.rollNumber?.trim() || hit.fabricCode,
       dsamNumber: hit.fabricCode,
       materialName: hit.name,
       colorCode: '',
       colorName: '',
       price: String(hit.sellingPrice),
-      rollNo: hit.rollNumber ?? '',
+      rollNo: hit.rollNumber?.trim() || hit.fabricCode,
       imageUrl: hit.imageUrl ?? undefined,
     });
   };
@@ -453,7 +459,8 @@ export function OrderFormModal({
     );
   };
 
-  const getItemError = (item: FormLine, field: 'metersPerRoll' | 'rollCount' | 'price') => {
+  const getItemError = (item: FormLine, field: 'metersPerRoll' | 'rollCount') => {
+    if (isBlankOrderLine(item)) return '';
     if (field === 'metersPerRoll') {
       const value = numberValue(item.metersPerRoll);
       if (value <= 0) return 'متر/رول يجب أن يكون أكبر من صفر';
@@ -462,31 +469,26 @@ export function OrderFormModal({
       const value = Math.round(numberValue(item.rollCount));
       if (value <= 0) return 'عدد الرول يجب أن يكون أكبر من صفر';
     }
-    if (field === 'price') {
-      const value = numberValue(item.price);
-      if (value < 0) return 'السعر لا يمكن أن يكون سالبا';
-    }
     return '';
   };
 
-  const hasValidationErrors = items.some(
-    (item) =>
-      getItemError(item, 'metersPerRoll') ||
-      getItemError(item, 'rollCount') ||
-      getItemError(item, 'price'),
-  );
+  const hasValidationErrors =
+    activeItems.length === 0 ||
+    activeItems.some(
+      (item) => getItemError(item, 'metersPerRoll') || getItemError(item, 'rollCount'),
+    );
 
   const buildPayload = (): OrderFormSubmitPayload | null => {
     if (hasValidationErrors || !partyId) return null;
-    const lines: CustomerOrderLine[] = items.map((item) => {
+    const lines: CustomerOrderLine[] = activeItems.map((item) => {
       const synced = syncLineQuantities(item);
       const rollCount = Math.max(1, Math.round(numberValue(synced.rollCount)) || 1);
       const metersPerRoll = numberValue(synced.metersPerRoll);
+      const designNo = item.fabricCode.trim();
       return {
-        id: item.id,
-        materialName: item.materialName || item.fabricCode || '—',
-        dsamNumber: item.fabricCode || item.dsamNumber,
-        rollNo: item.rollNo,
+        materialName: item.materialName || designNo || '—',
+        dsamNumber: item.dsamNumber.trim() || designNo,
+        rollNo: designNo || item.rollNo,
         colorCode: item.colorCode,
         colorName: item.colorName,
         length: numberValue(synced.length),
@@ -519,15 +521,35 @@ export function OrderFormModal({
 
   const handleSave = async (kind: 'draft' | 'final') => {
     const payload = buildPayload();
-    if (!payload || !partyId) return;
+    if (!payload || !partyId) {
+      showToast({
+        type: 'error',
+        message: !partyId
+          ? 'اختر العميل قبل الحفظ'
+          : activeItems.length === 0
+            ? 'أضف سطراً واحداً على الأقل في الطلبية'
+            : 'تحقق من الكميات في بنود الطلبية',
+      });
+      return;
+    }
     const st =
       kind === 'draft'
         ? ('draft' as const)
         : payload.status === 'draft'
           ? ('pending_supply' as const)
           : payload.status;
-    await onSubmit({ ...payload, status: st }, editingOrder ? 'update' : 'create');
-    onClose();
+    setSaving(true);
+    try {
+      await onSubmit({ ...payload, status: st }, editingOrder ? 'update' : 'create');
+      onClose();
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'تعذر حفظ الطلبية',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleKeyDownTable = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -601,21 +623,21 @@ export function OrderFormModal({
             </button>
             <button
               type="button"
-              disabled={hasValidationErrors || !partyId}
-              onClick={() => handleSave('draft')}
+              disabled={hasValidationErrors || !partyId || saving}
+              onClick={() => void handleSave('draft')}
               className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
             >
               <FileText className="w-4 h-4" />
-              حفظ مسودة
+              {saving ? 'جاري الحفظ…' : 'حفظ مسودة'}
             </button>
             <button
               type="button"
-              disabled={hasValidationErrors || !partyId}
-              onClick={() => handleSave('final')}
+              disabled={hasValidationErrors || !partyId || saving}
+              onClick={() => void handleSave('final')}
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {editingOrder ? 'حفظ التعديلات' : 'تأكيد الطلبية'}
+              {saving ? 'جاري الحفظ…' : editingOrder ? 'حفظ التعديلات' : 'تأكيد الطلبية'}
             </button>
           </div>
         </div>
@@ -756,20 +778,18 @@ export function OrderFormModal({
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-right text-xs sm:text-sm border-collapse min-w-[1020px]">
+              <table className="w-full text-right text-xs sm:text-sm border-collapse min-w-[880px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
                     <th className="p-2 font-bold w-10 text-center">#</th>
                     <th className="p-2 font-bold min-w-[120px]">الباركود</th>
                     <th className="p-2 font-bold min-w-[130px]">اسم الخامة</th>
-                    <th className="p-2 font-bold min-w-[110px]">كود الخامة</th>
+                    <th className="p-2 font-bold min-w-[90px]">كود الخامة</th>
                     <th className="p-2 font-bold min-w-[100px]">كود لون</th>
                     <th className="p-2 font-bold min-w-[110px]">لون</th>
                     <th className="p-2 font-bold min-w-[90px]">متر/رول</th>
                     <th className="p-2 font-bold min-w-[70px]">عدد رول</th>
                     <th className="p-2 font-bold min-w-[80px]">إجمالي م</th>
-                    <th className="p-2 font-bold w-24">السعر</th>
-                    <th className="p-2 font-bold w-24">إجمالي</th>
                     <th className="p-2 font-bold w-14 text-center">صورة</th>
                     <th className="p-2 w-10" />
                   </tr>
@@ -778,7 +798,6 @@ export function OrderFormModal({
                   {items.map((item, index) => {
                     const lengthError = getItemError(item, 'metersPerRoll');
                     const rollCountError = getItemError(item, 'rollCount');
-                    const lineTotal = numberValue(item.length) * numberValue(item.price);
 
                     return (
                       <tr key={item.id} className="border-b border-slate-100">
@@ -818,21 +837,16 @@ export function OrderFormModal({
                         <td className="p-1.5">
                           <input
                             type="text"
-                            placeholder="كود الخامة"
+                            placeholder="7025"
                             value={item.fabricCode}
-                            list="order-fabric-codes"
                             onChange={(e) =>
-                              patchLine(item.id, { fabricCode: e.target.value, dsamNumber: e.target.value })
+                              patchLine(item.id, { fabricCode: e.target.value, rollNo: e.target.value })
                             }
                             onKeyDown={handleKeyDownTable}
                             className={`${inputClass()} font-mono text-xs`}
                             dir="ltr"
+                            title="DESIGN NO من الكارتيلا"
                           />
-                          {item.rollNo.trim() ? (
-                            <div className="text-[10px] text-indigo-600 font-mono mt-0.5 px-0.5" dir="ltr">
-                              DESIGN: {item.rollNo}
-                            </div>
-                          ) : null}
                         </td>
                         <td className="p-1.5">
                           <input
@@ -888,21 +902,6 @@ export function OrderFormModal({
                         <td className="p-1.5 font-bold text-slate-700 bg-slate-50/80 text-center font-mono text-[11px]">
                           {numberValue(item.length).toFixed(2)}
                         </td>
-                        <td className="p-1.5">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.price}
-                            onChange={(e) => patchLine(item.id, { price: e.target.value })}
-                            onKeyDown={handleKeyDownTable}
-                            className={inputClass()}
-                            dir="ltr"
-                          />
-                        </td>
-                        <td className="p-1.5 font-bold text-slate-700 bg-slate-50/80 text-center font-mono text-[11px]">
-                          {lineTotal.toFixed(2)}
-                        </td>
                         <td className="p-1.5 align-middle">
                           <input
                             type="file"
@@ -945,17 +944,10 @@ export function OrderFormModal({
                       المجموع
                     </td>
                     <td className="p-2 font-mono">{summary.totals.totalMeters.toFixed(2)}</td>
-                    <td className="p-2" />
-                    <td className="p-2 font-mono text-indigo-700">{money(totalAmount, currency)}</td>
                     <td className="p-2" colSpan={2} />
                   </tr>
                 </tfoot>
               </table>
-              <datalist id="order-fabric-codes">
-                {fabricCodesSorted.map((fc) => (
-                  <option key={fc} value={fc} />
-                ))}
-              </datalist>
             </div>
           </div>
 
@@ -967,7 +959,7 @@ export function OrderFormModal({
             >
               <div>
                 <h3 className="text-base font-bold text-slate-900">ملخص حسب الخامة والتصميم</h3>
-                <p className="text-xs text-slate-500">إجمالي الأمتار محسوب من الكمية المدخلة في كل سطر</p>
+                <p className="text-xs text-slate-500">التسعير هنا — سعر المتر لكل خامة/تصميم</p>
               </div>
               {summaryOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
