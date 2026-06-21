@@ -162,6 +162,53 @@ function metaRow(icon: string, label: string, value: string): string {
     </tr>`;
 }
 
+function renderSignFieldsHtml(nameValue: string, emptyNameLine: boolean): string {
+  const nameCell = emptyNameLine
+    ? `<td class="sign-val sign-underline">&nbsp;</td>`
+    : `<td class="sign-val">${nameValue}</td>`;
+  return `
+    <table class="sign-fields" dir="rtl">
+      <tr>
+        <td class="sign-key">الاسم:</td>
+        ${nameCell}
+      </tr>
+      <tr>
+        <td class="sign-key">التوقيع:</td>
+        <td class="sign-val sign-underline">&nbsp;</td>
+      </tr>
+    </table>`;
+}
+
+function renderSignSectionHtml(
+  customer: Customer,
+  advancePayment: number,
+  currency: string,
+): string {
+  const advanceText =
+    advancePayment > 0 ? formatCurrency(advancePayment, currency) : '—';
+  return `
+      <table class="sign-table" dir="rtl">
+        <thead>
+          <tr>
+            <th>موافقة العميل</th>
+            <th>مندوب المبيعات — ${esc(BRAND.name)}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="sign-body">
+              ${renderSignFieldsHtml(displayField(customer.name), false)}
+              <div class="sign-note">يرجى مراجعة البيانات والتوقيع عند الموافقة</div>
+            </td>
+            <td class="sign-body">
+              ${renderSignFieldsHtml('', true)}
+              <div class="sign-advance-row">عربون: ${advanceText}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>`;
+}
+
 function buildGroupedItemRows(order: CustomerOrder, currency: string): string {
   const groups = order.items.reduce<
     Array<{ materialName: string; designNo: string; lines: CustomerOrder['items'] }>
@@ -499,42 +546,67 @@ function reservationStyles(): string {
       overflow: hidden;
       margin-bottom: 14px;
       font-size: 11px;
+      table-layout: fixed;
     }
     .sign-table th {
       background: ${NAVY};
       color: #fff;
-      padding: 10px;
+      padding: 10px 8px;
       font-weight: 800;
+      font-size: 11px;
       border: 1px solid ${NAVY};
       width: 50%;
       text-align: center;
     }
-    .sign-table td {
-      height: 90px;
-      padding: 14px 16px;
+    .sign-table td.sign-body {
+      padding: 12px 14px;
       vertical-align: top;
       border: 1px solid ${BORDER};
+      height: 118px;
     }
-    .sign-line {
-      margin-top: 18px;
-      border-bottom: 1px solid #cbd5e1;
-      padding-bottom: 4px;
+    .sign-fields {
+      width: 100%;
+      border-collapse: collapse;
     }
-    .sign-hint {
-      margin-top: 14px;
+    .sign-key {
+      width: 48px;
+      font-weight: 800;
+      font-size: 11px;
+      color: #0f172a;
+      padding: 0 0 10px 8px;
+      vertical-align: bottom;
+      white-space: nowrap;
+    }
+    .sign-val {
+      font-size: 11px;
+      font-weight: 700;
+      color: #0f172a;
+      padding: 0 0 6px 0;
+      vertical-align: bottom;
+    }
+    .sign-underline {
+      border-bottom: 1px solid #94a3b8;
+      min-height: 18px;
+      line-height: 18px;
+    }
+    .sign-note {
+      margin-top: 10px;
+      padding-top: 8px;
       text-align: center;
       font-size: 9px;
       color: #64748b;
       font-weight: 600;
+      line-height: 1.45;
     }
-    .sign-advance {
-      color: ${NAVY};
-      font-weight: 800;
+    .sign-advance-row {
+      margin-top: 10px;
+      padding-top: 8px;
+      text-align: center;
       font-size: 10px;
-    }
-    .sign-name-line {
-      margin-top: 8px;
-      min-height: 18px;
+      font-weight: 800;
+      color: ${NAVY};
+      direction: ltr;
+      unicode-bidi: embed;
     }
     .footer-bar {
       background: ${NAVY};
@@ -631,10 +703,6 @@ export function renderReservationOrderBodyHtml(
 
   const footerEmail = `<div class="footer-contact-row">${iconSvg('mail')}<span class="footer-contact-text ltr">${footerContactText(CONTACT.email)}</span></div>`;
 
-  const advanceBlock = `<div class="sign-hint sign-advance">عربون: ${
-    advancePayment > 0 ? formatCurrency(advancePayment, order.currency) : '—'
-  }</div>`;
-
   return `
     <div class="page" dir="rtl">
       <div class="page-content">
@@ -728,29 +796,7 @@ export function renderReservationOrderBodyHtml(
         <div class="notes-body">${notesBody}</div>
       </div>
 
-      <table class="sign-table">
-        <thead>
-          <tr>
-            <th>موافقة العميل</th>
-            <th>مندوب المبيعات — ${esc(BRAND.name)}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <div><strong>الاسم:</strong> ${displayField(customer.name)}</div>
-              <div class="sign-line"><strong>التوقيع:</strong></div>
-              <div class="sign-hint">يرجى مراجعة البيانات والتوقيع عند الموافقة</div>
-            </td>
-            <td>
-              <div><strong>الاسم:</strong></div>
-              <div class="sign-line sign-name-line"></div>
-              <div class="sign-line"><strong>التوقيع:</strong></div>
-              ${advanceBlock}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      ${renderSignSectionHtml(customer, advancePayment, order.currency)}
 
       <div class="page-spacer"></div>
       </div>
