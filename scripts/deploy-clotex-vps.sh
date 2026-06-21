@@ -49,11 +49,11 @@ assert_clotex_tree() {
 }
 
 if [[ "${CLOTEX_SKIP_GIT_PULL:-}" != "1" ]]; then
-  echo ">> git fetch + checkout $CLOTEX_GIT_BRANCH ..."
+  echo ">> git fetch + checkout $CLOTEX_GIT_BRANCH (تجاهل تعديلات محلية على السيرفر) ..."
   git fetch origin
   if git show-ref --verify --quiet "refs/remotes/origin/$CLOTEX_GIT_BRANCH"; then
     git checkout "$CLOTEX_GIT_BRANCH"
-    git pull origin "$CLOTEX_GIT_BRANCH"
+    git reset --hard "origin/$CLOTEX_GIT_BRANCH"
   else
     echo ">> فرع origin/$CLOTEX_GIT_BRANCH غير موجود — استخدام acb5ebc (CLOTEX) ..."
     git checkout acb5ebc
