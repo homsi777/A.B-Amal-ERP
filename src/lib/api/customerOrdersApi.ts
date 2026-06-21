@@ -7,6 +7,7 @@ export type CustomerOrderPayload = {
   customerId: string;
   currency: string;
   warehouse?: string;
+  shippingMethod?: string;
   notes?: string;
   items: CustomerOrder['items'];
   status: CustomerOrderStatus;
@@ -20,6 +21,7 @@ function sanitizeOrderPayload(payload: CustomerOrderPayload): CustomerOrderPaylo
     ...payload,
     orderNumber: payload.orderNumber?.trim() || undefined,
     warehouse: payload.warehouse?.trim() || undefined,
+    shippingMethod: payload.shippingMethod?.trim() || undefined,
     notes: payload.notes?.trim() || undefined,
     expectedDate: payload.expectedDate?.trim() || undefined,
     templateId: payload.templateId?.trim() || undefined,

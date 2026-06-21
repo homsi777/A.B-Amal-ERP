@@ -158,12 +158,9 @@ function formatPdfLocaleDate(dateIso: string): string {
 
 function renderOrderPackingListMetaHtml(order: CustomerOrder, customer: Customer, statusLabelAr: string): string {
   const shipAddr = customer.address?.trim() || '—';
-  const warehouseShip =
-    order.warehouse === 'sub'
-      ? 'مستودع الجملة'
-      : order.warehouse === 'main' || !order.warehouse
-        ? 'المستودع الرئيسي'
-        : escapeHtml(order.warehouse || '');
+  const shippingMethodLabel = order.shippingMethod?.trim()
+    ? escapeHtml(order.shippingMethod)
+    : '—';
   const notesVal = order.notes?.trim() ? escapeHtml(order.notes) : '—';
   const invoiceSlot = `${escapeHtml(`— / ${formatPdfLocaleDate(order.updatedAt.slice(0, 10))}`)}`;
 
@@ -219,7 +216,7 @@ function renderOrderPackingListMetaHtml(order: CustomerOrder, customer: Customer
               <tr>
                 <td style="border-bottom:1px solid ${PDF_BORDER};padding:9px 14px;">
                   <strong style="color:#000;">طريقة الشحن:</strong>
-                  <span style="font-weight:400;margin-inline-start:6px;">${warehouseShip}</span>
+                  <span style="font-weight:400;margin-inline-start:6px;">${shippingMethodLabel}</span>
                 </td>
               </tr>
               <tr>

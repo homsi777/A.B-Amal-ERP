@@ -233,6 +233,8 @@ export interface CustomerOrder {
   customerId: string;
   currency: string;
   warehouse?: string;
+  /** طريقة الشحن — تُدخل عند إنشاء الطلبية */
+  shippingMethod?: string;
   notes?: string;
   items: CustomerOrderLine[];
   status: CustomerOrderStatus;

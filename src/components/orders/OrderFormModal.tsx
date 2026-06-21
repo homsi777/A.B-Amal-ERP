@@ -36,6 +36,7 @@ export interface OrderFormSubmitPayload {
   customerId: string;
   currency: string;
   warehouse?: string;
+  shippingMethod?: string;
   notes?: string;
   items: CustomerOrderLine[];
   status: CustomerOrder['status'];
@@ -284,6 +285,7 @@ export function OrderFormModal({
   const [orderNumber, setOrderNumber] = useState('');
   const [partyId, setPartyId] = useState('');
   const [warehouse, setWarehouse] = useState('main');
+  const [shippingMethod, setShippingMethod] = useState('');
   const [currency, setCurrency] = useState('SAR');
   const [notes, setNotes] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
@@ -317,6 +319,7 @@ export function OrderFormModal({
       setOrderNumber(displayCustomerOrderNumber(editingOrder.orderNumber));
       setPartyId(editingOrder.customerId);
       setWarehouse(editingOrder.warehouse || 'main');
+      setShippingMethod(editingOrder.shippingMethod || '');
       setCurrency(editingOrder.currency);
       setNotes(editingOrder.notes || '');
       setExpectedDate(editingOrder.expectedDate || '');
@@ -329,6 +332,7 @@ export function OrderFormModal({
       setOrderNumber('');
       setPartyId('');
       setWarehouse('main');
+      setShippingMethod('');
       setCurrency('SAR');
       setNotes('');
       setExpectedDate('');
@@ -341,6 +345,10 @@ export function OrderFormModal({
 
   const summaryItems = useMemo(() => items.filter(isSummaryLine), [items]);
   const savableItems = useMemo(() => items.filter(isSavableOrderLine), [items]);
+  const selectedCustomer = useMemo(
+    () => customers.find((c) => c.id === partyId),
+    [customers, partyId],
+  );
 
   const summary = useMemo(
     () =>
@@ -579,6 +587,7 @@ export function OrderFormModal({
       customerId: partyId,
       currency,
       warehouse: warehouse.trim() || undefined,
+      shippingMethod: shippingMethod.trim() || undefined,
       notes: notes.trim() || undefined,
       items: lines,
       status,
@@ -784,6 +793,13 @@ export function OrderFormModal({
                   </option>
                 ))}
               </select>
+              {selectedCustomer && (
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <span className="font-bold text-slate-600">من قيد العميل:</span>{' '}
+                  {selectedCustomer.phone?.trim() || '—'}
+                  {selectedCustomer.address?.trim() ? ` · ${selectedCustomer.address.trim()}` : ''}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700">حالة الطلبية</label>
@@ -798,6 +814,23 @@ export function OrderFormModal({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">طريقة الشحن</label>
+              <input
+                type="text"
+                value={shippingMethod}
+                onChange={(e) => setShippingMethod(e.target.value)}
+                list="shipping-method-options"
+                placeholder="مثال: شحن داخلي، استلام، توصيل..."
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+              />
+              <datalist id="shipping-method-options">
+                <option value="شحن داخلي" />
+                <option value="استلام من المستودع" />
+                <option value="توصيل للعميل" />
+                <option value="شحن خارجي" />
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700">مستودع (مرجعي)</label>

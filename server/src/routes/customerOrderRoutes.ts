@@ -51,6 +51,7 @@ const orderBodySchema = z.object({
   customerId: z.string().uuid(),
   currency: z.string().trim().min(1).default('USD'),
   warehouse: optionalString,
+  shippingMethod: optionalString,
   notes: optionalString,
   items: z.array(orderLineSchema).min(1),
   status: statusSchema.default('draft'),
@@ -198,6 +199,7 @@ async function getOrderById(client: PoolClient, companyId: string, id: string) {
        o.customer_id AS "customerId",
        o.currency_code AS currency,
        o.warehouse_label AS warehouse,
+       o.shipping_method AS "shippingMethod",
        o.notes,
        o.status,
        o.template_id AS "templateId",
@@ -332,6 +334,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
            o.customer_id AS "customerId",
            o.currency_code AS currency,
            o.warehouse_label AS warehouse,
+           o.shipping_method AS "shippingMethod",
            o.notes,
            o.status,
            o.template_id AS "templateId",
@@ -541,9 +544,10 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
       const created = await client.query(
         `INSERT INTO customer_orders (
            company_id, order_no, order_date, customer_id, currency_code, warehouse_label,
-           notes, status, template_id, expected_date, advance_payment, created_by_user_id, updated_by_user_id
+           shipping_method, notes, status, template_id, expected_date, advance_payment,
+           created_by_user_id, updated_by_user_id
          )
-         VALUES ($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10::date,$11,$12,$12)
+         VALUES ($1,$2,$3::date,$4,$5,$6,$7,$8,$9,$10,$11::date,$12,$13,$13)
          RETURNING id`,
         [
           companyId,
@@ -552,6 +556,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
           d.customerId,
           d.currency,
           d.warehouse || null,
+          d.shippingMethod || null,
           d.notes || null,
           d.status,
           d.templateId || null,
@@ -601,12 +606,13 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
              customer_id=$5,
              currency_code=$6,
              warehouse_label=$7,
-             notes=$8,
-             status=$9,
-             template_id=$10,
-             expected_date=$11::date,
-             advance_payment=$12,
-             updated_by_user_id=$13,
+             shipping_method=$8,
+             notes=$9,
+             status=$10,
+             template_id=$11,
+             expected_date=$12::date,
+             advance_payment=$13,
+             updated_by_user_id=$14,
              updated_at=now()
          WHERE id=$1 AND company_id=$2
          RETURNING id`,
@@ -618,6 +624,7 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
           d.customerId,
           d.currency,
           d.warehouse || null,
+          d.shippingMethod || null,
           d.notes || null,
           d.status,
           d.templateId || null,

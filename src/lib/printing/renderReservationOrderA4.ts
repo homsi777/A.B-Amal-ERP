@@ -79,14 +79,6 @@ function footerContactText(value: string): string {
   return esc(value).replace(/[+0-9]/g, (ch) => `${ch}<span aria-hidden="true" style="font-size:0;line-height:0;">&#8203;</span>`);
 }
 
-function shippingLabel(warehouse?: string): string {
-  const value = String(warehouse ?? '').trim();
-  if (!value) return '';
-  if (value === 'sub') return 'مستودع الجملة — شحن داخلي';
-  if (value === 'main') return 'شحن داخلي';
-  return value;
-}
-
 function colorDot(name?: string): string {
   const palette: Record<string, string> = {
     أحمر: '#ef4444',
@@ -685,7 +677,7 @@ export function renderReservationOrderBodyHtml(
   const orderNo = displayCustomerOrderNumber(order.orderNumber);
   const customerPhone = displayField(customer.phone);
   const customerAddress = displayField(customer.address);
-  const shippingMethod = displayField(shippingLabel(order.warehouse));
+  const shippingMethod = displayField(order.shippingMethod);
   const amountDueLabel = formatCurrency(totalDue, order.currency);
   const totalAmountLabel = formatCurrency(totalPrice, order.currency);
   const advanceLabel = advancePayment > 0 ? formatCurrency(advancePayment, order.currency) : '—';
