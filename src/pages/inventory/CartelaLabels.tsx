@@ -910,8 +910,8 @@ export const CartelaLabels: React.FC = () => {
 
           <label className="space-y-1 block">
             <span className="text-sm font-bold text-slate-700">رقم تسلسلي / باركود</span>
-            <input value={form.serialNo} onChange={(e) => patchForm({ serialNo: e.target.value })} className={inputCls} placeholder="222109" dir="ltr" />
-            <span className="text-xs text-slate-500">اتركه فارغاً ليُولَّد رقم تلقائي عند «توليد الكارتيله».</span>
+            <input value={form.serialNo} onChange={(e) => patchForm({ serialNo: e.target.value })} className={inputCls} placeholder="0001" dir="ltr" />
+            <span className="text-xs text-slate-500">اتركه فارغاً ليُولَّد رقم تلقائي (4 أرقام) عند «توليد الكارتيله».</span>
           </label>
 
           <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
