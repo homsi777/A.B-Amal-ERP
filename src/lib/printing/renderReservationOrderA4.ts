@@ -20,10 +20,10 @@ const BORDER = '#cbd5e1';
 const FONT = "Tahoma, Arial, 'Segoe UI', 'Arabic Typesetting', sans-serif";
 
 const CONTACT = {
-  email: 'info@clotex.com',
-  phone: '+966 50 123 4567',
+  email: 'bashir@clotexco.com',
+  phones: ['+90541 977 7171', '+963 944 555 080'],
   taglineAr: 'أقمشة بجودة تصنع الفرق',
-  country: 'المملكة العربية السعودية',
+  location: 'الجمهورية العربية السورية / حلب',
 } as const;
 
 function esc(s: string): string {
@@ -37,24 +37,37 @@ function esc(s: string): string {
 
 function formatCurrency(amount: number, currency: string): string {
   const code = currency.trim() || 'USD';
-  if (code === 'USD') return `$ ${amount.toFixed(2)}`;
-  if (code === 'SAR') return `${amount.toFixed(2)} ر.س`;
-  return `${amount.toFixed(2)} ${code}`;
+  const value = amount.toFixed(2);
+  if (code === 'USD') return `${value} $`;
+  if (code === 'SAR') return `${value} ر.س`;
+  return `${value} ${code}`;
 }
 
 function formatGregorianDate(dateIso: string): string {
   try {
     const d = new Date(dateIso.includes('T') ? dateIso : `${dateIso}T12:00:00`);
     if (Number.isNaN(d.getTime())) return dateIso;
-    return d.toLocaleDateString('ar-SA', { calendar: 'gregory' });
+    return d.toLocaleDateString('ar-SA-u-ca-gregory', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
   } catch {
     return dateIso;
   }
 }
 
+function displayField(value?: string | null): string {
+  const trimmed = String(value ?? '').trim();
+  return trimmed ? esc(trimmed) : '—';
+}
+
 function shippingLabel(warehouse?: string): string {
-  if (warehouse === 'sub') return 'مستودع الجملة — شحن داخلي';
-  return 'شحن داخلي';
+  const value = String(warehouse ?? '').trim();
+  if (!value) return '';
+  if (value === 'sub') return 'مستودع الجملة — شحن داخلي';
+  if (value === 'main') return 'شحن داخلي';
+  return value;
 }
 
 function colorDot(name?: string): string {
@@ -92,7 +105,7 @@ function colorDot(name?: string): string {
 function lineColorHtml(line: CustomerOrder['items'][0]): string {
   const code = (line.colorCode || '').trim();
   const name = (line.colorName || '').trim();
-  const text = name && code ? `${name} - ${code}` : name || code || '—';
+  const text = code && name ? `${code} - ${name}` : name || code || '—';
   return `${esc(text)}${colorDot(name || code)}`;
 }
 
@@ -131,6 +144,48 @@ function metaRow(icon: string, label: string, value: string): string {
     </tr>`;
 }
 
+function buildGroupedItemRows(order: CustomerOrder, currency: string): string {
+  const groups = order.items.reduce<
+    Array<{ materialName: string; designNo: string; lines: CustomerOrder['items'] }>
+  >((acc, line) => {
+    const materialName = line.materialName || '—';
+    const designNo = orderLineDesignNo(line);
+    const existing = acc.find((g) => g.materialName === materialName && g.designNo === designNo);
+    if (existing) existing.lines.push(line);
+    else acc.push({ materialName, designNo, lines: [line] });
+    return acc;
+  }, []);
+
+  let lineNo = 0;
+  return groups
+    .map((group) =>
+      group.lines
+        .map((line, index) => {
+          lineNo += 1;
+          const total = orderLineTotal(line);
+          const isFirst = index === 0;
+          const rowspan = group.lines.length;
+          const groupCells = isFirst
+            ? `<td class="material-name group-cell" rowspan="${rowspan}">${esc(group.materialName)}</td>
+               <td class="mono group-cell" rowspan="${rowspan}">${esc(group.designNo)}</td>`
+            : '';
+
+          return `
+        <tr>
+          <td class="mono">${lineNo}</td>
+          <td>${lineImageHtml(line.imageUrl)}</td>
+          ${groupCells}
+          <td class="color-cell">${lineColorHtml(line)}</td>
+          <td class="mono">${line.length.toFixed(2)} <span style="font-size:9px;color:#64748b;">م</span></td>
+          <td class="mono">${line.price.toFixed(2)}</td>
+          <td class="mono total-cell">${formatCurrency(total, currency)}</td>
+        </tr>`;
+        })
+        .join(''),
+    )
+    .join('');
+}
+
 function reservationStyles(): string {
   return `
     * { box-sizing: border-box; }
@@ -142,13 +197,26 @@ function reservationStyles(): string {
       font-family: ${FONT};
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      min-height: 297mm;
     }
     .page {
-      width: 190mm;
+      width: 210mm;
+      min-height: 297mm;
       max-width: 100%;
       margin: 0 auto;
-      padding: 8mm 7mm 6mm;
+      padding: 7mm 8mm 0;
       background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    .page-content {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .page-spacer {
+      flex: 1 1 auto;
+      min-height: 8mm;
     }
     .ico {
       width: 13px;
@@ -160,14 +228,21 @@ function reservationStyles(): string {
     }
     .header-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
     .header-table td { vertical-align: middle; padding: 0; }
-    .logo { height: 46px; width: auto; max-width: 180px; object-fit: contain; display: block; }
-    .title-wrap { text-align: center; padding: 0 8px; }
+    .logo-center {
+      height: 96px;
+      width: auto;
+      max-width: 320px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
     .doc-title {
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 900;
       color: ${NAVY};
       line-height: 1.1;
       margin: 0;
+      text-align: right;
     }
     .date-box {
       background: ${NAVY};
@@ -269,7 +344,8 @@ function reservationStyles(): string {
       border-collapse: collapse;
       border: 1px solid ${NAVY};
       font-size: 11px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
     }
     .items-table th {
       background: ${NAVY};
@@ -299,7 +375,14 @@ function reservationStyles(): string {
       background: #fff;
     }
     .no-img { color: #cbd5e1; font-size: 10px; }
-    .material-name { font-weight: 800; text-align: right !important; }
+    .material-name { font-weight: 800; text-align: center !important; }
+    .group-cell {
+      vertical-align: middle !important;
+      text-align: center !important;
+      font-weight: 800;
+      background: #fff !important;
+    }
+    .items-table tr:nth-child(even) td.group-cell { background: #fff !important; }
     .color-cell { font-weight: 700; text-align: right !important; }
     .color-dot {
       display: inline-block;
@@ -348,25 +431,23 @@ function reservationStyles(): string {
     .total-box-main .total-box-value { color: #fff; font-size: 20px; }
     .notes-box {
       border: 1px dashed ${BORDER};
-      border-radius: 8px;
-      padding: 14px 16px;
-      margin-bottom: 14px;
-      min-height: 72px;
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-bottom: 10px;
     }
     .notes-title {
       font-weight: 800;
       color: ${NAVY};
-      font-size: 11px;
-      margin-bottom: 8px;
+      font-size: 9px;
+      margin-bottom: 4px;
     }
-    .notes-title .ico { vertical-align: -2px; margin-inline-end: 6px; }
+    .notes-title .ico { vertical-align: -2px; margin-inline-end: 4px; width: 10px; height: 10px; }
     .notes-body {
-      font-size: 11px;
+      font-size: 9.5px;
       color: #475569;
-      line-height: 1.8;
-      border-bottom: 1px dotted #cbd5e1;
-      padding-bottom: 18px;
-      min-height: 40px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     .sign-table {
       width: 100%;
@@ -407,15 +488,19 @@ function reservationStyles(): string {
     .footer-bar {
       background: ${NAVY};
       color: #fff;
-      padding: 14px 18px;
-      border-radius: 8px;
+      padding: 12px 16px;
+      border-radius: 0;
+      flex-shrink: 0;
+      margin: 0 -8mm;
+      width: calc(100% + 16mm);
     }
     .footer-table { width: 100%; border-collapse: collapse; }
-    .footer-table td { vertical-align: middle; font-size: 9px; line-height: 1.65; }
-    .footer-brand { font-weight: 900; letter-spacing: 0.5px; }
-    .footer-tagline { opacity: 0.82; margin-top: 2px; }
-    .footer-center { text-align: center; opacity: 0.92; }
-    .footer-end { text-align: left; opacity: 0.92; }
+    .footer-table td { vertical-align: middle; font-size: 8.5px; line-height: 1.55; }
+    .footer-brand { font-weight: 900; letter-spacing: 0.4px; }
+    .footer-tagline { opacity: 0.85; margin-top: 2px; font-size: 8px; }
+    .footer-center { text-align: center; opacity: 0.95; }
+    .footer-location { text-align: right; opacity: 0.95; font-weight: 700; }
+    .footer-left { text-align: left; }
     .ltr { direction: ltr; unicode-bidi: embed; }
   `;
 }
@@ -432,29 +517,19 @@ export function renderReservationOrderBodyHtml(
   const orderDateGreg = formatGregorianDate(order.date);
   const expectedDateGreg = order.expectedDate ? formatGregorianDate(order.expectedDate) : null;
   const orderNo = displayCustomerOrderNumber(order.orderNumber);
-  const shipAddr = customer.address?.trim() || '—';
-  const advanceLabel = advancePayment > 0 ? formatCurrency(advancePayment, order.currency) : '—';
+  const customerPhone = displayField(customer.phone);
+  const customerAddress = displayField(customer.address);
+  const shippingMethod = displayField(shippingLabel(order.warehouse));
+  const amountDueLabel = formatCurrency(totalDue, order.currency);
+  const totalAmountLabel = formatCurrency(totalPrice, order.currency);
 
-  const itemRows = order.items
-    .map((line, idx) => {
-      const total = orderLineTotal(line);
-      return `
-        <tr>
-          <td class="mono">${idx + 1}</td>
-          <td>${lineImageHtml(line.imageUrl)}</td>
-          <td class="material-name">${esc(line.materialName)}</td>
-          <td class="mono">${esc(orderLineDesignNo(line))}</td>
-          <td class="color-cell">${lineColorHtml(line)}</td>
-          <td class="mono">${line.length.toFixed(2)} <span style="font-size:9px;color:#64748b;">م</span></td>
-          <td class="mono">${line.price.toFixed(2)}</td>
-          <td class="mono total-cell">${formatCurrency(total, order.currency)}</td>
-        </tr>`;
-    })
+  const itemRows = buildGroupedItemRows(order, order.currency);
+
+  const notesBody = order.notes?.trim() ? esc(order.notes) : '—';
+
+  const footerPhones = CONTACT.phones
+    .map((phone) => `<div class="ltr">${esc(phone)}</div>`)
     .join('');
-
-  const notesBody = order.notes?.trim()
-    ? esc(order.notes)
-    : '&nbsp;<br/>&nbsp;<br/>&nbsp;';
 
   const remainingBlock =
     advancePayment > 0
@@ -463,25 +538,24 @@ export function renderReservationOrderBodyHtml(
 
   return `
     <div class="page" dir="rtl">
+      <div class="page-content">
       <table class="header-table">
         <tr>
-          <td style="width:28%;">
-            <img src="${BRAND.logoInline}" alt="${esc(BRAND.name)}" class="logo" />
+          <td style="width:24%;vertical-align:middle;">
+            <h1 class="doc-title">أوردر</h1>
             ${
               expectedDateGreg
-                ? `<div class="date-box-left" style="margin-top:6px;">
+                ? `<div class="date-box-left" style="margin-top:8px;">
               <div class="date-box-label">${iconSvg('truck')}<span>موعد التوريد</span></div>
               <div class="date-main">${esc(expectedDateGreg)}</div>
             </div>`
                 : ''
             }
           </td>
-          <td style="width:44%;">
-            <div class="title-wrap">
-              <h1 class="doc-title">طلبية حجز</h1>
-            </div>
+          <td style="width:52%;text-align:center;vertical-align:middle;">
+            <img src="${BRAND.logoInline}" alt="${esc(BRAND.name)}" class="logo-center" />
           </td>
-          <td style="width:28%;">
+          <td style="width:24%;vertical-align:middle;">
             <div class="date-box">
               <div class="date-box-label">${iconSvg('calendar')}<span>تاريخ الطلب</span></div>
               <div class="date-main">${esc(orderDateGreg)}</div>
@@ -497,10 +571,10 @@ export function renderReservationOrderBodyHtml(
             <div class="card">
               <div class="card-head">${iconSvg('user')}<span>بيانات العميل</span></div>
               <table class="meta-table">
-                ${metaRow(iconSvg('user'), 'العميل', esc(customer.name))}
-                ${metaRow(iconSvg('pin'), 'عنوان التسليم', esc(shipAddr))}
-                ${metaRow(iconSvg('truck'), 'طريقة الشحن', esc(shippingLabel(order.warehouse)))}
-                ${metaRow(iconSvg('phone'), 'جوال العميل', `<span class="ltr">${esc(customer.phone || '—')}</span>`)}
+                ${metaRow(iconSvg('user'), 'العميل', displayField(customer.name))}
+                ${metaRow(iconSvg('phone'), 'رقم العميل', `<span class="ltr">${customerPhone}</span>`)}
+                ${metaRow(iconSvg('pin'), 'العنوان', customerAddress)}
+                ${metaRow(iconSvg('truck'), 'طريقة الشحن', shippingMethod)}
               </table>
             </div>
           </td>
@@ -510,8 +584,7 @@ export function renderReservationOrderBodyHtml(
               <table class="meta-table">
                 ${metaRow(iconSvg('tag'), 'رقم الطلبية', `<span class="mono" style="font-weight:900;">${esc(orderNo)}</span>`)}
                 ${metaRow(iconSvg('lock'), 'حالة الطلبية', `<span class="status-pill">${esc(statusLabelAr)}</span>`)}
-                ${metaRow(iconSvg('wallet'), 'العملة', esc(order.currency))}
-                ${metaRow(iconSvg('wallet'), 'عربون', esc(advanceLabel))}
+                ${metaRow(iconSvg('wallet'), 'العملة', displayField(order.currency))}
               </table>
             </div>
           </td>
@@ -525,7 +598,7 @@ export function renderReservationOrderBodyHtml(
             <th style="width:28px;">#</th>
             <th style="width:54px;">صورة</th>
             <th>اسم الخامة</th>
-            <th>DESIGN NO</th>
+            <th>رقم الديزان</th>
             <th>اللون</th>
             <th>الأمتار</th>
             <th>سعر المتر</th>
@@ -546,13 +619,13 @@ export function renderReservationOrderBodyHtml(
           <td>
             <div class="total-box-main">
               <div class="total-box-label">${iconSvg('receipt')}<span>إجمالي المبلغ</span></div>
-              <div class="total-box-value">${formatCurrency(totalPrice, order.currency)}</div>
+              <div class="total-box-value">${totalAmountLabel}</div>
             </div>
           </td>
           <td>
             <div class="total-box">
-              <div class="total-box-label">${iconSvg('wallet')}<span>عربون</span></div>
-              <div class="total-box-value">${esc(advanceLabel)}</div>
+              <div class="total-box-label">${iconSvg('wallet')}<span>المبلغ المطلوب</span></div>
+              <div class="total-box-value">${amountDueLabel}</div>
             </div>
           </td>
         </tr>
@@ -573,7 +646,7 @@ export function renderReservationOrderBodyHtml(
         <tbody>
           <tr>
             <td>
-              <div><strong>الاسم:</strong> ${esc(customer.name)}</div>
+              <div><strong>الاسم:</strong> ${displayField(customer.name)}</div>
               <div class="sign-line"><strong>التوقيع:</strong></div>
               <div class="sign-hint">يرجى مراجعة البيانات والتوقيع عند الموافقة</div>
             </td>
@@ -586,18 +659,21 @@ export function renderReservationOrderBodyHtml(
         </tbody>
       </table>
 
+      <div class="page-spacer"></div>
+      </div>
+
       <div class="footer-bar">
         <table class="footer-table">
           <tr>
-            <td style="width:34%;">
+            <td class="footer-location" style="width:33%;">${esc(CONTACT.location)}</td>
+            <td class="footer-center" style="width:34%;">
+              ${footerPhones}
+              <div class="ltr">${esc(CONTACT.email)}</div>
+            </td>
+            <td class="footer-left" style="width:33%;">
               <div class="footer-brand">${esc(BRAND.fullName)}</div>
               <div class="footer-tagline">${esc(CONTACT.taglineAr)}</div>
             </td>
-            <td class="footer-center" style="width:32%;">
-              <div>✉ ${esc(CONTACT.email)}</div>
-              <div class="ltr">☎ ${esc(CONTACT.phone)}</div>
-            </td>
-            <td class="footer-end" style="width:34%;">${iconSvg('pin')} ${esc(CONTACT.country)}</td>
           </tr>
         </table>
       </div>
@@ -609,13 +685,16 @@ export function renderReservationOrderA4Document(
   customer: Customer,
   statusLabelAr: string,
 ): string {
-  const title = `طلبية ${displayCustomerOrderNumber(order.orderNumber)}`;
+  const title = `أوردر ${displayCustomerOrderNumber(order.orderNumber)}`;
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8" />
   <title>${esc(title)}</title>
-  <style>${reservationStyles()}</style>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    ${reservationStyles()}
+  </style>
 </head>
 <body>
   ${renderReservationOrderBodyHtml(order, customer, statusLabelAr)}

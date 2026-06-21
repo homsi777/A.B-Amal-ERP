@@ -372,7 +372,7 @@ export async function printCustomerOrderDocument(
   statusLabelAr: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const fullHtml = renderReservationOrderA4Document(order, customer, statusLabelAr);
-  const title = `طلبية ${displayCustomerOrderNumber(order.orderNumber)}`;
+  const title = `أوردر ${displayCustomerOrderNumber(order.orderNumber)}`;
 
   const useElectronPrint =
     typeof window !== 'undefined' &&

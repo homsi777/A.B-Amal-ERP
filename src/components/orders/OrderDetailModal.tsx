@@ -92,7 +92,7 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
         <div className="flex flex-wrap items-center gap-2 justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-l from-[#2C405A]/10 to-white shrink-0">
           <div className="min-w-0">
             <p id="order-detail-title" className="text-xs font-bold text-[#2C405A] uppercase tracking-wide">
-              طلبية حجز — معاينة المستند
+              أوردر — معاينة المستند
             </p>
             <p className="text-lg font-black text-slate-900 font-mono truncate">{order.orderNumber}</p>
           </div>
