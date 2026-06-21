@@ -4,7 +4,7 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
-import { allocateCartelaSerialNo, resolveCartelaSerialNo } from '../services/cartelaSerialService.js';
+import { allocateCartelaSerialNo, resolveCartelaSerialNo, validateManualCartelaSerialNo } from '../services/cartelaSerialService.js';
 
 const VALID_CARE_SYMBOLS = new Set([
   'wash_30', 'wash_40', 'wash_60',
@@ -98,6 +98,10 @@ function parseCartelaPayload(data: z.infer<typeof cartelaBody>) {
   const compositionError = validateCompositionLines(compositionLines);
   if (compositionError) {
     return { error: compositionError as string };
+  }
+  const serialError = validateManualCartelaSerialNo(data.serialNo);
+  if (serialError) {
+    return { error: serialError };
   }
   return {
     data: {
@@ -276,6 +280,8 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     const d = parsed.data;
     const serial = d.serialNo.trim();
+    const serialError = validateManualCartelaSerialNo(serial);
+    if (serialError) return sendError(reply, 400, serialError, 'VALIDATION');
 
     try {
       if (serial) {
@@ -340,7 +346,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       artCode = parts[1] ?? '';
       designNo = parts[2] ?? '';
       serial = parts[3] ?? '';
-    } else if (/^\d{4,10}$/.test(scan)) {
+    } else if (/^\d{1,10}$/.test(scan)) {
       serial = scan;
     }
 

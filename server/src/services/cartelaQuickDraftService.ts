@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { validateManualCartelaSerialNo } from './cartelaSerialService.js';
 
 type OrderLineCartelaHint = {
   referenceBarcode?: string | null;
@@ -15,8 +16,8 @@ export function resolveCartelaSerialFromScan(scan: string): string {
     const parts = trimmed.split('|').map((p) => p.trim());
     return parts[3] ?? trimmed;
   }
-  if (/^\d{4,10}$/.test(trimmed)) return trimmed;
-  return trimmed;
+  if (/^\d{1,10}$/.test(trimmed)) return trimmed;
+  return '';
 }
 
 /**
@@ -38,6 +39,7 @@ export async function ensureCartelaDraftsFromOrderLines(
 
     const serial = resolveCartelaSerialFromScan(rawScan);
     if (!serial || seen.has(serial)) continue;
+    if (validateManualCartelaSerialNo(serial)) continue;
     seen.add(serial);
 
     const existing = await client.query(

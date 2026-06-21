@@ -18,6 +18,11 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
+  sanitizeManualCartelaSerialInput,
+  validateManualCartelaSerial,
+  CARTELA_SERIAL_MANUAL_MAX_LEN,
+} from '../../lib/cartelaSerial';
+import {
   cartelaDtoToPayload,
   cartelaListLabel,
   createCartelaFiberType,
@@ -264,6 +269,8 @@ export const CartelaLabels: React.FC = () => {
   });
 
   const validateBeforeSave = (): string | null => {
+    const serialError = validateManualCartelaSerial(form.serialNo);
+    if (serialError) return serialError;
     const active = activeCompositionLines(form.compositionLines);
     return validateCompositionLines(active);
   };
@@ -910,8 +917,18 @@ export const CartelaLabels: React.FC = () => {
 
           <label className="space-y-1 block">
             <span className="text-sm font-bold text-slate-700">رقم تسلسلي / باركود</span>
-            <input value={form.serialNo} onChange={(e) => patchForm({ serialNo: e.target.value })} className={inputCls} placeholder="0001" dir="ltr" />
-            <span className="text-xs text-slate-500">اتركه فارغاً ليُولَّد رقم تلقائي (4 أرقام) عند «توليد الكارتيله».</span>
+            <input
+              value={form.serialNo}
+              onChange={(e) => patchForm({ serialNo: sanitizeManualCartelaSerialInput(e.target.value) })}
+              className={inputCls}
+              placeholder="0001"
+              maxLength={CARTELA_SERIAL_MANUAL_MAX_LEN}
+              inputMode="numeric"
+              dir="ltr"
+            />
+            <span className="text-xs text-slate-500">
+              تلقائي: 4 أرقام (0001…) — يدوي: حتى {CARTELA_SERIAL_MANUAL_MAX_LEN} أرقام. اتركه فارغاً للتوليد التلقائي.
+            </span>
           </label>
 
           <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
