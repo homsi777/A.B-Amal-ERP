@@ -658,10 +658,15 @@ export const CartelaLabels: React.FC = () => {
             <input value={form.title} onChange={(e) => patchForm({ title: e.target.value })} className={inputCls} />
           </label>
 
-          <label className="space-y-1 block max-w-[200px]">
-            <span className="text-sm font-bold text-slate-700">قياس الخط (pt)</span>
+          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-bold text-slate-700">قياس الخط (pt)</span>
+              <span className="rounded-full bg-white border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-indigo-700" dir="ltr">
+                {form.fontSizePt.toFixed(1)} pt
+              </span>
+            </div>
             <input
-              type="number"
+              type="range"
               min={CARTELA_MIN_FONT_SIZE_PT}
               max={CARTELA_MAX_FONT_SIZE_PT}
               step={0.1}
@@ -676,13 +681,15 @@ export const CartelaLabels: React.FC = () => {
                   ),
                 });
               }}
-              className={inputCls}
-              dir="ltr"
+              className="w-full h-3 accent-indigo-600 touch-manipulation cursor-pointer"
+              aria-label="قياس الخط"
             />
-            <span className="text-xs text-slate-500">
-              من {CARTELA_MIN_FONT_SIZE_PT} إلى {CARTELA_MAX_FONT_SIZE_PT} — الافتراضي {CARTELA_DEFAULT_FONT_SIZE_PT}
-            </span>
-          </label>
+            <div className="flex justify-between text-[11px] font-bold text-slate-500" dir="ltr">
+              <span>{CARTELA_MIN_FONT_SIZE_PT}</span>
+              <span>افتراضي {CARTELA_DEFAULT_FONT_SIZE_PT}</span>
+              <span>{CARTELA_MAX_FONT_SIZE_PT}</span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="space-y-1 block">
