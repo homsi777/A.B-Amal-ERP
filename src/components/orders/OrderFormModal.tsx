@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   ImagePlus,
+  Loader2,
   Plus,
   Save,
   Trash2,
@@ -23,7 +24,7 @@ import type {
 } from '../../types';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_FLOW } from '../../pages/orders/orderStatusUi';
 import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
-import { compressOrderLineImage } from '../../lib/compressOrderLineImage';
+import { compressOrderLineImage, compressOrderLineImageErrorMessage } from '../../lib/compressOrderLineImage';
 import { isValidPriceInput, normalizePriceInput } from '../../lib/orderPriceInput';
 import { ensureQuickCartelaDraft, lookupCartelaByScan } from '../../lib/api/cartelaApi';
 import { ApiRequestError } from '../../lib/api/client';
@@ -289,6 +290,7 @@ export function OrderFormModal({
   const [items, setItems] = useState<FormLine[]>([emptyLine()]);
   const [summaryOpen, setSummaryOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [compressingLineId, setCompressingLineId] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const barcodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const colorCodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -463,12 +465,25 @@ export function OrderFormModal({
   };
 
   const handleImagePick = async (lineId: string, file: File | null) => {
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
+    const looksLikeImage =
+      file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name);
+    if (!looksLikeImage) {
+      showToast({ type: 'error', message: 'الملف المختار ليس صورة' });
+      return;
+    }
+
+    setCompressingLineId(lineId);
     try {
-      const data = await compressOrderLineImage(file);
-      patchLine(lineId, { imageUrl: data });
-    } catch {
-      showToast({ type: 'error', message: 'تعذر معالجة الصورة — جرّب صورة أصغر' });
+      const { dataUrl } = await compressOrderLineImage(file);
+      patchLine(lineId, { imageUrl: dataUrl });
+      showToast({ type: 'success', message: 'تم ضغط الصورة وجاهزة للحفظ' });
+    } catch (err) {
+      showToast({ type: 'error', message: compressOrderLineImageErrorMessage(err) });
+    } finally {
+      setCompressingLineId(null);
+      const input = fileInputRefs.current[lineId];
+      if (input) input.value = '';
     }
   };
 
@@ -973,19 +988,24 @@ export function OrderFormModal({
                         <td className="p-1.5 align-middle">
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,image/*"
+                            capture="environment"
                             className="hidden"
                             ref={(el) => {
                               fileInputRefs.current[item.id] = el;
                             }}
-                            onChange={(e) => handleImagePick(item.id, e.target.files?.[0] ?? null)}
+                            onChange={(e) => void handleImagePick(item.id, e.target.files?.[0] ?? null)}
                           />
                           <button
                             type="button"
+                            disabled={compressingLineId === item.id}
                             onClick={() => fileInputRefs.current[item.id]?.click()}
-                            className="w-10 h-10 mx-auto rounded-lg border border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50 hover:border-indigo-400 transition"
+                            className="w-10 h-10 mx-auto rounded-lg border border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50 hover:border-indigo-400 transition disabled:opacity-60"
+                            title="إرفاق صورة (كاميرا أو معرض)"
                           >
-                            {item.imageUrl ? (
+                            {compressingLineId === item.id ? (
+                              <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
+                            ) : item.imageUrl ? (
                               <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
                             ) : (
                               <ImagePlus className="w-4 h-4 text-slate-400" />
