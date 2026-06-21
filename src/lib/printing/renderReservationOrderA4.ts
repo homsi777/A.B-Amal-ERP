@@ -74,6 +74,11 @@ function displayField(value?: string | null): string {
   return trimmed ? esc(trimmed) : '—';
 }
 
+/** يمنع تحويل الأرقام لروابط زرقاء على الجوال/PDF */
+function footerContactText(value: string): string {
+  return esc(value).replace(/[+0-9]/g, (ch) => `${ch}<span aria-hidden="true" style="font-size:0;line-height:0;">&#8203;</span>`);
+}
+
 function shippingLabel(warehouse?: string): string {
   const value = String(warehouse ?? '').trim();
   if (!value) return '';
@@ -130,12 +135,13 @@ function lineImageHtml(imageUrl?: string | null): string {
   return `<img src="${safeSrc}" alt="" crossorigin="anonymous" class="line-img" />`;
 }
 
-function iconSvg(kind: 'user' | 'pin' | 'truck' | 'phone' | 'tag' | 'lock' | 'wallet' | 'calendar' | 'bag' | 'note' | 'receipt' | 'doc'): string {
+function iconSvg(kind: 'user' | 'pin' | 'truck' | 'phone' | 'tag' | 'lock' | 'wallet' | 'calendar' | 'bag' | 'note' | 'receipt' | 'doc' | 'mail'): string {
   const paths: Record<string, string> = {
     user: 'M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z',
     pin: 'M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 14.5 9 2.5 2.5 0 0 1 12 11.5Z',
     truck: 'M3 6h11v8H3V6Zm11 2h3l2 3v3h-5V8ZM6 18a2 2 0 1 0-2-2 2 2 0 0 0 2 2Zm10 0a2 2 0 1 0-2-2 2 2 0 0 0 2 2ZM5 16h12',
     phone: 'M7 3h3l1 4-2 1a11 11 0 0 0 5 5l1-2 4 1v3a2 2 0 0 1-2 2A15 15 0 0 1 3 5a2 2 0 0 1 2-2Z',
+    mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2 8 5 8-5v12H4V6Z',
     tag: 'M3 10V3h7l10 10-7 7L3 10Zm4-4a1.5 1.5 0 1 0 1.5 1.5A1.5 1.5 0 0 0 7 6Z',
     lock: 'M7 10V8a5 5 0 0 1 10 0v2h2v10H5V10Zm2 0h6V8a3 3 0 0 0-6 0Z',
     wallet: 'M3 6h14a2 2 0 0 1 2 2v1h-3a3 3 0 0 0 0 6h3v1a2 2 0 0 1-2 2H3V6Zm14 4h2v2h-2a1 1 0 1 1 0-2Z',
@@ -341,6 +347,29 @@ function reservationStyles(): string {
       font-size: 8px;
       white-space: nowrap;
     }
+    .advance-box {
+      margin: 6px 8px 8px;
+      border: 1.5px solid #86efac;
+      background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%);
+      border-radius: 6px;
+      padding: 7px 10px;
+      text-align: center;
+    }
+    .advance-box-head {
+      font-size: 8px;
+      font-weight: 800;
+      color: #15803d;
+      margin-bottom: 3px;
+    }
+    .advance-box-head .ico { width: 11px; height: 11px; fill: ${GOLD}; vertical-align: -2px; margin-inline-end: 4px; }
+    .advance-box-value {
+      font-size: 12px;
+      font-weight: 900;
+      color: ${NAVY};
+      font-family: Consolas, monospace;
+      direction: ltr;
+      unicode-bidi: embed;
+    }
     .section-head {
       background: ${NAVY};
       color: #fff;
@@ -516,15 +545,56 @@ function reservationStyles(): string {
       margin: 0 -8mm;
       width: calc(100% + 16mm);
     }
+    .footer-bar,
+    .footer-bar * {
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+      text-decoration: none !important;
+    }
+    .footer-bar a,
+    .footer-bar a:link,
+    .footer-bar a:visited,
+    .footer-bar a:hover,
+    .footer-bar a:active {
+      color: #ffffff !important;
+      text-decoration: none !important;
+      pointer-events: none;
+    }
     .footer-table { width: 100%; border-collapse: collapse; }
-    .footer-table td { vertical-align: middle; font-size: 8.5px; line-height: 1.55; }
+    .footer-table td { vertical-align: middle; font-size: 8.5px; line-height: 1.65; }
     .footer-brand { font-weight: 900; letter-spacing: 0.4px; }
-    .footer-tagline { opacity: 0.85; margin-top: 2px; font-size: 8px; }
-    .footer-center { text-align: center; opacity: 0.95; color: #fff !important; }
-    .footer-center .ltr,
-    .footer-center div { color: #fff !important; }
-    .footer-location { text-align: right; opacity: 0.95; font-weight: 700; color: #fff; }
-    .footer-left { text-align: left; color: #fff; }
+    .footer-tagline { opacity: 0.9; margin-top: 2px; font-size: 8px; }
+    .footer-center { text-align: center; }
+    .footer-contact-row {
+      display: block;
+      margin: 2px 0;
+      white-space: nowrap;
+    }
+    .footer-contact-row .ico {
+      width: 12px;
+      height: 12px;
+      fill: ${GOLD};
+      vertical-align: -2px;
+      margin-inline-end: 5px;
+    }
+    .footer-contact-text {
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+      text-decoration: none !important;
+      font-weight: 700;
+    }
+    .footer-location {
+      text-align: right;
+      font-weight: 700;
+    }
+    .footer-location .ico {
+      width: 12px;
+      height: 12px;
+      fill: ${GOLD};
+      vertical-align: -2px;
+      margin-inline-end: 4px;
+    }
+    .footer-left { text-align: left; }
     .ltr { direction: ltr; unicode-bidi: embed; }
   `;
 }
@@ -546,14 +616,20 @@ export function renderReservationOrderBodyHtml(
   const shippingMethod = displayField(shippingLabel(order.warehouse));
   const amountDueLabel = formatCurrency(totalDue, order.currency);
   const totalAmountLabel = formatCurrency(totalPrice, order.currency);
+  const advanceLabel = advancePayment > 0 ? formatCurrency(advancePayment, order.currency) : '—';
 
   const itemRows = buildGroupedItemRows(order, order.currency);
 
   const notesBody = order.notes?.trim() ? esc(order.notes) : '—';
 
   const footerPhones = CONTACT.phones
-    .map((phone) => `<div class="ltr">${esc(phone)}</div>`)
+    .map(
+      (phone) =>
+        `<div class="footer-contact-row">${iconSvg('phone')}<span class="footer-contact-text ltr">${footerContactText(phone)}</span></div>`,
+    )
     .join('');
+
+  const footerEmail = `<div class="footer-contact-row">${iconSvg('mail')}<span class="footer-contact-text ltr">${footerContactText(CONTACT.email)}</span></div>`;
 
   const advanceBlock = `<div class="sign-hint sign-advance">عربون: ${
     advancePayment > 0 ? formatCurrency(advancePayment, order.currency) : '—'
@@ -598,6 +674,10 @@ export function renderReservationOrderBodyHtml(
                 ${metaRow(iconSvg('lock'), 'حالة الطلبية', `<span class="status-pill">${esc(statusLabelAr)}</span>`)}
                 ${metaRow(iconSvg('wallet'), 'العملة', displayField(order.currency))}
               </table>
+              <div class="advance-box">
+                <div class="advance-box-head">${iconSvg('wallet')}<span>عربون</span></div>
+                <div class="advance-box-value">${advanceLabel}</div>
+              </div>
             </div>
           </td>
         </tr>
@@ -678,10 +758,10 @@ export function renderReservationOrderBodyHtml(
       <div class="footer-bar">
         <table class="footer-table">
           <tr>
-            <td class="footer-location" style="width:33%;">${esc(CONTACT.location)}</td>
+            <td class="footer-location" style="width:33%;">${iconSvg('pin')}<span>${esc(CONTACT.location)}</span></td>
             <td class="footer-center" style="width:34%;">
+              ${footerEmail}
               ${footerPhones}
-              <div class="ltr">${esc(CONTACT.email)}</div>
             </td>
             <td class="footer-left" style="width:33%;">
               <div class="footer-brand">${esc(BRAND.fullName)}</div>
@@ -703,6 +783,8 @@ export function renderReservationOrderA4Document(
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8" />
+  <meta name="format-detection" content="telephone=no,email=no,address=no" />
+  <meta name="x-apple-disable-message-reformatting" />
   <title>${esc(title)}</title>
   <style>
     @page { size: A4 portrait; margin: 0; }
