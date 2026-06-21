@@ -259,6 +259,10 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(201).send({ ok: true, data: mapCartelaRow(row.rows[0]) });
     } catch (err) {
       await client.query('ROLLBACK');
+      const code = (err as { code?: string }).code;
+      if (code === 'CARTELA_AUTO_SERIAL_FULL') {
+        return sendError(reply, 409, (err as Error).message, 'CARTELA_AUTO_SERIAL_FULL');
+      }
       if (mapCartelaDbError(reply, err)) return reply;
       throw err;
     } finally {
@@ -396,41 +400,58 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     }
     const d = payload.data!;
 
-    const row = await getPool().query(
-      `INSERT INTO cartela_labels (
-         company_id, title, art_code, design_no, colour,
-         width_value, width_unit, width_tolerance_enabled, width_tolerance_percent,
-         weight_value, weight_unit, weight_tolerance_enabled, weight_tolerance_percent,
-         composition, composition_lines, care_symbols, serial_no, show_logo, font_size_pt,
-         created_by_user_id, updated_by_user_id
-       ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$20
-       )
-       RETURNING *`,
-      [
-        companyId,
-        d.title.trim(),
-        d.artCode.trim(),
-        d.designNo.trim(),
-        d.colour.trim(),
-        d.widthValue.trim(),
-        d.widthUnit.trim(),
-        d.widthToleranceEnabled,
-        d.widthTolerancePercent,
-        d.weightValue.trim(),
-        d.weightUnit.trim(),
-        d.weightToleranceEnabled,
-        d.weightTolerancePercent,
-        d.compositionText,
-        JSON.stringify(d.compositionLines),
-        JSON.stringify(d.careSymbols),
-        d.serialNo.trim(),
-        d.showLogo,
-        d.fontSizePt,
-        userId,
-      ],
-    );
-    return reply.status(201).send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const autoSerial = await allocateCartelaSerialNo(client, companyId);
+      const serialNo = resolveCartelaSerialNo(d.serialNo, autoSerial);
+      const row = await client.query(
+        `INSERT INTO cartela_labels (
+           company_id, title, art_code, design_no, colour,
+           width_value, width_unit, width_tolerance_enabled, width_tolerance_percent,
+           weight_value, weight_unit, weight_tolerance_enabled, weight_tolerance_percent,
+           composition, composition_lines, care_symbols, serial_no, show_logo, font_size_pt,
+           created_by_user_id, updated_by_user_id
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$20
+         )
+         RETURNING *`,
+        [
+          companyId,
+          d.title.trim(),
+          d.artCode.trim(),
+          d.designNo.trim(),
+          d.colour.trim(),
+          d.widthValue.trim(),
+          d.widthUnit.trim(),
+          d.widthToleranceEnabled,
+          d.widthTolerancePercent,
+          d.weightValue.trim(),
+          d.weightUnit.trim(),
+          d.weightToleranceEnabled,
+          d.weightTolerancePercent,
+          d.compositionText,
+          JSON.stringify(d.compositionLines),
+          JSON.stringify(d.careSymbols),
+          serialNo,
+          d.showLogo,
+          d.fontSizePt,
+          userId,
+        ],
+      );
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      const code = (err as { code?: string }).code;
+      if (code === 'CARTELA_AUTO_SERIAL_FULL') {
+        return sendError(reply, 409, (err as Error).message, 'CARTELA_AUTO_SERIAL_FULL');
+      }
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    } finally {
+      client.release();
+    }
   });
 
   app.put('/:id', { preHandler: authenticateRequest }, async (req, reply) => {

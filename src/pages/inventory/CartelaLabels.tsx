@@ -21,6 +21,7 @@ import {
   sanitizeManualCartelaSerialInput,
   validateManualCartelaSerial,
   CARTELA_SERIAL_MANUAL_MAX_LEN,
+  CARTELA_SERIAL_AUTO_DIGITS,
 } from '../../lib/cartelaSerial';
 import {
   cartelaDtoToPayload,
@@ -372,7 +373,7 @@ export const CartelaLabels: React.FC = () => {
 
     setSaving(true);
     try {
-      const row = await generateCartelaLabel(buildSavePayload());
+      const row = await generateCartelaLabel({ ...buildSavePayload(), serialNo: form.serialNo.trim() });
       setSelectedId(row.id);
       setForm(cartelaDtoToPayload(row));
       await loadList();
@@ -929,6 +930,11 @@ export const CartelaLabels: React.FC = () => {
             <span className="text-xs text-slate-500">
               تلقائي: 4 أرقام (0001…) — يدوي: حتى {CARTELA_SERIAL_MANUAL_MAX_LEN} أرقام. اتركه فارغاً للتوليد التلقائي.
             </span>
+            {form.serialNo.trim().length > CARTELA_SERIAL_AUTO_DIGITS && (
+              <span className="text-xs text-amber-700 block mt-1">
+                هذا رقم يدوي أو قديم. لكارتيلa جديدة بـ 4 أرقام: اترك الحقل فارغاً واضغط «حفظ ككارتيلa جديدة».
+              </span>
+            )}
           </label>
 
           <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
