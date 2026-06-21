@@ -107,7 +107,7 @@ export const LABEL_SAFE_MARGIN_MM = 1;
 
 const DEFAULT_CONFIG: Required<LabelConfig> = {
   showBrandLogo: true,
-  textDirection: 'rtl',
+  textDirection: 'ltr',
   showBarcode: true, showQr: true,
   showItemName: true, showInternalCode: true, showSupplierCode: true,
   showColorName: true, showColorCode: true,
@@ -188,7 +188,7 @@ const FieldRow: React.FC<{
   emphasize?: boolean;
   textDirection?: 'rtl' | 'ltr';
   compact?: boolean;
-}> = ({ label, value, emphasize, textDirection = 'rtl', compact = false }) => {
+}> = ({ label, value, emphasize, textDirection = 'ltr', compact = false }) => {
   const labelCol = compact ? '14mm' : '20mm';
   if (textDirection === 'rtl') {
     return (
