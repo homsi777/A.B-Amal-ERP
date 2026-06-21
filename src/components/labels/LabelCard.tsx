@@ -33,6 +33,7 @@ import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { RollLabelPreviewDto } from '../../lib/api/labelsApi';
 import { BRAND } from '../../branding';
+import { THERMAL_LOGO_FILTER } from '../../lib/printing/thermalBrandLogo';
 
 // ─── Code128 SVG generator ───────────────────────────────────────────────────
 
@@ -115,8 +116,6 @@ const DEFAULT_CONFIG: Required<LabelConfig> = {
   disclaimer: 'لا تُقبل المطالبات بعد قصّ البضاعة',
   quality: '1',
 };
-
-const THERMAL_LOGO_FILTER = 'grayscale(1) brightness(0.55) contrast(1000%)';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -262,10 +261,19 @@ export const LabelCard: React.FC<LabelCardProps> = ({
           <img
             src={BRAND.logoInline}
             alt={BRAND.name}
-            style={{ height: '22mm', width: 'auto', maxWidth: '78mm', objectFit: 'contain', display: 'block', margin: '0 auto', filter: THERMAL_LOGO_FILTER }}
+            style={{
+              height: '13mm',
+              width: 'auto',
+              maxWidth: '72mm',
+              objectFit: 'contain',
+              display: 'block',
+              margin: '0 auto',
+              filter: THERMAL_LOGO_FILTER,
+              WebkitFilter: THERMAL_LOGO_FILTER,
+            }}
           />
         ) : (
-          <div style={{ height: '22mm' }} aria-hidden="true" />
+          <div style={{ height: '13mm' }} aria-hidden="true" />
         )}
       </div>
 
@@ -311,42 +319,13 @@ export const LabelCard: React.FC<LabelCardProps> = ({
         paddingTop: '0.45mm',
         minHeight: 0,
       }}>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <div>
             <FieldRow label="ملاحظة"       value="" />
             <FieldRow label="رقم الدفعة"     value={lot} />
             {cfg.showLength       && <FieldRow label="الأمتار"     value={meters} emphasize />}
             {cfg.showActualWeight && <FieldRow label="الوزن الصافي" value={weight} emphasize />}
           </div>
-
-          {/* ── Barcode strip ── */}
-          {cfg.showBarcode && printableBarcode && (
-            <div style={{ marginTop: 'auto', paddingTop: '0.45mm', textAlign: 'center' }}>
-              <div
-                dangerouslySetInnerHTML={{ __html: barcodeSvg }}
-                style={{
-                  width: '100%',
-                  maxWidth: '58mm',
-                  margin: '0 auto',
-                  height: '12mm',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              />
-              <div style={{
-                fontSize: '7.5pt',
-                fontFamily: 'Consolas, monospace',
-                fontWeight: 700,
-                letterSpacing: '1.2pt',
-                lineHeight: 1,
-                marginTop: '0.3mm',
-              }}>
-                {printableBarcode}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── QR code ── */}
@@ -368,19 +347,47 @@ export const LabelCard: React.FC<LabelCardProps> = ({
         )}
       </div>
 
+      {cfg.showBarcode && printableBarcode && (
+        <div style={{ flexShrink: 0, textAlign: 'center', padding: '0.35mm 0 0.55mm' }}>
+          <div
+            dangerouslySetInnerHTML={{ __html: barcodeSvg }}
+            style={{
+              width: '100%',
+              maxWidth: '58mm',
+              margin: '0 auto',
+              height: '8.5mm',
+              overflow: 'hidden',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          />
+          <div style={{
+            fontSize: '7pt',
+            fontFamily: 'Consolas, monospace',
+            fontWeight: 700,
+            letterSpacing: '1pt',
+            lineHeight: 1.15,
+            marginTop: '0.25mm',
+            paddingBottom: '0.15mm',
+          }}>
+            {printableBarcode}
+          </div>
+        </div>
+      )}
+
       {/* ── Footer disclaimer ── */}
       {cfg.disclaimer && (
         <div style={{
           borderTop: '0.25mm solid #000',
-          marginTop: '0.35mm',
-          paddingTop: '0.35mm',
+          padding: '0.45mm 1.5mm 0.3mm',
           textAlign: 'center',
-          fontSize: '5.5pt',
+          fontSize: '5.2pt',
           fontWeight: 700,
-          letterSpacing: '0.2pt',
+          letterSpacing: '0.15pt',
           color: '#000',
           flexShrink: 0,
-          lineHeight: 1.15,
+          lineHeight: 1.2,
         }}>
           {cfg.disclaimer}
         </div>
@@ -432,9 +439,12 @@ export function buildPrintDocument(
   const cfg: Required<LabelConfig> = { ...DEFAULT_CONFIG, ...config };
 
   const safeMm = LABEL_SAFE_MARGIN_MM;
-  const BARCODE_PRINT_H = 38;
-  const singleLabel = rolls.length === 1;
+  const ultraCompactLabel = pageSize === 'label' && heightMm <= 62;
   const compactLabel = pageSize === 'label' && heightMm <= 65;
+  const brandLogoHmm = ultraCompactLabel ? 11 : compactLabel ? 13 : 17;
+  const brandLogoMaxWmm = ultraCompactLabel ? 68 : compactLabel ? 72 : 78;
+  const BARCODE_PRINT_H = ultraCompactLabel ? 28 : compactLabel ? 32 : 38;
+  const singleLabel = rolls.length === 1;
   /** لصاقة أعرض من ارتفاعها: تدوير 90° — للمتصفح نستخدم normal دائماً */
   const isWideRollLabel =
     pageSize === 'label' && widthMm > heightMm && rollLayout !== 'normal';
@@ -500,14 +510,15 @@ export function buildPrintDocument(
         ${cfg.showLength       ? fieldRow('الأمتار',     meters, true) : ''}
         ${cfg.showActualWeight ? fieldRow('الوزن الصافي', weight, true) : ''}
       </div>
-      ${cfg.showBarcode && printableBarcode ? `
-        <div class="bc">
-          <div class="bc-svg">${barcodeSvg}</div>
-          <div class="bc-text">${printableBarcode}</div>
-        </div>` : ''}
     </div>
     ${cfg.showQr ? `<div class="qr">${qrSvg}</div>` : ''}
   </div>
+
+  ${cfg.showBarcode && printableBarcode ? `
+  <div class="footer-bc">
+    <div class="bc-svg">${barcodeSvg}</div>
+    <div class="bc-text">${printableBarcode}</div>
+  </div>` : ''}
 
   ${cfg.disclaimer ? `<div class="disc">${cfg.disclaimer}</div>` : ''}`;
 
@@ -726,8 +737,8 @@ export function buildPrintDocument(
   min-height: 0;
   border: 0.35mm solid #000;
   border-radius: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   background: #fff;
   color: #000;
   overflow: hidden;
@@ -759,15 +770,16 @@ ${lblBoxCss}
   border-bottom: 0.25mm solid #000;
 }
 .brand-logo {
-  height: ${compactLabel ? '14mm' : '22mm'};
+  height: ${brandLogoHmm}mm;
   width: auto;
-  max-width: ${compactLabel ? '72mm' : '78mm'};
+  max-width: ${brandLogoMaxWmm}mm;
   object-fit: contain;
   display: block;
   margin: 0 auto;
-  filter: ${THERMAL_LOGO_FILTER};
+  filter: ${THERMAL_LOGO_FILTER} !important;
+  -webkit-filter: ${THERMAL_LOGO_FILTER} !important;
 }
-.brand-empty { height: ${compactLabel ? '14mm' : '22mm'}; }
+.brand-empty { height: ${brandLogoHmm}mm; }
 .brand-mark { font-size: ${compactLabel ? '4.8mm' : '5.8mm'}; font-weight: 900; letter-spacing: 0.65mm; line-height: 1.05; }
 .brand-tag  { font-size: ${compactLabel ? '2.1mm' : '2.4mm'}; letter-spacing: 0.45mm; color: #222; margin-top: 0.25mm; }
 
@@ -797,17 +809,22 @@ ${lblBoxCss}
   display: grid;
   grid-template-columns: 1fr 21mm;
   gap: 0.8mm;
-  flex: 1 1 auto;
-  padding-top: 0.35mm;
   min-height: 0;
+  overflow: hidden;
+  padding-top: 0.35mm;
 }
-.lower-fields { display: flex; flex-direction: column; min-height: 0; }
+.lower-fields { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.lower-list { min-height: 0; }
 
-.bc { margin-top: auto; padding-top: 0.35mm; text-align: center; }
-.bc-svg {
+.footer-bc {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0.35mm 0 0.55mm;
+}
+.footer-bc .bc-svg {
   width: ${compactLabel ? '52mm' : '58mm'};
   max-width: 100%;
-  height: ${compactLabel ? '9mm' : '12mm'};
+  height: ${ultraCompactLabel ? '7.5mm' : compactLabel ? '8.5mm' : '10mm'};
   margin: 0 auto;
   padding: 0 1mm;
   display: flex;
@@ -815,14 +832,20 @@ ${lblBoxCss}
   align-items: center;
   overflow: hidden;
 }
-.bc-svg svg { width: ${compactLabel ? '50mm' : '56mm'} !important; max-width: ${compactLabel ? '50mm' : '56mm'} !important; height: ${compactLabel ? '9mm' : '12mm'} !important; display: block; }
-.bc-text {
+.footer-bc .bc-svg svg {
+  width: ${compactLabel ? '50mm' : '56mm'} !important;
+  max-width: ${compactLabel ? '50mm' : '56mm'} !important;
+  height: ${ultraCompactLabel ? '7.5mm' : compactLabel ? '8.5mm' : '10mm'} !important;
+  display: block;
+}
+.footer-bc .bc-text {
   font-family: Consolas, monospace;
-  font-size: 2.8mm;
+  font-size: ${ultraCompactLabel ? '2.4mm' : '2.6mm'};
   font-weight: 700;
-  letter-spacing: 0.22mm;
-  line-height: 1.1;
-  margin-top: 0.25mm;
+  letter-spacing: 0.18mm;
+  line-height: 1.15;
+  margin-top: 0.2mm;
+  padding-bottom: 0.15mm;
   max-width: 62mm;
   margin-left: auto;
   margin-right: auto;
@@ -848,13 +871,13 @@ ${lblBoxCss}
 .disc {
   flex-shrink: 0;
   border-top: 0.25mm solid #000;
-  margin-top: 0.3mm;
-  padding-top: 0.3mm;
+  margin-top: 0;
+  padding: 0.45mm 1.5mm 0.3mm;
   text-align: center;
-  font-size: 5.5pt;
+  font-size: ${ultraCompactLabel ? '4.8pt' : '5.2pt'};
   font-weight: 700;
-  letter-spacing: 0.15pt;
-  line-height: 1.15;
+  letter-spacing: 0.12pt;
+  line-height: 1.2;
   color: #000;
 }
 </style>
