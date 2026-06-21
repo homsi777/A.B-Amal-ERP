@@ -11,10 +11,10 @@ const GOLD = '#C4A962';
 const FONT = "Tahoma, Arial, 'Segoe UI', 'Arabic Typesetting', sans-serif";
 
 const CONTACT = {
-  email: 'bashir@clotexco.com',
-  phones: ['+90541 977 7171', '+963 944 555 080'],
-  taglineAr: 'أقمشة بجودة تصنع الفرق',
   location: 'الجمهورية العربية السورية / حلب',
+  phone: '+963 944 555 080',
+  receiptSlogan: 'ثقتكم رأسمالنا الحقيقي.',
+  paymentSlogan: 'الالتزام في التعامل أساس الثقة بيننا',
 } as const;
 
 export type VoucherPrintData = {
@@ -76,7 +76,7 @@ function formatAmountDisplay(amount: string, currencyCode: string): string {
   return `${formatted} ${code}`;
 }
 
-function iconSvg(kind: 'user' | 'pin' | 'tag' | 'calendar' | 'wallet' | 'doc' | 'receipt' | 'phone' | 'mail' | 'check'): string {
+function iconSvg(kind: 'user' | 'pin' | 'tag' | 'calendar' | 'wallet' | 'doc' | 'receipt' | 'phone' | 'mail' | 'check' | 'star' | 'shield'): string {
   const paths: Record<string, string> = {
     user: 'M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z',
     pin: 'M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 14.5 9 2.5 2.5 0 0 1 12 11.5Z',
@@ -88,6 +88,8 @@ function iconSvg(kind: 'user' | 'pin' | 'tag' | 'calendar' | 'wallet' | 'doc' | 
     phone: 'M7 3h3l1 4-2 1a11 11 0 0 0 5 5l1-2 4 1v3a2 2 0 0 1-2 2A15 15 0 0 1 3 5a2 2 0 0 1 2-2Z',
     mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2 8 5 8-5v12H4V6Z',
     check: 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z',
+    star: 'M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7-5.4-4.7 7.1-.6L12 2Z',
+    shield: 'M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z',
   };
   return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[kind]}"/></svg>`;
 }
@@ -100,8 +102,27 @@ function metaRow(icon: string, label: string, value: string): string {
     </tr>`;
 }
 
-function footerContactText(value: string): string {
-  return esc(value).replace(/[+0-9]/g, (ch) => `${ch}<span aria-hidden="true" style="font-size:0;line-height:0;">&#8203;</span>`);
+function renderVoucherFooterHtml(isReceipt: boolean): string {
+  const slogan = isReceipt ? CONTACT.receiptSlogan : CONTACT.paymentSlogan;
+  const sloganIcon = isReceipt ? iconSvg('star') : iconSvg('shield');
+  const phoneHtml = `<span class="footer-phone ltr">${esc(CONTACT.phone)}</span>`;
+
+  return `
+      <div class="footer-bar">
+        <table class="footer-table" dir="rtl">
+          <tr>
+            <td class="footer-right" style="width:34%;">
+              <span class="footer-inline">${iconSvg('pin')}<span>${esc(CONTACT.location)}</span></span>
+            </td>
+            <td class="footer-center" style="width:32%;">
+              <span class="footer-inline footer-inline-center">${iconSvg('phone')}${phoneHtml}</span>
+            </td>
+            <td class="footer-left" style="width:34%;">
+              <span class="footer-inline">${sloganIcon}<span>${esc(slogan)}</span></span>
+            </td>
+          </tr>
+        </table>
+      </div>`;
 }
 
 function narrativeInput(data: VoucherPrintData): VoucherNarrativeInput {
@@ -335,15 +356,40 @@ function voucherStyles(accent: string, accentSoft: string, bw: boolean): string 
       -webkit-text-fill-color: ${footerText} !important;
     }
     .footer-table { width: 100%; border-collapse: collapse; }
-    .footer-table td { vertical-align: middle; font-size: 7.5px; line-height: 1.55; }
-    .footer-brand { font-weight: 900; }
-    .footer-tagline { opacity: 0.9; margin-top: 1px; font-size: 7px; }
+    .footer-table td { vertical-align: middle; font-size: 7.5px; line-height: 1.55; font-weight: 700; }
+    .footer-right { text-align: right; }
     .footer-center { text-align: center; }
-    .footer-contact-row { display: block; margin: 1px 0; white-space: nowrap; }
-    .footer-contact-row .ico { width: 10px; height: 10px; fill: ${footerIcon}; vertical-align: -2px; margin-inline-end: 4px; }
-    .footer-location { text-align: right; font-weight: 700; }
-    .footer-location .ico { width: 10px; height: 10px; fill: ${footerIcon}; vertical-align: -2px; margin-inline-end: 3px; }
     .footer-left { text-align: left; }
+    .footer-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      max-width: 100%;
+    }
+    .footer-inline-center { justify-content: center; margin: 0 auto; }
+    .footer-inline .ico {
+      width: 11px;
+      height: 11px;
+      fill: ${footerIcon};
+      flex-shrink: 0;
+    }
+    .footer-phone {
+      color: ${footerText} !important;
+      -webkit-text-fill-color: ${footerText} !important;
+      text-decoration: none !important;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+    .footer-bar a,
+    .footer-bar a:link,
+    .footer-bar a:visited,
+    .footer-bar a:hover,
+    .footer-bar a:active {
+      color: ${footerText} !important;
+      text-decoration: none !important;
+      pointer-events: none;
+    }
     .ltr { direction: ltr; unicode-bidi: embed; }
   `;
 }
@@ -370,14 +416,6 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
   const representative = displayField(data.representative);
   const amountDisplay = esc(formatAmountDisplay(data.amount, data.currencyCode));
   const amountWords = esc(amountToArabicWords(Number(data.amount) || 0, data.currencyCode));
-
-  const footerPhones = CONTACT.phones
-    .map(
-      (phone) =>
-        `<div class="footer-contact-row">${iconSvg('phone')}<span class="ltr">${footerContactText(phone)}</span></div>`,
-    )
-    .join('');
-  const footerEmail = `<div class="footer-contact-row">${iconSvg('mail')}<span class="ltr">${footerContactText(CONTACT.email)}</span></div>`;
 
   return `
     <div class="page" dir="rtl">
@@ -447,23 +485,7 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
         </table>
       </div>
 
-      <div class="footer-bar">
-        <table class="footer-table">
-          <tr>
-            <td class="footer-left" style="width:34%;">
-              <div class="footer-brand">${esc(BRAND.fullName)}</div>
-              <div class="footer-tagline">${esc(CONTACT.taglineAr)}</div>
-            </td>
-            <td class="footer-center" style="width:38%;">
-              ${footerEmail}
-              ${footerPhones}
-            </td>
-            <td class="footer-location" style="width:28%;">
-              ${iconSvg('pin')}${esc(CONTACT.location)}
-            </td>
-          </tr>
-        </table>
-      </div>
+      ${renderVoucherFooterHtml(isReceipt)}
     </div>`;
 }
 
