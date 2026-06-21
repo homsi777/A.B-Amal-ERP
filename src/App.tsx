@@ -4,7 +4,7 @@
  */
 
 import { useEffect } from 'react';
-import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 
 /**
  * In Electron production (file:// protocol), BrowserRouter cannot handle
@@ -151,7 +151,8 @@ export default function App() {
             <Route path="inventory/settings" element={<InventorySettings />} />
             <Route path="inventory/labels" element={<StickerPrinting />} />
             <Route path="inventory/custom-label" element={<CustomStickerPrinting />} />
-            <Route path="inventory/cartela" element={<CartelaLabels />} />
+            <Route path="cartela" element={<CartelaLabels />} />
+            <Route path="inventory/cartela" element={<Navigate to="/cartela" replace />} />
             <Route path="inventory/bulk-pricing" element={<BulkPricing />} />
             <Route path="inventory/warehouses" element={<Warehouses />} />
             <Route path="inventory/transfers" element={<Transfers />} />

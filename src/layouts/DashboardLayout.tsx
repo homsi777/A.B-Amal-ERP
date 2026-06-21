@@ -17,6 +17,7 @@ import {
   PieChart,
   Receipt,
   Settings,
+  ScrollText,
   Users,
   Wallet,
   X,
@@ -96,7 +97,6 @@ const Topbar = () => {
         { labelKey: 'inventory.categories', to: '/inventory/categories' },
         { labelKey: 'inventory.labels', to: '/inventory/labels' },
         { labelKey: 'inventory.customLabel', to: '/inventory/custom-label' },
-        { labelKey: 'inventory.cartela', to: '/inventory/cartela' },
         { labelKey: 'inventory.printJobs', to: '/inventory/print-jobs' },
         { labelKey: 'inventory.settings', to: '/inventory/settings' },
         { labelKey: 'inventory.bulkPricing', to: '/inventory/bulk-pricing' },
@@ -105,6 +105,7 @@ const Topbar = () => {
         { labelKey: 'inventory.depreciation', to: '/inventory/depreciation' },
       ],
     },
+    { labelKey: 'cartela', to: '/cartela', icon: ScrollText },
     {
       labelKey: 'invoices',
       icon: FileText,
