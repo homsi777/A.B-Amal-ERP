@@ -9,6 +9,7 @@ import { generateCustomerOrderNo } from '../utils/documentNumbers.js';
 import {
   getOrderLineFulfilledMeters,
 } from '../services/customerOrderFulfillmentService.js';
+import { ensureCartelaDraftsFromOrderLines } from '../services/cartelaQuickDraftService.js';
 
 const statusSchema = z.enum([
   'draft',
@@ -560,9 +561,14 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
         ],
       );
       const id = created.rows[0].id as string;
+      const cartelaDraftsCreated = await ensureCartelaDraftsFromOrderLines(client, companyId, userId, d.items);
       await insertOrderLines(client, companyId, id, d.items);
       await client.query('COMMIT');
-      return reply.status(201).send({ ok: true, data: await enrichOrderWithFulfillment(client, companyId, await getOrderById(client, companyId, id)) });
+      return reply.status(201).send({
+        ok: true,
+        data: await enrichOrderWithFulfillment(client, companyId, await getOrderById(client, companyId, id)),
+        cartelaDraftsCreated,
+      });
     } catch (e) {
       await client.query('ROLLBACK');
       const err = e as { code?: string; message?: string };
@@ -621,10 +627,15 @@ export const customerOrderRoutes: FastifyPluginAsync = async (app) => {
         ],
       );
       if (!updated.rows.length) throw Object.assign(new Error('Order not found'), { code: 'NOT_FOUND' });
+      const cartelaDraftsCreated = await ensureCartelaDraftsFromOrderLines(client, companyId, userId, d.items);
       await client.query('DELETE FROM customer_order_lines WHERE order_id=$1 AND company_id=$2', [id, companyId]);
       await insertOrderLines(client, companyId, id, d.items);
       await client.query('COMMIT');
-      return reply.send({ ok: true, data: await enrichOrderWithFulfillment(client, companyId, await getOrderById(client, companyId, id)) });
+      return reply.send({
+        ok: true,
+        data: await enrichOrderWithFulfillment(client, companyId, await getOrderById(client, companyId, id)),
+        cartelaDraftsCreated,
+      });
     } catch (e) {
       await client.query('ROLLBACK');
       const err = e as { code?: string; message?: string };

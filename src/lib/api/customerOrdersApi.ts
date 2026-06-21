@@ -60,20 +60,34 @@ export async function listCustomerOrders(params: { search?: string; status?: Cus
   return res;
 }
 
-export async function createCustomerOrderApi(payload: CustomerOrderPayload): Promise<CustomerOrder> {
-  const res = await apiFetch<{ ok: boolean; data: CustomerOrder }>('/api/customer-orders', {
-    method: 'POST',
-    body: JSON.stringify(sanitizeOrderPayload(payload)),
-  });
-  return res.data;
+export type CustomerOrderSaveResult = {
+  order: CustomerOrder;
+  cartelaDraftsCreated: number;
+};
+
+export async function createCustomerOrderApi(payload: CustomerOrderPayload): Promise<CustomerOrderSaveResult> {
+  const res = await apiFetch<{ ok: boolean; data: CustomerOrder; cartelaDraftsCreated?: number }>(
+    '/api/customer-orders',
+    {
+      method: 'POST',
+      body: JSON.stringify(sanitizeOrderPayload(payload)),
+    },
+  );
+  return { order: res.data, cartelaDraftsCreated: res.cartelaDraftsCreated ?? 0 };
 }
 
-export async function updateCustomerOrderApi(id: string, payload: CustomerOrderPayload): Promise<CustomerOrder> {
-  const res = await apiFetch<{ ok: boolean; data: CustomerOrder }>(`/api/customer-orders/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(sanitizeOrderPayload(payload)),
-  });
-  return res.data;
+export async function updateCustomerOrderApi(
+  id: string,
+  payload: CustomerOrderPayload,
+): Promise<CustomerOrderSaveResult> {
+  const res = await apiFetch<{ ok: boolean; data: CustomerOrder; cartelaDraftsCreated?: number }>(
+    `/api/customer-orders/${id}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(sanitizeOrderPayload(payload)),
+    },
+  );
+  return { order: res.data, cartelaDraftsCreated: res.cartelaDraftsCreated ?? 0 };
 }
 
 export async function updateCustomerOrderStatusApi(id: string, status: CustomerOrderStatus): Promise<void> {

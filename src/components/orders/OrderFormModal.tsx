@@ -26,7 +26,7 @@ import { ORDER_STATUS_LABELS, ORDER_STATUS_FLOW } from '../../pages/orders/order
 import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
 import { compressOrderLineImage, compressOrderLineImageErrorMessage } from '../../lib/compressOrderLineImage';
 import { isValidPriceInput, normalizePriceInput } from '../../lib/orderPriceInput';
-import { ensureQuickCartelaDraft, lookupCartelaByScan } from '../../lib/api/cartelaApi';
+import { lookupCartelaByScan } from '../../lib/api/cartelaApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { useToast } from '../NonBlockingToast';
 
@@ -264,7 +264,10 @@ type OrderFormModalProps = {
   inventory: FabricItem[];
   templates: OrderTemplate[];
   editingOrder: CustomerOrder | null;
-  onSubmit: (payload: OrderFormSubmitPayload, mode: 'create' | 'update') => void | Promise<void>;
+  onSubmit: (
+    payload: OrderFormSubmitPayload,
+    mode: 'create' | 'update',
+  ) => Promise<{ cartelaDraftsCreated?: number }>;
 };
 
 export function OrderFormModal({
@@ -291,6 +294,7 @@ export function OrderFormModal({
   const [summaryOpen, setSummaryOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [compressingLineId, setCompressingLineId] = useState<string | null>(null);
+  const barcodeCommittingRef = useRef<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const barcodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const colorCodeInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -361,6 +365,8 @@ export function OrderFormModal({
     if (!row) return;
     const scan = row.scanBarcode.trim();
     if (!scan) return;
+    if (barcodeCommittingRef.current === lineId) return;
+    barcodeCommittingRef.current = lineId;
 
     const commitLine = (merged: Partial<FormLine>) => {
       let focusRowId = '';
@@ -385,45 +391,54 @@ export function OrderFormModal({
     };
 
     try {
-      const cartela = await lookupCartelaByScan(scan);
-      commitLine({ ...applyCartelaToLinePatch(cartela, scan, inventory), needsCartelaDraft: false });
-      showToast({
-        type: 'success',
-        message: `كارتيلا: ${cartela.title || cartela.art_code} · ${cartela.art_code}${cartela.design_no ? ` · ${cartela.design_no}` : ''} — أكمل اللون والكمية`,
-      });
-      return;
-    } catch (e) {
-      if (!(e instanceof ApiRequestError) || e.statusCode !== 404) {
+      try {
+        const cartela = await lookupCartelaByScan(scan);
+        commitLine({ ...applyCartelaToLinePatch(cartela, scan, inventory), needsCartelaDraft: false });
         showToast({
-          type: 'error',
-          message: e instanceof ApiRequestError ? e.message : 'تعذر البحث في الكارتيلا',
+          type: 'success',
+          message: `كارتيلا: ${cartela.title || cartela.art_code} · ${cartela.art_code}${cartela.design_no ? ` · ${cartela.design_no}` : ''} — أكمل اللون والكمية`,
+        });
+        return;
+      } catch (e) {
+        if (!(e instanceof ApiRequestError) || e.statusCode !== 404) {
+          showToast({
+            type: 'error',
+            message: e instanceof ApiRequestError ? e.message : 'تعذر البحث في الكارتيلا',
+          });
+          return;
+        }
+      }
+
+      const hit = matchFabric(inventory, scan);
+      if (!hit) {
+        commitLine({ scanBarcode: scan, needsCartelaDraft: true });
+        showToast({
+          type: 'warning',
+          message:
+            'كارتيلا غير موجودة — أكمل الخامة واللون يدوياً. تُسجَّل مسودة كارتيلا تلقائياً عند حفظ الطلبية.',
         });
         return;
       }
-    }
 
-    const hit = matchFabric(inventory, scan);
-    if (!hit) {
-      commitLine({ scanBarcode: scan, needsCartelaDraft: true });
+      commitLine({
+        fabricCode: hit.rollNumber?.trim() || hit.fabricCode,
+        dsamNumber: hit.fabricCode,
+        materialName: hit.name,
+        colorCode: '',
+        colorName: '',
+        price: String(hit.sellingPrice),
+        rollNo: hit.rollNumber?.trim() || hit.fabricCode,
+        imageUrl: hit.imageUrl ?? undefined,
+        needsCartelaDraft: true,
+      });
       showToast({
         type: 'warning',
         message:
-          'كارتيلا غير موجودة — أكمل الخامة واللون يدوياً. تُسجَّل مسودة كارتيلا عند حفظ الطلبية (يمكن إكمالها لاحقاً من سجل الكارتيلات).',
+          'كارتيلا غير موجودة — تم تعبئة بيانات من المخزون. تُسجَّل مسودة كارتيلا تلقائياً عند حفظ الطلبية.',
       });
-      return;
+    } finally {
+      barcodeCommittingRef.current = null;
     }
-
-    commitLine({
-      fabricCode: hit.rollNumber?.trim() || hit.fabricCode,
-      dsamNumber: hit.fabricCode,
-      materialName: hit.name,
-      colorCode: '',
-      colorName: '',
-      price: String(hit.sellingPrice),
-      rollNo: hit.rollNumber?.trim() || hit.fabricCode,
-      imageUrl: hit.imageUrl ?? undefined,
-      needsCartelaDraft: false,
-    });
   };
 
   const handleAddItem = () => {
@@ -513,32 +528,6 @@ export function OrderFormModal({
     );
   };
 
-  const syncCartelaDraftsForSave = async (lines: FormLine[]) => {
-    const pending = new Map<string, FormLine>();
-    for (const line of lines) {
-      const scan = line.scanBarcode.trim();
-      if (!scan || !line.needsCartelaDraft) continue;
-      if (!pending.has(scan)) pending.set(scan, line);
-    }
-    let created = 0;
-    for (const [scan, line] of pending) {
-      const designNo = line.fabricCode.trim() || line.rollNo.trim();
-      const result = await ensureQuickCartelaDraft({
-        serialNo: scan,
-        title: line.materialName.trim() || designNo || scan,
-        artCode: line.dsamNumber.trim() || line.materialName.trim() || designNo,
-        designNo,
-      });
-      if (result) created += 1;
-    }
-    if (created > 0) {
-      showToast({
-        type: 'success',
-        message: `تمت إضافة ${created} كارتيلا مسودة — يمكنك إكمال التفاصيل من سجل الكارتيلات`,
-      });
-    }
-  };
-
   const getItemError = (item: FormLine, field: 'metersPerRoll' | 'rollCount') => {
     if (isBlankOrderLine(item)) return '';
     if (field === 'metersPerRoll') {
@@ -622,8 +611,14 @@ export function OrderFormModal({
           : payload.status;
     setSaving(true);
     try {
-      await syncCartelaDraftsForSave(savableItems);
-      await onSubmit({ ...payload, status: st }, editingOrder ? 'update' : 'create');
+      const result = await onSubmit({ ...payload, status: st }, editingOrder ? 'update' : 'create');
+      const draftsCreated = result?.cartelaDraftsCreated ?? 0;
+      if (draftsCreated > 0) {
+        showToast({
+          type: 'success',
+          message: `تمت إضافة ${draftsCreated} كارتيلا مسودة — يمكن إكمال التفاصيل من سجل الكارتيلات`,
+        });
+      }
       onClose();
     } catch (e) {
       showToast({
@@ -896,6 +891,7 @@ export function OrderFormModal({
                               placeholder="امسح الباركود"
                               value={item.scanBarcode}
                               onChange={(e) => patchLine(item.id, { scanBarcode: e.target.value })}
+                              onBlur={() => void handleBarcodeCommit(item.id)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();

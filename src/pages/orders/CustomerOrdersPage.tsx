@@ -123,7 +123,7 @@ export function CustomerOrdersPage() {
 
   const handleOrderSubmit = async (payload: OrderFormSubmitPayload, mode: 'create' | 'update') => {
     if (mode === 'create') {
-      const created = await createCustomerOrderApi({
+      const { order: created, cartelaDraftsCreated } = await createCustomerOrderApi({
         date: payload.date,
         customerId: payload.customerId,
         currency: payload.currency,
@@ -137,10 +137,10 @@ export function CustomerOrdersPage() {
         advancePayment: payload.advancePayment,
       });
       setCustomerOrders((rows) => [created, ...rows]);
-      return;
+      return { cartelaDraftsCreated };
     }
     if (editingOrder) {
-      const updated = await updateCustomerOrderApi(editingOrder.id, {
+      const { order: updated, cartelaDraftsCreated } = await updateCustomerOrderApi(editingOrder.id, {
         date: payload.date,
         customerId: payload.customerId,
         currency: payload.currency,
@@ -155,7 +155,9 @@ export function CustomerOrdersPage() {
       });
       setCustomerOrders((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
       setDetailOrder((row) => (row?.id === updated.id ? updated : row));
+      return { cartelaDraftsCreated };
     }
+    return { cartelaDraftsCreated: 0 };
   };
 
   const resetTplForm = () => {
