@@ -19,6 +19,7 @@ import { OrderFormModal } from '../../components/orders/OrderFormModal';
 import type { OrderFormSubmitPayload } from '../../components/orders/OrderFormModal';
 import { ORDER_STATUS_LABELS, statusBadgeClass } from './orderStatusUi';
 import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
+import { deliveryCountdownClass, orderDeliveryCountdown } from '../../lib/orderDeliveryCountdown';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import {
   createCustomerOrderApi,
@@ -339,7 +340,23 @@ export function CustomerOrdersPage() {
                       <td className="px-4 py-3 font-bold text-slate-800">{customer?.name ?? '—'}</td>
                       <td className="px-4 py-3 text-slate-600">{o.items.length}</td>
                       <td className="px-4 py-3 text-slate-600">
-                        {o.expectedDate ? format(new Date(o.expectedDate), 'PP', { locale: ar }) : '—'}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>
+                            {o.expectedDate ? format(new Date(o.expectedDate), 'PP', { locale: ar }) : '—'}
+                          </span>
+                          {(() => {
+                            const countdown = orderDeliveryCountdown(o.expectedDate, o.status);
+                            if (!countdown) return null;
+                            return (
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${deliveryCountdownClass(countdown.tone)}`}
+                                title="الأيام المتبقية لموعد التوريد"
+                              >
+                                {countdown.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-mono font-semibold">
                         {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}{' '}

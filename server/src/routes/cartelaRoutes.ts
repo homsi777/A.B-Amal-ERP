@@ -262,6 +262,71 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  const quickDraftBody = z.object({
+    serialNo: z.string().optional().default(''),
+    title: z.string().optional().default(''),
+    artCode: z.string().optional().default(''),
+    designNo: z.string().optional().default(''),
+  });
+
+  /** مسودة كارتيلا من باركود غير موجود — لإكمال التفاصيل لاحقاً من سجل الكارتيلات */
+  app.post('/quick-draft', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const parsed = quickDraftBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const d = parsed.data;
+    const serial = d.serialNo.trim();
+
+    try {
+      if (serial) {
+        const existing = await getPool().query(
+          `SELECT * FROM cartela_labels WHERE company_id = $1 AND serial_no = $2 LIMIT 1`,
+          [companyId, serial],
+        );
+        if (existing.rows.length) {
+          return reply.send({ ok: true, data: mapCartelaRow(existing.rows[0]) });
+        }
+      }
+
+      const client = await getPool().connect();
+      try {
+        await client.query('BEGIN');
+        const resolvedSerial = serial || (await allocateCartelaSerialNo(client, companyId));
+        const title = d.title.trim() || d.artCode.trim() || resolvedSerial;
+        const artCode = d.artCode.trim() || title;
+        const designNo = d.designNo.trim();
+
+        const row = await client.query(
+          `INSERT INTO cartela_labels (
+             company_id, title, art_code, design_no, colour,
+             width_value, width_unit, width_tolerance_enabled, width_tolerance_percent,
+             weight_value, weight_unit, weight_tolerance_enabled, weight_tolerance_percent,
+             composition, composition_lines, care_symbols, serial_no, show_logo, font_size_pt,
+             created_by_user_id, updated_by_user_id
+           ) VALUES (
+             $1,$2,$3,$4,'',
+             '','cm',true,3,
+             '','gr/m²',true,5,
+             '', '[]'::jsonb, '[]'::jsonb, $5, true, 6.8,
+             $6,$6
+           )
+           RETURNING *`,
+          [companyId, title, artCode, designNo, resolvedSerial, userId],
+        );
+        await client.query('COMMIT');
+        return reply.status(201).send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    }
+  });
+
   app.get('/lookup', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const scan = String((req.query as Record<string, string>).scan ?? '').trim();

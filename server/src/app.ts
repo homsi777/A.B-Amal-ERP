@@ -43,6 +43,8 @@ export async function buildApp() {
     logger: {
       level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
     },
+    // صور بنود الطلبية تُرسل كـ base64 — الحد الافتراضي 1MB يفشل الحفظ
+    bodyLimit: 12 * 1024 * 1024,
   });
 
   // CORS — strict allow-list in production, permissive for any local

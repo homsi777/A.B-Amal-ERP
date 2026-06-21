@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, ApiRequestError } from './client';
 import type { CartelaCareSymbolId, CartelaCompositionLine } from '../cartela/careSymbols';
 
 export interface CartelaFiberType {
@@ -134,6 +134,35 @@ export async function lookupCartelaByScan(scan: string): Promise<CartelaOrderLoo
   const qs = encodeURIComponent(scan.trim());
   const res = await apiFetch<{ ok: boolean; data: CartelaOrderLookup }>(`/api/cartela/lookup?scan=${qs}`);
   return res.data;
+}
+
+export type QuickCartelaDraftPayload = {
+  serialNo: string;
+  title?: string;
+  artCode?: string;
+  designNo?: string;
+};
+
+/** إنشاء مسودة كارتيلا إذا لم تُوجَد — أو إرجاع الموجودة */
+export async function createQuickCartelaDraft(payload: QuickCartelaDraftPayload): Promise<CartelaLabelDto> {
+  const res = await apiFetch<{ ok: boolean; data: CartelaLabelDto }>('/api/cartela/quick-draft', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return res.data;
+}
+
+/** يضمن وجود كارتيلا لباركود غير مسجّل (مسودة قابلة للتعديل لاحقاً) */
+export async function ensureQuickCartelaDraft(payload: QuickCartelaDraftPayload): Promise<CartelaLabelDto | null> {
+  const scan = payload.serialNo.trim();
+  if (!scan) return null;
+  try {
+    await lookupCartelaByScan(scan);
+    return null;
+  } catch (e) {
+    if (!(e instanceof ApiRequestError) || e.statusCode !== 404) throw e;
+  }
+  return createQuickCartelaDraft(payload);
 }
 
 function parseCompositionLines(raw: unknown): CartelaCompositionLine[] {
