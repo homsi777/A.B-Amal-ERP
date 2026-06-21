@@ -17,6 +17,25 @@ type PrintMode = 'dialog' | 'silent' | 'pdf';
 type StickerInputMode = 'fields' | 'free';
 type StickerTextDirection = 'rtl' | 'ltr';
 
+const FONT_SCALE_MIN = 80;
+const FONT_SCALE_MAX = 160;
+const FONT_SCALE_DEFAULT = 115;
+
+/** Base font sizes (pt) before user scale is applied. */
+const FONT_BASE = {
+  title: 10,
+  label: 8,
+  sep: 8,
+  value: 10.5,
+  free: 10,
+  note: 8,
+  footer: 6,
+} as const;
+
+function scaledPt(base: number, fontScale: number): string {
+  return `${((base * fontScale) / 100).toFixed(2)}pt`;
+}
+
 const defaultFields: CustomStickerField[] = [
   { id: 'article', label: 'Article Code', value: 'VISKON KETEN' },
   { id: 'color', label: 'Colour', value: 'KASAR / 11' },
@@ -41,10 +60,12 @@ function buildCustomStickerHtml(input: {
   note: string;
   footer: string;
   textDirection: StickerTextDirection;
+  fontScale: number;
 }) {
   const compact = input.heightMm <= 65;
   const isRtl = input.textDirection === 'rtl';
   const textAlign = isRtl ? 'right' : 'left';
+  const fs = input.fontScale / 100;
   const brandBlock = input.useBrandLogo
     ? `<header class="brand">${thermalBrandLogoHtml({ compact, maxWidthMm: Math.min(input.widthMm - 8, 82) })}</header>`
     : `<header class="brand">
@@ -78,23 +99,23 @@ function buildCustomStickerHtml(input: {
       direction: ${input.textDirection}; text-align: ${textAlign};
     }
     ${input.useBrandLogo ? thermalBrandLogoBlockCss({ compact, maxWidthMm: Math.min(input.widthMm - 8, 82) }) : '.brand { text-align: center; border-bottom: 0.25mm solid #000; padding-bottom: 1.2mm; margin-bottom: 1.4mm; }'}
-    .brand-name { font-size: 17pt; font-weight: 900; letter-spacing: 2px; line-height: 1; }
-    .subtitle { font-size: 6.5pt; font-weight: 700; letter-spacing: 2px; margin-top: 0.7mm; }
-    .title { text-align: center; font-size: 10pt; font-weight: 900; border-bottom: 0.25mm solid #000; padding-bottom: 1.2mm; margin-bottom: 1.5mm; direction: ${input.textDirection}; }
-    .rows { flex: 1; display: flex; flex-direction: column; gap: 0.8mm; min-height: 0; }
+    .brand-name { font-size: ${scaledPt(17, input.fontScale)}; font-weight: 900; letter-spacing: 2px; line-height: 1; }
+    .subtitle { font-size: ${scaledPt(6.5, input.fontScale)}; font-weight: 700; letter-spacing: 2px; margin-top: 0.7mm; }
+    .title { text-align: center; font-size: ${scaledPt(FONT_BASE.title, input.fontScale)}; font-weight: 900; border-bottom: 0.25mm solid #000; padding-bottom: 1.2mm; margin-bottom: 1.5mm; direction: ${input.textDirection}; }
+    .rows { flex: 1; display: flex; flex-direction: column; gap: ${(1.2 * fs).toFixed(2)}mm; min-height: 0; justify-content: flex-start; }
     .row {
-      display: grid;
-      grid-template-columns: ${isRtl ? '1fr 2.5mm auto' : 'auto 2.5mm 1fr'};
-      gap: 0.8mm;
+      display: flex;
+      flex-direction: row;
       align-items: baseline;
+      gap: ${(1 * fs).toFixed(2)}mm;
       direction: ${input.textDirection};
     }
-    .label { font-size: 7pt; font-weight: 700; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28mm; text-align: ${textAlign}; }
-    .sep { font-size: 7pt; font-weight: 700; text-align: center; }
-    .value { font-size: 9pt; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: ${textAlign}; }
-    .free { flex: 1; min-height: 0; font-size: 9pt; font-weight: 700; line-height: 1.45; white-space: pre-wrap; overflow: hidden; direction: ${input.textDirection}; text-align: ${textAlign}; }
-    .note { min-height: 10mm; border-top: 0.25mm solid #000; margin-top: 1.5mm; padding-top: 1mm; font-size: 7.5pt; font-weight: 700; line-height: 1.35; overflow: hidden; white-space: pre-wrap; direction: ${input.textDirection}; text-align: ${textAlign}; }
-    .footer { border-top: 0.25mm solid #000; text-align: center; font-size: 5.8pt; font-weight: 800; padding-top: 0.8mm; margin-top: 1mm; letter-spacing: 0.4px; direction: ${input.textDirection}; }
+    .label { flex: 0 0 auto; font-size: ${scaledPt(FONT_BASE.label, input.fontScale)}; font-weight: 700; color: #1f2937; white-space: nowrap; text-align: ${textAlign}; }
+    .sep { flex: 0 0 auto; font-size: ${scaledPt(FONT_BASE.sep, input.fontScale)}; font-weight: 700; }
+    .value { flex: 1 1 auto; min-width: 0; font-size: ${scaledPt(FONT_BASE.value, input.fontScale)}; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: ${textAlign}; }
+    .free { flex: 1; min-height: 0; font-size: ${scaledPt(FONT_BASE.free, input.fontScale)}; font-weight: 700; line-height: 1.45; white-space: pre-wrap; overflow: hidden; direction: ${input.textDirection}; text-align: ${textAlign}; }
+    .note { min-height: 10mm; border-top: 0.25mm solid #000; margin-top: 1.5mm; padding-top: 1mm; font-size: ${scaledPt(FONT_BASE.note, input.fontScale)}; font-weight: 700; line-height: 1.35; overflow: hidden; white-space: pre-wrap; direction: ${input.textDirection}; text-align: ${textAlign}; }
+    .footer { border-top: 0.25mm solid #000; text-align: center; font-size: ${scaledPt(FONT_BASE.footer, input.fontScale)}; font-weight: 800; padding-top: 0.8mm; margin-top: 1mm; letter-spacing: 0.4px; direction: ${input.textDirection}; }
     @media screen {
       body { background: #e2e8f0; padding: 16px; }
       .sheet { background: #fff; box-shadow: 0 18px 45px rgba(15,23,42,.18); }
@@ -135,6 +156,7 @@ export const CustomStickerPrinting: React.FC = () => {
   const [footer, setFooter] = useState('THE CLAIMS WILL NOT BE ACCEPTABLE AFTER GOODS WERE CUT');
   const [inputMode, setInputMode] = useState<StickerInputMode>('fields');
   const [textDirection, setTextDirection] = useState<StickerTextDirection>('ltr');
+  const [fontScale, setFontScale] = useState(FONT_SCALE_DEFAULT);
   const [freeText, setFreeText] = useState('اكتب هنا أي نص حر يريده المحاسب.\nيمكن كتابة عدة أسطر بدون قيود حقول.');
   const [widthMm, setWidthMm] = useState(100);
   const [heightMm, setHeightMm] = useState(80);
@@ -144,8 +166,8 @@ export const CustomStickerPrinting: React.FC = () => {
   const [message, setMessage] = useState('');
 
   const html = useMemo(
-    () => buildCustomStickerHtml({ widthMm, heightMm, useBrandLogo, brandName, subtitle, title, inputMode, freeText, fields, note, footer, textDirection }),
-    [brandName, fields, footer, freeText, heightMm, inputMode, note, subtitle, textDirection, title, useBrandLogo, widthMm],
+    () => buildCustomStickerHtml({ widthMm, heightMm, useBrandLogo, brandName, subtitle, title, inputMode, freeText, fields, note, footer, textDirection, fontScale }),
+    [brandName, fields, footer, fontScale, freeText, heightMm, inputMode, note, subtitle, textDirection, title, useBrandLogo, widthMm],
   );
 
   const updateField = (id: string, patch: Partial<CustomStickerField>) => {
@@ -170,6 +192,7 @@ export const CustomStickerPrinting: React.FC = () => {
     setFooter('THE CLAIMS WILL NOT BE ACCEPTABLE AFTER GOODS WERE CUT');
     setInputMode('fields');
     setTextDirection('ltr');
+    setFontScale(FONT_SCALE_DEFAULT);
     setFreeText('اكتب هنا أي نص حر يريده المحاسب.\nيمكن كتابة عدة أسطر بدون قيود حقول.');
     setWidthMm(100);
     setHeightMm(80);
@@ -331,6 +354,32 @@ export const CustomStickerPrinting: React.FC = () => {
             </div>
           </div>
 
+          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <Type className="w-4 h-4 text-indigo-600" />
+                حجم الخط على الستيكر
+              </div>
+              <span className="rounded-full bg-white border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-indigo-700" dir="ltr">
+                {fontScale}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={FONT_SCALE_MIN}
+              max={FONT_SCALE_MAX}
+              step={5}
+              value={fontScale}
+              onChange={(e) => setFontScale(Number(e.target.value))}
+              className="w-full accent-indigo-600"
+            />
+            <div className="flex justify-between text-[11px] font-bold text-slate-500">
+              <span>أصغر ({FONT_SCALE_MIN}%)</span>
+              <span>افتراضي ({FONT_SCALE_DEFAULT}%)</span>
+              <span>أكبر ({FONT_SCALE_MAX}%)</span>
+            </div>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
               <button
@@ -437,6 +486,9 @@ export const CustomStickerPrinting: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">
                 {textDirection === 'rtl' ? 'RTL عربي' : 'LTR إنجليزي'}
+              </span>
+              <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600" dir="ltr">
+                {fontScale}%
               </span>
               <span className="font-mono text-xs text-slate-500" dir="ltr">{widthMm}mm × {heightMm}mm</span>
             </div>
