@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Download, Printer, X, Loader2 } from 'lucide-react';
 import type { VoucherRow } from '../lib/api/vouchersApi';
 import { useToast } from './NonBlockingToast';
-import { exportVoucherToPdf, renderVoucherA5Html } from '../lib/pdfExport';
+import {
+  exportVoucherToPdf,
+  renderVoucherA5Html,
+  voucherRowToPrintData,
+  type VoucherRenderOptions,
+} from '../lib/pdfExport';
+import { buildVoucherNarrativeParagraph } from '../lib/printing/voucherNarrative';
 
 interface VoucherPrintModalProps {
   isOpen: boolean;
@@ -22,8 +28,32 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
   const { showToast } = useToast();
   const [printing, setPrinting] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
+  const [bwPrint, setBwPrint] = React.useState(false);
 
-  if (!isOpen || !voucher) return null;
+  const printData = useMemo(() => (voucher ? voucherRowToPrintData(voucher) : null), [voucher]);
+
+  const narrativePreview = useMemo(() => {
+    if (!printData) return '';
+    return buildVoucherNarrativeParagraph({
+      voucherType: printData.voucherType,
+      partyName: printData.partyName,
+      amount: Number(printData.amount) || 0,
+      currencyCode: printData.currencyCode,
+      paymentMethod: printData.paymentMethod,
+      cashboxName: printData.cashboxName,
+      referenceDocumentNo: printData.referenceDocumentNo,
+      description: printData.description,
+    });
+  }, [printData]);
+
+  const renderOptions: VoucherRenderOptions = useMemo(
+    () => ({ colorMode: bwPrint ? 'bw' : 'color' }),
+    [bwPrint],
+  );
+
+  if (!isOpen || !voucher || !printData) return null;
+
+  const buildHtml = () => renderVoucherA5Html(printData, renderOptions);
 
   const handlePrint = async () => {
     if (onPrint) {
@@ -36,23 +66,9 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
       return;
     }
 
-    // Default print handler for Electron
     setPrinting(true);
     try {
-      const voucherHtml = renderVoucherA5Html({
-        voucherNo: voucher.voucher_no,
-        voucherType: voucher.voucher_type,
-        voucherDate: voucher.voucher_date,
-        partyName: voucher.party_name,
-        partyType: voucher.party_type ?? undefined,
-        amount: voucher.amount,
-        currencyCode: voucher.currency_code,
-        exchangeRateToUsd: voucher.exchange_rate_to_usd ?? undefined,
-        amountUsd: voucher.amount_usd ?? undefined,
-        cashboxName: voucher.cashbox_name ?? undefined,
-        description: voucher.description,
-      });
-
+      const voucherHtml = buildHtml();
       const typeLabel = voucher.voucher_type === 'RECEIPT' ? 'قبض' : 'صرف';
       if (window.fabricApp?.printHtml) {
         const settings = await window.fabricApp.getSettings();
@@ -60,7 +76,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           pageSize: 'A5',
           silent: Boolean(settings.silentA4PrintingEnabled),
           printerName: settings.defaultA4PrinterName ?? undefined,
-          printBackground: true,
+          printBackground: !bwPrint,
         });
         if (result.ok) {
           showToast({ type: 'success', message: 'تم إرسال السند إلى الطابعة بنجاح' });
@@ -74,14 +90,21 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           showToast({ type: 'error', message: 'الرجاء السماح بالنوافذ المنبثقة ثم أعد المحاولة' });
           return;
         }
-        printWindow.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>سند ${typeLabel}</title><style>@page { size: 148mm 210mm; margin: 0; } * { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: Arial, sans-serif; direction: rtl; }</style></head><body>${voucherHtml}</body></html>`);
+        printWindow.document.write(voucherHtml);
         printWindow.document.close();
-        printWindow.onload = () => { setTimeout(() => { printWindow.print(); }, 500); };
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        };
         showToast({ type: 'success', message: 'تم فتح نافذة الطباعة' });
         onClose();
       }
     } catch (error) {
-      showToast({ type: 'error', message: `خطأ في الطباعة: ${error instanceof Error ? error.message : 'خطأ غير معروف'}` });
+      showToast({
+        type: 'error',
+        message: `خطأ في الطباعة: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`,
+      });
     } finally {
       setPrinting(false);
     }
@@ -98,29 +121,11 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
       return;
     }
 
-    // Default PDF export handler for Electron
     setExporting(true);
     try {
       const normalizedDate = String(voucher.voucher_date ?? '').trim() || new Date().toISOString().slice(0, 10);
       const normalizedPartyName = String(voucher.party_name ?? '').trim() || 'بدون اسم';
-      const normalizedAmount = String(voucher.amount ?? '0');
-      const normalizedCurrency = String(voucher.currency_code ?? 'USD');
-      const normalizedType = voucher.voucher_type === 'RECEIPT' ? 'RECEIPT' : 'PAYMENT';
-      const voucherHtml = renderVoucherA5Html({
-        voucherNo: String(voucher.voucher_no ?? '—'),
-        voucherType: normalizedType,
-        voucherDate: normalizedDate,
-        partyName: normalizedPartyName,
-        partyType: voucher.party_type ?? undefined,
-        amount: normalizedAmount,
-        currencyCode: normalizedCurrency,
-        exchangeRateToUsd: voucher.exchange_rate_to_usd ?? undefined,
-        amountUsd: voucher.amount_usd ?? undefined,
-        cashboxName: voucher.cashbox_name ?? undefined,
-        description: voucher.description,
-      });
-
-      const typeLabel = normalizedType === 'RECEIPT' ? 'قبض' : 'صرف';
+      const typeLabel = voucher.voucher_type === 'RECEIPT' ? 'قبض' : 'صرف';
       const safeDate = normalizedDate
         .split('T')[0]
         .replace(/\//g, '-')
@@ -131,7 +136,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
       const fileName = `سند_${typeLabel}_${safeName}_${safeDate}`;
 
       if (window.fabricApp?.printToPdf) {
-        const result = await window.fabricApp.printToPdf(voucherHtml, {
+        const result = await window.fabricApp.printToPdf(buildHtml(), {
           pageSize: 'A5',
           defaultFileName: fileName,
         });
@@ -142,27 +147,15 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           showToast({ type: 'error', message: `خطأ في التصدير: ${result.error || 'تم إلغاء العملية'}` });
         }
       } else {
-        await exportVoucherToPdf(
-          {
-            voucherNo: String(voucher.voucher_no ?? '—'),
-            voucherType: normalizedType,
-            voucherDate: normalizedDate,
-            partyName: normalizedPartyName,
-            partyType: voucher.party_type ?? undefined,
-            amount: normalizedAmount,
-            currencyCode: normalizedCurrency,
-            exchangeRateToUsd: voucher.exchange_rate_to_usd ?? undefined,
-            amountUsd: voucher.amount_usd ?? undefined,
-            cashboxName: voucher.cashbox_name ?? undefined,
-            description: voucher.description,
-          },
-          fileName,
-        );
+        await exportVoucherToPdf(printData, fileName, renderOptions);
         showToast({ type: 'success', message: 'تم تصدير السند كـ PDF بنجاح' });
         onClose();
       }
     } catch (error) {
-      showToast({ type: 'error', message: `خطأ في التصدير: ${error instanceof Error ? error.message : 'خطأ غير معروف'}` });
+      showToast({
+        type: 'error',
+        message: `خطأ في التصدير: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`,
+      });
     } finally {
       setExporting(false);
     }
@@ -170,23 +163,28 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-6 text-right animate-in fade-in-0 zoom-in-95 duration-200">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-5 text-right animate-in fade-in-0 zoom-in-95 duration-200">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-slate-900">السند #{voucher.voucher_no}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition"
-          >
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-900">
-            ✓ تم حفظ السند بنجاح في الصندوق. اختر ما تريد فعله الآن:
-          </p>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+          <p className="text-sm text-emerald-900 font-bold mb-2">نص البيان على السند (A5):</p>
+          <p className="text-sm text-slate-800 leading-relaxed">{narrativePreview}</p>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={bwPrint}
+            onChange={(e) => setBwPrint(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          طباعة أبيض وأسود (توفير الحبر)
+        </label>
 
         <div className="space-y-3">
           <button
@@ -238,8 +236,6 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
         </div>
 
         <div className="text-xs text-slate-500 bg-slate-50 rounded p-3 text-right">
-          📝 <strong>المعلومات:</strong>
-          <br />
           النوع: {voucher.voucher_type === 'RECEIPT' ? 'قبض' : 'صرف'}
           <br />
           التاريخ: {voucher.voucher_date}
