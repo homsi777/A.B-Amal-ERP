@@ -256,7 +256,7 @@ function applyCartelaToLinePatch(cartela: {
   };
 }
 const money = (value: number, currency: string) =>
-  `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'SAR'}`;
+  `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'USD'}`;
 
 type OrderFormModalProps = {
   open: boolean;
@@ -286,7 +286,7 @@ export function OrderFormModal({
   const [partyId, setPartyId] = useState('');
   const [warehouse, setWarehouse] = useState('main');
   const [shippingMethod, setShippingMethod] = useState('');
-  const [currency, setCurrency] = useState('SAR');
+  const [currency, setCurrency] = useState('USD');
   const [notes, setNotes] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
   const [advancePayment, setAdvancePayment] = useState('');
@@ -333,7 +333,7 @@ export function OrderFormModal({
       setPartyId('');
       setWarehouse('main');
       setShippingMethod('');
-      setCurrency('SAR');
+      setCurrency('USD');
       setNotes('');
       setExpectedDate('');
       setAdvancePayment('');
@@ -850,8 +850,8 @@ export function OrderFormModal({
                 onChange={(e) => setCurrency(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
               >
-                <option value="SAR">ريال (SAR)</option>
                 <option value="USD">دولار (USD)</option>
+                <option value="SAR">ريال (SAR)</option>
                 <option value="TRY">ليرة (TRY)</option>
               </select>
             </div>
