@@ -767,12 +767,8 @@ ${lblBoxCss}
   object-fit: contain;
   display: block;
   margin: 0 auto;
-}
-@media print {
-  .brand-logo {
-    filter: grayscale(100%) brightness(0.34) contrast(200%) saturate(0%) !important;
-    -webkit-filter: grayscale(100%) brightness(0.34) contrast(200%) saturate(0%) !important;
-  }
+  filter: grayscale(100%) brightness(0.34) contrast(200%) saturate(0%) !important;
+  -webkit-filter: grayscale(100%) brightness(0.34) contrast(200%) saturate(0%) !important;
 }
 .brand-empty { height: ${brandLogoHmm}mm; }
 .brand-mark { font-size: ${compactLabel ? '4.8mm' : '5.8mm'}; font-weight: 900; letter-spacing: 0.65mm; line-height: 1.05; }

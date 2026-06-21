@@ -1,9 +1,6 @@
 import { BRAND } from '../../branding';
 
-/**
- * تحويل الشعار للطباعة الحرارية — يُطبَّق فقط داخل @media print
- * (على الشاشة نعرض الشعار الأصلي الملوّن لتجنّب مستطيل أسود مع CSS mask).
- */
+/** أسود واضح للطباعة الحرارية — يُعرض في المعاينة والطباعة (WYSIWYG). */
 export const THERMAL_LOGO_FILTER = 'grayscale(100%) brightness(0.34) contrast(200%) saturate(0%)';
 
 export type ThermalBrandLogoOptions = {
@@ -28,6 +25,8 @@ export function thermalLogoImgStyle(heightMm: number, maxWidthMm: number): strin
     'object-fit:contain',
     'display:block',
     'margin:0 auto',
+    `filter:${THERMAL_LOGO_FILTER}`,
+    `-webkit-filter:${THERMAL_LOGO_FILTER}`,
   ].join(';');
 }
 
@@ -39,6 +38,8 @@ export function thermalLogoImgReactStyle(heightMm: number, maxWidthMm: number): 
     objectFit: 'contain',
     display: 'block',
     margin: '0 auto',
+    filter: THERMAL_LOGO_FILTER,
+    WebkitFilter: THERMAL_LOGO_FILTER,
   };
 }
 
@@ -62,12 +63,8 @@ export function thermalBrandLogoClassCss(opts: ThermalBrandLogoOptions = {}): st
       object-fit: contain;
       display: block;
       margin: 0 auto;
-    }
-    @media print {
-      .brand-logo {
-        filter: ${THERMAL_LOGO_FILTER} !important;
-        -webkit-filter: ${THERMAL_LOGO_FILTER} !important;
-      }
+      filter: ${THERMAL_LOGO_FILTER} !important;
+      -webkit-filter: ${THERMAL_LOGO_FILTER} !important;
     }`;
 }
 
@@ -80,9 +77,4 @@ export function thermalBrandLogoBlockCss(opts: ThermalBrandLogoOptions = {}): st
       margin-bottom: 1.4mm;
     }
     ${thermalBrandLogoClassCss(opts)}`;
-}
-
-/** @deprecated use thermalLogoImgReactStyle */
-export function thermalLogoMaskReactStyle(heightMm: number, maxWidthMm: number): Record<string, string | number> {
-  return thermalLogoImgReactStyle(heightMm, maxWidthMm);
 }
