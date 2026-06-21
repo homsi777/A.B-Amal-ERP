@@ -17,7 +17,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
    Printer, Search, Package, CheckSquare, Square, RefreshCw,
    ArrowRight, ArrowUp, ArrowDown, FileSpreadsheet, Eye, Tags, ScanLine, CheckCircle2, XCircle, AlertTriangle, X,
-   VolumeX, FileDown, Settings,
+   VolumeX, FileDown, Settings, Languages,
 } from 'lucide-react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
@@ -458,6 +458,7 @@ export const StickerPrinting: React.FC = () => {
   const [template, setTemplate] = useState<LabelTemplateDto | null>(null);
   const [pageSize, setPageSize] = useState<'label' | 'A4' | 'A4_SHEET_6'>('label');
   const [showBrandLogo, setShowBrandLogo] = useState(true);
+  const [labelTextDirection, setLabelTextDirection] = useState<'rtl' | 'ltr'>('rtl');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState('');
 
@@ -790,6 +791,7 @@ useEffect(() => {
   const effectiveLabelConfig: LabelConfig = {
     ...((template?.content_config as LabelConfig | undefined) ?? {}),
     showBrandLogo,
+    textDirection: labelTextDirection,
   };
 
   // Auto-trigger silent print if ?silent=1 and settings loaded
@@ -1166,6 +1168,32 @@ useEffect(() => {
               >
                 {showBrandLogo ? 'إخفاء اللوغو' : 'إظهار اللوغو'}
               </button>
+
+              <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <Languages className="w-4 h-4 text-indigo-600 ms-1 hidden sm:block" />
+                <button
+                  type="button"
+                  onClick={() => setLabelTextDirection('rtl')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    labelTextDirection === 'rtl'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  يمين ← يسار
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLabelTextDirection('ltr')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    labelTextDirection === 'ltr'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  يسار → يمين
+                </button>
+              </div>
 
               {/* Silent print button â€” Electron only, requires default printer */}
               {canSilent && (

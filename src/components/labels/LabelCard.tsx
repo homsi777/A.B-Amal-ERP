@@ -76,6 +76,8 @@ function buildCode128Svg(value: string, height = 40): string {
 
 export interface LabelConfig {
   showBrandLogo?: boolean;
+  /** اتجاه نص الحقول — لا يغيّر مواقع QR/الباركود */
+  textDirection?: 'rtl' | 'ltr';
   showBarcode?: boolean;
   showQr?: boolean;
   showItemName?: boolean;
@@ -105,6 +107,7 @@ export const LABEL_SAFE_MARGIN_MM = 1;
 
 const DEFAULT_CONFIG: Required<LabelConfig> = {
   showBrandLogo: true,
+  textDirection: 'rtl',
   showBarcode: true, showQr: true,
   showItemName: true, showInternalCode: true, showSupplierCode: true,
   showColorName: true, showColorCode: true,
@@ -179,17 +182,41 @@ const valueTextStyle: React.CSSProperties = {
   letterSpacing: '0.2px',
 };
 
-const FieldRow: React.FC<{ label: string; value: string | null | undefined; emphasize?: boolean }> = ({
-  label, value, emphasize,
-}) => (
-  <div style={fieldRowStyle}>
-    <span style={labelTextStyle}>{label}</span>
-    <span style={{ ...labelTextStyle, textAlign: 'center' }}>:</span>
-    <span style={emphasize ? { ...valueTextStyle, fontSize: '8pt', fontWeight: 800 } : valueTextStyle}>
-      {value ?? ''}
-    </span>
-  </div>
-);
+const FieldRow: React.FC<{
+  label: string;
+  value: string | null | undefined;
+  emphasize?: boolean;
+  textDirection?: 'rtl' | 'ltr';
+  compact?: boolean;
+}> = ({ label, value, emphasize, textDirection = 'rtl', compact = false }) => {
+  const labelCol = compact ? '14mm' : '20mm';
+  if (textDirection === 'rtl') {
+    return (
+      <div style={{ display: 'flex', direction: 'rtl', alignItems: 'baseline', gap: '0.5mm', width: '100%' }}>
+        <span style={{ ...labelTextStyle, flex: '0 0 auto', textAlign: 'right', unicodeBidi: 'plaintext' }}>{label}</span>
+        <span style={{ ...labelTextStyle, flex: '0 0 auto', textAlign: 'center' }}>:</span>
+        <span style={{
+          ...(emphasize ? { ...valueTextStyle, fontSize: '8pt', fontWeight: 800 } : valueTextStyle),
+          flex: '0 1 auto',
+          minWidth: 0,
+          textAlign: 'right',
+          unicodeBidi: 'plaintext',
+        }}>
+          {value ?? ''}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...fieldRowStyle, gridTemplateColumns: `${labelCol} 2.5mm 1fr`, direction: 'ltr' }}>
+      <span style={labelTextStyle}>{label}</span>
+      <span style={{ ...labelTextStyle, textAlign: 'center' }}>:</span>
+      <span style={emphasize ? { ...valueTextStyle, fontSize: '8pt', fontWeight: 800 } : valueTextStyle}>
+        {value ?? ''}
+      </span>
+    </div>
+  );
+};
 
 // ─── LabelCard component (screen preview) ────────────────────────────────────
 
@@ -211,6 +238,7 @@ export const LabelCard: React.FC<LabelCardProps> = ({
   mode = 'preview',
 }) => {
   const cfg: Required<LabelConfig> = { ...DEFAULT_CONFIG, ...(configProp ?? {}) };
+  const textDir = cfg.textDirection;
   const printableBarcode = pickPrintableBarcode(roll);
   const barcodeSvg = printableBarcode ? buildCode128Svg(printableBarcode, 38) : '';
 
@@ -278,23 +306,19 @@ export const LabelCard: React.FC<LabelCardProps> = ({
         flexShrink: 0,
       }}>
         <div>
-          {cfg.showItemName && <FieldRow label="رمز الصنف" value={roll.itemName} />}
+          {cfg.showItemName && <FieldRow label="رمز الصنف" value={roll.itemName} textDirection={textDir} />}
           {cfg.showInternalCode && (
-            <FieldRow label="كود الخامة" value={(roll.internalCode || roll.supplierCode || '').trim() || ''} />
+            <FieldRow label="كود الخامة" value={(roll.internalCode || roll.supplierCode || '').trim() || ''} textDirection={textDir} />
           )}
           {(cfg.showColorName || cfg.showSupplierCode) && (
-            <FieldRow label="اسم اللون" value={color} />
+            <FieldRow label="اسم اللون" value={color} textDirection={textDir} />
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingLeft: '2mm', borderLeft: '0.2mm dashed #999' }}>
           {cfg.showColorCode && (
-            <div style={{ display: 'grid', gridTemplateColumns: '14mm 2.5mm 1fr', columnGap: '0.5mm', alignItems: 'baseline' }}>
-              <span style={labelTextStyle}>رمز اللون</span>
-              <span style={labelTextStyle}>:</span>
-              <span style={{ ...valueTextStyle, fontSize: '8.5pt' }}>{roll.colorCode ?? ''}</span>
-            </div>
+            <FieldRow label="رمز اللون" value={roll.colorCode ?? ''} textDirection={textDir} compact emphasize />
           )}
-          <div style={{ textAlign: 'center', marginTop: '0.35mm' }}>
+          <div style={{ textAlign: 'center', marginTop: '0.35mm', direction: textDir, unicodeBidi: 'plaintext' }}>
             <div style={{ fontSize: '6.5pt', color: '#1f2937', fontWeight: 500 }}>الجودة :</div>
             <div style={{ fontSize: '11pt', fontWeight: 800, lineHeight: 1 }}>{cfg.quality}</div>
           </div>
@@ -312,10 +336,10 @@ export const LabelCard: React.FC<LabelCardProps> = ({
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <div>
-            <FieldRow label="ملاحظة"       value="" />
-            <FieldRow label="رقم الدفعة"     value={lot} />
-            {cfg.showLength       && <FieldRow label="الأمتار"     value={meters} emphasize />}
-            {cfg.showActualWeight && <FieldRow label="الوزن الصافي" value={weight} emphasize />}
+            <FieldRow label="ملاحظة"       value="" textDirection={textDir} />
+            <FieldRow label="رقم الدفعة"     value={lot} textDirection={textDir} />
+            {cfg.showLength       && <FieldRow label="الأمتار"     value={meters} emphasize textDirection={textDir} />}
+            {cfg.showActualWeight && <FieldRow label="الوزن الصافي" value={weight} emphasize textDirection={textDir} />}
           </div>
         </div>
 
@@ -379,6 +403,8 @@ export const LabelCard: React.FC<LabelCardProps> = ({
           color: '#000',
           flexShrink: 0,
           lineHeight: 1.2,
+          direction: textDir,
+          unicodeBidi: 'plaintext',
         }}>
           {cfg.disclaimer}
         </div>
@@ -428,6 +454,8 @@ export function buildPrintDocument(
     rollLayout = 'auto',
   } = opts;
   const cfg: Required<LabelConfig> = { ...DEFAULT_CONFIG, ...config };
+  const textDir = cfg.textDirection;
+  const rowClass = textDir === 'rtl' ? 'row row-rtl' : 'row row-ltr';
 
   const safeMm = LABEL_SAFE_MARGIN_MM;
   const ultraCompactLabel = pageSize === 'label' && heightMm <= 62;
@@ -440,11 +468,11 @@ export function buildPrintDocument(
   const isWideRollLabel =
     pageSize === 'label' && widthMm > heightMm && rollLayout !== 'normal';
 
-  const fieldRow = (label: string, value: string | null | undefined, emphasize = false) => `
-    <div class="row">
+  const fieldRow = (label: string, value: string | null | undefined, emphasize = false, compact = false) => `
+    <div class="${rowClass}${compact ? ' right-row' : ''}">
       <span class="rk">${label}</span>
       <span class="rc">:</span>
-      <span class="${emphasize ? 'rv rv-em' : 'rv'}">${value ?? ''}</span>
+      <span class="${emphasize ? 'rv rv-em' : 'rv'}${compact ? ' rv-cd' : ''}">${value ?? ''}</span>
     </div>`;
 
   const renderLabel = (roll: RollLabelPreviewDto): string => {
@@ -480,13 +508,8 @@ export function buildPrintDocument(
       }
     </div>
     <div class="right-col">
-      ${cfg.showColorCode ? `
-        <div class="row right-row">
-          <span class="rk">رمز اللون</span>
-          <span class="rc">:</span>
-          <span class="rv rv-cd">${roll.colorCode ?? ''}</span>
-        </div>` : ''}
-      <div class="quality">
+      ${cfg.showColorCode ? fieldRow('رمز اللون', roll.colorCode ?? '', false, true) : ''}
+      <div class="quality text-${textDir}">
         <div class="ql">الجودة :</div>
         <div class="qv">${cfg.quality}</div>
       </div>
@@ -511,7 +534,7 @@ export function buildPrintDocument(
     <div class="bc-text">${printableBarcode}</div>
   </div>` : ''}
 
-  ${cfg.disclaimer ? `<div class="disc">${cfg.disclaimer}</div>` : ''}`;
+  ${cfg.disclaimer ? `<div class="disc text-${textDir}">${cfg.disclaimer}</div>` : ''}`;
 
     if (pageSize === 'A4' || pageSize === 'A4_SHEET_6') {
       return `<div class="lbl">${inner}</div>`;
@@ -782,8 +805,26 @@ ${lblBoxCss}
   justify-content: space-between;
 }
 
-.row { display: grid; grid-template-columns: 19mm 2.5mm 1fr; column-gap: 0.45mm; align-items: baseline; line-height: 1.25; }
-.right-row { grid-template-columns: 13mm 2.5mm 1fr; }
+.row { align-items: baseline; line-height: 1.25; }
+.row-ltr {
+  display: grid;
+  grid-template-columns: 19mm 2.5mm 1fr;
+  column-gap: 0.45mm;
+  direction: ltr;
+}
+.row-ltr.right-row { grid-template-columns: 13mm 2.5mm 1fr; }
+.row-rtl {
+  display: flex;
+  direction: rtl;
+  gap: 0.45mm;
+  width: 100%;
+  justify-content: flex-start;
+}
+.row-rtl .rk { flex: 0 0 auto; text-align: right; unicode-bidi: plaintext; }
+.row-rtl .rc { flex: 0 0 auto; text-align: center; }
+.row-rtl .rv { flex: 0 1 auto; min-width: 0; text-align: right; unicode-bidi: plaintext; }
+.text-rtl { direction: rtl; unicode-bidi: plaintext; }
+.text-ltr { direction: ltr; unicode-bidi: plaintext; }
 .rk { font-size: 2.5mm; font-weight: 500; color: #1f2937; }
 .rc { font-size: 2.5mm; font-weight: 500; color: #1f2937; text-align: center; }
 .rv { font-size: 3mm; font-weight: 700; color: #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
