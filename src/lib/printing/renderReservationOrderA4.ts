@@ -47,14 +47,26 @@ function formatGregorianDate(dateIso: string): string {
   try {
     const d = new Date(dateIso.includes('T') ? dateIso : `${dateIso}T12:00:00`);
     if (Number.isNaN(d.getTime())) return dateIso;
-    return d.toLocaleDateString('ar-SA-u-ca-gregory', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
   } catch {
     return dateIso;
   }
+}
+
+function renderHeaderDatesBox(orderDate: string, supplyDate: string | null): string {
+  const supplyBlock = supplyDate
+    ? `<div class="date-divider">${iconSvg('truck')}<span>موعد التوريد</span></div>
+       <div class="date-main">${esc(supplyDate)}</div>`
+    : '';
+  return `
+    <div class="date-box">
+      <div class="date-box-label">${iconSvg('calendar')}<span>تاريخ الطلب</span></div>
+      <div class="date-main">${esc(orderDate)}</div>
+      ${supplyBlock}
+    </div>`;
 }
 
 function displayField(value?: string | null): string {
@@ -244,6 +256,7 @@ function reservationStyles(): string {
       margin: 0;
       text-align: right;
     }
+    .doc-title-only { margin: 0; }
     .date-box {
       background: ${NAVY};
       color: #fff;
@@ -485,6 +498,15 @@ function reservationStyles(): string {
       color: #64748b;
       font-weight: 600;
     }
+    .sign-advance {
+      color: ${NAVY};
+      font-weight: 800;
+      font-size: 10px;
+    }
+    .sign-name-line {
+      margin-top: 8px;
+      min-height: 18px;
+    }
     .footer-bar {
       background: ${NAVY};
       color: #fff;
@@ -498,9 +520,11 @@ function reservationStyles(): string {
     .footer-table td { vertical-align: middle; font-size: 8.5px; line-height: 1.55; }
     .footer-brand { font-weight: 900; letter-spacing: 0.4px; }
     .footer-tagline { opacity: 0.85; margin-top: 2px; font-size: 8px; }
-    .footer-center { text-align: center; opacity: 0.95; }
-    .footer-location { text-align: right; opacity: 0.95; font-weight: 700; }
-    .footer-left { text-align: left; }
+    .footer-center { text-align: center; opacity: 0.95; color: #fff !important; }
+    .footer-center .ltr,
+    .footer-center div { color: #fff !important; }
+    .footer-location { text-align: right; opacity: 0.95; font-weight: 700; color: #fff; }
+    .footer-left { text-align: left; color: #fff; }
     .ltr { direction: ltr; unicode-bidi: embed; }
   `;
 }
@@ -531,10 +555,9 @@ export function renderReservationOrderBodyHtml(
     .map((phone) => `<div class="ltr">${esc(phone)}</div>`)
     .join('');
 
-  const remainingBlock =
-    advancePayment > 0
-      ? `<div class="sign-hint" style="color:${NAVY};font-weight:800;">المتبقي للتحصيل: ${formatCurrency(totalDue, order.currency)}</div>`
-      : '';
+  const advanceBlock = `<div class="sign-hint sign-advance">عربون: ${
+    advancePayment > 0 ? formatCurrency(advancePayment, order.currency) : '—'
+  }</div>`;
 
   return `
     <div class="page" dir="rtl">
@@ -542,24 +565,13 @@ export function renderReservationOrderBodyHtml(
       <table class="header-table">
         <tr>
           <td style="width:24%;vertical-align:middle;">
-            <h1 class="doc-title">أوردر</h1>
-            ${
-              expectedDateGreg
-                ? `<div class="date-box-left" style="margin-top:8px;">
-              <div class="date-box-label">${iconSvg('truck')}<span>موعد التوريد</span></div>
-              <div class="date-main">${esc(expectedDateGreg)}</div>
-            </div>`
-                : ''
-            }
+            <h1 class="doc-title doc-title-only">أوردر</h1>
           </td>
           <td style="width:52%;text-align:center;vertical-align:middle;">
             <img src="${BRAND.logoInline}" alt="${esc(BRAND.name)}" class="logo-center" />
           </td>
           <td style="width:24%;vertical-align:middle;">
-            <div class="date-box">
-              <div class="date-box-label">${iconSvg('calendar')}<span>تاريخ الطلب</span></div>
-              <div class="date-main">${esc(orderDateGreg)}</div>
-            </div>
+            ${renderHeaderDatesBox(orderDateGreg, expectedDateGreg)}
           </td>
         </tr>
       </table>
@@ -651,9 +663,10 @@ export function renderReservationOrderBodyHtml(
               <div class="sign-hint">يرجى مراجعة البيانات والتوقيع عند الموافقة</div>
             </td>
             <td>
-              <div><strong>الاسم:</strong> _________________</div>
+              <div><strong>الاسم:</strong></div>
+              <div class="sign-line sign-name-line"></div>
               <div class="sign-line"><strong>التوقيع:</strong></div>
-              ${remainingBlock}
+              ${advanceBlock}
             </td>
           </tr>
         </tbody>
