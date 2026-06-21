@@ -27,6 +27,28 @@ sudo nginx -t && sudo systemctl reload nginx
 
 
 
+cd ~/ab-amal-erp
+
+git fetch origin
+git checkout clotex
+git reset --hard origin/clotex
+
+npm install
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
+
+# تحقق: يجب أن ترى /assets/ وليس ./assets/
+grep -E 'src=|href=' dist/index.html
+FRONTEND_ROOT=$(sudo grep -E '^\s*root ' /etc/nginx/sites-available/clotexerp-org | head -1 | awk '{print $2}' | tr -d ';')
+sudo rm -rf "${FRONTEND_ROOT}"/*
+sudo cp -r dist/* "${FRONTEND_ROOT}"/
+pm2 restart clotexerp-server --update-env
+sudo nginx -t && sudo systemctl reload nginx
+
+
+
+
+
+
 ---
 
 ## 1) تجهيز أول مرة

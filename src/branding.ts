@@ -9,6 +9,7 @@
 
 import brandMarkUrl from '../logo.png?url';
 import brandMarkInline from '../logo.png?inline';
+import brandMarkThermalInline from '../logo-thermal.png?inline';
 
 export const BRAND = {
   /** Primary product/brand mark (the big word in the logo). */
@@ -28,6 +29,8 @@ export const BRAND = {
   logoPng: brandMarkUrl,
   /** Inline data URI for print/PDF HTML contexts where file URLs may fail. */
   logoInline: brandMarkInline,
+  /** Black-on-transparent logo for thermal label/sticker printing (no CSS filter). */
+  logoThermalInline: brandMarkThermalInline,
   logoSvg: brandMarkUrl,
   /** Copyright holder shown in footers. */
   copyrightHolder: 'CLOTEX',

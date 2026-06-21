@@ -44,7 +44,7 @@
     "electron:dev:vps": "tsx scripts/dev-stack-with-vps.ts",
     "db:ping": "tsx server/src/scripts/tunnelDbPing.ts",
     "db:tunnel:check": "tsx server/src/scripts/tunnelDbPing.ts",
-    "extract:logo": "python scripts/extract-clotex-logo.py",
+    "extract:logo": "python scripts/extract-clotex-logo.py && python scripts/generate-thermal-logo.py",
     "electron:build": "npm run extract:logo && npm run server:bundle && npm run build:electron && npm run electron:compile && npm run electron:clean:release && electron-builder --win",
     "electron:pack": "npm run extract:logo && npm run server:bundle && npm run build:electron && npm run electron:compile && npm run electron:clean:release && electron-builder --win --dir",
     "electron:pack:log": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-pack-with-log.ps1",

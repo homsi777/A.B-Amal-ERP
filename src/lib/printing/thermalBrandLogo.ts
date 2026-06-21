@@ -1,8 +1,5 @@
 import { BRAND } from '../../branding';
 
-/** أسود واضح للطباعة الحرارية — يُعرض في المعاينة والطباعة (WYSIWYG). */
-export const THERMAL_LOGO_FILTER = 'grayscale(100%) brightness(0.34) contrast(200%) saturate(0%)';
-
 export type ThermalBrandLogoOptions = {
   heightMm?: number;
   maxWidthMm?: number;
@@ -17,6 +14,7 @@ export function thermalBrandLogoMaxWidthMm(compact = false): number {
   return compact ? 72 : 82;
 }
 
+/** Plain img sizing — logo-thermal.png is already black on transparent. */
 export function thermalLogoImgStyle(heightMm: number, maxWidthMm: number): string {
   return [
     `height:${heightMm}mm`,
@@ -25,8 +23,6 @@ export function thermalLogoImgStyle(heightMm: number, maxWidthMm: number): strin
     'object-fit:contain',
     'display:block',
     'margin:0 auto',
-    `filter:${THERMAL_LOGO_FILTER}`,
-    `-webkit-filter:${THERMAL_LOGO_FILTER}`,
   ].join(';');
 }
 
@@ -38,8 +34,6 @@ export function thermalLogoImgReactStyle(heightMm: number, maxWidthMm: number): 
     objectFit: 'contain',
     display: 'block',
     margin: '0 auto',
-    filter: THERMAL_LOGO_FILTER,
-    WebkitFilter: THERMAL_LOGO_FILTER,
   };
 }
 
@@ -48,7 +42,7 @@ export function thermalBrandLogoHtml(opts: ThermalBrandLogoOptions = {}): string
   const heightMm = opts.heightMm ?? thermalBrandLogoHeightMm(compact);
   const maxWidthMm = opts.maxWidthMm ?? thermalBrandLogoMaxWidthMm(compact);
   const alt = BRAND.name.replace(/"/g, '&quot;');
-  return `<img class="brand-logo" src="${BRAND.logoInline}" alt="${alt}" style="${thermalLogoImgStyle(heightMm, maxWidthMm)}" />`;
+  return `<img class="brand-logo" src="${BRAND.logoThermalInline}" alt="${alt}" style="${thermalLogoImgStyle(heightMm, maxWidthMm)}" />`;
 }
 
 export function thermalBrandLogoClassCss(opts: ThermalBrandLogoOptions = {}): string {
@@ -63,8 +57,6 @@ export function thermalBrandLogoClassCss(opts: ThermalBrandLogoOptions = {}): st
       object-fit: contain;
       display: block;
       margin: 0 auto;
-      filter: ${THERMAL_LOGO_FILTER} !important;
-      -webkit-filter: ${THERMAL_LOGO_FILTER} !important;
     }`;
 }
 

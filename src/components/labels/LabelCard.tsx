@@ -259,7 +259,7 @@ export const LabelCard: React.FC<LabelCardProps> = ({
       <div style={{ textAlign: 'center', paddingBottom: '1.2mm', borderBottom: '0.25mm solid #000', flexShrink: 0 }}>
         {cfg.showBrandLogo ? (
           <img
-            src={BRAND.logoInline}
+            src={BRAND.logoThermalInline}
             alt={BRAND.name}
             style={thermalLogoImgReactStyle(13, 72)}
           />
@@ -767,8 +767,6 @@ ${lblBoxCss}
   object-fit: contain;
   display: block;
   margin: 0 auto;
-  filter: grayscale(100%) brightness(0.34) contrast(200%) saturate(0%) !important;
-  -webkit-filter: grayscale(100%) brightness(0.34) contrast(200%) saturate(0%) !important;
 }
 .brand-empty { height: ${brandLogoHmm}mm; }
 .brand-mark { font-size: ${compactLabel ? '4.8mm' : '5.8mm'}; font-weight: 900; letter-spacing: 0.65mm; line-height: 1.05; }
