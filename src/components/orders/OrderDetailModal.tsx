@@ -6,8 +6,8 @@ import {
   exportCustomerOrderExcel,
   exportCustomerOrderPdf,
   printCustomerOrderDocument,
-  renderCustomerOrderDocumentHtml,
 } from '../../lib/orderExport';
+import { renderReservationOrderA4Document } from '../../lib/printing/renderReservationOrderA4';
 import { ORDER_STATUS_LABELS } from '../../pages/orders/orderStatusUi';
 import { useToast } from '../NonBlockingToast';
 
@@ -33,17 +33,9 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
   const party = customer ?? FALLBACK_CUSTOMER;
   const statusLabel = order ? ORDER_STATUS_LABELS[order.status] : '';
 
-  const documentHtml = useMemo(
-    () => (order ? renderCustomerOrderDocumentHtml(order, party, statusLabel) : ''),
-    [order, party, statusLabel],
-  );
-
   const previewSrcDoc = useMemo(
-    () =>
-      documentHtml
-        ? `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8" /><style>html,body{margin:0;padding:12px;background:#f1f5f9;} body{display:flex;justify-content:center;}</style></head><body>${documentHtml}</body></html>`
-        : '',
-    [documentHtml],
+    () => (order ? renderReservationOrderA4Document(order, party, statusLabel) : ''),
+    [order, party, statusLabel],
   );
 
   const handlePdf = useCallback(async () => {
