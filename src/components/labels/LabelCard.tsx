@@ -33,7 +33,7 @@ import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { RollLabelPreviewDto } from '../../lib/api/labelsApi';
 import { BRAND } from '../../branding';
-import { THERMAL_LOGO_FILTER } from '../../lib/printing/thermalBrandLogo';
+import { thermalBrandLogoHtml, thermalLogoMaskReactStyle } from '../../lib/printing/thermalBrandLogo';
 
 // ─── Code128 SVG generator ───────────────────────────────────────────────────
 
@@ -258,19 +258,10 @@ export const LabelCard: React.FC<LabelCardProps> = ({
       {/* ── Brand header (≈70% bigger logo + extra bottom padding) ── */}
       <div style={{ textAlign: 'center', paddingBottom: '1.2mm', borderBottom: '0.25mm solid #000', flexShrink: 0 }}>
         {cfg.showBrandLogo ? (
-          <img
-            src={BRAND.logoInline}
-            alt={BRAND.name}
-            style={{
-              height: '13mm',
-              width: 'auto',
-              maxWidth: '72mm',
-              objectFit: 'contain',
-              display: 'block',
-              margin: '0 auto',
-              filter: THERMAL_LOGO_FILTER,
-              WebkitFilter: THERMAL_LOGO_FILTER,
-            }}
+          <div
+            role="img"
+            aria-label={BRAND.name}
+            style={thermalLogoMaskReactStyle(13, 72)}
           />
         ) : (
           <div style={{ height: '13mm' }} aria-hidden="true" />
@@ -469,7 +460,7 @@ export function buildPrintDocument(
   <div class="brand">
     ${
       cfg.showBrandLogo
-        ? `<img class="brand-logo" src="${BRAND.logoInline}" alt="${BRAND.name}" />`
+        ? thermalBrandLogoHtml({ heightMm: brandLogoHmm, maxWidthMm: brandLogoMaxWmm })
         : `<div class="brand-empty" aria-hidden="true"></div>`
     }
   </div>
@@ -771,13 +762,19 @@ ${lblBoxCss}
 }
 .brand-logo {
   height: ${brandLogoHmm}mm;
-  width: auto;
+  width: ${brandLogoMaxWmm}mm;
   max-width: ${brandLogoMaxWmm}mm;
-  object-fit: contain;
   display: block;
   margin: 0 auto;
-  filter: ${THERMAL_LOGO_FILTER} !important;
-  -webkit-filter: ${THERMAL_LOGO_FILTER} !important;
+  background-color: #000;
+  mask-image: url("${BRAND.logoInline.replace(/"/g, '\\"')}");
+  -webkit-mask-image: url("${BRAND.logoInline.replace(/"/g, '\\"')}");
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-position: center;
 }
 .brand-empty { height: ${brandLogoHmm}mm; }
 .brand-mark { font-size: ${compactLabel ? '4.8mm' : '5.8mm'}; font-weight: 900; letter-spacing: 0.65mm; line-height: 1.05; }

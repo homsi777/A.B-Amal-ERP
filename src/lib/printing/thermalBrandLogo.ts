@@ -1,22 +1,8 @@
 import { BRAND } from '../../branding';
 
-/**
- * يحوّل شعار CLOTEX (X ذهبي) إلى أسود للطباعة الحرارية.
- * brightness منخفض + contrast عالٍ حتى يظهر X بوضوح على الطابعات الحرارية.
- */
-export const THERMAL_LOGO_FILTER = 'grayscale(100%) brightness(0.34) contrast(200%) saturate(0%)';
-
-export function thermalLogoInlineStyle(heightMm: number, maxWidthMm: number): string {
-  return [
-    `height:${heightMm}mm`,
-    `max-width:${maxWidthMm}mm`,
-    'width:auto',
-    'object-fit:contain',
-    'display:block',
-    'margin:0 auto',
-    `filter:${THERMAL_LOGO_FILTER}`,
-    `-webkit-filter:${THERMAL_LOGO_FILTER}`,
-  ].join(';');
+/** CSS url() for logo mask — avoids filter dark box on transparent PNG areas. */
+function logoMaskUrl(): string {
+  return `url("${String(BRAND.logoInline).replace(/"/g, '\\"')}")`;
 }
 
 export type ThermalBrandLogoOptions = {
@@ -35,18 +21,80 @@ export function thermalBrandLogoMaxWidthMm(compact = false): number {
   return compact ? 72 : 82;
 }
 
+/** Inline styles for mask-based thermal logo (screen preview + print HTML). */
+export function thermalLogoMaskStyle(heightMm: number, maxWidthMm: number): string {
+  const mask = logoMaskUrl();
+  return [
+    `height:${heightMm}mm`,
+    `width:${maxWidthMm}mm`,
+    `max-width:${maxWidthMm}mm`,
+    'display:block',
+    'margin:0 auto',
+    'background-color:#000',
+    `mask-image:${mask}`,
+    `-webkit-mask-image:${mask}`,
+    'mask-size:contain',
+    '-webkit-mask-size:contain',
+    'mask-repeat:no-repeat',
+    '-webkit-mask-repeat:no-repeat',
+    'mask-position:center',
+    '-webkit-mask-position:center',
+  ].join(';');
+}
+
+export function thermalLogoMaskReactStyle(heightMm: number, maxWidthMm: number): Record<string, string | number> {
+  const mask = logoMaskUrl();
+  return {
+    height: `${heightMm}mm`,
+    width: `${maxWidthMm}mm`,
+    maxWidth: `${maxWidthMm}mm`,
+    display: 'block',
+    margin: '0 auto',
+    backgroundColor: '#000',
+    maskImage: mask,
+    WebkitMaskImage: mask,
+    maskSize: 'contain',
+    WebkitMaskSize: 'contain',
+    maskRepeat: 'no-repeat',
+    WebkitMaskRepeat: 'no-repeat',
+    maskPosition: 'center',
+    WebkitMaskPosition: 'center',
+  };
+}
+
 export function thermalBrandLogoHtml(opts: ThermalBrandLogoOptions = {}): string {
   const compact = opts.compact ?? false;
   const heightMm = opts.heightMm ?? thermalBrandLogoHeightMm(compact);
   const maxWidthMm = opts.maxWidthMm ?? thermalBrandLogoMaxWidthMm(compact);
   const alt = BRAND.name.replace(/"/g, '&quot;');
-  return `<img class="brand-logo" src="${BRAND.logoInline}" alt="${alt}" style="${thermalLogoInlineStyle(heightMm, maxWidthMm)}" />`;
+  return `<div class="brand-logo" role="img" aria-label="${alt}" style="${thermalLogoMaskStyle(heightMm, maxWidthMm)}"></div>`;
 }
 
-export function thermalBrandLogoBlockCss(opts: ThermalBrandLogoOptions = {}): string {
+export function thermalBrandLogoClassCss(opts: ThermalBrandLogoOptions = {}): string {
   const compact = opts.compact ?? false;
   const heightMm = opts.heightMm ?? thermalBrandLogoHeightMm(compact);
   const maxWidthMm = opts.maxWidthMm ?? thermalBrandLogoMaxWidthMm(compact);
+  const mask = logoMaskUrl();
+  return `
+    .brand-logo {
+      height: ${heightMm}mm;
+      width: ${maxWidthMm}mm;
+      max-width: ${maxWidthMm}mm;
+      display: block;
+      margin: 0 auto;
+      background-color: #000;
+      mask-image: ${mask};
+      -webkit-mask-image: ${mask};
+      mask-size: contain;
+      -webkit-mask-size: contain;
+      mask-repeat: no-repeat;
+      -webkit-mask-repeat: no-repeat;
+      mask-position: center;
+      -webkit-mask-position: center;
+    }`;
+}
+
+export function thermalBrandLogoBlockCss(opts: ThermalBrandLogoOptions = {}): string {
   return `
     .brand {
       text-align: center;
@@ -54,14 +102,5 @@ export function thermalBrandLogoBlockCss(opts: ThermalBrandLogoOptions = {}): st
       padding-bottom: 1.2mm;
       margin-bottom: 1.4mm;
     }
-    .brand-logo {
-      height: ${heightMm}mm;
-      width: auto;
-      max-width: ${maxWidthMm}mm;
-      object-fit: contain;
-      display: block;
-      margin: 0 auto;
-      filter: ${THERMAL_LOGO_FILTER} !important;
-      -webkit-filter: ${THERMAL_LOGO_FILTER} !important;
-    }`;
+    ${thermalBrandLogoClassCss(opts)}`;
 }
