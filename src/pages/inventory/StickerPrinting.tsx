@@ -943,6 +943,52 @@ useEffect(() => {
                  </button>
               </form>
 
+              {/* Actions bar — أعلى الجدول (ثابت عند التمرير مع آلاف الأتواب) */}
+              <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-white/95 backdrop-blur-sm border-y border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <span className="font-bold text-indigo-700">{selectedIds.size}</span> ثوب مختار
+                    <span className="text-slate-400">|</span>
+                    <span>{visibleRolls.length.toLocaleString('ar')} ثوب متاح في القائمة</span>
+                  </div>
+                  <div className="flex gap-3 items-center flex-wrap">
+                    <button
+                      type="button"
+                      onClick={toggleAll}
+                      disabled={!visibleRolls.length}
+                      className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      اختيار كل الظاهر
+                    </button>
+                    <button
+                      type="button"
+                      onClick={selectVisibleUnprinted}
+                      disabled={!visibleRolls.some((roll) => (roll.label_print_count ?? 0) === 0)}
+                      className="px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-sm font-bold hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      اختيار غير المطبوع
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600">حجم الورقة:</span>
+                      <select value={pageSize} onChange={e => setPageSize(e.target.value as 'label' | 'A4' | 'A4_SHEET_6')} className={`${inputCls} py-1.5`}>
+                        <option value="label">لصاقة منفصلة (حرارية)</option>
+                        <option value="A4">A4 (متعدد - متدفق)</option>
+                        <option value="A4_SHEET_6">A4 — 6 ستيكرات/ورقة (2×3)</option>
+                      </select>
+                    </div>
+                    {previewError && <p className="text-rose-600 text-sm font-bold">{previewError}</p>}
+                    <button
+                      onClick={() => handlePreview()}
+                      disabled={selectedIds.size === 0 || previewing}
+                      className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 text-sm"
+                    >
+                      {previewing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                      معاينة اللصاقات
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-sm">
                   <thead>
@@ -986,50 +1032,6 @@ useEffect(() => {
                     ))}
                   </tbody>
                 </table>
-              </div>
-
-              {/* Actions bar */}
-              <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-slate-200">
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <span className="font-bold text-indigo-700">{selectedIds.size}</span> ثوب مختار
-                  <span className="text-slate-400">|</span>
-                  <span>{visibleRolls.length.toLocaleString('ar')} ثوب متاح في القائمة</span>
-                </div>
-                <div className="flex gap-3 items-center flex-wrap">
-                  <button
-                    type="button"
-                    onClick={toggleAll}
-                    disabled={!visibleRolls.length}
-                    className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    اختيار كل الظاهر
-                  </button>
-                  <button
-                    type="button"
-                    onClick={selectVisibleUnprinted}
-                    disabled={!visibleRolls.some((roll) => (roll.label_print_count ?? 0) === 0)}
-                    className="px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-sm font-bold hover:bg-amber-100 disabled:opacity-50"
-                  >
-                    اختيار غير المطبوع
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-600">حجم الورقة:</span>
-                    <select value={pageSize} onChange={e => setPageSize(e.target.value as 'label' | 'A4' | 'A4_SHEET_6')} className={`${inputCls} py-1.5`}>
-                      <option value="label">لصاقة منفصلة (حرارية)</option>
-                      <option value="A4">A4 (متعدد - متدفق)</option>
-                      <option value="A4_SHEET_6">A4 — 6 ستيكرات/ورقة (2×3)</option>
-                    </select>
-                  </div>
-                  {previewError && <p className="text-rose-600 text-sm font-bold">{previewError}</p>}
-                  <button
-                    onClick={() => handlePreview()}
-                    disabled={selectedIds.size === 0 || previewing}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 text-sm"
-                  >
-                    {previewing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                    معاينة اللصاقات
-                  </button>
-                </div>
               </div>
             </div>
           )}
