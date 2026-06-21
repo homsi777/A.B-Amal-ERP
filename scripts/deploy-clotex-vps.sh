@@ -77,6 +77,13 @@ if [[ ! -f dist/index.html ]]; then
   exit 1
 fi
 
+if grep -qE 'src="\./assets/' dist/index.html 2>/dev/null; then
+  echo "❌ تحذير: dist/index.html يستخدم مسارات نسبية ./assets — تحديث الصفحة على مسار فرعي سيفشل."
+  echo "   تأكد أن npm run build يضبط VITE_APP_BASE=/ (انظر package.json)."
+  exit 1
+fi
+echo "✓ مسارات الأصول: جذر مطلق (/assets/) — مناسب لتحديث SPA"
+
 FRONTEND_ROOT="$(sudo grep -E '^\s*root ' "/etc/nginx/sites-available/$CLOTEX_NGINX_SITE" 2>/dev/null | head -1 | awk '{print $2}' | tr -d ';' || true)"
 if [[ -z "$FRONTEND_ROOT" ]]; then
   FRONTEND_ROOT="${CLOTEX_FRONTEND_ROOT:-/var/www/clotexerp/frontend}"
@@ -100,6 +107,14 @@ pm2 restart "$CLOTEX_PM2_NAME" --update-env
 
 sudo nginx -t
 sudo systemctl reload nginx
+
+NGINX_SITE_FILE="/etc/nginx/sites-available/$CLOTEX_NGINX_SITE"
+if [[ -f "$NGINX_SITE_FILE" ]] && ! grep -q 'try_files.*index\.html' "$NGINX_SITE_FILE" 2>/dev/null; then
+  echo ""
+  echo "⚠️  nginx: لم يُعثر على try_files ... /index.html في $NGINX_SITE_FILE"
+  echo "   بدونه، تحديث الصفحة على /inventory/... قد يعطي 404 أو شاشة بيضاء."
+  echo "   أضِف من scripts/nginx-clotexerp-spa.snippet داخل location / للواجهة."
+fi
 
 echo ""
 echo "✓ تم نشر CLOTEX"

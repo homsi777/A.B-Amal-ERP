@@ -1,0 +1,7 @@
+# CLOTEX SPA — ضروري لتحديث الصفحة (F5) على مسارات مثل /inventory/custom-label
+# أضِف داخل server { } في /etc/nginx/sites-available/clotexerp-org
+# (داخل location / التي تخدم الواجهة الثابتة، وليس location /api/)
+
+location / {
+    try_files $uri $uri/ /index.html;
+}

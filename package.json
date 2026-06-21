@@ -14,7 +14,8 @@
     "dev:free-port": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-port-4010.ps1",
     "dev:free-tunnel-port": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/free-dev-tunnel-port.ps1",
     "dev:free-ports": "npm run dev:free-port && npm run dev:free-tunnel-port",
-    "build": "vite build",
+    "build": "cross-env VITE_APP_BASE=/ vite build",
+    "build:electron": "cross-env VITE_APP_BASE=./ vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
@@ -44,8 +45,8 @@
     "db:ping": "tsx server/src/scripts/tunnelDbPing.ts",
     "db:tunnel:check": "tsx server/src/scripts/tunnelDbPing.ts",
     "extract:logo": "python scripts/extract-clotex-logo.py",
-    "electron:build": "npm run extract:logo && npm run server:bundle && npm run build && npm run electron:compile && npm run electron:clean:release && electron-builder --win",
-    "electron:pack": "npm run extract:logo && npm run server:bundle && npm run build && npm run electron:compile && npm run electron:clean:release && electron-builder --win --dir",
+    "electron:build": "npm run extract:logo && npm run server:bundle && npm run build:electron && npm run electron:compile && npm run electron:clean:release && electron-builder --win",
+    "electron:pack": "npm run extract:logo && npm run server:bundle && npm run build:electron && npm run electron:compile && npm run electron:clean:release && electron-builder --win --dir",
     "electron:pack:log": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-pack-with-log.ps1",
     "electron:build:log": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-build-with-log.ps1",
     "electron:clean:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/electron-clean-release.ps1",
@@ -53,7 +54,7 @@
     "electron:rebuild": "npm run electron:clean:artifacts && npm run electron:build",
     "electron:repack": "npm run electron:clean:artifacts && npm run electron:pack",
     "electron:run:release": "node scripts/run-packaged.cjs",
-    "electron:preview": "npm run server:bundle && npm run build && npm run electron:compile && cross-env NODE_ENV=production electron ."
+    "electron:preview": "npm run server:bundle && npm run build:electron && npm run electron:compile && cross-env NODE_ENV=production electron ."
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

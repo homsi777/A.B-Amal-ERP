@@ -163,6 +163,8 @@ const sendTelegramDocument = async (botToken: string, chatId: string, pdf: Uint8
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  /** Electron (file://) needs `./`; web/nginx needs `/` so refresh on deep routes loads `/assets/...`. */
+  const appBase = env.VITE_APP_BASE || './';
   return {
     plugins: [
       {
@@ -231,9 +233,8 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
-    // Use relative asset paths so the Vite build can be loaded from
-    // Electron's file:// protocol as well as a web server root.
-    base: './',
+    // Relative (`./`) for Electron file://; absolute (`/`) for clotexerp.org SPA refresh.
+    base: appBase,
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
