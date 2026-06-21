@@ -76,13 +76,15 @@ function buildCustomStickerHtml(input: {
   const rows = input.fields
     .filter((field) => field.label.trim() || field.value.trim())
     .map((field) => `
-      <div class="row">
+      <div class="row row-${input.textDirection}">
         <span class="label">${esc(field.label)}</span>
         <span class="sep">:</span>
         <span class="value">${esc(field.value)}</span>
       </div>
     `)
     .join('');
+
+  const modeClass = isRtl ? 'mode-rtl' : 'mode-ltr';
 
   return `<!doctype html>
 <html lang="${isRtl ? 'ar' : 'en'}" dir="${input.textDirection}">
@@ -91,40 +93,56 @@ function buildCustomStickerHtml(input: {
   <style>
     @page { size: ${input.widthMm}mm ${input.heightMm}mm; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; font-family: Arial, Tahoma, 'Segoe UI', sans-serif; color: #050505; }
-    .sheet { width: ${input.widthMm}mm; height: ${input.heightMm}mm; padding: 2mm; page-break-after: always; }
+    html, body { margin: 0; direction: ${input.textDirection}; }
+    body { background: #fff; font-family: Tahoma, Arial, 'Segoe UI', 'Noto Sans Arabic', sans-serif; color: #050505; text-align: ${textAlign}; }
+    .sheet { width: ${input.widthMm}mm; height: ${input.heightMm}mm; padding: 2mm; page-break-after: always; direction: ${input.textDirection}; }
     .label-box {
       width: 100%; height: 100%; border: 0.45mm solid #000; padding: 2mm;
       display: flex; flex-direction: column; overflow: hidden;
       direction: ${input.textDirection}; text-align: ${textAlign};
     }
+    .label-box.${modeClass} { align-items: stretch; }
+    .label-box.mode-rtl .rows { align-items: flex-end; }
+    .label-box.mode-ltr .rows { align-items: flex-start; }
     ${input.useBrandLogo ? thermalBrandLogoBlockCss({ compact, maxWidthMm: Math.min(input.widthMm - 8, 82) }) : '.brand { text-align: center; border-bottom: 0.25mm solid #000; padding-bottom: 1.2mm; margin-bottom: 1.4mm; }'}
     .brand-name { font-size: ${scaledPt(17, input.fontScale)}; font-weight: 900; letter-spacing: 2px; line-height: 1; }
     .subtitle { font-size: ${scaledPt(6.5, input.fontScale)}; font-weight: 700; letter-spacing: 2px; margin-top: 0.7mm; }
-    .title { text-align: center; font-size: ${scaledPt(FONT_BASE.title, input.fontScale)}; font-weight: 900; border-bottom: 0.25mm solid #000; padding-bottom: 1.2mm; margin-bottom: 1.5mm; direction: ${input.textDirection}; }
-    .rows { flex: 1; display: flex; flex-direction: column; gap: ${(1.2 * fs).toFixed(2)}mm; min-height: 0; justify-content: flex-start; }
-    .row {
-      display: flex;
+    .title { text-align: center; font-size: ${scaledPt(FONT_BASE.title, input.fontScale)}; font-weight: 900; border-bottom: 0.25mm solid #000; padding-bottom: 1.2mm; margin-bottom: 1.5mm; direction: ${input.textDirection}; unicode-bidi: plaintext; }
+    .rows { flex: 1; display: flex; flex-direction: column; gap: ${(1.2 * fs).toFixed(2)}mm; min-height: 0; justify-content: flex-start; width: 100%; }
+    .row { display: flex; align-items: baseline; gap: ${(1 * fs).toFixed(2)}mm; width: 100%; }
+    /* RTL: اسم الحقل يمين، ثم :، ثم القيمة — قراءة من اليمين لليسار */
+    .row-rtl {
       flex-direction: row;
-      align-items: baseline;
-      gap: ${(1 * fs).toFixed(2)}mm;
-      direction: ${input.textDirection};
+      direction: rtl;
+      justify-content: flex-start;
+      width: fit-content;
+      max-width: 100%;
+      margin-inline-end: auto;
     }
-    .label { flex: 0 0 auto; font-size: ${scaledPt(FONT_BASE.label, input.fontScale)}; font-weight: 700; color: #1f2937; white-space: nowrap; text-align: ${textAlign}; }
+    .row-ltr {
+      flex-direction: row;
+      direction: ltr;
+      justify-content: flex-start;
+    }
+    .label { flex: 0 0 auto; font-size: ${scaledPt(FONT_BASE.label, input.fontScale)}; font-weight: 700; color: #1f2937; white-space: nowrap; unicode-bidi: plaintext; }
     .sep { flex: 0 0 auto; font-size: ${scaledPt(FONT_BASE.sep, input.fontScale)}; font-weight: 700; }
-    .value { flex: 1 1 auto; min-width: 0; font-size: ${scaledPt(FONT_BASE.value, input.fontScale)}; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: ${textAlign}; }
-    .free { flex: 1; min-height: 0; font-size: ${scaledPt(FONT_BASE.free, input.fontScale)}; font-weight: 700; line-height: 1.45; white-space: pre-wrap; overflow: hidden; direction: ${input.textDirection}; text-align: ${textAlign}; }
-    .note { min-height: 10mm; border-top: 0.25mm solid #000; margin-top: 1.5mm; padding-top: 1mm; font-size: ${scaledPt(FONT_BASE.note, input.fontScale)}; font-weight: 700; line-height: 1.35; overflow: hidden; white-space: pre-wrap; direction: ${input.textDirection}; text-align: ${textAlign}; }
-    .footer { border-top: 0.25mm solid #000; text-align: center; font-size: ${scaledPt(FONT_BASE.footer, input.fontScale)}; font-weight: 800; padding-top: 0.8mm; margin-top: 1mm; letter-spacing: 0.4px; direction: ${input.textDirection}; }
+    .row-rtl .label { text-align: right; }
+    .row-rtl .value { flex: 0 1 auto; min-width: 0; text-align: right; unicode-bidi: plaintext; }
+    .row-ltr .label { text-align: left; }
+    .row-ltr .value { flex: 1 1 auto; min-width: 0; text-align: left; unicode-bidi: plaintext; }
+    .value { font-size: ${scaledPt(FONT_BASE.value, input.fontScale)}; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .free { flex: 1; min-height: 0; font-size: ${scaledPt(FONT_BASE.free, input.fontScale)}; font-weight: 700; line-height: 1.45; white-space: pre-wrap; overflow: hidden; direction: ${input.textDirection}; text-align: ${textAlign}; unicode-bidi: plaintext; }
+    .note { min-height: 10mm; border-top: 0.25mm solid #000; margin-top: 1.5mm; padding-top: 1mm; font-size: ${scaledPt(FONT_BASE.note, input.fontScale)}; font-weight: 700; line-height: 1.35; overflow: hidden; white-space: pre-wrap; direction: ${input.textDirection}; text-align: ${textAlign}; unicode-bidi: plaintext; }
+    .footer { border-top: 0.25mm solid #000; text-align: center; font-size: ${scaledPt(FONT_BASE.footer, input.fontScale)}; font-weight: 800; padding-top: 0.8mm; margin-top: 1mm; letter-spacing: 0.4px; direction: ${input.textDirection}; unicode-bidi: plaintext; }
     @media screen {
       body { background: #e2e8f0; padding: 16px; }
       .sheet { background: #fff; box-shadow: 0 18px 45px rgba(15,23,42,.18); }
     }
   </style>
 </head>
-<body>
+<body dir="${input.textDirection}">
   <main class="sheet">
-    <section class="label-box">
+    <section class="label-box ${modeClass}">
       ${brandBlock}
       <div class="title">${esc(input.title)}</div>
       ${
@@ -155,7 +173,7 @@ export const CustomStickerPrinting: React.FC = () => {
   const [note, setNote] = useState('Special customer label - owner custom data');
   const [footer, setFooter] = useState('THE CLAIMS WILL NOT BE ACCEPTABLE AFTER GOODS WERE CUT');
   const [inputMode, setInputMode] = useState<StickerInputMode>('fields');
-  const [textDirection, setTextDirection] = useState<StickerTextDirection>('ltr');
+  const [textDirection, setTextDirection] = useState<StickerTextDirection>('rtl');
   const [fontScale, setFontScale] = useState(FONT_SCALE_DEFAULT);
   const [freeText, setFreeText] = useState('اكتب هنا أي نص حر يريده المحاسب.\nيمكن كتابة عدة أسطر بدون قيود حقول.');
   const [widthMm, setWidthMm] = useState(100);
@@ -191,7 +209,7 @@ export const CustomStickerPrinting: React.FC = () => {
     setNote('Special customer label - owner custom data');
     setFooter('THE CLAIMS WILL NOT BE ACCEPTABLE AFTER GOODS WERE CUT');
     setInputMode('fields');
-    setTextDirection('ltr');
+    setTextDirection('rtl');
     setFontScale(FONT_SCALE_DEFAULT);
     setFreeText('اكتب هنا أي نص حر يريده المحاسب.\nيمكن كتابة عدة أسطر بدون قيود حقول.');
     setWidthMm(100);
