@@ -42,25 +42,13 @@ function formatCurrency(amount: number, currency: string): string {
   return `${amount.toFixed(2)} ${code}`;
 }
 
-function formatLocaleDate(dateIso: string): string {
+function formatGregorianDate(dateIso: string): string {
   try {
     const d = new Date(dateIso.includes('T') ? dateIso : `${dateIso}T12:00:00`);
-    return Number.isNaN(d.getTime()) ? dateIso : d.toLocaleDateString('ar-SA');
+    if (Number.isNaN(d.getTime())) return dateIso;
+    return d.toLocaleDateString('ar-SA', { calendar: 'gregory' });
   } catch {
     return dateIso;
-  }
-}
-
-function formatDualDates(dateIso: string): { hijri: string; gregorian: string } {
-  try {
-    const d = new Date(dateIso.includes('T') ? dateIso : `${dateIso}T12:00:00`);
-    if (Number.isNaN(d.getTime())) return { hijri: dateIso, gregorian: '' };
-    return {
-      hijri: d.toLocaleDateString('ar-SA', { calendar: 'islamic' }),
-      gregorian: d.toLocaleDateString('ar-SA', { calendar: 'gregory' }),
-    };
-  } catch {
-    return { hijri: dateIso, gregorian: '' };
   }
 }
 
@@ -172,82 +160,83 @@ function reservationStyles(): string {
     }
     .header-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
     .header-table td { vertical-align: middle; padding: 0; }
-    .logo { height: 56px; width: auto; max-width: 210px; object-fit: contain; display: block; }
+    .logo { height: 46px; width: auto; max-width: 180px; object-fit: contain; display: block; }
     .title-wrap { text-align: center; padding: 0 8px; }
     .doc-title {
-      font-size: 30px;
+      font-size: 26px;
       font-weight: 900;
       color: ${NAVY};
       line-height: 1.1;
       margin: 0;
     }
-    .doc-subtitle {
-      font-size: 11px;
-      color: #64748b;
-      font-weight: 700;
-      margin-top: 5px;
-    }
     .date-box {
       background: ${NAVY};
       color: #fff;
-      border-radius: 10px;
-      padding: 12px 14px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .date-box-left {
+      background: ${NAVY};
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 10px;
       text-align: center;
     }
     .date-box-label {
-      font-size: 10px;
+      font-size: 8.5px;
       font-weight: 700;
       opacity: 0.92;
       text-align: center;
     }
-    .date-box-label .ico { vertical-align: -2px; margin-inline-end: 4px; }
-    .date-hijri { font-size: 12px; font-weight: 900; margin-top: 6px; line-height: 1.4; }
-    .date-greg { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+    .date-box-label .ico { vertical-align: -2px; margin-inline-end: 3px; width: 11px; height: 11px; }
+    .date-main { font-size: 10.5px; font-weight: 900; margin-top: 4px; line-height: 1.35; }
     .date-divider {
-      margin-top: 8px;
-      padding-top: 8px;
+      margin-top: 6px;
+      padding-top: 6px;
       border-top: 1px solid rgba(255,255,255,0.2);
-      font-size: 10px;
+      font-size: 8.5px;
       font-weight: 700;
       opacity: 0.92;
     }
     .gold-bar {
-      height: 4px;
+      height: 3px;
       background: ${GOLD};
       border-radius: 2px;
-      margin: 14px 0 16px;
+      margin: 8px 0 8px;
     }
-    .cards-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+    .cards-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
     .cards-table > tbody > tr > td { width: 50%; vertical-align: top; padding: 0; }
-    .cards-table > tbody > tr > td + td { padding-inline-start: 10px; }
+    .cards-table > tbody > tr > td + td { padding-inline-start: 8px; }
     .card {
       border: 1px solid ${BORDER};
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: hidden;
       background: #fff;
     }
     .card-head {
       background: ${NAVY};
       color: #fff;
-      padding: 10px 14px;
+      padding: 5px 10px;
       font-weight: 800;
-      font-size: 12px;
+      font-size: 9px;
     }
-    .card-head .ico { fill: ${GOLD}; vertical-align: -2px; margin-inline-end: 6px; }
+    .card-head .ico { fill: ${GOLD}; vertical-align: -2px; margin-inline-end: 4px; width: 10px; height: 10px; }
     .meta-table { width: 100%; border-collapse: collapse; }
     .meta-label {
-      width: 44%;
-      padding: 10px 12px;
-      font-size: 10px;
+      width: 42%;
+      padding: 4px 8px;
+      font-size: 8px;
       font-weight: 800;
       color: #475569;
       background: #f8fafc;
       border-bottom: 1px solid ${BORDER};
       white-space: nowrap;
     }
+    .meta-label .ico { width: 10px; height: 10px; margin-inline-end: 3px; }
     .meta-value {
-      padding: 10px 12px;
-      font-size: 11px;
+      padding: 4px 8px;
+      font-size: 8.5px;
       font-weight: 700;
       color: #0f172a;
       border-bottom: 1px solid ${BORDER};
@@ -256,52 +245,52 @@ function reservationStyles(): string {
     .meta-table tr:last-child .meta-value { border-bottom: none; }
     .status-pill {
       display: inline-block;
-      padding: 4px 12px;
+      padding: 2px 8px;
       border-radius: 999px;
       background: #dcfce7;
       color: #15803d;
       font-weight: 800;
-      font-size: 10px;
+      font-size: 8px;
       white-space: nowrap;
     }
     .section-head {
       background: ${NAVY};
       color: #fff;
-      padding: 10px 14px;
+      padding: 11px 14px;
       font-weight: 800;
-      font-size: 12px;
+      font-size: 13px;
       border: 1px solid ${NAVY};
       border-bottom: none;
       border-radius: 8px 8px 0 0;
     }
-    .section-head .ico { fill: ${GOLD}; vertical-align: -2px; margin-inline-end: 8px; }
+    .section-head .ico { fill: ${GOLD}; vertical-align: -2px; margin-inline-end: 8px; width: 14px; height: 14px; }
     .items-table {
       width: 100%;
       border-collapse: collapse;
       border: 1px solid ${NAVY};
-      font-size: 10px;
-      margin-bottom: 14px;
+      font-size: 11px;
+      margin-bottom: 12px;
     }
     .items-table th {
       background: ${NAVY};
       color: #fff;
-      padding: 10px 6px;
+      padding: 11px 7px;
       font-weight: 800;
-      font-size: 10px;
+      font-size: 11px;
       border: 1px solid ${NAVY};
       text-align: center;
     }
     .items-table td {
-      padding: 9px 6px;
+      padding: 10px 7px;
       border: 1px solid ${BORDER};
       text-align: center;
       vertical-align: middle;
-      font-size: 10px;
+      font-size: 11px;
     }
     .items-table tr:nth-child(even) td { background: #f8fafc; }
     .line-img {
-      width: 46px;
-      height: 46px;
+      width: 52px;
+      height: 52px;
       object-fit: cover;
       border-radius: 4px;
       border: 1px solid ${BORDER};
@@ -440,11 +429,10 @@ export function renderReservationOrderBodyHtml(
   const totalLength = orderTotalLength(order);
   const advancePayment = Number(order.advancePayment || 0);
   const totalDue = Math.max(0, totalPrice - advancePayment);
-  const orderDates = formatDualDates(order.date);
-  const expectedDates = order.expectedDate ? formatDualDates(order.expectedDate) : null;
+  const orderDateGreg = formatGregorianDate(order.date);
+  const expectedDateGreg = order.expectedDate ? formatGregorianDate(order.expectedDate) : null;
   const orderNo = displayCustomerOrderNumber(order.orderNumber);
   const shipAddr = customer.address?.trim() || '—';
-  const expectedLabel = order.expectedDate ? formatLocaleDate(order.expectedDate) : '—';
   const advanceLabel = advancePayment > 0 ? formatCurrency(advancePayment, order.currency) : '—';
 
   const itemRows = order.items
@@ -477,25 +465,26 @@ export function renderReservationOrderBodyHtml(
     <div class="page" dir="rtl">
       <table class="header-table">
         <tr>
-          <td style="width:30%;">
+          <td style="width:28%;">
             <img src="${BRAND.logoInline}" alt="${esc(BRAND.name)}" class="logo" />
+            ${
+              expectedDateGreg
+                ? `<div class="date-box-left" style="margin-top:6px;">
+              <div class="date-box-label">${iconSvg('truck')}<span>موعد التوريد</span></div>
+              <div class="date-main">${esc(expectedDateGreg)}</div>
+            </div>`
+                : ''
+            }
           </td>
-          <td style="width:40%;">
+          <td style="width:44%;">
             <div class="title-wrap">
               <h1 class="doc-title">طلبية حجز</h1>
-              <div class="doc-subtitle">${esc(BRAND.descriptionAr)}</div>
             </div>
           </td>
-          <td style="width:30%;">
+          <td style="width:28%;">
             <div class="date-box">
               <div class="date-box-label">${iconSvg('calendar')}<span>تاريخ الطلب</span></div>
-              <div class="date-hijri">${esc(orderDates.hijri)}</div>
-              ${orderDates.gregorian ? `<div class="date-greg">${esc(orderDates.gregorian)}</div>` : ''}
-              ${
-                expectedDates
-                  ? `<div class="date-divider">${iconSvg('truck')}<span>موعد التوريد</span></div><div class="date-hijri" style="margin-top:4px;font-size:11px;">${esc(expectedDates.hijri)}</div>`
-                  : ''
-              }
+              <div class="date-main">${esc(orderDateGreg)}</div>
             </div>
           </td>
         </tr>
@@ -520,7 +509,6 @@ export function renderReservationOrderBodyHtml(
               <div class="card-head">${iconSvg('tag')}<span>بيانات الطلب</span></div>
               <table class="meta-table">
                 ${metaRow(iconSvg('tag'), 'رقم الطلبية', `<span class="mono" style="font-weight:900;">${esc(orderNo)}</span>`)}
-                ${metaRow(iconSvg('truck'), 'موعد التوريد', esc(expectedLabel))}
                 ${metaRow(iconSvg('lock'), 'حالة الطلبية', `<span class="status-pill">${esc(statusLabelAr)}</span>`)}
                 ${metaRow(iconSvg('wallet'), 'العملة', esc(order.currency))}
                 ${metaRow(iconSvg('wallet'), 'عربون', esc(advanceLabel))}
