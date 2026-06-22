@@ -15,6 +15,8 @@ function rollStatus(roll: FabricRollDto | Record<string, unknown>): RollStatus |
   return typeof s === 'string' ? s : '';
 }
 
+const BLOCKED_SALE_STATUSES = new Set(['SOLD', 'INACTIVE', 'DAMAGED', 'TRANSFERRED']);
+
 /**
  * Roll is sellable from warehouse stock: AVAILABLE and positive length.
  * (RESERVED / SOLD / INACTIVE / DAMAGED / TRANSFERRED are excluded via status check.)
@@ -22,6 +24,20 @@ function rollStatus(roll: FabricRollDto | Record<string, unknown>): RollStatus |
 export function isRollAvailableForSale(roll: FabricRollDto | Record<string, unknown>): boolean {
   if (rollStatus(roll) !== 'AVAILABLE') return false;
   return getRollLengthMeters(roll) > LEN_EPS;
+}
+
+/**
+ * Roll may be added to a sales invoice line (including zero-length AVAILABLE rolls
+ * that get length completed from the invoice).
+ */
+export function isRollApplicableToSalesInvoice(roll: FabricRollDto | Record<string, unknown>): boolean {
+  const status = rollStatus(roll);
+  if (BLOCKED_SALE_STATUSES.has(status)) return false;
+  return status === 'AVAILABLE' || status === 'RESERVED';
+}
+
+export function rollNeedsLengthCompletionFromInvoice(roll: FabricRollDto | Record<string, unknown>): boolean {
+  return isRollApplicableToSalesInvoice(roll) && getRollLengthMeters(roll) <= LEN_EPS;
 }
 
 /** Roll is linked to a draft sales invoice (shown in inventory with draft badge). */

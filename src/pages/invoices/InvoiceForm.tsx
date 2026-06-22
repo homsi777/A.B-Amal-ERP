@@ -14,7 +14,7 @@ import {
   completeMissingRollFields,
   type FabricRollDto,
 } from '../../lib/api/fabricRollsApi';
-import { getRollLengthMeters, isFabricRollStockRow, isRollAvailableForSale } from '../../lib/inventory/rollAvailability';
+import { getRollLengthMeters, isFabricRollStockRow, isRollApplicableToSalesInvoice, isRollAvailableForSale, rollNeedsLengthCompletionFromInvoice } from '../../lib/inventory/rollAvailability';
 import { listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { listCashboxes } from '../../lib/api/cashboxesApi';
@@ -678,7 +678,7 @@ export const InvoiceForm = () => {
         if (cancelled) return;
         setApiCustomers(cust.data);
         setApiSuppliers(sup.data);
-        setApiRolls(stock.data.filter((r) => isRollAvailableForSale(r)));
+        setApiRolls(stock.data.filter((r) => (isSales ? isRollApplicableToSalesInvoice(r) : isRollAvailableForSale(r))));
         setExchangeRates(rates.data);
         setCashboxOptions(
           (boxes.data ?? []).map((b) => ({ id: b.id, name: b.name, code: b.code })),
@@ -777,7 +777,7 @@ export const InvoiceForm = () => {
 
      const rollRowsForSuggest = isSales
        ? (inventorySource as Record<string, unknown>[]).filter(
-           (s) => !isFabricRollStockRow(s) || isRollAvailableForSale(s),
+           (s) => !isFabricRollStockRow(s) || isRollApplicableToSalesInvoice(s),
          )
        : (inventorySource as Record<string, unknown>[]);
 
@@ -1060,7 +1060,7 @@ export const InvoiceForm = () => {
         return candidates.includes(query);
       }) ?? null;
     if (!found) return null;
-    if (isSales && isFabricRollStockRow(found as Record<string, unknown>) && !isRollAvailableForSale(found as FabricRollDto)) {
+    if (isSales && isFabricRollStockRow(found as Record<string, unknown>) && !isRollApplicableToSalesInvoice(found as FabricRollDto)) {
       return null;
     }
     return found;
@@ -1109,29 +1109,48 @@ export const InvoiceForm = () => {
           return null;
         };
 
-        const saleFilter = isSales ? ({ onlyAvailable: true } as const) : ({} as Record<string, never>);
+        const fetchExactIdentity = async (withSaleFilter: boolean): Promise<FabricRollDto | null> => {
+          const filter = isSales && withSaleFilter ? ({ onlyAvailable: true } as const) : ({} as Record<string, never>);
+          const byBarcode = await listFabricRolls({ barcode: query, pageSize: 10, ...filter });
+          let found = exactMatchOf(byBarcode.data);
+          if (!found) {
+            const bySearch = await listFabricRolls({ search: query, pageSize: 10, ...filter });
+            found = exactMatchOf(bySearch.data);
+          }
+          return found;
+        };
 
-        const byBarcode = await listFabricRolls({ barcode: query, pageSize: 10, ...saleFilter });
-        let match = exactMatchOf(byBarcode.data);
-        if (!match) {
-          const bySearch = await listFabricRolls({ search: query, pageSize: 10, ...saleFilter });
-          match = exactMatchOf(bySearch.data);
+        let match = await fetchExactIdentity(true);
+        if (!match && isSales) {
+          match = await fetchExactIdentity(false);
         }
 
         if (isSales && !match) {
           const probe = await listFabricRolls({ search: query, pageSize: 25 });
           const dead = exactMatchOf(probe.data);
-          if (dead && !isRollAvailableForSale(dead)) {
-            showToast({
-              type: 'warning',
-              message: 'هذا الرول غير متاح للبيع (مباع أو لا يحتوي على طول متاح).',
-            });
+          if (dead) {
+            const status = String((dead as Record<string, unknown>).status ?? '');
+            if (status === 'SOLD') {
+              showToast({ type: 'warning', message: 'هذا الرول مباع بالكامل وغير متاح للبيع.' });
+            } else if (!isRollApplicableToSalesInvoice(dead)) {
+              showToast({
+                type: 'warning',
+                message: `هذا الرول غير متاح للبيع${status ? ` (الحالة: ${status})` : ''}.`,
+              });
+            }
+            barcodeLookupCacheRef.current.set(cacheKey, null);
             return null;
           }
         }
 
-        if (match && isSales && !isRollAvailableForSale(match)) {
-          showToast({ type: 'warning', message: 'هذا الرول غير متاح للبيع.' });
+        if (match && isSales && !isRollApplicableToSalesInvoice(match)) {
+          const status = String((match as Record<string, unknown>).status ?? '');
+          showToast({
+            type: 'warning',
+            message: status === 'SOLD'
+              ? 'هذا الرول مباع بالكامل وغير متاح للبيع.'
+              : `هذا الرول غير متاح للبيع${status ? ` (الحالة: ${status})` : ''}.`,
+          });
           return null;
         }
 
@@ -1151,19 +1170,30 @@ export const InvoiceForm = () => {
     return requestPromise;
   };
 
+  const notifySalesBarcodeLookupMiss = (raw: string) => {
+    showToast({
+      type: 'warning',
+      message: `الباركود «${raw}» غير موجود في المخزون أو الرول غير متاح للبيع.`,
+    });
+  };
+
   const applyStockToLine = (lineId: number, stock: FabricRollDto | StagedRollItemPayload | any) => {
     if (rejectDuplicateStockScan(lineId, stock)) return false;
     const row = stock as Record<string, unknown>;
-    if (isSales && isFabricRollStockRow(row) && !isRollAvailableForSale(row)) {
-      if (getRollLengthMeters(row) <= 1e-6) {
+    const needsLengthCompletion = isSales && isFabricRollStockRow(row) && rollNeedsLengthCompletionFromInvoice(row);
+    if (isSales && isFabricRollStockRow(row) && !isRollApplicableToSalesInvoice(row)) {
+      const status = String(row.status ?? '');
+      if (status === 'SOLD' || getRollLengthMeters(row) <= 1e-6) {
         showToast({
           type: 'warning',
-          message: 'هذا الرول مباع بالكامل أو لا يحتوي على طول متاح',
+          message: status === 'SOLD'
+            ? 'هذا الرول مباع بالكامل وغير متاح للبيع'
+            : 'هذا الرول غير متاح للبيع',
         });
       } else {
         showToast({
           type: 'warning',
-          message: 'هذا الرول غير متاح للبيع',
+          message: `هذا الرول غير متاح للبيع${status ? ` (الحالة: ${status})` : ''}`,
         });
       }
       return false;
@@ -1216,6 +1246,14 @@ export const InvoiceForm = () => {
         return sanitizeInvoiceFormItemBarcode(updated);
       });
     });
+    if (needsLengthCompletion) {
+      queueMicrotask(() => {
+        showToast({
+          type: 'info',
+          message: 'هذا الرول بدون طول مسجّل في المخزون — أدخل الطول في السطر وسيُحدَّث المخزون تلقائياً.',
+        });
+      });
+    }
     return true;
   };
 
@@ -1389,6 +1427,7 @@ export const InvoiceForm = () => {
         (rollQr.rollId ? await lookupStockFromAnywhere(rollQr.rollId) : null) ||
         (rollQr.barcode ? await lookupStockFromAnywhere(rollQr.barcode) : null);
       if (isSales && !stock) {
+        notifySalesBarcodeLookupMiss(raw);
         return false;
       }
       const incoming = sanitizeInvoiceFormItemBarcode({
@@ -1470,6 +1509,7 @@ export const InvoiceForm = () => {
         return false;
       }
       if (isSales && !stock) {
+        notifySalesBarcodeLookupMiss(raw);
         return false;
       }
       setItems((prev) =>
@@ -1503,6 +1543,7 @@ export const InvoiceForm = () => {
         (rollQr.rollId ? await lookupStockFromAnywhere(rollQr.rollId) : null) ||
         (rollQr.barcode ? await lookupStockFromAnywhere(rollQr.barcode) : null);
       if (isSales && !stock) {
+        notifySalesBarcodeLookupMiss(raw);
         return;
       }
       const incoming = sanitizeInvoiceFormItemBarcode({
@@ -1590,6 +1631,7 @@ export const InvoiceForm = () => {
         return;
       }
       if (isSales && !stock) {
+        notifySalesBarcodeLookupMiss(raw);
         return;
       }
       setItems((prev) =>
@@ -1876,8 +1918,8 @@ export const InvoiceForm = () => {
     }
   }
 
-  const advanceInvoiceLineFocus = (e: KeyboardEvent<HTMLInputElement>, item: InvoiceFormItem) => {
-    const target = e.currentTarget;
+  const advanceInvoiceLineFocusFrom = (target: HTMLInputElement | null, item: InvoiceFormItem) => {
+    if (!target || !target.isConnected) return;
     const row = target.closest('[data-invoice-item-row]') as HTMLElement | null;
     if (!row) return;
 
@@ -1886,12 +1928,9 @@ export const InvoiceForm = () => {
     if (idx === -1) return;
 
     if (idx < inputs.length - 1) {
-      e.preventDefault();
       focusAndSelect(inputs[idx + 1]);
       return;
     }
-
-    e.preventDefault();
 
     if (summaryOpen) {
       const pricePm = numberValue(item.price);
@@ -1934,6 +1973,11 @@ export const InvoiceForm = () => {
     }, 50);
   };
 
+  const advanceInvoiceLineFocus = (e: KeyboardEvent<HTMLInputElement>, item: InvoiceFormItem) => {
+    e.preventDefault();
+    advanceInvoiceLineFocusFrom(e.currentTarget, item);
+  };
+
   const handleInvoiceLineEnter = (e: KeyboardEvent<HTMLInputElement>, item: InvoiceFormItem) => {
     if (e.key !== 'Enter') return;
     if (e.nativeEvent.isComposing) return;
@@ -1949,28 +1993,30 @@ export const InvoiceForm = () => {
 
     if (isSales && idx === 5) {
       e.preventDefault();
+      const inputEl = e.currentTarget;
       void (async () => {
         await syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, {
           field: 'length',
-          lengthInput: target.value,
+          lengthInput: inputEl.value,
           toastOnSuccess: true,
           toastOnError: true,
         });
-        advanceInvoiceLineFocus(e, item);
+        advanceInvoiceLineFocusFrom(inputEl, item);
       })();
       return;
     }
 
     if (isSales && idx === 6) {
       e.preventDefault();
+      const inputEl = e.currentTarget;
       void (async () => {
         await syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, {
           field: 'weight',
-          weightInput: target.value,
+          weightInput: inputEl.value,
           toastOnSuccess: true,
           toastOnError: true,
         });
-        advanceInvoiceLineFocus(e, item);
+        advanceInvoiceLineFocusFrom(inputEl, item);
       })();
       return;
     }
@@ -2099,13 +2145,14 @@ export const InvoiceForm = () => {
 
     const lineRound2 = (n: number) => Math.round(n * 100) / 100;
 
-    const resolveSalesFabricRollId = (item: typeof activeItems[number]): string | null => {
+    const resolveSalesFabricRollId = async (item: typeof activeItems[number]): Promise<string | null> => {
       const rollRaw = String(item.internalRollId || '').trim();
       if (uuidRe.test(rollRaw)) return rollRaw;
       const rolls = salesRollsAcc ?? apiRolls;
       const tokens = [
         item.supplierBarcode,
         item.printBarcode,
+        item.rawBarcodePayload,
         item.rollNo,
         rollRaw,
       ]
@@ -2121,12 +2168,14 @@ export const InvoiceForm = () => {
             || String(r.supplier_roll_ref ?? '').trim().toLowerCase() === lc,
         );
         if (match?.id) return match.id;
+        const remote = await lookupStockFromAnywhere(token);
+        if (remote?.id) return remote.id;
       }
       return null;
     };
 
-    const apiLines = activeItems.map((item, index) => {
-      const fabricRollId = isSales ? resolveSalesFabricRollId(item) : (() => {
+    const apiLines = await Promise.all(activeItems.map(async (item, index) => {
+      const fabricRollId = isSales ? await resolveSalesFabricRollId(item) : (() => {
         const rollRaw = String(item.internalRollId || '').trim();
         return uuidRe.test(rollRaw) ? rollRaw : null;
       })();

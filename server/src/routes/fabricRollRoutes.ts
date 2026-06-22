@@ -225,7 +225,11 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     if (onlyAvailable) {
       conds.push(`fr.status NOT IN ('SOLD', 'INACTIVE')`);
       conds.push(`fr.status IN ('AVAILABLE', 'RESERVED')`);
-      conds.push(`fr.length_m > 0`);
+      // Barcode identity scan (sales invoice): include AVAILABLE rolls missing length_m
+      // so the cashier can complete length from the invoice line.
+      if (!barcode) {
+        conds.push(`fr.length_m > 0`);
+      }
     } else if (status) {
       conds.push(`fr.status = $${p}`);
       params.push(status);
@@ -254,17 +258,15 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     const where = conds.join(' AND ');
     const pool = getPool();
 
-    if (onlyAvailable && (barcode || search)) {
-      const identity = (barcode || search).trim();
-      if (identity && identity.length <= 64) {
-        const repairClient = await pool.connect();
-        try {
-          await repairRollStuckAfterVoidedSale(repairClient, companyId, req.user?.sub ?? null, identity);
-        } catch {
-          /* non-blocking repair */
-        } finally {
-          repairClient.release();
-        }
+    const identityForRepair = (barcode || search).trim();
+    if (identityForRepair && identityForRepair.length <= 64) {
+      const repairClient = await pool.connect();
+      try {
+        await repairRollStuckAfterVoidedSale(repairClient, companyId, req.user?.sub ?? null, identityForRepair);
+      } catch {
+        /* non-blocking repair */
+      } finally {
+        repairClient.release();
       }
     }
 
