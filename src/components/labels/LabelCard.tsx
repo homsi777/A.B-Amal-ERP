@@ -563,6 +563,19 @@ export function buildPrintDocument(
 
   const pageBreakAfter = singleLabel ? 'avoid' : 'always';
   const pageBreakAfterLast = singleLabel ? 'avoid' : 'auto';
+  const breakAfterValue = singleLabel ? 'avoid' : 'page';
+  const breakAfterLastValue = singleLabel ? 'avoid' : 'auto';
+  /** Fixed height on html/body clips extra labels in Chromium/Edge print preview (shows 1 page only). */
+  const singlePageShellCss = singleLabel
+    ? `
+        height: ${heightMm}mm;
+        max-height: ${heightMm}mm;
+        overflow: hidden !important;`
+    : `
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;`;
 
   const pageCssRollNormal = `
       @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
@@ -570,26 +583,23 @@ export function buildPrintDocument(
         margin: 0 !important;
         padding: 0 !important;
         width: ${widthMm}mm;
-        height: ${heightMm}mm;
         background: #fff;
+        ${singlePageShellCss}
       }
       body {
         margin: 0 !important;
         padding: 0 !important;
         width: ${widthMm}mm;
-        height: ${heightMm}mm;
         max-width: ${widthMm}mm;
-        max-height: ${heightMm}mm;
         background: #fff;
-        overflow: hidden !important;
+        ${singlePageShellCss}
       }
       @media print {
         html, body {
           margin: 0 !important;
           padding: 0 !important;
           width: ${widthMm}mm;
-          height: ${heightMm}mm;
-          overflow: hidden !important;
+          ${singlePageShellCss}
         }
       }
       .label-page {
@@ -601,11 +611,11 @@ export function buildPrintDocument(
         padding: ${safeMm}mm;
         overflow: hidden !important;
         page-break-after: ${pageBreakAfter};
-        break-after: ${pageBreakAfter};
+        break-after: ${breakAfterValue};
         page-break-inside: avoid;
         break-inside: avoid;
       }
-      .label-page:last-child { page-break-after: ${pageBreakAfterLast}; break-after: ${pageBreakAfterLast}; }
+      .label-page:last-child { page-break-after: ${pageBreakAfterLast}; break-after: ${breakAfterLastValue}; }
     `;
 
   /** Physical page = narrow × long (matches swapped Electron pageSize); label box rotated 90° to read horizontal on the roll */

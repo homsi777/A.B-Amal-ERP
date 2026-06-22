@@ -71,6 +71,7 @@ interface PrintTriggerOptions {
   printerName?: string;
   silent?: boolean;
   copies?: number;
+  rollLayout?: 'auto' | 'normal' | 'wide';
 }
 
 async function triggerPrint(
@@ -78,7 +79,13 @@ async function triggerPrint(
   opts: PrintTriggerOptions,
 ): Promise<PrintResult> {
   const qrSvgs = await generateQrSvgMap(rolls);
-  const html = buildPrintDocument(rolls, { ...opts, qrSvgs });
+  const widthMm = opts.widthMm ?? 100;
+  const heightMm = opts.heightMm ?? 80;
+  /** Wide roll rotation is for Electron silent print; browser must stay normal or multi-page breaks. */
+  const rollLayout =
+    opts.rollLayout ??
+    (isElectronRenderer() && widthMm > heightMm ? 'auto' : 'normal');
+  const html = buildPrintDocument(rolls, { ...opts, widthMm, heightMm, qrSvgs, rollLayout });
   const adapter = getPrintAdapter();
   return adapter.print(html, {
     pageSize: opts.pageSize,
