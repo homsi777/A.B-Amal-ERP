@@ -44,6 +44,7 @@ import {
 import { buildInvoiceFormLineDraftsFromDbLines, INVOICE_NUMBER_PENDING_LABEL, INVOICE_NUMBER_MISSING_LABEL, normalizeStoredInvoiceNo } from '../../lib/invoiceDbMappers';
 import {
   buildInvoiceSaveDuplicateKey,
+  buildInvoiceScanDuplicateKey,
   incomingStockConflictsWithLine,
   INVOICE_LINE_UUID_RE,
 } from '../../lib/invoiceLineDuplicateIdentity';
@@ -201,16 +202,26 @@ function stockBarcodeValue(stock: any, fallbackContext: Array<unknown> = []): st
     ...fallbackContext,
   ];
    return (
-     meaningfulBarcode(stock?.supplierBarcode, context) ||
      meaningfulBarcode(stock?.barcode, context) ||
+     meaningfulBarcode(stock?.label_barcode, context) ||
+     meaningfulBarcode(stock?.supplierBarcode, context) ||
      meaningfulBarcode(stock?.roll_no, context) ||
      meaningfulBarcode(stock?.rollNumber, context) ||
      meaningfulBarcode(stock?.supplier_roll_ref, context) ||
      meaningfulBarcode(stock?.internalRollId, context) ||
-     meaningfulBarcode(stock?.label_barcode, context) ||
      meaningfulBarcode(stock?.raw_barcode_payload, context) ||
      ''
    );
+}
+
+function resolveInvoiceScanBarcode(
+  stock: FabricRollDto | StagedRollItemPayload | Record<string, unknown>,
+  scannedBarcode = '',
+  lineContext: Array<unknown> = [],
+): string {
+  const scanned = String(scannedBarcode ?? '').trim();
+  if (scanned) return scanned;
+  return stockBarcodeValue(stock, lineContext) || String((stock as Record<string, unknown>).barcode ?? '');
 }
 
 function stockPrintBarcodeValue(stock: any, fallbackContext: Array<unknown> = []): string {
@@ -245,33 +256,6 @@ function sanitizeInvoiceFormItemBarcode(item: InvoiceFormItem): InvoiceFormItem 
   const printBarcode = item.printBarcode || printableShortBarcode(item.supplierBarcode) || printableShortBarcode(item.rawBarcodePayload);
   if (supplierBarcode === item.supplierBarcode && printBarcode === item.printBarcode) return item;
   return { ...item, supplierBarcode, printBarcode };
-}
-
-function normalizeInvoiceScanToken(value: unknown): string {
-  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function normalizeInvoiceScanNumber(value: unknown): string {
-  const n = Number(String(value ?? '').replace(',', '.'));
-  if (!Number.isFinite(n) || n <= 0) return '0';
-  return String(Math.round(n * 1000) / 1000);
-}
-
-function buildInvoiceLineScanDuplicateKey(line: InvoiceFormItem): string {
-  const uuid = normalizeInvoiceScanToken(line.internalRollId);
-  if (uuid && INVOICE_LINE_UUID_RE.test(uuid)) return `uuid:${uuid}`;
-
-  const barcode = normalizeInvoiceScanToken(line.supplierBarcode) || normalizeInvoiceScanToken(line.rawBarcodePayload);
-  if (barcode) return `barcode:${barcode}`;
-
-  const material = normalizeInvoiceScanToken(line.materialName);
-  const code = normalizeInvoiceScanToken(line.dsamNumber);
-  const color = normalizeInvoiceScanToken(line.colorName);
-  const colorCode = normalizeInvoiceScanToken(line.colorCode);
-  const length = normalizeInvoiceScanNumber(line.length);
-  if (!material && !code && !color && !colorCode) return `line:${line.id}`;
-
-  return ['fabric-length', material, code, color, colorCode, length].join('|');
 }
 
 function invoiceRollLengthMissingInInventory(lengthM: string | null | undefined): boolean {
@@ -989,17 +973,18 @@ export const InvoiceForm = () => {
   };
 
   const rejectDuplicateInvoiceScan = (incoming: InvoiceFormItem, excludeLineId: number) => {
-    const incomingKey = buildInvoiceLineScanDuplicateKey(sanitizeInvoiceFormItemBarcode(incoming));
-    if (incomingKey.startsWith('line:')) return false;
+    const incomingSanitized = sanitizeInvoiceFormItemBarcode(incoming);
+    const incomingKey = buildInvoiceScanDuplicateKey(incomingSanitized);
+    if (incomingKey.startsWith('i:')) return false;
     const duplicate = items.some((line) => {
       if (line.id === excludeLineId || isEmptyInvoiceItem(line)) return false;
-      return buildInvoiceLineScanDuplicateKey(sanitizeInvoiceFormItemBarcode(line)) === incomingKey;
+      return buildInvoiceScanDuplicateKey(sanitizeInvoiceFormItemBarcode(line)) === incomingKey;
     });
     if (!duplicate) return false;
     playWarningBeep();
     showToast({
       type: 'warning',
-      message: 'لم تتم إضافة السطر: هذه الخامة موجودة مسبقاً بنفس الباركود أو نفس بيانات الخامة والطول.',
+      message: 'لم تتم إضافة السطر: هذا الرول أو الباركود مضاف مسبقاً في الفاتورة.',
     });
     setScanMessage('لم تتم الإضافة لأن السطر مكرر بنفس الطول/الباركود.');
     setItems((prev) =>
@@ -1042,10 +1027,8 @@ export const InvoiceForm = () => {
       colorName: stock.color_name_ar || stock.colorName || '',
       length: lengthM !== '' ? String(Number(lengthM).toFixed ? Number(lengthM).toFixed(2) : lengthM) : '',
       weight: stock.actual_weight_kg || stock.calculated_weight_kg || stock.weight || '',
-      supplierBarcode:
-        stockBarcodeValue(stock, []) ||
-        scannedBarcode ||
-        String((stock as Record<string, unknown>).barcode ?? ''),
+      supplierBarcode: resolveInvoiceScanBarcode(stock, scannedBarcode, []),
+      printBarcode: stockPrintBarcodeValue(stock, [scannedBarcode]) || printableShortBarcode(scannedBarcode),
       rawBarcodePayload: scannedBarcode,
       internalRollId: String((stock as Record<string, unknown>).id ?? stock.internalRollId ?? ''),
     });
@@ -1187,7 +1170,9 @@ export const InvoiceForm = () => {
     }
     const lengthM = stock.length_m ?? stock.meters ?? stock.length ?? '';
     setItems((prev) => {
-      const dup = prev.some((line) => incomingStockConflictsWithLine(line, lineId, stock as Record<string, unknown>));
+      const dup = prev.some((line) =>
+        incomingStockConflictsWithLine(line, lineId, stock as Record<string, unknown>),
+      );
       if (dup) {
         playWarningBeep();
         queueMicrotask(() => {
@@ -1213,16 +1198,19 @@ export const InvoiceForm = () => {
               gsm: stock.gsm ? String(Number(stock.gsm)) : line.gsm,
               weight: stock.actual_weight_kg || stock.calculated_weight_kg || stock.weight || line.weight,
               price: stock.sellingPrice ? String(stock.sellingPrice) : line.price,
-              supplierBarcode: stockBarcodeValue(stock, [
-                line.materialName,
-                line.dsamNumber,
-                line.colorName,
-                line.colorCode,
-              ]) || line.supplierBarcode,
-              printBarcode: stockPrintBarcodeValue(stock, [
-                line.supplierBarcode,
-                line.rawBarcodePayload,
-              ]) || line.printBarcode,
+              supplierBarcode:
+                line.supplierBarcode.trim() ||
+                stockBarcodeValue(stock, [
+                  line.materialName,
+                  line.dsamNumber,
+                  line.colorName,
+                  line.colorCode,
+                ]),
+              printBarcode:
+                stockPrintBarcodeValue(stock, [
+                  line.supplierBarcode,
+                  line.rawBarcodePayload,
+                ]) || line.printBarcode,
               internalRollId: stock.id || stock.internalRollId || line.internalRollId,
             };
         return sanitizeInvoiceFormItemBarcode(updated);

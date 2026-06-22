@@ -21,6 +21,7 @@ export function lineHasMeaningfulFabricIdentity(line: {
   rollNo: string;
   supplierBarcode: string;
   rawBarcodePayload: string;
+  printBarcode?: string;
   internalRollId: string;
 }): boolean {
   const u = line.internalRollId.trim();
@@ -31,6 +32,7 @@ export function lineHasMeaningfulFabricIdentity(line: {
   if (line.rollNo.trim()) return true;
   if (line.supplierBarcode.trim()) return true;
   if (line.rawBarcodePayload.trim()) return true;
+  if (line.printBarcode?.trim()) return true;
   return false;
 }
 
@@ -71,7 +73,8 @@ export function buildInvoiceSaveDuplicateKey(
   }
   const bc =
     normalizeInvoiceIdentityToken(line.supplierBarcode) ||
-    normalizeInvoiceIdentityToken(line.rawBarcodePayload);
+    normalizeInvoiceIdentityToken(line.rawBarcodePayload) ||
+    normalizeInvoiceIdentityToken((line as { printBarcode?: string }).printBarcode ?? '');
   if (bc) {
     return `b:${bc}`;
   }
@@ -95,14 +98,85 @@ export type InvoiceLineIdentityLike = {
   id: number;
   supplierBarcode: string;
   rawBarcodePayload: string;
+  printBarcode?: string;
   internalRollId: string;
 };
+
+function lineBarcodeTokens(line: InvoiceLineIdentityLike): string[] {
+  return [
+    normalizeInvoiceIdentityToken(line.supplierBarcode),
+    normalizeInvoiceIdentityToken(line.rawBarcodePayload),
+    normalizeInvoiceIdentityToken(line.printBarcode ?? ''),
+  ].filter(Boolean);
+}
+
+function stockBarcodeTokens(stock: Record<string, unknown>): string[] {
+  const row = stock as {
+    barcode?: string;
+    supplierBarcode?: string;
+    supplier_barcode?: string;
+    roll_no?: string;
+    rollNumber?: string;
+    supplier_roll_ref?: string;
+  };
+  return [
+    normalizeInvoiceIdentityToken(String(row.barcode ?? '')),
+    normalizeInvoiceIdentityToken(String(row.supplierBarcode ?? row.supplier_barcode ?? '')),
+    normalizeInvoiceIdentityToken(String(row.roll_no ?? row.rollNumber ?? '')),
+    normalizeInvoiceIdentityToken(String(row.supplier_roll_ref ?? '')),
+  ].filter(Boolean);
+}
+
+/**
+ * Scan-time duplicate key while entering invoice lines (barcode scan / stock apply).
+ * Must NOT treat same material + length alone as duplicate — each roll needs its own barcode/UUID/roll.
+ */
+export function buildInvoiceScanDuplicateKey(
+  line: {
+    id: number;
+    materialName: string;
+    dsamNumber: string;
+    colorCode: string;
+    colorName: string;
+    rollNo: string;
+    length?: string;
+    supplierBarcode: string;
+    rawBarcodePayload: string;
+    printBarcode?: string;
+    internalRollId: string;
+  },
+): string {
+  const u = line.internalRollId.trim();
+  if (u && INVOICE_LINE_UUID_RE.test(u)) {
+    return `u:${u.toLowerCase()}`;
+  }
+  const bc =
+    normalizeInvoiceIdentityToken(line.supplierBarcode) ||
+    normalizeInvoiceIdentityToken(line.rawBarcodePayload) ||
+    normalizeInvoiceIdentityToken(line.printBarcode ?? '');
+  if (bc) {
+    return `b:${bc}`;
+  }
+  if (!lineHasMeaningfulFabricIdentity(line)) {
+    return `i:${line.id}`;
+  }
+  return [
+    'c',
+    normalizeInvoiceIdentityToken(line.materialName),
+    normalizeInvoiceIdentityToken(line.dsamNumber),
+    normalizeInvoiceIdentityToken(line.colorCode),
+    normalizeInvoiceIdentityToken(line.colorName),
+    normalizeInvoiceIdentityToken(line.rollNo),
+    normalizeLengthKey(line.length),
+  ].join('|');
+}
 
 /** True if this line already represents the same stock row as `stock` (UUID or barcode). */
 export function incomingStockConflictsWithLine(
   line: InvoiceLineIdentityLike,
   excludeLineId: number,
   stock: Record<string, unknown>,
+  scannedBarcode = '',
 ): boolean {
   if (line.id === excludeLineId) return false;
   const sid = String(stock.id ?? '').trim();
@@ -110,13 +184,13 @@ export function incomingStockConflictsWithLine(
     const lid = String(line.internalRollId || '').trim().toLowerCase();
     if (lid === sid.toLowerCase()) return true;
   }
-  const sbc =
-    normalizeInvoiceIdentityToken(String(stock.barcode ?? '')) ||
-    normalizeInvoiceIdentityToken(String((stock as { supplierBarcode?: string }).supplierBarcode ?? ''));
-  if (sbc) {
-    const lb = normalizeInvoiceIdentityToken(line.supplierBarcode);
-    const rb = normalizeInvoiceIdentityToken(line.rawBarcodePayload);
-    if (lb === sbc || rb === sbc) return true;
+  const scanned = normalizeInvoiceIdentityToken(scannedBarcode);
+  if (scanned) {
+    const lineTokens = lineBarcodeTokens(line);
+    if (lineTokens.includes(scanned)) return true;
   }
-  return false;
+  const stockTokens = stockBarcodeTokens(stock);
+  if (!stockTokens.length) return false;
+  const lineTokens = lineBarcodeTokens(line);
+  return stockTokens.some((token) => lineTokens.includes(token));
 }
