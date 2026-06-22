@@ -11,6 +11,8 @@ interface A4PreviewModalProps {
   html: string;
   pageSize?: PageSize;
   defaultFileName?: string;
+  /** اتجاه الصفحة — landscape لكشوف الحساب ذات الجداول العريضة */
+  orientation?: 'portrait' | 'landscape';
   /** مستند A4 بهيكل .page مدمج (كشف فاتورة) — يطابق التصدير مع الطباعة */
   fixedPageLayout?: boolean;
   onClose: () => void;
@@ -38,6 +40,7 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
   pageSize = 'A4',
   defaultFileName,
   fixedPageLayout = false,
+  orientation = 'portrait',
   onClose,
   onPrinted,
   onExported,
@@ -117,9 +120,9 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
         fixedPageLayout && pageSize === 'A4'
           ? A4_FIXED_LAYOUT_PDF_OPTIONS
           : {
-              orientation: 'portrait',
+              orientation,
               pageFormat: pageSize === 'A5' ? 'a5' : 'a4',
-              containerWidth: pageSize === 'A5' ? '148mm' : '210mm',
+              containerWidth: pageSize === 'A5' ? '148mm' : orientation === 'landscape' ? '297mm' : '210mm',
             },
       );
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });

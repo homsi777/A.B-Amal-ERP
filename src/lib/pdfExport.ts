@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas';
 import { BRAND } from '../branding';
 import type { Invoice } from '../types';
 import { resolveInvoiceDetailRowsForStatementRow } from './customerStatementInvoiceDetails';
+import { documentFooterStyles, renderDocumentFooterHtml } from './printing/renderDocumentFooter';
 
 /** CLOTEX brand header reused across all PDF statements. */
 const renderBrandHeaderHtml = (): string => `
@@ -418,24 +419,53 @@ function renderAccountStatementHtml(options: {
     row.typeLabel === 'فاتورة بيع' || row.type === 'SALES_INVOICE';
 
   // ── Palette ───────────────────────────────────────────────────────────────
-  const NAVY   = '#1a2744';
+  const NAVY   = BRAND.primaryColor;
   const GREEN  = '#16a34a';
   const RED    = '#dc2626';
   const BLUE   = '#2563eb';
+  const DASH   = '—';
 
   // ── Parse detailLine → phone / address ───────────────────────────────────
   const [phonePart = '', addressPart = ''] = options.detailLine.split(' | ');
 
-  // ── Count docNo occurrences (to know when to generate sub-rows) ───────────
+  // ── Build table rows + accumulate fabric totals ───────────────────────────
   const docNoCount: Record<string, number> = {};
   for (const row of options.rows) {
     const k = String(row.documentNo ?? '');
     docNoCount[k] = (docNoCount[k] ?? 0) + 1;
   }
 
-  // ── Build table rows + accumulate fabric total ────────────────────────────
   const fabricGroupIdx: Record<string, number> = {};
   let totalFabricAmount = 0;
+  let totalFabricLength = 0;
+
+  const td = (content: string, extra = '') =>
+    `<td style="padding:7px 6px;border:1px solid #e5e7eb;text-align:center;font-size:10px;vertical-align:middle;${extra}">${content}</td>`;
+
+  const renderDataRow = (
+    evBg: string,
+    cols: {
+      date: string;
+      docNo: string;
+      typeLabel: string;
+      fabric: AccountStatementInvoiceDetail | null;
+      debit: number | null;
+      credit: number | null;
+      balance: number | null;
+    },
+  ) => `<tr style="background:${evBg};">
+    ${td(cols.date, 'white-space:nowrap;')}
+    ${td(cols.docNo, 'font-family:monospace;font-size:9.5px;font-weight:600;')}
+    ${td(cols.typeLabel)}
+    ${td(cols.fabric ? safeText(cols.fabric.fabricName) : DASH)}
+    ${td(cols.fabric ? cols.fabric.rollsCount.toLocaleString('ar') : DASH)}
+    ${td(cols.fabric ? fmt(cols.fabric.totalQuantity) : DASH)}
+    ${td(cols.fabric ? fmt(cols.fabric.unitPrice) : DASH)}
+    ${td(cols.fabric ? `${safeText(options.currency)} ${fmt(cols.fabric.totalAmount)}` : DASH, 'font-weight:600;')}
+    ${td(cols.debit != null && cols.debit > 0 ? fmt(cols.debit) : DASH, `color:${GREEN};font-weight:700;`)}
+    ${td(cols.credit != null && cols.credit > 0 ? fmt(cols.credit) : DASH, `color:${RED};font-weight:700;`)}
+    ${td(cols.balance != null ? fmt(Math.abs(cols.balance)) : DASH, `color:${BLUE};font-weight:700;`)}
+  </tr>`;
 
   const bodyHtml = (() => {
     if (options.rows.length === 0) {
@@ -446,61 +476,75 @@ function renderAccountStatementHtml(options: {
       </tr>`;
     }
 
-    return options.rows.map((row, idx) => {
-      const sales     = isSalesRow(row);
-      const docNo     = String(row.documentNo ?? '');
-      const docCount  = docNoCount[docNo] ?? 1;
-      const grpIdx    = fabricGroupIdx[docNo] ?? 0;
+    const parts: string[] = [];
+    let displayIdx = 0;
+
+    for (let idx = 0; idx < options.rows.length; idx++) {
+      const row = options.rows[idx];
+      const sales = isSalesRow(row);
+      const docNo = String(row.documentNo ?? '');
+      const docCount = docNoCount[docNo] ?? 1;
+      const grpIdx = fabricGroupIdx[docNo] ?? 0;
       fabricGroupIdx[docNo] = grpIdx + 1;
+
+      const prevDocNo = idx > 0 ? String(options.rows[idx - 1].documentNo ?? '') : '';
+      const isFirstOfDocGroup = docNo !== prevDocNo;
 
       const allGroups: AccountStatementInvoiceDetail[] = sales
         ? resolveInvoiceDetailRowsForStatementRow(row, options.saleInvoices ?? [], {
-            invoiceDetailsBySourceId : options.invoiceDetailsBySourceId,
+            invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
             invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
           })
         : [];
 
-      const grp = allGroups[grpIdx] ?? null;
-      if (grp) totalFabricAmount += grp.totalAmount;
-
-      // Sub-rows: only when docNo appears once in statement but invoice has >1 fabric group
-      const showSubRows = docCount === 1 && grpIdx === 0 && allGroups.length > 1;
-      if (showSubRows) {
-        for (const g of allGroups.slice(1)) totalFabricAmount += g.totalAmount;
+      const grp = allGroups[grpIdx] ?? allGroups[0] ?? null;
+      if (grp) {
+        totalFabricAmount += grp.totalAmount;
+        totalFabricLength += grp.totalQuantity;
       }
 
-      const DASH  = '—';
-      const evBg  = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-      const border = '1px solid #e5e7eb';
-      const td = (content: string, extra = '') =>
-        `<td style="padding:8px 7px;border:${border};text-align:center;font-size:10.5px;vertical-align:middle;${extra}">${content}</td>`;
+      const showSubRows = docCount === 1 && grpIdx === 0 && allGroups.length > 1;
+      if (showSubRows) {
+        for (const g of allGroups.slice(1)) {
+          totalFabricAmount += g.totalAmount;
+          totalFabricLength += g.totalQuantity;
+        }
+      }
 
-      const mainRow = `<tr style="background:${evBg};">
-        ${td(safeText(row.date), 'white-space:nowrap;')}
-        ${td(safeText(docNo), 'font-family:monospace;font-size:10px;font-weight:600;')}
-        ${td(safeText(row.typeLabel || row.description))}
-        ${td(grp ? safeText(grp.fabricName) : DASH)}
-        ${td(grp ? grp.rollsCount.toLocaleString('ar') : DASH)}
-        ${td(grp ? fmt(grp.totalQuantity) : DASH)}
-        ${td(grp ? fmt(grp.unitPrice) : DASH)}
-        ${td(grp ? `${safeText(options.currency)} ${fmt(grp.totalAmount)}` : DASH, 'font-weight:600;')}
-        ${td(fmt(row.debit),  `color:${GREEN};font-weight:700;`)}
-        ${td(fmt(row.credit), `color:${RED};font-weight:700;`)}
-        ${td(fmt(Math.abs(row.balance)), `color:${BLUE};font-weight:700;`)}
-      </tr>`;
+      const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+      displayIdx += 1;
 
-      const subHtml = !showSubRows ? '' : allGroups.slice(1).map(g => `<tr style="background:${evBg};">
-        ${td('')}${td('')}${td('')}
-        ${td(safeText(g.fabricName))}
-        ${td(g.rollsCount.toLocaleString('ar'))}
-        ${td(fmt(g.totalQuantity))}
-        ${td(fmt(g.unitPrice))}
-        ${td(`${safeText(options.currency)} ${fmt(g.totalAmount)}`, 'font-weight:600;')}
-        ${td('—')}${td('—')}${td('—')}
-      </tr>`).join('');
+      parts.push(
+        renderDataRow(evBg, {
+          date: isFirstOfDocGroup ? safeText(row.date) : '',
+          docNo: isFirstOfDocGroup ? safeText(docNo) : '',
+          typeLabel: isFirstOfDocGroup ? safeText(row.typeLabel || row.description) : '',
+          fabric: grp,
+          debit: row.debit,
+          credit: row.credit,
+          balance: row.balance,
+        }),
+      );
 
-      return mainRow + subHtml;
-    }).join('');
+      if (showSubRows) {
+        for (const g of allGroups.slice(1)) {
+          displayIdx += 1;
+          parts.push(
+            renderDataRow(evBg, {
+              date: '',
+              docNo: '',
+              typeLabel: '',
+              fabric: g,
+              debit: null,
+              credit: null,
+              balance: null,
+            }),
+          );
+        }
+      }
+    }
+
+    return parts.join('');
   })();
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -509,14 +553,26 @@ function renderAccountStatementHtml(options: {
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: A4 landscape; margin: 8mm 7mm; }
+  @page { size: A4 landscape; margin: 6mm 5mm 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, Tahoma, "Segoe UI", sans-serif; background: #fff; color: #0f172a; direction: rtl; }
+  html, body {
+    font-family: Tahoma, Arial, "Segoe UI", sans-serif;
+    background: #fff;
+    color: #0f172a;
+    direction: rtl;
+    min-height: 100%;
+  }
 
-  .stmt { width: 100%; }
+  .stmt-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0 2mm 0;
+  }
+  .stmt-body { flex: 1 1 auto; }
 
   /* ── Header ─────────────────────────────────────────── */
-  .hdr { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 10px; align-items: start; margin-bottom: 12px; }
+  .hdr { display: grid; grid-template-columns: 1fr 1.8fr 1fr; gap: 10px; align-items: start; margin-bottom: 10px; }
 
   .hdr-box {
     border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 12px;
@@ -526,22 +582,22 @@ function renderAccountStatementHtml(options: {
   .hdr-box-val   { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
   .hdr-box-sub   { font-size: 11px; color: #475569; margin-top: 2px; }
 
-  .hdr-center { text-align: center; padding: 4px 0; }
-  .hdr-center .logo { height: 56px; width: auto; object-fit: contain; display: block; margin: 0 auto 4px; }
-  .hdr-center h1 { font-size: 22px; font-weight: 800; color: ${NAVY}; margin: 2px 0 0; letter-spacing: 0.5px; }
-  .hdr-center .sub { font-size: 13px; color: #475569; margin-top: 3px; }
-  .hdr-center .divider { width: 60px; height: 2.5px; background: ${NAVY}; margin: 5px auto; border-radius: 2px; }
+  .hdr-center { text-align: center; padding: 0; }
+  .hdr-center .logo { height: 72px; width: auto; object-fit: contain; display: block; margin: 0 auto 2px; }
+  .hdr-center h1 { font-size: 20px; font-weight: 800; color: ${NAVY}; margin: 0; letter-spacing: 0.3px; }
+  .hdr-center .sub { font-size: 12px; color: #475569; margin-top: 2px; }
+  .hdr-center .divider { width: 50px; height: 2px; background: ${NAVY}; margin: 4px auto; border-radius: 2px; }
 
   /* ── Summary cards ───────────────────────────────────── */
-  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
 
-  .card { border-radius: 10px; padding: 12px 14px; border: 1.5px solid; }
-  .card-icon { font-size: 18px; margin-bottom: 6px; }
-  .card-label { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
-  .card-amount { font-size: 15px; font-weight: 800; }
+  .card { border-radius: 10px; padding: 10px 12px; border: 1.5px solid; }
+  .card-icon { font-size: 16px; margin-bottom: 4px; line-height: 1; }
+  .card-label { font-size: 10.5px; font-weight: 600; margin-bottom: 3px; }
+  .card-amount { font-size: 14px; font-weight: 800; }
 
   .card-navy { background: ${NAVY}; border-color: ${NAVY}; color: #fff; }
-  .card-navy .card-label  { color: #94a3b8; }
+  .card-navy .card-label  { color: #cbd5e1; }
   .card-navy .card-amount { color: #fff; }
 
   .card-green { background: #f0fdf4; border-color: ${GREEN}; }
@@ -557,11 +613,11 @@ function renderAccountStatementHtml(options: {
   .card-blue .card-amount { color: ${BLUE}; }
 
   /* ── Table ───────────────────────────────────────────── */
-  table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 10px; }
   thead tr { background: ${NAVY}; color: #fff; }
   thead th {
-    padding: 9px 7px; border: 1px solid #0b1220; font-weight: 700;
-    font-size: 10.5px; text-align: center; white-space: nowrap;
+    padding: 8px 5px; border: 1px solid #0b1220; font-weight: 700;
+    font-size: 10px; text-align: center; white-space: nowrap;
   }
   thead th.th-green { color: #86efac; }
   thead th.th-red   { color: #fca5a5; }
@@ -569,8 +625,8 @@ function renderAccountStatementHtml(options: {
 
   tfoot tr { background: ${NAVY}; color: #fff; }
   tfoot td {
-    padding: 9px 7px; border: 1px solid #0b1220; font-weight: 700;
-    font-size: 10.5px; text-align: center;
+    padding: 8px 5px; border: 1px solid #0b1220; font-weight: 700;
+    font-size: 10px; text-align: center;
   }
   tfoot td.tf-green { color: #86efac; }
   tfoot td.tf-red   { color: #fca5a5; }
@@ -578,47 +634,35 @@ function renderAccountStatementHtml(options: {
 
   /* ── Signatures ──────────────────────────────────────── */
   .sigs {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
-    margin-top: 20px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-top: 14px; margin-bottom: 10px;
   }
   .sig-box {
-    border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; min-height: 72px;
+    border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; min-height: 68px;
   }
-  .sig-label { font-size: 11.5px; font-weight: 700; color: #1e293b; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
-  .sig-line  { border-top: 1px solid #94a3b8; margin: 6px 0; }
-  .sig-field { font-size: 10.5px; color: #64748b; margin-top: 4px; display: flex; justify-content: space-between; }
+  .sig-label { font-size: 11px; font-weight: 700; color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .sig-line  { border-top: 1px solid #94a3b8; margin: 5px 0; }
+  .sig-field { font-size: 10px; color: #64748b; margin-top: 3px; display: flex; justify-content: space-between; }
 
-  /* ── Footer strip ────────────────────────────────────── */
-  .footer-strip {
-    margin-top: 14px; border-top: 2px solid ${NAVY}; padding-top: 8px;
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 10.5px; color: #475569;
-  }
-  .footer-brand { display: flex; align-items: center; gap: 8px; }
-  .footer-logo  { height: 28px; width: auto; object-fit: contain; }
-  .footer-name  { font-weight: 800; font-size: 13px; color: ${NAVY}; }
-  .footer-tag   { font-size: 10px; color: #64748b; }
-  .footer-contacts { display: flex; gap: 14px; align-items: center; }
-  .footer-contacts span { display: flex; align-items: center; gap: 3px; }
+  ${documentFooterStyles(NAVY)}
 
   @media print {
-    body { margin: 0; }
-    .stmt { padding: 0; }
+    html, body { margin: 0; }
+    .stmt-page { min-height: auto; padding: 0; }
   }
 </style>
 <body>
-<div class="stmt">
+<div class="stmt-page">
+<div class="stmt-body">
 
   <!-- ══ HEADER ══════════════════════════════════════════════════ -->
   <div class="hdr">
-    <!-- Period (right side in RTL) -->
     <div class="hdr-box">
       <div class="hdr-box-label">&#128197; الفترة</div>
       <div class="hdr-box-val">من: ${safeText(options.fromDate)}</div>
       <div class="hdr-box-val">إلى: ${safeText(options.toDate)}</div>
     </div>
 
-    <!-- Logo + Title (center) -->
     <div class="hdr-center">
       <img class="logo" src="${BRAND.logoInline}" alt="${BRAND.name}" />
       <h1>${safeText(options.title)}</h1>
@@ -626,7 +670,6 @@ function renderAccountStatementHtml(options: {
       <div class="sub">(حركات مالية)</div>
     </div>
 
-    <!-- Customer (left side in RTL) -->
     <div class="hdr-box">
       <div class="hdr-box-label">&#128100; ${safeText(options.partyLabel)}</div>
       <div class="hdr-box-val">${safeText(options.partyName)}</div>
@@ -680,7 +723,7 @@ function renderAccountStatementHtml(options: {
         <th>رقم الفاتورة</th>
         <th>البيان</th>
         <th>الخامة</th>
-        <th>عدد<br>الأطوال</th>
+        <th>عدد<br>الأثواب</th>
         <th>إجمالي<br>الأطوال (م)</th>
         <th>السعر<br>(م)</th>
         <th>إجمالي المبلغ</th>
@@ -694,7 +737,9 @@ function renderAccountStatementHtml(options: {
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="7" style="text-align:right;padding-right:10px;">الإجمالي</td>
+        <td colspan="5" style="text-align:right;padding-right:10px;">الإجمالي</td>
+        <td class="tf-green">${fmt(totalFabricLength)}</td>
+        <td></td>
         <td class="tf-green">${safeText(options.currency)} ${fmt(totalFabricAmount)}</td>
         <td class="tf-green">${fmt(options.totals.debit)}</td>
         <td class="tf-red">${fmt(options.totals.credit)}</td>
@@ -723,19 +768,9 @@ function renderAccountStatementHtml(options: {
     </div>
   </div>
 
-  <!-- ══ FOOTER STRIP ══════════════════════════════════════════════ -->
-  <div class="footer-strip">
-    <div class="footer-brand">
-      <img class="footer-logo" src="${BRAND.logoInline}" alt="${BRAND.name}" />
-      <div>
-        <div class="footer-name">${BRAND.name} — ${BRAND.tagline}</div>
-        <div class="footer-tag">${BRAND.descriptionAr}</div>
-      </div>
-    </div>
-    <div class="footer-contacts">
-      <span>&#128222; ${BRAND.name}</span>
-    </div>
   </div>
+
+  ${renderDocumentFooterHtml('invoice')}
 
 </div>
 </body>
@@ -758,7 +793,7 @@ export function renderCustomerAccountStatementPdfHtml(data: {
   const closing = data.totals.closingBalance;
   const closingLabel = closing >= 0 ? 'مدين' : 'دائن';
   return renderAccountStatementHtml({
-    title: 'كشف حساب عميل (حركات مالية)',
+    title: 'كشف حساب عميل',
     subtitle: BRAND.descriptionAr,
     partyLabel: 'العميل',
     partyName: data.customerName,

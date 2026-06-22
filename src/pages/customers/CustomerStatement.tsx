@@ -590,7 +590,7 @@ export const CustomerStatement = () => {
           saleInvoices: dbSaleInvoicesFromApi,
         });
         await exportPdfFromHtmlString(pdfHtml, `كشف_حساب_${accountStatement.customer.name}_${fromDate}_${toDate}`, {
-          orientation: 'portrait',
+          orientation: 'landscape',
         });
         return;
       }
@@ -829,6 +829,7 @@ export const CustomerStatement = () => {
         title="طباعة كشف حساب A4"
         html={statementPrintHtml}
         pageSize="A4"
+        orientation="landscape"
         defaultFileName={statementPrintFileName}
         onClose={() => setPrintPreviewOpen(false)}
         onPrinted={() => setPrintPreviewOpen(false)}
