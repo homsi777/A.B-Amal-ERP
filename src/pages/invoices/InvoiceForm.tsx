@@ -2215,7 +2215,7 @@ export const InvoiceForm = () => {
           rawBarcodePayload: item.rawBarcodePayload || undefined,
         },
       };
-    });
+    }));
 
     const paymentStatus: 'unpaid' | 'partial' | 'paid' =
       paidAmount <= 0
