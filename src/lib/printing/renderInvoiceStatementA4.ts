@@ -471,6 +471,11 @@ export function renderInvoiceStatementA4Html(opts: {
       line-height: 1.2;
     }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    table th,
+    table td {
+      vertical-align: middle;
+      box-sizing: border-box;
+    }
     .meta-row {
       display: flex;
       gap: 12px;
@@ -483,9 +488,9 @@ export function renderInvoiceStatementA4Html(opts: {
     }
     .meta-card td {
       border-bottom: 1px solid ${CELL_LINE};
-      padding: 5px 8px;
+      padding: 7px 8px;
       font-size: 10px;
-      line-height: 1.35;
+      line-height: 1.3;
       vertical-align: middle;
       font-weight: 700;
       color: #000;
@@ -519,27 +524,29 @@ export function renderInvoiceStatementA4Html(opts: {
       color: #fff;
       font-size: 9.5px;
       font-weight: 900;
-      padding: 4px 3px 5px;
+      padding: 7px 4px;
       text-align: center;
       border: none;
       border-bottom: 1px solid ${NAVY};
       border-left: 1px solid rgba(255, 255, 255, 0.22);
-      line-height: 1.25;
+      line-height: 1.3;
+      vertical-align: middle;
     }
     .data-table thead th:first-child { border-left: none; }
     .data-table tbody .cell {
-      padding: 4px 5px;
+      padding: 7px 5px;
       font-size: 9.2px;
       font-weight: 700;
       color: #000;
       border-bottom: 1px solid ${CELL_LINE};
       border-left: 1px solid ${CELL_LINE};
       vertical-align: middle;
+      line-height: 1.3;
       background: #fff;
     }
     .data-table tbody .cell:first-child { border-left: none; }
     .subtotal-cell {
-      padding: 5px 4px;
+      padding: 7px 5px;
       font-size: 9.5px;
       font-weight: 900;
       text-align: center;
@@ -547,6 +554,8 @@ export function renderInvoiceStatementA4Html(opts: {
       border-left: 1px solid ${CELL_LINE};
       color: #000;
       background: ${SUBTOTAL_GRAY};
+      vertical-align: middle;
+      line-height: 1.3;
     }
     .subtotal-cell:first-child { border-left: none; }
     .subtotal-label { text-align: center; }
@@ -596,8 +605,9 @@ export function renderInvoiceStatementA4Html(opts: {
     }
     .financial-table td {
       border-bottom: 1px solid ${CELL_LINE};
-      padding: 5px 10px;
+      padding: 8px 10px;
       vertical-align: middle;
+      line-height: 1.35;
     }
     .financial-table tr:last-child td { border-bottom: none; }
     .fin-label {
@@ -606,6 +616,8 @@ export function renderInvoiceStatementA4Html(opts: {
       font-weight: 700;
       width: 58%;
       border-left: 1px solid ${CELL_LINE};
+      padding-right: 10px;
+      padding-left: 8px;
     }
     .fin-value {
       background: #fff;
@@ -614,7 +626,8 @@ export function renderInvoiceStatementA4Html(opts: {
       white-space: nowrap;
       direction: ltr;
       unicode-bidi: embed;
-      padding-left: 4px;
+      padding-right: 10px;
+      padding-left: 8px;
     }
     .financial-final td {
       border-bottom: 3px solid ${NAVY};
@@ -649,9 +662,9 @@ export function renderInvoiceStatementA4Html(opts: {
       min-height: 58px;
       border: 1px solid ${CELL_LINE};
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: center;
-      padding: 6px 12px 14px;
+      padding: 8px 12px;
       text-align: center;
       font-size: 10px;
       font-weight: 900;

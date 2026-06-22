@@ -861,6 +861,23 @@ const appendA4FixedLayoutExportStyle = (doc: Document) => {
       margin: 0 auto !important;
       overflow: hidden !important;
     }
+    .data-table th,
+    .data-table td,
+    .meta-card td,
+    .financial-table td {
+      vertical-align: middle !important;
+    }
+    .data-table th,
+    .data-table .cell,
+    .data-table .subtotal-cell {
+      padding-top: 7px !important;
+      padding-bottom: 7px !important;
+    }
+    .meta-card td,
+    .financial-table td {
+      padding-top: 8px !important;
+      padding-bottom: 8px !important;
+    }
   `;
   doc.head.appendChild(style);
 };

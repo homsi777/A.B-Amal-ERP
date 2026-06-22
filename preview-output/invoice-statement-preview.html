@@ -28,7 +28,6 @@
       flex-direction: column;
       padding: 7mm 10mm 5mm;
       position: relative;
-      overflow: hidden;
     }
     .page-body { flex: 1 1 auto; min-height: 0; }
     .page-no-box {
@@ -61,6 +60,11 @@
       line-height: 1.2;
     }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    table th,
+    table td {
+      vertical-align: middle;
+      box-sizing: border-box;
+    }
     .meta-row {
       display: flex;
       gap: 12px;
@@ -73,9 +77,9 @@
     }
     .meta-card td {
       border-bottom: 1px solid #c8c8c8;
-      padding: 5px 8px;
+      padding: 7px 8px;
       font-size: 10px;
-      line-height: 1.35;
+      line-height: 1.3;
       vertical-align: middle;
       font-weight: 700;
       color: #000;
@@ -109,27 +113,29 @@
       color: #fff;
       font-size: 9.5px;
       font-weight: 900;
-      padding: 4px 3px 5px;
+      padding: 7px 4px;
       text-align: center;
       border: none;
       border-bottom: 1px solid #2C405A;
       border-left: 1px solid rgba(255, 255, 255, 0.22);
-      line-height: 1.25;
+      line-height: 1.3;
+      vertical-align: middle;
     }
     .data-table thead th:first-child { border-left: none; }
     .data-table tbody .cell {
-      padding: 4px 5px;
+      padding: 7px 5px;
       font-size: 9.2px;
       font-weight: 700;
       color: #000;
       border-bottom: 1px solid #c8c8c8;
       border-left: 1px solid #c8c8c8;
       vertical-align: middle;
+      line-height: 1.3;
       background: #fff;
     }
     .data-table tbody .cell:first-child { border-left: none; }
     .subtotal-cell {
-      padding: 5px 4px;
+      padding: 7px 5px;
       font-size: 9.5px;
       font-weight: 900;
       text-align: center;
@@ -137,6 +143,8 @@
       border-left: 1px solid #c8c8c8;
       color: #000;
       background: #f6f6f6;
+      vertical-align: middle;
+      line-height: 1.3;
     }
     .subtotal-cell:first-child { border-left: none; }
     .subtotal-label { text-align: center; }
@@ -186,8 +194,9 @@
     }
     .financial-table td {
       border-bottom: 1px solid #c8c8c8;
-      padding: 5px 10px;
+      padding: 8px 10px;
       vertical-align: middle;
+      line-height: 1.35;
     }
     .financial-table tr:last-child td { border-bottom: none; }
     .fin-label {
@@ -196,6 +205,8 @@
       font-weight: 700;
       width: 58%;
       border-left: 1px solid #c8c8c8;
+      padding-right: 10px;
+      padding-left: 8px;
     }
     .fin-value {
       background: #fff;
@@ -204,7 +215,8 @@
       white-space: nowrap;
       direction: ltr;
       unicode-bidi: embed;
-      padding-left: 4px;
+      padding-right: 10px;
+      padding-left: 8px;
     }
     .financial-final td {
       border-bottom: 3px solid #2C405A;
@@ -239,9 +251,9 @@
       min-height: 58px;
       border: 1px solid #c8c8c8;
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: center;
-      padding: 6px 12px 14px;
+      padding: 8px 12px;
       text-align: center;
       font-size: 10px;
       font-weight: 900;
@@ -334,6 +346,7 @@
       .page {
         page-break-after: avoid;
         page-break-inside: avoid;
+        overflow: hidden;
       }
       .doc-footer-bar {
         page-break-inside: avoid;
