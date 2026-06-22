@@ -1907,6 +1907,7 @@ export const InvoiceForm = () => {
     if (!INVOICE_LINE_UUID_RE.test(rollId)) return 'noop';
 
     let roll = rolls.find((r) => r.id === rollId);
+    let effectiveRollId = rollId;
     if (!roll) {
       try {
         const full = await getFabricRoll(rollId);
@@ -1914,10 +1915,30 @@ export const InvoiceForm = () => {
         roll = rest;
         mergeRoll(rest);
       } catch {
-        if (opts.toastOnError) {
-          showToast({ type: 'error', message: 'تعذر تحديث بيانات الرول في المخزون' });
+        const tokens = [item.supplierBarcode, item.printBarcode, item.rawBarcodePayload, item.rollNo]
+          .map((v) => String(v ?? '').trim())
+          .filter(Boolean);
+        for (const token of tokens) {
+          const remote = await lookupStockFromAnywhere(token, { barcodeColumnOnly: true });
+          if (remote?.id) {
+            roll = remote;
+            effectiveRollId = remote.id;
+            mergeRoll(remote);
+            setItems((prev) =>
+              prev.map((line) => (line.id === item.id ? { ...line, internalRollId: remote.id } : line)),
+            );
+            break;
+          }
         }
-        return 'error';
+        if (!roll) {
+          setItems((prev) =>
+            prev.map((line) => (line.id === item.id ? { ...line, internalRollId: '' } : line)),
+          );
+          if (opts.toastOnError) {
+            showToast({ type: 'error', message: 'تعذر تحديث بيانات الرول في المخزون' });
+          }
+          return opts.toastOnError ? 'error' : 'noop';
+        }
       }
     }
 
@@ -1945,10 +1966,10 @@ export const InvoiceForm = () => {
     }
     if (Object.keys(payload).length === 0) return 'noop';
 
-    if (rollPatchInFlightRef.current.has(rollId)) return 'noop';
-    rollPatchInFlightRef.current.add(rollId);
+    if (rollPatchInFlightRef.current.has(effectiveRollId)) return 'noop';
+    rollPatchInFlightRef.current.add(effectiveRollId);
     try {
-      const result = await completeMissingRollFields(rollId, payload);
+      const result = await completeMissingRollFields(effectiveRollId, payload);
       mergeRoll(result.data);
       if (result.applied && opts.toastOnSuccess) {
         showToast({
@@ -1965,7 +1986,7 @@ export const InvoiceForm = () => {
       }
       return 'error';
     } finally {
-      rollPatchInFlightRef.current.delete(rollId);
+      rollPatchInFlightRef.current.delete(effectiveRollId);
     }
   }
 
@@ -2172,34 +2193,20 @@ export const InvoiceForm = () => {
       salesRollsAcc = rollsAcc;
     }
 
-    const paidAmount = saleType === 'cash' ? finalTotalAmount : numberValue(paymentAmount);
-
-    if (!partyId || !uuidRe.test(partyId)) {
-      showToast({
-        type: 'warning',
-        message: 'لحفظ الفاتورة في قاعدة البيانات اختر عميلاً أو مورداً مسجّلاً في النظام (لا يمكن استخدام «نقدي سريع» الفارغ).',
-      });
-      return;
-    }
-
-    if (status === 'final' && paidAmount > 0) {
-      const uuidReCash =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (uuidReCash.test(partyId) && !cashboxId) {
-        showToast({
-          type: 'warning',
-          message: 'اختر الصندوق المالي لربط الدفعة بخزينة حقيقية وتوليد السند تلقائياً على الخادم.',
-        });
-        return;
-      }
-    }
-
     const lineRound2 = (n: number) => Math.round(n * 100) / 100;
 
     const resolveSalesFabricRollId = async (item: typeof activeItems[number]): Promise<string | null> => {
       const rollRaw = String(item.internalRollId || '').trim();
-      if (uuidRe.test(rollRaw)) return rollRaw;
       const rolls = salesRollsAcc ?? apiRolls;
+      if (uuidRe.test(rollRaw)) {
+        if (rolls.some((r) => r.id === rollRaw)) return rollRaw;
+        try {
+          await getFabricRoll(rollRaw);
+          return rollRaw;
+        } catch {
+          /* stale UUID — resolve via barcode below */
+        }
+      }
       const tokens = [
         item.supplierBarcode,
         item.printBarcode,
@@ -2219,7 +2226,7 @@ export const InvoiceForm = () => {
             || String(r.supplier_roll_ref ?? '').trim().toLowerCase() === lc,
         );
         if (match?.id) return match.id;
-        const remote = await lookupStockFromAnywhere(token);
+        const remote = await lookupStockFromAnywhere(token, { barcodeColumnOnly: true });
         if (remote?.id) return remote.id;
       }
       return null;
@@ -2268,10 +2275,37 @@ export const InvoiceForm = () => {
       };
     }));
 
+    const persistedSubtotal = lineRound2(
+      apiLines.reduce((sum, ln) => sum + lineRound2(ln.quantity * ln.unitPrice), 0),
+    );
+    const persistedFinalTotal = lineRound2(Math.max(0, persistedSubtotal - numberValue(discount)));
+
+    const paidAmount = saleType === 'cash' ? persistedFinalTotal : numberValue(paymentAmount);
+
+    if (!partyId || !uuidRe.test(partyId)) {
+      showToast({
+        type: 'warning',
+        message: 'لحفظ الفاتورة في قاعدة البيانات اختر عميلاً أو مورداً مسجّلاً في النظام (لا يمكن استخدام «نقدي سريع» الفارغ).',
+      });
+      return;
+    }
+
+    if (status === 'final' && paidAmount > 0) {
+      const uuidReCash =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (uuidReCash.test(partyId) && !cashboxId) {
+        showToast({
+          type: 'warning',
+          message: 'اختر الصندوق المالي لربط الدفعة بخزينة حقيقية وتوليد السند تلقائياً على الخادم.',
+        });
+        return;
+      }
+    }
+
     const paymentStatus: 'unpaid' | 'partial' | 'paid' =
       paidAmount <= 0
         ? 'unpaid'
-        : paidAmount >= finalTotalAmount - 1e-4
+        : paidAmount >= persistedFinalTotal - 1e-4
           ? 'paid'
           : 'partial';
 
@@ -2288,12 +2322,12 @@ export const InvoiceForm = () => {
       showToast({ type: 'warning', message: 'يرجى إدخال سعر صرف صحيح' });
       return;
     }
-    const subtotalUsd = round2(convertToUsd(totalAmount, rate));
+    const subtotalUsd = round2(convertToUsd(persistedSubtotal, rate));
     const discountUsd = round2(convertToUsd(numberValue(discount), rate));
     const taxUsd = 0;
-    const totalUsd = round2(convertToUsd(finalTotalAmount, rate));
+    const totalUsd = round2(convertToUsd(persistedFinalTotal, rate));
     const paidUsd = round2(convertToUsd(paidAmount, rate));
-    const remainingUsd = round2(convertToUsd(Math.max(0, finalTotalAmount - paidAmount), rate));
+    const remainingUsd = round2(convertToUsd(Math.max(0, persistedFinalTotal - paidAmount), rate));
 
     const invoicePayload = {
       date,
@@ -2302,9 +2336,9 @@ export const InvoiceForm = () => {
       currency,
       warehouse,
       notes: headerNotes.trim(),
-      totalAmount: finalTotalAmount,
+      totalAmount: persistedFinalTotal,
       paidAmount,
-      remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+      remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),
       status: status === 'draft' ? ('unpaid' as const) : paymentStatus,
       items: activeItems.map((item, index) => {
         const quantity = numberValue(item.length);
@@ -2352,12 +2386,12 @@ export const InvoiceForm = () => {
       currencyCode,
       exchangeRateToUsd: rate,
       notes: notesPayload,
-      subtotal: totalAmount,
+      subtotal: persistedSubtotal,
       discountTotal: numberValue(discount),
       taxTotal: 0,
-      totalAmount: finalTotalAmount,
+      totalAmount: persistedFinalTotal,
       paidAmount,
-      remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+      remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),
       subtotalUsd,
       discountTotalUsd: discountUsd,
       taxTotalUsd: taxUsd,
@@ -2426,9 +2460,9 @@ export const InvoiceForm = () => {
             currency,
             warehouse: warehouseLabel,
             notes: headerNotes.trim() || undefined,
-            totalAmount: finalTotalAmount,
+            totalAmount: persistedFinalTotal,
             paidAmount,
-            remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+            remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),
             subtotalUsd,
             discountUsd,
             taxUsd,
@@ -2475,9 +2509,9 @@ export const InvoiceForm = () => {
             currency,
             warehouse: warehouseLabel,
             notes: headerNotes.trim() || undefined,
-            totalAmount: finalTotalAmount,
+            totalAmount: persistedFinalTotal,
             paidAmount,
-            remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+            remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),
             subtotalUsd,
             discountUsd,
             taxUsd,
@@ -2530,9 +2564,9 @@ export const InvoiceForm = () => {
             currency,
             warehouse: warehouseLabel,
             notes: headerNotes.trim() || undefined,
-            totalAmount: finalTotalAmount,
+            totalAmount: persistedFinalTotal,
             paidAmount,
-            remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+            remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),
             subtotalUsd,
             discountUsd,
             taxUsd,
@@ -2581,9 +2615,9 @@ export const InvoiceForm = () => {
             currency,
             warehouse: warehouseLabel,
             notes: headerNotes.trim() || undefined,
-            totalAmount: finalTotalAmount,
+            totalAmount: persistedFinalTotal,
             paidAmount,
-            remainingAmount: Math.max(0, finalTotalAmount - paidAmount),
+            remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),
             subtotalUsd,
             discountUsd,
             taxUsd,
@@ -3006,6 +3040,7 @@ export const InvoiceForm = () => {
                             value={item.supplierBarcode}
                             onChange={(e) => {
                               const raw = e.target.value || '';
+                              const rowEl = e.currentTarget.closest('[data-invoice-item-row]') as HTMLElement | null;
                               updateItem(item.id, 'supplierBarcode', raw);
                               setLatestScannedLineId(item.id);
 
@@ -3015,8 +3050,7 @@ export const InvoiceForm = () => {
                               if (existingTimer) clearTimeout(existingTimer);
                               if (parseRollIdentityQrPayload(normalized) || (isLikelyIdentityBarcodePayload(normalized) && normalized.length >= 4)) {
                                 scanParseTimersRef.current[timerKey] = setTimeout(() => {
-                                  const row = e.currentTarget.closest('[data-invoice-item-row]') as HTMLElement | null;
-                                  void handleBarcodeFieldSubmit(item.id, normalized, row);
+                                  void handleBarcodeFieldSubmit(item.id, normalized, rowEl);
                                 }, 120);
                               }
                             }}
