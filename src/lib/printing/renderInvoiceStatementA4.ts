@@ -1,6 +1,10 @@
 import type { Invoice, InvoiceItem } from '../../types';
 import { BRAND } from '../../branding';
 import { displayStoredInvoiceNo } from '../invoiceDbMappers';
+import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocumentFooter';
+
+const NAVY = '#2C405A';
+const GOLD = '#C4A962';
 
 function escapeHtml(s: string): string {
   return String(s)
@@ -293,7 +297,7 @@ export function renderInvoiceStatementA4Html(opts: {
   const headerMainValue1 = `<td class="meta-value wide">${escapeHtml(partyName)}</td>`;
   const headerMainValue2 = `<td class="meta-value wide">${escapeHtml(partyName)}${warehouse !== '—' ? ` - ${escapeHtml(warehouse)}` : ''}</td>`;
   const headerMainValue3 = `<td class="meta-value wide mono">${escapeHtml(invoiceNo)}</td>`;
-  const headerMainValue4 = `<td class="meta-value wide">${escapeHtml(notes || subtitle || '—')}</td>`;
+  const headerMainValue4 = `<td class="meta-value wide">${escapeHtml(subtitle)}</td>`;
   const headerSideValue1 = `<td class="meta-value">${escapeHtml(invoice.type === 'purchase' ? 'شراء' : 'بيع')}</td>`;
   const headerSideValue2 = `<td class="meta-value mono">${escapeHtml(invoiceDate)}</td>`;
   const headerSideValue3 = `<td class="meta-value mono">${escapeHtml(invoiceNo)} / ${escapeHtml(invoiceDate)}</td>`;
@@ -345,7 +349,7 @@ export function renderInvoiceStatementA4Html(opts: {
   `;
 
   const bodyRows = groups
-    .map((group, groupIndex) => {
+    .map((group) => {
       const rowsHtml = group.rows
         .map((line) => {
           return `
@@ -363,11 +367,11 @@ export function renderInvoiceStatementA4Html(opts: {
         })
         .join('');
 
-      const subtotalPrefix = groupIndex === 0 ? 'أ-ما,سبق ' : '';
+      const subtotalLabel = `إجمالي: ${group.rollCount} نوب`;
       return `
         ${rowsHtml}
         <tr class="subtotal-row">
-          <td class="subtotal-cell subtotal-label" colspan="4">${escapeHtml(`${subtotalPrefix}${group.rollCount} توب`)}</td>
+          <td class="subtotal-cell subtotal-label" colspan="4">${escapeHtml(subtotalLabel)}</td>
           <td class="subtotal-cell num strong">${formatAr(group.totalMeters)}</td>
           <td class="subtotal-cell num strong">${formatAr(group.totalKg)}</td>
           <td class="subtotal-cell" colspan="2"></td>
@@ -415,6 +419,7 @@ export function renderInvoiceStatementA4Html(opts: {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="format-detection" content="telephone=no,email=no,address=no" />
         <title>${escapeHtml(title)}</title>
         <style>
           @page { size: A4; margin: 8mm; }
@@ -434,9 +439,26 @@ export function renderInvoiceStatementA4Html(opts: {
           }
           .page {
             width: 100%;
-            min-height: 100%;
+            min-height: 277mm;
             padding: 0 2mm;
             overflow: visible;
+            display: flex;
+            flex-direction: column;
+          }
+          .page-body { flex: 1 1 auto; }
+          .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2px;
+          }
+          .page-no {
+            font-family: Consolas, "Courier New", monospace;
+            direction: ltr;
+            unicode-bidi: embed;
+            font-size: 9px;
+            color: #64748b;
+            font-weight: 700;
           }
           .brand-wrap {
             display: flex;
@@ -514,12 +536,13 @@ export function renderInvoiceStatementA4Html(opts: {
           .main-table thead th,
           .summary-table thead th {
             font-size: 9.5px;
-            padding: 3px 4px 5px;
+            padding: 5px 4px;
             line-height: 1.25;
             text-align: center;
             font-weight: 900;
-            border-bottom: 1px solid #000;
-            color: #000000;
+            border-bottom: 1px solid ${NAVY};
+            background: ${NAVY};
+            color: #ffffff;
             overflow: visible;
           }
           .main-table th,
@@ -642,19 +665,7 @@ export function renderInvoiceStatementA4Html(opts: {
             font-size: 10px;
             font-weight: 900;
           }
-          .footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-top: 6px;
-            font-size: 10px;
-            font-weight: 900;
-          }
-          .footer .page-no {
-            font-family: Consolas, "Courier New", monospace;
-            direction: ltr;
-            unicode-bidi: embed;
-          }
+          ${documentFooterStyles(NAVY, GOLD)}
           .summary-table .cell {
             border-bottom: none;
           }
@@ -697,6 +708,11 @@ export function renderInvoiceStatementA4Html(opts: {
           .cell, .text, .num, .subtotal-cell, .meta-table td, .notes-line { color: #000000 !important; }
         </style>
         <div class="page">
+          <div class="page-body">
+          <div class="top-bar">
+            <div class="page-no">1 / 1</div>
+            <div style="flex:1;"></div>
+          </div>
           <div class="brand-wrap">
             <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
           </div>
@@ -759,11 +775,9 @@ export function renderInvoiceStatementA4Html(opts: {
             <div class="signature-box">سلّمها (ختم/توقيع)</div>
             <div class="signature-box">استلمها (ختم/توقيع)</div>
           </div>
-
-          <div class="footer">
-            <div class="page-no">1 / 1</div>
-            <div></div>
           </div>
+
+          ${renderDocumentFooterHtml('invoice')}
         </div>
       </body>
     </html>

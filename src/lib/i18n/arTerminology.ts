@@ -7,7 +7,7 @@ import type { Invoice } from '../../types';
 
 /** Labels for print / on-screen invoice statement (كشف الفاتورة). */
 export const AR_INVOICE_STATEMENT = {
-  printTitle: 'اشعار تسليم مفصل',
+  printTitle: 'إشعار تسليم تفصيلي',
   printSubtitle: 'كشف الفاتورة',
   customerSupplier: 'العميل / المورد',
   serialInvoiceNo: 'الرقم / رقم الفاتورة',
