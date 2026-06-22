@@ -34,6 +34,24 @@ export function extractBaseFabricName(rawName: string | undefined): string {
   return value;
 }
 
+export function aggregateInvoiceFabricGroups(groups: StatementFabricGroup[]): StatementFabricGroup | null {
+  if (!groups.length) return null;
+  if (groups.length === 1) return groups[0];
+
+  const fabricNames = [...new Set(groups.map((g) => g.fabricName.trim()).filter(Boolean))];
+  const fabricName = fabricNames.length === 1 ? fabricNames[0] : fabricNames.join(' / ');
+
+  const rollsCount = groups.reduce((sum, g) => sum + g.rollsCount, 0);
+  const totalQuantity = groups.reduce((sum, g) => sum + g.totalQuantity, 0);
+  const totalAmount = groups.reduce((sum, g) => sum + g.totalAmount, 0);
+  const unitPrice =
+    totalQuantity > 0
+      ? totalAmount / totalQuantity
+      : groups.reduce((sum, g) => sum + g.unitPrice, 0) / groups.length;
+
+  return { fabricName, rollsCount, totalQuantity, unitPrice, totalAmount };
+}
+
 export function groupInvoiceLinesByFabric(invoice: Invoice): StatementFabricGroup[] {
   if (!invoice.items || invoice.items.length === 0) return [];
   return invoice.items.map((item) => {

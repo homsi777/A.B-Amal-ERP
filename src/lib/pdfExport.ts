@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { BRAND } from '../branding';
 import type { Invoice } from '../types';
-import { resolveInvoiceDetailRowsForStatementRow } from './customerStatementInvoiceDetails';
+import { resolveInvoiceDetailRowsForStatementRow, aggregateInvoiceFabricGroups } from './customerStatementInvoiceDetails';
 import { documentFooterStyles, renderDocumentFooterHtml } from './printing/renderDocumentFooter';
 
 /** CLOTEX brand header reused across all PDF statements. */
@@ -428,14 +428,13 @@ function renderAccountStatementHtml(options: {
   // ── Parse detailLine → phone / address ───────────────────────────────────
   const [phonePart = '', addressPart = ''] = options.detailLine.split(' | ');
 
-  // ── Build table rows + accumulate fabric totals ───────────────────────────
-  const docNoCount: Record<string, number> = {};
-  for (const row of options.rows) {
-    const k = String(row.documentNo ?? '');
-    docNoCount[k] = (docNoCount[k] ?? 0) + 1;
-  }
+  // ── Build table rows (one line per sales invoice) ─────────────────────────
+  const invoiceRowKey = (row: AccountStatementRow) => {
+    const sourceId = String(row.sourceId ?? '').trim();
+    if (sourceId) return `id:${sourceId}`;
+    return `doc:${String(row.documentNo ?? '').trim()}`;
+  };
 
-  const fabricGroupIdx: Record<string, number> = {};
   let totalFabricAmount = 0;
   let totalFabricLength = 0;
 
@@ -476,72 +475,59 @@ function renderAccountStatementHtml(options: {
       </tr>`;
     }
 
+    const seenSalesKeys = new Set<string>();
     const parts: string[] = [];
     let displayIdx = 0;
 
-    for (let idx = 0; idx < options.rows.length; idx++) {
-      const row = options.rows[idx];
-      const sales = isSalesRow(row);
-      const docNo = String(row.documentNo ?? '');
-      const docCount = docNoCount[docNo] ?? 1;
-      const grpIdx = fabricGroupIdx[docNo] ?? 0;
-      fabricGroupIdx[docNo] = grpIdx + 1;
+    for (const row of options.rows) {
+      if (isSalesRow(row)) {
+        const key = invoiceRowKey(row);
+        if (seenSalesKeys.has(key)) continue;
+        seenSalesKeys.add(key);
 
-      const prevDocNo = idx > 0 ? String(options.rows[idx - 1].documentNo ?? '') : '';
-      const isFirstOfDocGroup = docNo !== prevDocNo;
+        const invoiceRows = options.rows.filter((r) => isSalesRow(r) && invoiceRowKey(r) === key);
+        const lastRow = invoiceRows[invoiceRows.length - 1] ?? row;
+        const lineGroups = resolveInvoiceDetailRowsForStatementRow(row, options.saleInvoices ?? [], {
+          invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
+          invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
+        });
+        const fabric = aggregateInvoiceFabricGroups(lineGroups);
 
-      const allGroups: AccountStatementInvoiceDetail[] = sales
-        ? resolveInvoiceDetailRowsForStatementRow(row, options.saleInvoices ?? [], {
-            invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
-            invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
-          })
-        : [];
-
-      const grp = allGroups[grpIdx] ?? allGroups[0] ?? null;
-      if (grp) {
-        totalFabricAmount += grp.totalAmount;
-        totalFabricLength += grp.totalQuantity;
-      }
-
-      const showSubRows = docCount === 1 && grpIdx === 0 && allGroups.length > 1;
-      if (showSubRows) {
-        for (const g of allGroups.slice(1)) {
-          totalFabricAmount += g.totalAmount;
-          totalFabricLength += g.totalQuantity;
+        if (fabric) {
+          totalFabricAmount += fabric.totalAmount;
+          totalFabricLength += fabric.totalQuantity;
         }
+
+        const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        displayIdx += 1;
+
+        parts.push(
+          renderDataRow(evBg, {
+            date: safeText(row.date),
+            docNo: safeText(String(row.documentNo ?? '')),
+            typeLabel: safeText(row.typeLabel || row.description),
+            fabric,
+            debit: invoiceRows.reduce((sum, r) => sum + Number(r.debit || 0), 0),
+            credit: invoiceRows.reduce((sum, r) => sum + Number(r.credit || 0), 0),
+            balance: lastRow.balance,
+          }),
+        );
+        continue;
       }
 
       const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
       displayIdx += 1;
-
       parts.push(
         renderDataRow(evBg, {
-          date: isFirstOfDocGroup ? safeText(row.date) : '',
-          docNo: isFirstOfDocGroup ? safeText(docNo) : '',
-          typeLabel: isFirstOfDocGroup ? safeText(row.typeLabel || row.description) : '',
-          fabric: grp,
+          date: safeText(row.date),
+          docNo: safeText(String(row.documentNo ?? '')),
+          typeLabel: safeText(row.typeLabel || row.description),
+          fabric: null,
           debit: row.debit,
           credit: row.credit,
           balance: row.balance,
         }),
       );
-
-      if (showSubRows) {
-        for (const g of allGroups.slice(1)) {
-          displayIdx += 1;
-          parts.push(
-            renderDataRow(evBg, {
-              date: '',
-              docNo: '',
-              typeLabel: '',
-              fabric: g,
-              debit: null,
-              credit: null,
-              balance: null,
-            }),
-          );
-        }
-      }
     }
 
     return parts.join('');
