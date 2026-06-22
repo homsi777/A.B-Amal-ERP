@@ -1,6 +1,6 @@
 import React from 'react';
 import { Download, Loader2, Printer, X } from 'lucide-react';
-import { exportHtmlDocumentToPdf } from '../../lib/pdfExport';
+import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
 import { useToast } from '../NonBlockingToast';
 
 type PageSize = 'A4' | 'A5';
@@ -11,6 +11,8 @@ interface A4PreviewModalProps {
   html: string;
   pageSize?: PageSize;
   defaultFileName?: string;
+  /** مستند A4 بهيكل .page مدمج (كشف فاتورة) — يطابق التصدير مع الطباعة */
+  fixedPageLayout?: boolean;
   onClose: () => void;
   onPrinted?: () => void;
   onExported?: () => void;
@@ -35,6 +37,7 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
   html,
   pageSize = 'A4',
   defaultFileName,
+  fixedPageLayout = false,
   onClose,
   onPrinted,
   onExported,
@@ -95,6 +98,9 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
         const result = await window.fabricApp!.printToPdf(html, {
           pageSize: pageSize as 'A4' | 'A5' | 'ROLL_LABEL',
           defaultFileName: filePrefix,
+          ...(fixedPageLayout && pageSize === 'A4'
+            ? { margins: { ...ELECTRON_A4_EMBEDDED_MARGINS } }
+            : {}),
         });
         if (result.ok) {
           showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
@@ -105,11 +111,17 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
         return;
       }
 
-      await exportHtmlDocumentToPdf(html, filePrefix, {
-        orientation: 'portrait',
-        pageFormat: pageSize === 'A5' ? 'a5' : 'a4',
-        containerWidth: pageSize === 'A5' ? '148mm' : '210mm',
-      });
+      await exportHtmlDocumentToPdf(
+        html,
+        filePrefix,
+        fixedPageLayout && pageSize === 'A4'
+          ? A4_FIXED_LAYOUT_PDF_OPTIONS
+          : {
+              orientation: 'portrait',
+              pageFormat: pageSize === 'A5' ? 'a5' : 'a4',
+              containerWidth: pageSize === 'A5' ? '148mm' : '210mm',
+            },
+      );
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
       onExported?.();
     } catch (error) {

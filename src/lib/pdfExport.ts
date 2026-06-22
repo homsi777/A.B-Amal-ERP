@@ -86,9 +86,28 @@ export type PdfExportOptions = {
   containerWidth?: string;
   containerPadding?: string;
   pageFormat?: 'a4' | 'a5';
-  /** ضغط المحتوى في صفحة A4 واحدة (طلبيات الحجز) */
+  /** ضغط المحتوى في صفحة A4 واحدة (طلبيات الحجز، كشف الفاتورة، …) */
   fitSinglePage?: boolean;
+  /** هامش جانبي بالمليمتر عند التصدير — 0 لمستندات .page ذات هوامش مدمجة */
+  pageMarginMm?: number;
 };
+
+/** تصدير PDF لمستندات A4 ذات تخطيط .page — يطابق معاينة الطباعة */
+export const A4_FIXED_LAYOUT_PDF_OPTIONS: PdfExportOptions = {
+  orientation: 'portrait',
+  pageFormat: 'a4',
+  containerWidth: '210mm',
+  fitSinglePage: true,
+  pageMarginMm: 0,
+};
+
+/** هوامش Electron صفرية — الهوامش مدمجة داخل HTML */
+export const ELECTRON_A4_EMBEDDED_MARGINS = {
+  top: 0,
+  bottom: 0,
+  left: 0,
+  right: 0,
+} as const;
 
 const appendHtml2CanvasCompatibilityStyle = (doc: Document) => {
   const style = doc.createElement('style');
@@ -828,6 +847,24 @@ export async function exportPdfFromHtmlString(
   }
 }
 
+const appendA4FixedLayoutExportStyle = (doc: Document) => {
+  const style = doc.createElement('style');
+  style.setAttribute('data-pdf-a4-fixed-layout', 'true');
+  style.textContent = `
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      background: #ffffff !important;
+    }
+    .page {
+      margin: 0 auto !important;
+      overflow: hidden !important;
+    }
+  `;
+  doc.head.appendChild(style);
+};
+
 /** تصدير PDF من مستند HTML كامل (كشوف فواتير A4، …) بجودة أعلى وعرض صفحة صحيح. */
 export async function exportHtmlDocumentToPdf(
   html: string,
@@ -836,6 +873,8 @@ export async function exportHtmlDocumentToPdf(
 ): Promise<void> {
   const pageFormat = options.pageFormat ?? 'a4';
   const containerWidth = options.containerWidth ?? (pageFormat === 'a5' ? '148mm' : '210mm');
+  const fitSinglePage = options.fitSinglePage ?? false;
+  const pageMarginMm = options.pageMarginMm ?? (fitSinglePage ? 0 : 4);
   const iframe = document.createElement('iframe');
   iframe.style.cssText = `position:absolute;left:-9999px;top:0;width:${containerWidth};border:0;`;
   document.body.appendChild(iframe);
@@ -851,7 +890,12 @@ export async function exportHtmlDocumentToPdf(
   doc.close();
   await new Promise((resolve) => window.setTimeout(resolve, 220));
 
-  const target = doc.body;
+  if (fitSinglePage) {
+    appendA4FixedLayoutExportStyle(doc);
+  }
+
+  const pageEl = doc.querySelector('.page') as HTMLElement | null;
+  const target = fitSinglePage && pageEl ? pageEl : doc.body;
   const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(doc);
 
   const measureWidth = () =>
@@ -862,9 +906,11 @@ export async function exportHtmlDocumentToPdf(
       doc.documentElement.offsetWidth,
     );
 
-  const captureWidth = measureWidth() + 24;
-  iframe.style.width = `${captureWidth}px`;
-  await new Promise((resolve) => window.setTimeout(resolve, 60));
+  const captureWidth = fitSinglePage ? Math.ceil(measureWidth()) : measureWidth() + 24;
+  if (!fitSinglePage) {
+    iframe.style.width = `${captureWidth}px`;
+    await new Promise((resolve) => window.setTimeout(resolve, 60));
+  }
 
   try {
     const canvas = await html2canvas(target, {
@@ -872,6 +918,8 @@ export async function exportHtmlDocumentToPdf(
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
+      width: fitSinglePage ? captureWidth : undefined,
+      height: fitSinglePage ? Math.ceil(target.scrollHeight || target.offsetHeight) : undefined,
       windowWidth: captureWidth,
       scrollX: 0,
       scrollY: 0,
@@ -879,10 +927,18 @@ export async function exportHtmlDocumentToPdf(
       y: 0,
       onclone: (clonedDocument) => {
         appendHtml2CanvasCompatibilityStyle(clonedDocument);
-        const clonedBody = clonedDocument.body;
-        if (clonedBody) {
-          clonedBody.style.overflow = 'visible';
-          clonedBody.style.width = `${captureWidth}px`;
+        if (fitSinglePage) {
+          appendA4FixedLayoutExportStyle(clonedDocument);
+        }
+        const clonedTarget =
+          fitSinglePage && clonedDocument.querySelector('.page')
+            ? (clonedDocument.querySelector('.page') as HTMLElement)
+            : clonedDocument.body;
+        if (clonedTarget) {
+          clonedTarget.style.overflow = 'visible';
+          if (!fitSinglePage) {
+            clonedTarget.style.width = `${captureWidth}px`;
+          }
         }
       },
     });
@@ -893,21 +949,33 @@ export async function exportHtmlDocumentToPdf(
     const pdf = new jsPDF({ orientation, unit: 'mm', format: pageFormat });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const sideMarginMm = 4;
-    const imgWidth = pageWidth - sideMarginMm * 2;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-    const xOffset = sideMarginMm;
+    const usablePageWidth = pageWidth - pageMarginMm * 2;
+    const usablePageHeight = pageHeight - pageMarginMm * 2;
 
-    addCompressedImageToPDF(pdf, imgData, xOffset, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+    let imgWidth = usablePageWidth;
+    let imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      addCompressedImageToPDF(pdf, imgData, xOffset, position, imgWidth, imgHeight);
+    if (fitSinglePage && imgHeight > usablePageHeight) {
+      imgHeight = usablePageHeight;
+      imgWidth = (canvas.width * imgHeight) / canvas.height;
+    }
+
+    const xOffset = pageMarginMm + (fitSinglePage ? Math.max(0, (usablePageWidth - imgWidth) / 2) : 0);
+
+    if (fitSinglePage || imgHeight <= usablePageHeight) {
+      addCompressedImageToPDF(pdf, imgData, xOffset, pageMarginMm, imgWidth, imgHeight);
+    } else {
+      let heightLeft = imgHeight;
+      let position = 0;
+      addCompressedImageToPDF(pdf, imgData, pageMarginMm, position, usablePageWidth, imgHeight);
       heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        addCompressedImageToPDF(pdf, imgData, pageMarginMm, position, usablePageWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
     }
 
     const currentDate = new Date().toISOString().split('T')[0];

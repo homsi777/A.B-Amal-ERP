@@ -3,7 +3,7 @@ import { Download, FileText, Loader2, Printer, X } from 'lucide-react';
 import type { Invoice } from '../../types';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
 import { AR_INVOICE_STATEMENT } from '../../lib/i18n/arTerminology';
-import { exportHtmlDocumentToPdf } from '../../lib/pdfExport';
+import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
 import { useToast } from '../NonBlockingToast';
 import { A4PreviewModal } from '../printing/A4PreviewModal';
 
@@ -56,6 +56,7 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
         const result = await window.fabricApp!.printToPdf(buildHtml(), {
           pageSize: 'A4',
           defaultFileName: filePrefix,
+          margins: { ...ELECTRON_A4_EMBEDDED_MARGINS },
         });
         if (result.ok) {
           showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
@@ -66,11 +67,7 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
         return;
       }
 
-      await exportHtmlDocumentToPdf(buildHtml(), filePrefix, {
-        orientation: 'portrait',
-        pageFormat: 'a4',
-        containerWidth: '210mm',
-      });
+      await exportHtmlDocumentToPdf(buildHtml(), filePrefix, A4_FIXED_LAYOUT_PDF_OPTIONS);
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
       onClose();
     } catch (error) {
@@ -144,6 +141,7 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
         title="معاينة فاتورة A4"
         html={buildHtml()}
         pageSize="A4"
+        fixedPageLayout
         defaultFileName={defaultFileName}
         onClose={() => setPreviewOpen(false)}
         onPrinted={() => {

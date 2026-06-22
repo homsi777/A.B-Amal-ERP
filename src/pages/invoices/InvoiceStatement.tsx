@@ -22,7 +22,7 @@ import { mapSalesInvoiceDetailToInvoice, mapPurchaseInvoiceDetailToInvoice, disp
 import type { Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
-import { exportHtmlDocumentToPdf } from '../../lib/pdfExport';
+import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import {
   AR_INVOICE_STATEMENT,
@@ -517,6 +517,7 @@ export const InvoiceStatement = () => {
         const result = await window.fabricApp!.printToPdf(html, {
           pageSize: 'A4',
           defaultFileName,
+          margins: { ...ELECTRON_A4_EMBEDDED_MARGINS },
         });
         if (result.ok) {
           showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
@@ -526,11 +527,7 @@ export const InvoiceStatement = () => {
         return;
       }
 
-      await exportHtmlDocumentToPdf(html, defaultFileName, {
-        orientation: 'portrait',
-        pageFormat: 'a4',
-        containerWidth: '210mm',
-      });
+      await exportHtmlDocumentToPdf(html, defaultFileName, A4_FIXED_LAYOUT_PDF_OPTIONS);
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
     } catch (err) {
       showToast({ type: 'error', message: err instanceof Error ? err.message : 'تعذر تصدير PDF' });
@@ -567,6 +564,7 @@ export const InvoiceStatement = () => {
         title="معاينة كشف الفاتورة A4"
         html={buildA4Html()}
         pageSize="A4"
+        fixedPageLayout
         defaultFileName={defaultPdfFileName}
         onClose={() => setPreviewOpen(false)}
         onPrinted={() => setPreviewOpen(false)}
