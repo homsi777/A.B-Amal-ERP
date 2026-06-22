@@ -5,7 +5,10 @@
 > ملاحظة: شغّل الأوامر من داخل مجلد المشروع الرئيسي.
 
 
-77777
+cd ~/ab-amal-erp
+chmod +x scripts/deploy-clotex-vps.sh
+./scripts/deploy-clotex-vps.sh
+
 
 
 

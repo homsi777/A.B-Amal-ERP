@@ -8,8 +8,10 @@ import {
   FileText,
   Layers,
   Package,
+  ClipboardList,
   PlusCircle,
   RefreshCw,
+  ScrollText,
   Settings,
   ShoppingCart,
   TrendingUp,
@@ -20,7 +22,7 @@ import {
 import { Link } from 'react-router-dom';
 import { getDashboardSummary, type DashboardSummary } from '../lib/api/reportsApi';
 
-const defaultLinkIds = ['create_item', 'inventory', 'warehouses', 'sales', 'purchases', 'bonds_in', 'bonds_out'];
+const defaultLinkIds = ['create_item', 'inventory', 'warehouses', 'sales', 'purchases', 'bonds_in', 'bonds_out', 'cartela', 'orders'];
 
 const quickLinkDefs = [
   { id: 'create_item', labelKey: 'quickLinks.createItem', path: '/inventory/create', icon: PlusCircle, color: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' },
@@ -33,6 +35,8 @@ const quickLinkDefs = [
   { id: 'customers', labelKey: 'quickLinks.customers', path: '/customers', icon: Users, color: 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100' },
   { id: 'suppliers', labelKey: 'quickLinks.suppliers', path: '/suppliers', icon: TrendingUp, color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' },
   { id: 'safes', labelKey: 'quickLinks.safes', path: '/treasury/safes', icon: Wallet, color: 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100' },
+  { id: 'cartela', labelKey: 'quickLinks.cartela', path: '/cartela', icon: ScrollText, color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 hover:bg-fuchsia-100' },
+  { id: 'orders', labelKey: 'quickLinks.orders', path: '/orders', icon: ClipboardList, color: 'bg-lime-50 text-lime-700 border-lime-200 hover:bg-lime-100' },
 ];
 
 function numberValue(value: unknown): number {
