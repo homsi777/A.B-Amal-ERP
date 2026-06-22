@@ -1,5 +1,7 @@
 /** عميل HTTP للـ API — لا يحتوي على اعتمادات قاعدة البيانات */
 
+import { detectClientPlatform } from '../clientPlatform';
+
 const TOKEN_KEY = 'fabric_erp_api_token';
 
 /**
@@ -238,6 +240,8 @@ export async function apiFetch<T>(
       headers.set('Authorization', `Bearer ${token}`);
     }
   }
+
+  headers.set('X-Client-Platform', detectClientPlatform());
 
   const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
 

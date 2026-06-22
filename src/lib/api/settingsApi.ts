@@ -129,6 +129,25 @@ export async function updateSystemUser(
   return res.data;
 }
 
+export interface ActiveSessionDto {
+  sessionKey: string;
+  userId: string;
+  username: string;
+  fullName: string | null;
+  companyId: string;
+  ip: string;
+  userAgent: string;
+  clientPlatform: 'windows-desktop' | 'mobile-browser' | 'desktop-browser';
+  clientPlatformLabel: string;
+  connectedAt: string;
+  lastSeenAt: string;
+}
+
+export async function fetchActiveSessions(): Promise<ActiveSessionDto[]> {
+  const res = await apiFetch<{ ok: boolean; data: ActiveSessionDto[] }>('/api/system/active-sessions');
+  return res.data;
+}
+
 export type PurgeBusinessDataSummary = {
   purgedAt: string;
   tables: Record<string, number>;

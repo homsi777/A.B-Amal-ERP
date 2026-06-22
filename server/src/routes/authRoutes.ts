@@ -6,6 +6,8 @@ import { authenticateRequest, signAuthToken, type JwtPayload } from '../middlewa
 import { runPostActivationBootstrap } from '../services/postActivationBootstrap.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
+import { touchActiveSession } from '../services/activeSessionsService.js';
+import { clientIp } from '../utils/clientIp.js';
 
 const loginBodySchema = z.object({
   username: z.string().min(1),
@@ -101,6 +103,15 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     };
 
     const token = signAuthToken(payload);
+
+    touchActiveSession({
+      payload,
+      token,
+      ip: clientIp(request),
+      userAgent: String(request.headers['user-agent'] || '—'),
+      clientPlatformHeader: request.headers['x-client-platform'],
+      fullName: user.full_name,
+    });
 
     return reply.send({
       ok: true,

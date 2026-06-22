@@ -20,9 +20,11 @@ import {
   MessageCircle,
   Pencil,
   X,
+  Wifi,
 } from 'lucide-react';
 import { ThemeDisplaySettings } from '../components/settings/ThemeDisplaySettings';
 import { TelegramBotSettingsPanel } from '../components/settings/TelegramBotSettingsPanel';
+import { ActiveDevicesPanel } from '../components/settings/ActiveDevicesPanel';
 import { ActivationSettingsPanel } from '../components/activation/ActivationSettingsPanel';
 import { DesktopSettingsBody } from './settings/DesktopSettings';
 import {
@@ -46,7 +48,7 @@ import { fetchMe, type AuthUser } from '../lib/api/authApi';
 import { listExchangeRates, updateExchangeRate, type ExchangeRateDto, type SupportedCurrencyCode } from '../lib/api/exchangeRatesApi';
 import { useToast } from '../components/NonBlockingToast';
 
-type SettingsSectionId = 'company' | 'general' | 'desktop' | 'invoice' | 'users' | 'mail' | 'activation' | 'backup' | 'themes' | 'stub';
+type SettingsSectionId = 'company' | 'general' | 'desktop' | 'invoice' | 'users' | 'mail' | 'activation' | 'backup' | 'themes' | 'stub' | 'activeDevices';
 
 type NavRow = {
   navKey: string;
@@ -61,6 +63,7 @@ const NAV_ITEMS: NavRow[] = [
   { navKey: 'desktop', section: 'desktop', label: 'تطبيق سطح المكتب', icon: Monitor },
   { navKey: 'invoice', section: 'invoice', label: 'الفوترة والضرائب', icon: Receipt },
   { navKey: 'users',   section: 'users',   label: 'المستخدمين والصلاحيات', icon: ShieldCheck },
+  { navKey: 'activeDevices', section: 'activeDevices', label: 'الأجهزة النشطة', icon: Wifi },
   { navKey: 'mail',    section: 'mail',    label: 'إعدادات المراسلة', icon: Mail },
   { navKey: 'backup',  section: 'backup',  label: 'قواعد البيانات (النسخ الاحتياطي)', icon: Database },
   { navKey: 'themes',  section: 'themes',  label: 'الثيمات و عرض', icon: Sparkles },
@@ -832,6 +835,12 @@ export const SystemSettings = () => {
                   {permissions.length === 0 && <p className="text-[var(--text-muted)] text-sm">لا توجد صلاحيات محملة من الخادم.</p>}
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeSection === 'activeDevices' && (
+            <div className="bg-[var(--surface-header)] border border-[var(--border-default)] rounded-xl shadow-sm p-6 transition-colors">
+              <ActiveDevicesPanel />
             </div>
           )}
 

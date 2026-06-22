@@ -4,6 +4,8 @@ import { getEnv } from '../config/env.js';
 import { getPool } from '../db/pool.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from './errorHandler.js';
+import { touchActiveSession } from '../services/activeSessionsService.js';
+import { clientIp } from '../utils/clientIp.js';
 
 export type JwtPayload = {
   sub: string;
@@ -61,8 +63,8 @@ export async function authenticateRequest(request: FastifyRequest, reply: Fastif
   try {
     const payload = verifyAuthToken(token);
     const pool = getPool();
-    const userCheck = await pool.query<{ is_active: boolean }>(
-      'SELECT is_active FROM users WHERE id = $1',
+    const userCheck = await pool.query<{ is_active: boolean; full_name: string | null }>(
+      'SELECT is_active, full_name FROM users WHERE id = $1',
       [payload.sub],
     );
     if (userCheck.rows.length === 0 || !userCheck.rows[0].is_active) {
@@ -70,6 +72,14 @@ export async function authenticateRequest(request: FastifyRequest, reply: Fastif
     }
 
     request.user = payload;
+    touchActiveSession({
+      payload,
+      token,
+      ip: clientIp(request),
+      userAgent: String(request.headers['user-agent'] || '—'),
+      clientPlatformHeader: request.headers['x-client-platform'],
+      fullName: userCheck.rows[0].full_name,
+    });
   } catch {
     return sendError(reply, 401, ArabicErrors.tokenInvalid, 'UNAUTHORIZED');
   }

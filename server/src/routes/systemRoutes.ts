@@ -7,6 +7,7 @@ import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { purgeBusinessData } from '../services/purgeBusinessDataService.js';
+import { listActiveSessions } from '../services/activeSessionsService.js';
 
 const settingBody = z.object({
   key: z.string().min(1),
@@ -395,6 +396,14 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
 
     if (!row.rows.length) return sendError(reply, 404, 'المستخدم غير موجود', 'NOT_FOUND');
     return reply.send({ ok: true, data: row.rows[0] });
+  });
+
+  app.get('/active-sessions', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'settings.manage')) {
+      return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    }
+    const data = listActiveSessions(req.user!.companyId);
+    return reply.send({ ok: true, data });
   });
 
   app.post('/purge-business-data', { preHandler: authenticateRequest }, async (req, reply) => {
