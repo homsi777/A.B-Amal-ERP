@@ -638,11 +638,29 @@ function renderAccountStatementHtml(options: {
     margin-top: 14px; margin-bottom: 10px;
   }
   .sig-box {
-    border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 12px; min-height: 68px;
+    border: 1.5px solid #cbd5e1; border-radius: 8px;
+    padding: 12px 14px 14px; min-height: 96px;
   }
-  .sig-label { font-size: 11px; font-weight: 700; color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
-  .sig-line  { border-top: 1px solid #94a3b8; margin: 5px 0; }
-  .sig-field { font-size: 10px; color: #64748b; margin-top: 3px; display: flex; justify-content: space-between; }
+  .sig-label {
+    font-size: 11px; font-weight: 700; color: #1e293b;
+    margin-bottom: 8px; display: flex; align-items: center; gap: 5px;
+  }
+  .sig-row {
+    display: flex; align-items: flex-end; gap: 10px;
+    margin-top: 12px;
+  }
+  .sig-row:first-of-type { margin-top: 0; }
+  .sig-key {
+    flex: 0 0 auto; font-size: 10.5px; font-weight: 600;
+    color: #475569; white-space: nowrap; padding-bottom: 5px;
+  }
+  .sig-write {
+    flex: 1 1 auto; min-width: 0;
+    border-bottom: 1.5px solid #64748b;
+  }
+  .sig-write--name { min-height: 20px; margin-bottom: 2px; }
+  .sig-write--sign { min-height: 28px; }
+  .sig-notes-space { min-height: 58px; margin-top: 4px; }
 
   ${documentFooterStyles(NAVY)}
 
@@ -752,19 +770,29 @@ function renderAccountStatementHtml(options: {
   <div class="sigs">
     <div class="sig-box">
       <div class="sig-label">&#128100; مسؤول الحساب</div>
-      <div class="sig-field"><span>الاسم:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
-      <div class="sig-line"></div>
-      <div class="sig-field"><span>التوقيع:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
+      <div class="sig-row">
+        <span class="sig-key">الاسم:</span>
+        <span class="sig-write sig-write--name"></span>
+      </div>
+      <div class="sig-row">
+        <span class="sig-key">التوقيع:</span>
+        <span class="sig-write sig-write--sign"></span>
+      </div>
     </div>
     <div class="sig-box">
       <div class="sig-label">&#128100; اعتماد الحسابات</div>
-      <div class="sig-field"><span>الاسم:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
-      <div class="sig-line"></div>
-      <div class="sig-field"><span>التوقيع:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
+      <div class="sig-row">
+        <span class="sig-key">الاسم:</span>
+        <span class="sig-write sig-write--name"></span>
+      </div>
+      <div class="sig-row">
+        <span class="sig-key">التوقيع:</span>
+        <span class="sig-write sig-write--sign"></span>
+      </div>
     </div>
     <div class="sig-box">
       <div class="sig-label">&#128203; ملاحظات</div>
-      <div style="height:40px;"></div>
+      <div class="sig-notes-space"></div>
     </div>
   </div>
 
