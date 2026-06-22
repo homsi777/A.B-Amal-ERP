@@ -38,8 +38,26 @@ const sessions = new Map<
   }
 >();
 
+const revokedSessionKeys = new Set<string>();
+
 function sessionKey(userId: string, token: string): string {
   return createHash('sha256').update(`${userId}:${token}`).digest('hex').slice(0, 24);
+}
+
+export function buildSessionKey(userId: string, token: string): string {
+  return sessionKey(userId, token);
+}
+
+export function isSessionRevoked(userId: string, token: string): boolean {
+  return revokedSessionKeys.has(sessionKey(userId, token));
+}
+
+export function revokeActiveSession(sessionKeyValue: string, companyId: string): boolean {
+  const row = sessions.get(sessionKeyValue);
+  if (!row || row.companyId !== companyId) return false;
+  sessions.delete(sessionKeyValue);
+  revokedSessionKeys.add(sessionKeyValue);
+  return true;
 }
 
 function pruneExpired(now = Date.now()) {

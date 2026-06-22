@@ -7,7 +7,7 @@ import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { purgeBusinessData } from '../services/purgeBusinessDataService.js';
-import { listActiveSessions } from '../services/activeSessionsService.js';
+import { listActiveSessions, revokeActiveSession, buildSessionKey } from '../services/activeSessionsService.js';
 
 const settingBody = z.object({
   key: z.string().min(1),
@@ -403,7 +403,24 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     }
     const data = listActiveSessions(req.user!.companyId);
-    return reply.send({ ok: true, data });
+    const currentSessionKey =
+      req.user && req.authToken ? buildSessionKey(req.user.sub, req.authToken) : null;
+    return reply.send({ ok: true, data, currentSessionKey });
+  });
+
+  app.delete('/active-sessions/:sessionKey', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'settings.manage')) {
+      return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    }
+    const sessionKeyValue = String((req.params as { sessionKey?: string }).sessionKey || '').trim();
+    if (!sessionKeyValue) {
+      return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    }
+    const ok = revokeActiveSession(sessionKeyValue, req.user!.companyId);
+    if (!ok) {
+      return sendError(reply, 404, 'الجلسة غير موجودة أو انتهت', 'NOT_FOUND');
+    }
+    return reply.send({ ok: true });
   });
 
   app.post('/purge-business-data', { preHandler: authenticateRequest }, async (req, reply) => {

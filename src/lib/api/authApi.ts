@@ -44,3 +44,8 @@ export async function fetchMe(): Promise<AuthUser> {
   const data = await apiFetch<MeResponse>('/api/auth/me');
   return data.user;
 }
+
+/** يُبقي الجلسة ظاهرة في «الأجهزة النشطة» أثناء بقاء المستخدم داخل النظام */
+export async function pingSessionPresence(): Promise<void> {
+  await apiFetch<{ ok: boolean }>('/api/auth/presence');
+}

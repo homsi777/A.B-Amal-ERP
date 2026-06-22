@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ToastProvider } from '../components/NonBlockingToast';
+import { SessionPresenceTracker } from '../components/SessionPresenceTracker';
 import { BRAND } from '../branding';
 import { useAnchoredPopoverStyle } from '../lib/useAnchoredPopoverStyle';
 
@@ -531,6 +532,7 @@ export const DashboardLayout = () => {
       <Topbar />
       <main className={mainClass}>
         <ToastProvider>
+          <SessionPresenceTracker />
           <Outlet />
         </ToastProvider>
       </main>

@@ -4,7 +4,7 @@ import { getEnv } from '../config/env.js';
 import { getPool } from '../db/pool.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from './errorHandler.js';
-import { touchActiveSession } from '../services/activeSessionsService.js';
+import { touchActiveSession, isSessionRevoked } from '../services/activeSessionsService.js';
 import { clientIp } from '../utils/clientIp.js';
 
 export type JwtPayload = {
@@ -71,7 +71,12 @@ export async function authenticateRequest(request: FastifyRequest, reply: Fastif
       return sendError(reply, 401, ArabicErrors.userInactive, 'UNAUTHORIZED');
     }
 
+    if (isSessionRevoked(payload.sub, token)) {
+      return sendError(reply, 401, 'تم إنهاء الجلسة من قبل المدير', 'SESSION_REVOKED');
+    }
+
     request.user = payload;
+    request.authToken = token;
     touchActiveSession({
       payload,
       token,
@@ -88,5 +93,6 @@ export async function authenticateRequest(request: FastifyRequest, reply: Fastif
 declare module 'fastify' {
   interface FastifyRequest {
     user?: JwtPayload;
+    authToken?: string;
   }
 }

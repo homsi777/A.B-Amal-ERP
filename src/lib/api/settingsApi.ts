@@ -143,9 +143,20 @@ export interface ActiveSessionDto {
   lastSeenAt: string;
 }
 
-export async function fetchActiveSessions(): Promise<ActiveSessionDto[]> {
-  const res = await apiFetch<{ ok: boolean; data: ActiveSessionDto[] }>('/api/system/active-sessions');
-  return res.data;
+export async function fetchActiveSessions(): Promise<{
+  data: ActiveSessionDto[];
+  currentSessionKey: string | null;
+}> {
+  const res = await apiFetch<{ ok: boolean; data: ActiveSessionDto[]; currentSessionKey: string | null }>(
+    '/api/system/active-sessions',
+  );
+  return { data: res.data, currentSessionKey: res.currentSessionKey ?? null };
+}
+
+export async function revokeActiveSession(sessionKey: string): Promise<void> {
+  await apiFetch(`/api/system/active-sessions/${encodeURIComponent(sessionKey)}`, {
+    method: 'DELETE',
+  });
 }
 
 export type PurgeBusinessDataSummary = {

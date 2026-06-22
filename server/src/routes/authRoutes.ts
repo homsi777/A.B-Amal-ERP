@@ -131,6 +131,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true });
   });
 
+  app.get('/presence', { preHandler: authenticateRequest }, async (_request, reply) => {
+    return reply.send({ ok: true });
+  });
+
   app.get('/me', { preHandler: authenticateRequest }, async (request, reply) => {
     const u = request.user;
     if (!u) {

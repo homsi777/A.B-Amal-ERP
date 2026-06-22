@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Globe, Monitor, RefreshCw, Smartphone, Wifi } from 'lucide-react';
-import { fetchActiveSessions, type ActiveSessionDto } from '../../lib/api/settingsApi';
+import { Globe, LogOut, Monitor, RefreshCw, Smartphone, Wifi } from 'lucide-react';
+import {
+  fetchActiveSessions,
+  revokeActiveSession,
+  type ActiveSessionDto,
+} from '../../lib/api/settingsApi';
 import { useToast } from '../NonBlockingToast';
 
 function formatDateTime(iso: string): string {
@@ -47,14 +51,16 @@ function platformBadgeClass(code: ActiveSessionDto['clientPlatform']): string {
 export const ActiveDevicesPanel: React.FC = () => {
   const { showToast } = useToast();
   const [rows, setRows] = useState<ActiveSessionDto[]>([]);
+  const [currentSessionKey, setCurrentSessionKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showIdle, setShowIdle] = useState(false);
+  const [revokingKey, setRevokingKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchActiveSessions();
-      setRows(data);
+      const res = await fetchActiveSessions();
+      setRows(res.data);
+      setCurrentSessionKey(res.currentSessionKey);
     } catch (error) {
       showToast({
         type: 'error',
@@ -72,10 +78,35 @@ export const ActiveDevicesPanel: React.FC = () => {
   }, [load]);
 
   const onlineRows = useMemo(() => rows.filter((row) => isOnlineNow(row.lastSeenAt)), [rows]);
-  const visibleRows = useMemo(
-    () => (showIdle ? rows : onlineRows),
-    [rows, onlineRows, showIdle],
-  );
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const aOnline = isOnlineNow(a.lastSeenAt) ? 1 : 0;
+      const bOnline = isOnlineNow(b.lastSeenAt) ? 1 : 0;
+      if (aOnline !== bOnline) return bOnline - aOnline;
+      return new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime();
+    });
+  }, [rows]);
+
+  const handleRevoke = async (row: ActiveSessionDto) => {
+    const isSelf = row.sessionKey === currentSessionKey;
+    const label = isSelf ? 'جلستك الحالية' : `حساب ${row.username}`;
+    const ok = window.confirm(`تسجيل خروج ${label} من هذا الجهاز؟`);
+    if (!ok) return;
+
+    setRevokingKey(row.sessionKey);
+    try {
+      await revokeActiveSession(row.sessionKey);
+      showToast({ type: 'success', message: `تم تسجيل خروج ${row.username} من الجهاز` });
+      await load();
+    } catch (error) {
+      showToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'تعذر تسجيل الخروج عن الجهاز',
+      });
+    } finally {
+      setRevokingKey(null);
+    }
+  };
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -83,29 +114,18 @@ export const ActiveDevicesPanel: React.FC = () => {
         <div>
           <h3 className="text-xl font-black text-[var(--text-heading)]">الأجهزة النشطة</h3>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            من متصل الآن بالنظام: اسم الحساب، آلية الدخول (ويندوز / موبايل / متصفح)، وعنوان IP.
+            جميع الأجهزة المتصلة خلال آخر 5 دقائق — مع إمكانية تسجيل الخروج عن أي جهاز.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-default)] bg-white px-3 py-2 text-sm font-bold text-slate-700">
-            <input
-              type="checkbox"
-              checked={showIdle}
-              onChange={(event) => setShowIdle(event.target.checked)}
-              className="accent-[var(--ui-accent)]"
-            />
-            إظهار الجلسات الخاملة
-          </label>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-default)] bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            تحديث
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-default)] bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          تحديث
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -119,7 +139,7 @@ export const ActiveDevicesPanel: React.FC = () => {
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="flex items-center gap-2 text-slate-700">
             <Monitor className="h-5 w-5" />
-            <span className="text-sm font-bold">جلسات خلال 5 دقائق</span>
+            <span className="text-sm font-bold">إجمالي الجلسات (5 دقائق)</span>
           </div>
           <p className="mt-2 text-2xl font-black text-slate-900">{loading ? '...' : rows.length}</p>
         </div>
@@ -135,27 +155,32 @@ export const ActiveDevicesPanel: React.FC = () => {
               <th className="p-3 text-right font-black">آلية الدخول</th>
               <th className="p-3 text-right font-black">عنوان IP</th>
               <th className="p-3 text-right font-black">آخر نشاط</th>
+              <th className="p-3 text-center font-black">إجراء</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center font-bold text-slate-500">
+                <td colSpan={7} className="p-8 text-center font-bold text-slate-500">
                   جاري التحميل...
                 </td>
               </tr>
-            ) : visibleRows.length === 0 ? (
+            ) : sortedRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center font-bold text-slate-500">
-                  {showIdle ? 'لا توجد جلسات نشطة' : 'لا يوجد مستخدم متصل الآن'}
+                <td colSpan={7} className="p-8 text-center font-bold text-slate-500">
+                  لا توجد أجهزة نشطة حالياً
                 </td>
               </tr>
             ) : (
-              visibleRows.map((row) => {
+              sortedRows.map((row) => {
                 const online = isOnlineNow(row.lastSeenAt);
+                const isSelf = row.sessionKey === currentSessionKey;
                 const PlatformIcon = platformIcon(row.clientPlatform);
                 return (
-                  <tr key={row.sessionKey} className="border-t border-slate-100">
+                  <tr
+                    key={row.sessionKey}
+                    className={`border-t border-slate-100 ${isSelf ? 'bg-indigo-50/40' : ''}`}
+                  >
                     <td className="p-3">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${
@@ -164,6 +189,11 @@ export const ActiveDevicesPanel: React.FC = () => {
                       >
                         {online ? 'متصل الآن' : 'خامل'}
                       </span>
+                      {isSelf && (
+                        <span className="mr-2 inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">
+                          جهازك
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 font-mono text-base font-black text-slate-900">{row.username}</td>
                     <td className="p-3 font-bold text-slate-700">{row.fullName || '—'}</td>
@@ -179,6 +209,18 @@ export const ActiveDevicesPanel: React.FC = () => {
                       {row.ip}
                     </td>
                     <td className="p-3 text-slate-700">{formatDateTime(row.lastSeenAt)}</td>
+                    <td className="p-3 text-center">
+                      <button
+                        type="button"
+                        disabled={revokingKey === row.sessionKey}
+                        onClick={() => void handleRevoke(row)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                        title={isSelf ? 'تسجيل خروج من هذا الجهاز' : `تسجيل خروج ${row.username}`}
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        {revokingKey === row.sessionKey ? 'جاري...' : 'تسجيل خروج'}
+                      </button>
+                    </td>
                   </tr>
                 );
               })
@@ -188,7 +230,7 @@ export const ActiveDevicesPanel: React.FC = () => {
       </div>
 
       <p className="text-xs text-slate-500">
-        «متصل الآن» = نشاط خلال آخر دقيقتين. تُزال الجلسة بعد 5 دقائق بدون نشاط.
+        يُحدَّث النشاط تلقائياً كل 45 ثانية لكل مستخدم داخل النظام. تُزال الجلسة بعد 5 دقائق بدون نشاط.
       </p>
     </div>
   );
