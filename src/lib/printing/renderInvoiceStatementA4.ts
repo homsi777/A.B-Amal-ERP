@@ -5,6 +5,12 @@ import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocument
 
 const NAVY = '#2C405A';
 const GOLD = '#C4A962';
+const FONT = "Tahoma, Arial, 'Segoe UI', 'Arabic Typesetting', sans-serif";
+/** رمادي فاتح للتسميات والمجاميع — قريب من النموذج الأساسي */
+const LABEL_GRAY = '#f2f2f2';
+const SUBTOTAL_GRAY = '#f6f6f6';
+/** خط فصل خفيف بين الخانات */
+const CELL_LINE = '#c8c8c8';
 
 function escapeHtml(s: string): string {
   return String(s)
@@ -17,7 +23,16 @@ function escapeHtml(s: string): string {
 
 function formatAr(n: number, digits = 2): string {
   const v = Number.isFinite(n) ? n : 0;
-  return v.toLocaleString('ar', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return v.toLocaleString('en', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function formatInvoiceDate(dateIso: string): string {
+  const raw = String(dateIso ?? '').trim();
+  if (!raw) return '—';
+  const datePart = raw.includes('T') ? raw.split('T')[0] : raw.slice(0, 10);
+  const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return raw;
 }
 
 function normalizeText(value: unknown, fallback: string): string {
@@ -53,13 +68,7 @@ function normalizeBarcodeValue(item: InvoiceItem): string {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
   const isPrintableShortBarcode = (value: string) => /^\d{6,7}$/.test(value.trim());
   const invalidValues = new Set(
-    [
-      item.materialName,
-      item.fabricName,
-      item.designCode,
-      item.colorCode,
-      item.colorName,
-    ]
+    [item.materialName, item.fabricName, item.designCode, item.colorCode, item.colorName]
       .map((value) => String(value ?? '').trim())
       .filter(Boolean),
   );
@@ -80,13 +89,12 @@ function normalizeBarcodeValue(item: InvoiceItem): string {
     }
     if (isPrintableShortBarcode(candidate)) return candidate;
   }
-
   return '';
 }
 
 function isDashLike(value: string): boolean {
   const s = String(value || '').trim();
-  return !s || s === '-' || s === '—' || s === 'â€”' || s === 'أ¢â‚¬â€Œ';
+  return !s || s === '-' || s === '—';
 }
 
 function splitPrintedCompositeLine(line: {
@@ -98,14 +106,12 @@ function splitPrintedCompositeLine(line: {
   if (!isDashLike(line.designCode) || !isDashLike(line.colorCode) || !isDashLike(line.colorName)) {
     return line;
   }
-
   const normalized = String(line.materialName || '')
     .replace(/آ·|Â·|·|\|/g, '|')
     .replace(/ - /g, '|')
     .replace(/،|,/g, '|');
   const parts = normalized.split('|').map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) return line;
-
   return {
     ...line,
     materialName: parts[0] || line.materialName,
@@ -115,19 +121,14 @@ function splitPrintedCompositeLine(line: {
   };
 }
 
-function buildNoteLines(invoiceNote: string): string[] {
-  const notes = [
-    invoiceNote,
-    'يرجى التأكد من أرقام الأتواب وأرقام اللوطات قبل القص.',
+function buildManagerNoteLines(): string[] {
+  return [
+    'يرجى التأكد من أرقام الأطوال وأرقام اللوطات قبل القص.',
     'يرجى مطابقة اللون ورقم اللون قبل تنفيذ القص.',
     'يفضل أن يتم القص من نفس اللوط لتجنب اختلافات اللون.',
     'الأقمشة المقصوصة أو المفتوحة لا تقبل الإرجاع.',
     'لا تقبل أي مطالبة بعد مرور 15 يوماً من تاريخ التسليم.',
-  ]
-    .map((line) => String(line || '').trim())
-    .filter(Boolean);
-
-  return Array.from(new Set(notes));
+  ];
 }
 
 export function renderInvoiceStatementA4Html(opts: {
@@ -139,13 +140,12 @@ export function renderInvoiceStatementA4Html(opts: {
 }): string {
   const invoice = opts.invoice;
   const currency = (invoice.currency || 'USD').trim() || 'USD';
-  const title = opts.title ?? 'اشعار تسليم مفصل';
+  const title = opts.title ?? 'إشعار تسليم تفصيلي';
   const subtitle = opts.subtitle ?? 'كشف الفاتورة';
   const invoiceNo = normalizeText(displayStoredInvoiceNo(invoice.invoiceNumber), '—');
-  const invoiceDate = normalizeText(invoice.date, '—');
+  const invoiceDate = formatInvoiceDate(invoice.date);
   const partyName = normalizeText(opts.partyName, '—');
   const warehouse = normalizeText(invoice.warehouse, '—');
-  const notes = (invoice.notes || '').trim();
   const hideFinancialColumns = Boolean(opts.hideFinancialColumns);
 
   type Line = {
@@ -173,11 +173,16 @@ export function renderInvoiceStatementA4Html(opts: {
   }));
 
   const lines: Line[] = rawLines.map((line) => {
-    const parsed = splitCompositeMaterialName(line.materialName, line.designCode === 'â€”' ? '' : line.designCode, line.colorCode, line.colorName);
+    const parsed = splitCompositeMaterialName(
+      line.materialName,
+      isDashLike(line.designCode) ? '' : line.designCode,
+      line.colorCode,
+      line.colorName,
+    );
     return {
       ...line,
-      materialName: normalizeText(parsed.materialName, 'â€”'),
-      designCode: normalizeText(parsed.designCode, 'â€”'),
+      materialName: normalizeText(parsed.materialName, '—'),
+      designCode: normalizeText(parsed.designCode, '—'),
       colorCode: normalizeText(parsed.colorCode, ''),
       colorName: normalizeText(parsed.colorName, ''),
     };
@@ -200,7 +205,6 @@ export function renderInvoiceStatementA4Html(opts: {
     const totalMeters = rows.reduce((sum, row) => sum + (Number.isFinite(row.meters) ? row.meters : 0), 0);
     const totalKg = rows.reduce((sum, row) => sum + (Number.isFinite(row.kg) ? row.kg : 0), 0);
     const totalAmount = rows.reduce((sum, row) => sum + (Number.isFinite(row.total) ? row.total : 0), 0);
-
     return {
       materialName: first.materialName,
       designCode: first.designCode,
@@ -224,7 +228,7 @@ export function renderInvoiceStatementA4Html(opts: {
 
   const summaryMap = new Map<
     string,
-    { materialName: string; designCode: string; meters: number; kg: number; totalAmount: number; colors: Set<string> }
+    { materialName: string; designCode: string; meters: number; kg: number; totalAmount: number; colors: Set<string>; rolls: number }
   >();
 
   for (const group of groups) {
@@ -237,10 +241,12 @@ export function renderInvoiceStatementA4Html(opts: {
         kg: 0,
         totalAmount: 0,
         colors: new Set<string>(),
+        rolls: 0,
       };
     current.meters += group.totalMeters;
     current.kg += group.totalKg;
     current.totalAmount += group.totalAmount;
+    current.rolls += group.rollCount;
     current.colors.add(group.colorCode || group.colorName || '—');
     summaryMap.set(key, current);
   }
@@ -260,526 +266,484 @@ export function renderInvoiceStatementA4Html(opts: {
   const taxAmount = Math.max(0, invoice.taxTotal ?? 0);
   const invoiceFinalTotal = invoice.totalAmount;
 
-  const noteLines = buildNoteLines(notes);
-  const mainColGroup = `
-      <colgroup>
-        <col class="col-material" />
-        <col class="col-design" />
-        <col class="col-color-code" />
-        <col class="col-color-name" />
-        <col class="col-meter" />
-        <col class="col-kg" />
-        <col class="col-barcode" />
-        <col class="col-lot" />
-      </colgroup>
-    `;
-  const summaryColGroup = hideFinancialColumns
-    ? `
-      <colgroup>
-        <col class="sum-material" />
-        <col class="sum-design" />
-        <col class="sum-colors" />
-        <col class="sum-meter" />
-        <col class="sum-kg" />
-      </colgroup>
-    `
-    : `
-      <colgroup>
-        <col class="sum-material" />
-        <col class="sum-design" />
-        <col class="sum-colors" />
-        <col class="sum-meter" />
-        <col class="sum-kg" />
-        <col class="sum-price" />
-        <col class="sum-amount" />
-      </colgroup>
-    `;
-  const headerMainValue1 = `<td class="meta-value wide">${escapeHtml(partyName)}</td>`;
-  const headerMainValue2 = `<td class="meta-value wide">${escapeHtml(partyName)}${warehouse !== '—' ? ` - ${escapeHtml(warehouse)}` : ''}</td>`;
-  const headerMainValue3 = `<td class="meta-value wide mono">${escapeHtml(invoiceNo)}</td>`;
-  const headerMainValue4 = `<td class="meta-value wide">${escapeHtml(subtitle)}</td>`;
-  const headerSideValue1 = `<td class="meta-value">${escapeHtml(invoice.type === 'purchase' ? 'شراء' : 'بيع')}</td>`;
-  const headerSideValue2 = `<td class="meta-value mono">${escapeHtml(invoiceDate)}</td>`;
-  const headerSideValue3 = `<td class="meta-value mono">${escapeHtml(invoiceNo)} / ${escapeHtml(invoiceDate)}</td>`;
-  const headerSideValue4 = `<td class="meta-value">—</td>`;
-  const headerMainLabel1 = '<td class="meta-label">اسم العميل</td>';
-  const headerMainLabel2 = '<td class="meta-label">عنوان الشحن</td>';
-  const headerMainLabel3 = '<td class="meta-label">رقم الفاتورة</td>';
-  const headerMainLabel4 = '<td class="meta-label">البيان</td>';
-  const headerSideLabel1 = '<td class="meta-label">نوع الفاتورة</td>';
-  const headerSideLabel2 = '<td class="meta-label">التاريخ</td>';
-  const headerSideLabel3 = '<td class="meta-label">رقم الفاتورة والتاريخ</td>';
-  const headerSideLabel4 = '<td class="meta-label">طريقة النقل</td>';
+  const shippingAddress = warehouse !== '—' ? `${partyName} - ${warehouse}` : partyName;
 
-  const headerRows = `
-    <table class="meta-table">
-      <colgroup>
-        <col class="meta-main-label-col" />
-        <col class="meta-main-value-col" />
-        <col class="meta-side-label-col" />
-        <col class="meta-side-value-col" />
-      </colgroup>
-      <tbody>
-        <tr>
-          ${headerMainLabel1}
-          ${headerMainValue1}
-          ${headerSideLabel1}
-          ${headerSideValue1}
-        </tr>
-        <tr>
-          ${headerMainLabel2}
-          ${headerMainValue2}
-          ${headerSideLabel2}
-          ${headerSideValue2}
-        </tr>
-        <tr>
-          ${headerMainLabel3}
-          ${headerMainValue3}
-          ${headerSideLabel3}
-          ${headerSideValue3}
-        </tr>
-        <tr>
-          ${headerMainLabel4}
-          ${headerMainValue4}
-          ${headerSideLabel4}
-          ${headerSideValue4}
-        </tr>
-      </tbody>
-    </table>
-  `;
+  const metaRowsHtml = `
+    <div class="meta-row">
+      <table class="meta-card">
+        <tbody>
+          <tr>
+            <td class="meta-lbl">اسم العميل</td>
+            <td class="meta-val">${escapeHtml(partyName)}</td>
+          </tr>
+          <tr>
+            <td class="meta-lbl">عنوان الشحن</td>
+            <td class="meta-val">${escapeHtml(shippingAddress)}</td>
+          </tr>
+          <tr>
+            <td class="meta-lbl">رقم الفاتورة</td>
+            <td class="meta-val mono">${escapeHtml(invoiceNo)}</td>
+          </tr>
+          <tr>
+            <td class="meta-lbl">البيان</td>
+            <td class="meta-val">${escapeHtml(subtitle)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <table class="meta-card">
+        <tbody>
+          <tr>
+            <td class="meta-lbl">نوع الفاتورة</td>
+            <td class="meta-val">${escapeHtml(invoice.type === 'purchase' ? 'شراء' : 'بيع')}</td>
+          </tr>
+          <tr>
+            <td class="meta-lbl">التاريخ</td>
+            <td class="meta-val mono">${escapeHtml(invoiceDate)}</td>
+          </tr>
+          <tr>
+            <td class="meta-lbl">رقم الفاتورة والتاريخ</td>
+            <td class="meta-val mono">${escapeHtml(invoiceNo)} / ${escapeHtml(invoiceDate)}</td>
+          </tr>
+          <tr>
+            <td class="meta-lbl">طريقة النقل</td>
+            <td class="meta-val">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
 
   const bodyRows = groups
     .map((group) => {
       const rowsHtml = group.rows
-        .map((line) => {
-          return `
-            <tr class="line-row">
-              <td class="cell text col-material-cell">${escapeHtml(line.materialName)}</td>
-              <td class="cell text col-design-cell">${escapeHtml(line.designCode)}</td>
-              <td class="cell text">${escapeHtml(line.colorCode || '—')}</td>
-              <td class="cell text">${escapeHtml(line.colorName || '—')}</td>
-              <td class="cell num col-meter-cell">${formatAr(line.meters)}</td>
-              <td class="cell num col-kg-cell">${formatAr(line.kg)}</td>
-              <td class="cell text">${escapeHtml(line.barcode || '—')}</td>
-              <td class="cell text">${escapeHtml(line.lotNo || '—')}</td>
-            </tr>
-          `;
-        })
+        .map(
+          (line) => `
+        <tr class="line-row">
+          <td class="cell text">${escapeHtml(line.materialName)}</td>
+          <td class="cell text center">${escapeHtml(line.designCode)}</td>
+          <td class="cell text center">${escapeHtml(line.colorCode || '—')}</td>
+          <td class="cell text center">${escapeHtml(line.colorName || '—')}</td>
+          <td class="cell num">${formatAr(line.meters)}</td>
+          <td class="cell num">${formatAr(line.kg)}</td>
+          <td class="cell text center mono">${escapeHtml(line.barcode || '—')}</td>
+          <td class="cell text center">${escapeHtml(line.lotNo || '—')}</td>
+        </tr>`,
+        )
         .join('');
 
-      const subtotalLabel = `إجمالي: ${group.rollCount} نوب`;
+      const subtotalLabel =
+        group.rollCount === 1 ? `${group.rollCount} نوب` : `إجمالي: ${group.rollCount} نوب`;
+
       return `
         ${rowsHtml}
-        <tr class="subtotal-row">
+        <tr class="group-subtotal-row">
           <td class="subtotal-cell subtotal-label" colspan="4">${escapeHtml(subtotalLabel)}</td>
-          <td class="subtotal-cell num strong">${formatAr(group.totalMeters)}</td>
-          <td class="subtotal-cell num strong">${formatAr(group.totalKg)}</td>
+          <td class="subtotal-cell num">${formatAr(group.totalMeters)} mt</td>
+          <td class="subtotal-cell num">${formatAr(group.totalKg)} kg</td>
           <td class="subtotal-cell" colspan="2"></td>
-        </tr>
-      `;
+        </tr>`;
     })
     .join('');
+
+  const grandSubtotalRow = `
+    <tr class="grand-subtotal-row">
+      <td class="subtotal-cell subtotal-label strong" colspan="4">إجمالي: ${totalRollsAll} نوب</td>
+      <td class="subtotal-cell num strong">${formatAr(totalMetersAll)} mt</td>
+      <td class="subtotal-cell num strong">${formatAr(totalKgAll)} kg</td>
+      <td class="subtotal-cell" colspan="2"></td>
+    </tr>`;
 
   const summaryRows = summaryRowsData
     .map((row) => {
       const meterPrice = row.meters > 0 ? row.totalAmount / row.meters : 0;
-      const priceCell = hideFinancialColumns ? '' : `<td class="cell num">${formatAr(meterPrice)} ${escapeHtml(currency)}</td>`;
-      const amountCell = hideFinancialColumns ? '' : `<td class="cell num">${formatAr(row.totalAmount)} ${escapeHtml(currency)}</td>`;
+      const colorLabel = row.colors.size === 1 ? '1 لون' : `${row.colors.size} لون`;
+      const priceCell = hideFinancialColumns
+        ? ''
+        : `<td class="cell num">${formatAr(meterPrice)} ${escapeHtml(currency)}</td>`;
+      const amountCell = hideFinancialColumns
+        ? ''
+        : `<td class="cell num">${formatAr(row.totalAmount)} ${escapeHtml(currency)}</td>`;
       return `
         <tr>
           <td class="cell text">${escapeHtml(row.materialName)}</td>
-          <td class="cell text">${escapeHtml(row.designCode)}</td>
-          <td class="cell center">${row.colors.size} لون</td>
+          <td class="cell text center">${escapeHtml(row.designCode)}</td>
+          <td class="cell center">${colorLabel}</td>
           <td class="cell num">${formatAr(row.meters)}</td>
           <td class="cell num">${formatAr(row.kg)}</td>
           ${priceCell}
           ${amountCell}
-        </tr>
-      `;
+        </tr>`;
     })
     .join('');
 
   const averageMeterPriceAll = totalMetersAll > 0 ? subtotalAmount / totalMetersAll : 0;
-  const totalPriceCell = hideFinancialColumns ? '' : `<td class="cell num strong">${formatAr(averageMeterPriceAll)} ${escapeHtml(currency)}</td>`;
-  const totalAmountCell = hideFinancialColumns ? '' : `<td class="cell num strong">${formatAr(subtotalAmount)} ${escapeHtml(currency)}</td>`;
-  const financialBreakdownHtml = hideFinancialColumns
+  const totalPriceCell = hideFinancialColumns
+    ? ''
+    : `<td class="cell num strong">${formatAr(averageMeterPriceAll)} ${escapeHtml(currency)}</td>`;
+  const totalAmountCell = hideFinancialColumns
+    ? ''
+    : `<td class="cell num strong">${formatAr(subtotalAmount)} ${escapeHtml(currency)}</td>`;
+
+  const financialHtml = hideFinancialColumns
     ? ''
     : `
-      <div class="financial-breakdown">
-        <div class="financial-row"><span>المجموع (قبل الخصم)</span><span class="num">${formatAr(subtotalAmount)} ${escapeHtml(currency)}</span></div>
-        ${discountAmount > 0 ? `<div class="financial-row"><span>الخصم</span><span class="num">−${formatAr(discountAmount)} ${escapeHtml(currency)}</span></div>` : ''}
-        ${taxAmount > 0 ? `<div class="financial-row"><span>الضريبة</span><span class="num">${formatAr(taxAmount)} ${escapeHtml(currency)}</span></div>` : ''}
-        <div class="financial-row strong"><span>الإجمالي النهائي</span><span class="num">${formatAr(invoiceFinalTotal)} ${escapeHtml(currency)}</span></div>
+      <table class="financial-table">
+        <tbody>
+          <tr>
+            <td class="fin-label">(المجموع قبل الخصم)</td>
+            <td class="fin-value num">${formatAr(subtotalAmount)} ${escapeHtml(currency)}</td>
+          </tr>
+          ${discountAmount > 0 ? `<tr><td class="fin-label">(الخصم)</td><td class="fin-value num">−${formatAr(discountAmount)} ${escapeHtml(currency)}</td></tr>` : ''}
+          ${taxAmount > 0 ? `<tr><td class="fin-label">(الضريبة)</td><td class="fin-value num">${formatAr(taxAmount)} ${escapeHtml(currency)}</td></tr>` : ''}
+          <tr class="financial-final">
+            <td class="fin-label">(الإجمالي النهائي)</td>
+            <td class="fin-value num">${formatAr(invoiceFinalTotal)} ${escapeHtml(currency)}</td>
+          </tr>
+        </tbody>
+      </table>`;
+
+  const noteLines = buildManagerNoteLines();
+  const invoiceNote = (invoice.notes || '').trim();
+
+  return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="format-detection" content="telephone=no,email=no,address=no" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 8mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 210mm;
+      font-family: ${FONT};
+      color: #111;
+      background: #fff;
+      direction: rtl;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      display: flex;
+      flex-direction: column;
+      padding: 6mm 8mm 0;
+      position: relative;
+    }
+    .page-body { flex: 1 1 auto; }
+    .page-no-box {
+      position: absolute;
+      top: 6mm;
+      left: 8mm;
+      font-size: 9px;
+      font-weight: 700;
+      color: #111;
+      direction: ltr;
+      unicode-bidi: embed;
+    }
+    .brand-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0 0 4px;
+    }
+    .brand-logo {
+      height: 128px;
+      width: auto;
+      object-fit: contain;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 900;
+      color: ${NAVY};
+      margin: 0 0 10px;
+      line-height: 1;
+    }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .meta-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+      direction: rtl;
+    }
+    .meta-card {
+      flex: 1;
+      border: 1px solid ${CELL_LINE};
+    }
+    .meta-card td {
+      border-bottom: 1px solid ${CELL_LINE};
+      padding: 5px 8px;
+      font-size: 10px;
+      line-height: 1.35;
+      vertical-align: middle;
+      font-weight: 700;
+      color: #000;
+    }
+    .meta-card tr:last-child td { border-bottom: none; }
+    .meta-lbl {
+      width: 42%;
+      text-align: center;
+      background: ${LABEL_GRAY};
+      white-space: nowrap;
+      border-left: 1px solid ${CELL_LINE};
+    }
+    .meta-val {
+      text-align: right;
+      background: #fff;
+      padding-right: 10px;
+    }
+    .data-table {
+      border: 1px solid #000;
+      margin-bottom: 0;
+    }
+    .data-table thead th {
+      background: ${NAVY};
+      color: #fff;
+      font-size: 9.5px;
+      font-weight: 900;
+      padding: 4px 3px 5px;
+      text-align: center;
+      border: none;
+      border-bottom: 1px solid ${NAVY};
+      border-left: 1px solid rgba(255, 255, 255, 0.22);
+      line-height: 1.25;
+    }
+    .data-table thead th:first-child { border-left: none; }
+    .data-table tbody .cell {
+      padding: 4px 5px;
+      font-size: 9.2px;
+      font-weight: 700;
+      color: #000;
+      border-bottom: 1px solid ${CELL_LINE};
+      border-left: 1px solid ${CELL_LINE};
+      vertical-align: middle;
+      background: #fff;
+    }
+    .data-table tbody .cell:first-child { border-left: none; }
+    .subtotal-cell {
+      padding: 5px 4px;
+      font-size: 9.5px;
+      font-weight: 900;
+      text-align: center;
+      border-bottom: 1px solid ${CELL_LINE};
+      border-left: 1px solid ${CELL_LINE};
+      color: #000;
+      background: ${SUBTOTAL_GRAY};
+    }
+    .subtotal-cell:first-child { border-left: none; }
+    .subtotal-label { text-align: center; }
+    .grand-subtotal-row .subtotal-cell {
+      background: ${SUBTOTAL_GRAY};
+      border-bottom: 1px solid ${CELL_LINE};
+      font-weight: 900;
+    }
+    .summary-total-row .cell {
+      background: ${SUBTOTAL_GRAY};
+      border-bottom: 1px solid ${CELL_LINE};
+      font-weight: 900;
+    }
+    .text { text-align: right; word-break: break-word; }
+    .center { text-align: center; }
+    .num {
+      text-align: center;
+      font-family: Consolas, "Courier New", monospace;
+      direction: ltr;
+      unicode-bidi: embed;
+    }
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+      direction: ltr;
+      unicode-bidi: embed;
+    }
+    .section-title {
+      text-align: center;
+      font-size: 17px;
+      font-weight: 900;
+      color: ${NAVY};
+      margin: 12px 0 5px;
+      line-height: 1;
+    }
+    .bottom-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-top: 10px;
+    }
+    .financial-table {
+      flex: 0 0 36%;
+      margin-top: 14px;
+      border: 1px solid ${CELL_LINE};
+      font-size: 11px;
+    }
+    .financial-table td {
+      border-bottom: 1px solid ${CELL_LINE};
+      padding: 5px 10px;
+      vertical-align: middle;
+    }
+    .financial-table tr:last-child td { border-bottom: none; }
+    .fin-label {
+      background: ${LABEL_GRAY};
+      text-align: right;
+      font-weight: 700;
+      width: 58%;
+      border-left: 1px solid ${CELL_LINE};
+    }
+    .fin-value {
+      background: #fff;
+      text-align: left;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .financial-final td {
+      border-bottom: 3px solid ${NAVY};
+      font-weight: 900;
+    }
+    .notes-box {
+      flex: 0 0 48%;
+      text-align: right;
+      margin-top: 14px;
+    }
+    .notes-title {
+      font-size: 12px;
+      font-weight: 900;
+      color: #000;
+      margin-bottom: 2px;
+    }
+    .notes-line {
+      font-size: 8.8px;
+      line-height: 1.35;
+      font-weight: 700;
+      margin-bottom: 2px;
+      color: #000;
+    }
+    .signatures {
+      display: flex;
+      justify-content: space-between;
+      gap: 0;
+      margin: 28px 0 10px;
+    }
+    .signature-box {
+      flex: 0 0 34%;
+      min-height: 44px;
+      border: 1px solid ${CELL_LINE};
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 4px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 900;
+      color: #000;
+      background: #fafafa;
+    }
+    ${documentFooterStyles(NAVY, GOLD)}
+    .doc-footer-bar {
+      margin: 0 -8mm;
+      width: calc(100% + 16mm);
+      padding: 11px 14px;
+    }
+    .col-material { width: 20%; }
+    .col-design { width: 11%; }
+    .col-color-code { width: 9%; }
+    .col-color-name { width: 11%; }
+    .col-meter { width: 10%; }
+    .col-kg { width: 9%; }
+    .col-barcode { width: 15%; }
+    .col-lot { width: 15%; }
+    .sum-material { width: 20%; }
+    .sum-design { width: 12%; }
+    .sum-colors { width: 12%; }
+    .sum-meter { width: 12%; }
+    .sum-kg { width: 10%; }
+    .sum-price { width: 14%; }
+    .sum-amount { width: 20%; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-no-box">1 / 1</div>
+    <div class="page-body">
+      <div class="brand-wrap">
+        <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
       </div>
-    `;
+      <div class="doc-title">${escapeHtml(title)}</div>
 
-  return `
-    <!DOCTYPE html>
-    <html lang="ar" dir="rtl">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="format-detection" content="telephone=no,email=no,address=no" />
-        <title>${escapeHtml(title)}</title>
-        <style>
-          @page { size: A4; margin: 8mm; }
-          * { box-sizing: border-box; }
-          html, body {
-            width: 100%;
-            height: auto;
-            overflow: visible;
-          }
-          body {
-            margin: 0 auto;
-            background: #ffffff;
-            color: #000000;
-            direction: rtl;
-            font-family: Arial, Tahoma, "Segoe UI", sans-serif;
-            max-width: 194mm;
-          }
-          .page {
-            width: 100%;
-            min-height: 277mm;
-            padding: 0 2mm;
-            overflow: visible;
-            display: flex;
-            flex-direction: column;
-          }
-          .page-body { flex: 1 1 auto; }
-          .top-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 2px;
-          }
-          .page-no {
-            font-family: Consolas, "Courier New", monospace;
-            direction: ltr;
-            unicode-bidi: embed;
-            font-size: 9px;
-            color: #64748b;
-            font-weight: 700;
-          }
-          .brand-wrap {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0 0 4px;
-          }
-          .brand-logo {
-            height: 145px;
-            width: auto;
-            object-fit: contain;
-          }
-          .title {
-            text-align: center;
-            font-size: 18px;
-            line-height: 1;
-            font-weight: 900;
-            margin: 0 0 6px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-          }
-          .meta-table {
-            border: 1px solid #000;
-            margin-bottom: 18px;
-            direction: rtl;
-          }
-          .meta-table td {
-            border: 1px solid #000;
-            padding: 6px 6px;
-            font-size: 10.5px;
-            line-height: 1.3;
-            vertical-align: middle;
-            font-weight: 700;
-            direction: rtl;
-            color: #000000;
-          }
-          .meta-label {
-            text-align: center;
-            font-weight: 900;
-            white-space: nowrap;
-          }
-          .meta-value {
-            text-align: right;
-            padding-right: 8px;
-          }
-          .meta-value.wide {
-            text-align: right;
-          }
-          .meta-main-value-col { width: 43%; }
-          .meta-main-label-col { width: 14%; }
-          .meta-side-value-col { width: 28%; }
-          .meta-side-label-col { width: 15%; }
-          .main-table,
-          .summary-table {
-            border: 1px solid #000;
-          }
-          .main-table .col-material { width: 22%; }
-          .main-table .col-design { width: 12%; }
-          .main-table .col-color-code { width: 10%; }
-          .main-table .col-color-name { width: 12%; }
-          .main-table .col-meter { width: 10%; }
-          .main-table .col-kg { width: 10%; }
-          .main-table .col-barcode { width: 13%; }
-          .main-table .col-lot { width: 11%; }
-          .summary-table .sum-material { width: ${hideFinancialColumns ? '26%' : '20%'}; }
-          .summary-table .sum-design { width: ${hideFinancialColumns ? '20%' : '16%'}; }
-          .summary-table .sum-colors { width: ${hideFinancialColumns ? '18%' : '13%'}; }
-          .summary-table .sum-meter { width: ${hideFinancialColumns ? '18%' : '14%'}; }
-          .summary-table .sum-kg { width: ${hideFinancialColumns ? '18%' : '12%'}; }
-          .summary-table .sum-price { width: 11%; }
-          .summary-table .sum-amount { width: 14%; }
-          .main-table thead th,
-          .summary-table thead th {
-            font-size: 9.5px;
-            padding: 5px 4px;
-            line-height: 1.25;
-            text-align: center;
-            font-weight: 900;
-            border-bottom: 1px solid ${NAVY};
-            background: ${NAVY};
-            color: #ffffff;
-            overflow: visible;
-          }
-          .main-table th,
-          .main-table td,
-          .summary-table th,
-          .summary-table td {
-            overflow: visible;
-          }
-          .main-table th:nth-child(1), .main-table td:nth-child(1),
-          .main-table th:nth-child(2), .main-table td:nth-child(2),
-          .main-table th:nth-child(3), .main-table td:nth-child(3),
-          .main-table th:nth-child(4), .main-table td:nth-child(4),
-          .main-table th:nth-child(7), .main-table td:nth-child(7),
-          .main-table th:nth-child(8), .main-table td:nth-child(8),
-          .summary-table th:nth-child(1), .summary-table td:nth-child(1),
-          .summary-table th:nth-child(2), .summary-table td:nth-child(2) {
-            text-align: center;
-          }
-          .main-table th:nth-child(5), .main-table td:nth-child(5),
-          .main-table th:nth-child(6), .main-table td:nth-child(6),
-          .summary-table th:nth-child(3), .summary-table td:nth-child(3),
-          .summary-table th:nth-child(4), .summary-table td:nth-child(4),
-          .summary-table th:nth-child(5), .summary-table td:nth-child(5),
-          .summary-table th:nth-child(6), .summary-table td:nth-child(6),
-          .summary-table th:nth-child(7), .summary-table td:nth-child(7) {
-            text-align: center;
-          }
-          .cell {
-            padding: 4px 5px;
-            font-size: 9.2px;
-            line-height: 1.35;
-            vertical-align: middle;
-            color: #000000;
-            font-weight: 700;
-          }
-          .line-row .cell { border-bottom: none; }
-          .line-row .col-material-cell {
-            white-space: normal;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-          }
-          .text {
-            text-align: right;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-            color: #000000;
-          }
-          .num {
-            text-align: right;
-            font-family: Consolas, "Courier New", monospace;
-            direction: ltr;
-            unicode-bidi: embed;
-            color: #000000;
-          }
-          .center {
-            text-align: center;
-          }
-          .mono {
-            font-family: Consolas, "Courier New", monospace;
-            direction: ltr;
-            unicode-bidi: embed;
-          }
-          .subtotal-cell {
-            text-align: center;
-            font-size: 9.5px;
-            font-weight: 900;
-            padding: 5px 4px;
-            line-height: 1.3;
-            border-top: none;
-            border-bottom: 1px solid #000;
-            color: #000000;
-          }
-          .subtotal-label {
-            text-align: center;
-          }
-          .section-title {
-            margin: 12px 0 5px;
-            text-align: center;
-            font-size: 17px;
-            line-height: 1;
-            font-weight: 900;
-          }
-          .strong {
-            font-weight: 900;
-          }
-          .notes {
-            margin-top: 14px;
-            width: 46%;
-            margin-right: 0;
-            margin-left: auto;
-            text-align: right;
-          }
-          .notes-title {
-            font-size: 12px;
-            font-weight: 900;
-            margin-bottom: 2px;
-          }
-          .notes-line {
-            font-size: 8.8px;
-            line-height: 1.35;
-            font-weight: 700;
-            margin-bottom: 2px;
-            color: #000000;
-          }
-          .signatures {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 28px;
-            align-items: stretch;
-          }
-          .signature-box {
-            flex: 0 0 34%;
-            min-height: 44px;
-            border: 1px solid #000;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding-top: 4px;
-            text-align: center;
-            font-size: 10px;
-            font-weight: 900;
-          }
-          ${documentFooterStyles(NAVY, GOLD)}
-          .summary-table .cell {
-            border-bottom: none;
-          }
-          .summary-table tbody tr:not(:last-child) .cell {
-            border-bottom: none;
-          }
-          .summary-table tbody tr:last-child .cell {
-            border-top: none;
-            padding-top: 4px;
-          }
-          .financial-breakdown {
-            margin: 10px 0 14px;
-            max-width: 320px;
-            margin-right: auto;
-            font-size: 11px;
-            line-height: 1.5;
-          }
-          .financial-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 3px 0;
-            border-bottom: 1px solid #ddd;
-            color: #000000;
-          }
-          .financial-row.strong {
-            font-weight: 900;
-            border-bottom: 2px solid #000;
-          }
-          .financial-row .num {
-            font-family: Consolas, monospace;
-            direction: ltr;
-            unicode-bidi: plaintext;
-          }
-        </style>
-      </head>
-      <body>
-        <style>
-          .main-table th, .main-table td, .summary-table th, .summary-table td { overflow: visible !important; }
-          .cell, .text, .num, .subtotal-cell, .meta-table td, .notes-line { color: #000000 !important; }
-        </style>
-        <div class="page">
-          <div class="page-body">
-          <div class="top-bar">
-            <div class="page-no">1 / 1</div>
-            <div style="flex:1;"></div>
-          </div>
-          <div class="brand-wrap">
-            <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
-          </div>
-          <div class="title">${escapeHtml(title)}</div>
-          ${headerRows}
+      ${metaRowsHtml}
 
-          <table class="main-table">
-            ${mainColGroup}
-            <thead>
-              <tr>
-                <th>اسم الخامة</th>
-                <th>كود الخامة</th>
-                <th>كود اللون</th>
-                <th>اللون</th>
-                <th>متر</th>
-                <th>كغ</th>
-                <th>رقم الباركود</th>
-                <th>رقم اللوط</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${bodyRows || `<tr><td class="cell center" colspan="8">—</td></tr>`}
-            </tbody>
-          </table>
+      <table class="data-table main-table">
+        <colgroup>
+          <col class="col-material" /><col class="col-design" /><col class="col-color-code" />
+          <col class="col-color-name" /><col class="col-meter" /><col class="col-kg" />
+          <col class="col-barcode" /><col class="col-lot" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>اسم الخامة</th>
+            <th>كود الخامة</th>
+            <th>كود اللون</th>
+            <th>اللون</th>
+            <th>متر</th>
+            <th>كغ</th>
+            <th>رقم الباركود</th>
+            <th>رقم اللوط</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bodyRows || `<tr><td class="cell center" colspan="8">—</td></tr>`}
+          ${groups.length > 0 ? grandSubtotalRow : ''}
+        </tbody>
+      </table>
 
-          <div class="section-title">ملخص الاشعار</div>
-          <table class="summary-table">
-            ${summaryColGroup}
-            <thead>
-              <tr>
-                <th>اسم الخامة</th>
-                <th>كود الخامة</th>
-                <th>عدد الألوان</th>
-                <th>متر</th>
-                <th>كغ</th>
-                ${hideFinancialColumns ? '' : '<th>السعر/م</th><th>الإجمالي</th>'}
-              </tr>
-            </thead>
-            <tbody>
-              ${summaryRows || `<tr><td class="cell center" colspan="${hideFinancialColumns ? 5 : 7}">—</td></tr>`}
-              <tr>
-                <td class="cell text strong" colspan="2">الإجمالي العام</td>
-                <td class="cell center strong">${totalRollsAll} توب</td>
-                <td class="cell num strong">${formatAr(totalMetersAll)}</td>
-                <td class="cell num strong">${formatAr(totalKgAll)}</td>
-                ${totalPriceCell}
-                ${totalAmountCell}
-              </tr>
-            </tbody>
-          </table>
+      <div class="section-title">ملخص الأشعار</div>
+      <table class="data-table summary-table">
+        <colgroup>
+          <col class="sum-material" /><col class="sum-design" /><col class="sum-colors" />
+          <col class="sum-meter" /><col class="sum-kg" />
+          ${hideFinancialColumns ? '' : '<col class="sum-price" /><col class="sum-amount" />'}
+        </colgroup>
+        <thead>
+          <tr>
+            <th>اسم الخامة</th>
+            <th>كود الخامة</th>
+            <th>عدد الألوان</th>
+            <th>متر</th>
+            <th>كغ</th>
+            ${hideFinancialColumns ? '' : '<th>السعر/م</th><th>الإجمالي</th>'}
+          </tr>
+        </thead>
+        <tbody>
+          ${summaryRows || `<tr><td class="cell center" colspan="${hideFinancialColumns ? 5 : 7}">—</td></tr>`}
+          <tr class="summary-total-row">
+            <td class="cell text strong" colspan="2">الإجمالي العام</td>
+            <td class="cell center strong">${totalRollsAll} توب</td>
+            <td class="cell num strong">${formatAr(totalMetersAll)}</td>
+            <td class="cell num strong">${formatAr(totalKgAll)}</td>
+            ${totalPriceCell}
+            ${totalAmountCell}
+          </tr>
+        </tbody>
+      </table>
 
-          ${financialBreakdownHtml}
-
-          <div class="notes">
-            <div class="notes-title">ملاحظة:</div>
-            ${noteLines.map((line) => `<div class="notes-line">${escapeHtml(line)}</div>`).join('')}
-          </div>
-
-          <div class="signatures">
-            <div class="signature-box">سلّمها (ختم/توقيع)</div>
-            <div class="signature-box">استلمها (ختم/توقيع)</div>
-          </div>
-          </div>
-
-          ${renderDocumentFooterHtml('invoice')}
+      <div class="bottom-row">
+        <div class="notes-box">
+          <div class="notes-title">ملاحظة:</div>
+          ${invoiceNote ? `<div class="notes-line">• ${escapeHtml(invoiceNote)}</div>` : ''}
+          ${noteLines.map((line) => `<div class="notes-line">• ${escapeHtml(line)}</div>`).join('')}
         </div>
-      </body>
-    </html>
-  `;
+        ${financialHtml}
+      </div>
+
+      <div class="signatures">
+        <div class="signature-box">سلّمها (ختم/توقيع)</div>
+        <div class="signature-box">استلمها (ختم/توقيع)</div>
+      </div>
+    </div>
+
+    ${renderDocumentFooterHtml('invoice')}
+  </div>
+</body>
+</html>`;
 }

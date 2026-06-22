@@ -16,7 +16,7 @@
     "dev:free-ports": "npm run dev:free-port && npm run dev:free-tunnel-port",
     "build": "cross-env VITE_APP_BASE=/ vite build",
     "build:electron": "cross-env VITE_APP_BASE=./ vite build",
-    "preview": "vite preview",
+    "preview:invoice-statement": "npx vite-node scripts/preview-invoice-statement.ts",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test": "tsx src/lib/fabricInvoiceSummary.test.ts && tsx src/lib/customerStatementImportDateParser.test.ts && tsx server/src/utils/importColumnDetector.test.ts && tsx server/src/services/invoiceAmountHelpers.test.ts && tsx server/src/services/purchaseInvoicePayment.test.ts && tsx server/src/services/returnInvoiceCashbox.test.ts && tsx server/src/services/returnInvoiceQtyHelpers.test.ts",

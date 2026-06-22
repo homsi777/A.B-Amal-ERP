@@ -31,7 +31,7 @@ export const AR_INVOICE_STATEMENT = {
   pricePerM: 'سعر المتر',
   subtotalRow: 'المجموع الفرعي',
   grandTotals: 'الإجمالي العام',
-  invoicePackingSummary: 'ملخص الاشعار',
+  invoicePackingSummary: 'ملخص الأشعار',
   noInvoiceLines: 'لا توجد بنود في الفاتورة',
   preparedBy: 'أعدّها',
   deliveredBy: 'سلّمها',
