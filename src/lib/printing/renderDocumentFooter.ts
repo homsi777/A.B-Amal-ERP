@@ -4,7 +4,7 @@ export type DocumentFooterPreset = 'invoice' | 'voucher-receipt' | 'voucher-paym
 
 const PRESETS: Record<DocumentFooterPreset, { phone: string; slogan: string; icon: 'star' | 'shield' | 'thread' }> = {
   invoice: {
-    phone: '09 44 555 090',
+    phone: '09 44 555 080',
     slogan: 'ننسج الجودة، ونبني الثقة.',
     icon: 'thread',
   },

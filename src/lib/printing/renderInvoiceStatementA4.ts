@@ -417,30 +417,34 @@ export function renderInvoiceStatementA4Html(opts: {
   <meta name="format-detection" content="telephone=no,email=no,address=no" />
   <title>${escapeHtml(title)}</title>
   <style>
-    @page { size: A4 portrait; margin: 8mm; }
+    @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 210mm;
+      max-width: 210mm;
+      margin: 0 auto;
       font-family: ${FONT};
       color: #111;
       background: #fff;
       direction: rtl;
+      overflow-x: hidden;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     .page {
       width: 210mm;
       min-height: 297mm;
+      max-height: 297mm;
       display: flex;
       flex-direction: column;
-      padding: 6mm 8mm 0;
+      padding: 7mm 10mm 5mm;
       position: relative;
     }
-    .page-body { flex: 1 1 auto; }
+    .page-body { flex: 1 1 auto; min-height: 0; }
     .page-no-box {
       position: absolute;
-      top: 6mm;
-      left: 8mm;
+      top: 7mm;
+      left: 10mm;
       font-size: 9px;
       font-weight: 700;
       color: #111;
@@ -451,26 +455,26 @@ export function renderInvoiceStatementA4Html(opts: {
       display: flex;
       justify-content: center;
       align-items: center;
-      margin: 0 0 4px;
+      margin: 0 0 6px;
     }
     .brand-logo {
-      height: 128px;
+      height: 102px;
       width: auto;
       object-fit: contain;
     }
     .doc-title {
       text-align: center;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 900;
       color: ${NAVY};
       margin: 0 0 10px;
-      line-height: 1;
+      line-height: 1.2;
     }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .meta-row {
       display: flex;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       direction: rtl;
     }
     .meta-card {
@@ -502,6 +506,13 @@ export function renderInvoiceStatementA4Html(opts: {
     .data-table {
       border: 1px solid #000;
       margin-bottom: 0;
+    }
+    .main-table {
+      margin-bottom: 4px;
+    }
+    .summary-section {
+      margin-top: 14px;
+      margin-bottom: 12px;
     }
     .data-table thead th {
       background: ${NAVY};
@@ -567,19 +578,19 @@ export function renderInvoiceStatementA4Html(opts: {
       font-size: 17px;
       font-weight: 900;
       color: ${NAVY};
-      margin: 12px 0 5px;
-      line-height: 1;
+      margin: 0 0 8px;
+      line-height: 1.2;
     }
     .bottom-row {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 20px;
-      margin-top: 10px;
+      margin-top: 12px;
     }
     .financial-table {
       flex: 0 0 36%;
-      margin-top: 14px;
+      margin-top: 0;
       border: 1px solid ${CELL_LINE};
       font-size: 11px;
     }
@@ -598,9 +609,12 @@ export function renderInvoiceStatementA4Html(opts: {
     }
     .fin-value {
       background: #fff;
-      text-align: left;
+      text-align: right;
       font-weight: 900;
       white-space: nowrap;
+      direction: ltr;
+      unicode-bidi: embed;
+      padding-left: 4px;
     }
     .financial-final td {
       border-bottom: 3px solid ${NAVY};
@@ -609,7 +623,7 @@ export function renderInvoiceStatementA4Html(opts: {
     .notes-box {
       flex: 0 0 48%;
       text-align: right;
-      margin-top: 14px;
+      margin-top: 0;
     }
     .notes-title {
       font-size: 12px;
@@ -627,12 +641,12 @@ export function renderInvoiceStatementA4Html(opts: {
     .signatures {
       display: flex;
       justify-content: space-between;
-      gap: 0;
-      margin: 28px 0 10px;
+      gap: 24px;
+      margin: 20px 0 6px;
     }
     .signature-box {
       flex: 0 0 40%;
-      min-height: 72px;
+      min-height: 58px;
       border: 1px solid ${CELL_LINE};
       display: flex;
       align-items: flex-start;
@@ -646,9 +660,10 @@ export function renderInvoiceStatementA4Html(opts: {
     }
     ${documentFooterStyles(NAVY, GOLD)}
     .doc-footer-bar {
-      margin: 0 -8mm;
-      width: calc(100% + 16mm);
-      padding: 11px 14px;
+      flex-shrink: 0;
+      margin: 4px -10mm 0;
+      width: calc(100% + 20mm);
+      padding: 9px 12px;
     }
     .col-material { width: 20%; }
     .col-design { width: 11%; }
@@ -665,6 +680,21 @@ export function renderInvoiceStatementA4Html(opts: {
     .sum-kg { width: 10%; }
     .sum-price { width: 14%; }
     .sum-amount { width: 20%; }
+    @media print {
+      html, body {
+        width: 210mm;
+        height: 297mm;
+        overflow: hidden;
+      }
+      .page {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+        overflow: hidden;
+      }
+      .doc-footer-bar {
+        page-break-inside: avoid;
+      }
+    }
   </style>
 </head>
 <body>
@@ -702,6 +732,7 @@ export function renderInvoiceStatementA4Html(opts: {
         </tbody>
       </table>
 
+      <div class="summary-section">
       <div class="section-title">ملخص الأشعار</div>
       <table class="data-table summary-table">
         <colgroup>
@@ -731,6 +762,7 @@ export function renderInvoiceStatementA4Html(opts: {
           </tr>
         </tbody>
       </table>
+      </div>
 
       <div class="bottom-row">
         <div class="notes-box">
