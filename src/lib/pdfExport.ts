@@ -404,266 +404,342 @@ function renderAccountStatementHtml(options: {
     mapDocNoKeys: Object.keys(options.invoiceDetailsByDocumentNo ?? {}).length,
     salesRows: options.rows.filter(r => r.sourceType === 'SALES_INVOICE' || r.type === 'SALES_INVOICE').length,
   });
-  const fmt = (n: number) => n.toLocaleString('ar', { maximumFractionDigits: 2 });
-  const currencySymbol = (code: string) => {
-    const normalized = String(code ?? '').trim().toUpperCase();
-    if (normalized === 'USD') return '$';
-    if (normalized === 'EUR') return '€';
-    if (normalized === 'TRY') return '₺';
-    if (normalized === 'SAR') return 'ر.س';
-    if (normalized === 'SYP') return 'ل.س';
-    return normalized || '¤';
-  };
-  const safeText = (value: string) =>
-    String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
 
-  return `
-    <style>
-      @page {
-        size: A4 portrait;
-        margin: 8mm 7mm 9mm;
-        @bottom-left { content: counter(page) " / " counter(pages); }
-      }
-      * { box-sizing: border-box; }
-      body { margin: 0; background: #fff; }
-      .account-statement-a4, .account-statement-a4 * {
-        box-shadow: none !important;
-      }
-      .account-statement-a4 {
-        direction: rtl;
-        font-family: Arial, Tahoma, "Segoe UI", sans-serif !important;
-        padding: 0 1mm !important;
-        font-size: 10px !important;
-        line-height: 1.2 !important;
-      }
-      .account-statement-a4 table {
-        width: 100% !important;
-        border-collapse: collapse !important;
-        table-layout: fixed !important;
-        page-break-inside: auto !important;
-      }
-      .account-statement-a4 thead { display: table-header-group !important; }
-      .account-statement-a4 tr { break-inside: avoid !important; page-break-inside: avoid !important; }
-      .account-statement-a4 th {
-        background: #fff !important;
-        border: 1px solid #000 !important;
-        padding: 4px 3px !important;
-        font-size: 10.5px !important;
-        line-height: 1.1 !important;
-        font-weight: 900 !important;
-      }
-      .account-statement-a4 td {
-        background: #fff !important;
-        border: 1px solid #000 !important;
-        padding: 4px 3px !important;
-        font-size: 10px !important;
-        line-height: 1.15 !important;
-      }
-      .account-statement-a4 h1 {
-        font-size: 19px !important;
-        line-height: 1 !important;
-        color: #000 !important;
-      }
-      .account-statement-a4 .statement-print-footer {
-        margin-top: 8px;
-        border-top: 1px solid #000;
-        padding-top: 4px;
-        display: flex;
-        justify-content: space-between;
-        font-size: 10px;
-        font-weight: 900;
-      }
-      .account-statement-a4 > div:nth-of-type(1) {
-        text-align: center !important;
-      }
-      .account-statement-a4 > div:nth-of-type(1) > div {
-        justify-content: center !important;
-      }
-      .account-statement-a4 > div:nth-of-type(2) {
-        border-bottom: 1px solid #000 !important;
-        padding-bottom: 4px !important;
-        margin-bottom: 6px !important;
-      }
-      .account-statement-a4 > div:nth-of-type(2) p {
-        display: none !important;
-      }
-      .account-statement-a4 > div:nth-of-type(3) {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 0 !important;
-        margin-bottom: 6px !important;
-        border: 1px solid #000 !important;
-      }
-      .account-statement-a4 > div:nth-of-type(3) > div {
-        min-width: 0 !important;
-        border: 0 !important;
-        border-radius: 0 !important;
-        background: #fff !important;
-        padding: 5px 6px !important;
-      }
-      .account-statement-a4 > div:nth-of-type(3) > div:first-child {
-        border-left: 1px solid #000 !important;
-      }
-      .account-statement-a4 > div:nth-of-type(3) > div div {
-        font-size: 9.5px !important;
-        margin-top: 2px !important;
-        margin-bottom: 2px !important;
-      }
-      .account-statement-a4 > div:nth-of-type(3) > div div:nth-child(2) {
-        font-size: 12px !important;
-        font-weight: 900 !important;
-      }
-      @media print {
-        .account-statement-a4 { padding: 0 !important; }
-      }
-    </style>
-    <div class="account-statement-a4" style="direction: rtl; font-family: Arial, sans-serif; padding: 24px; color: #0f172a; font-size: 14px;">
-      ${renderBrandHeaderHtml()}
-      <div style="text-align: center; border-bottom: 2px solid ${BRAND.primaryColor}; padding-bottom: 12px; margin-bottom: 16px;">
-        <h1 style="margin: 0; font-size: 22px; color: ${BRAND.primaryColor};">${safeText(options.title)}</h1>
-        <p style="margin: 6px 0 0; font-size: 12px; color: #475569;">${safeText(options.subtitle)}</p>
-      </div>
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const fmt = (n: number) =>
+    Number.isFinite(n) ? n.toLocaleString('ar', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+  const safeText = (v: unknown) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
-      <div style="display:flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
-        <div style="flex:1; min-width: 280px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #f8fafc;">
-          <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">${safeText(options.partyLabel)}</div>
-          <div style="font-size: 18px; font-weight: 700; color: #0f172a;">${safeText(options.partyName)}</div>
-          <div style="font-size: 11px; color: #475569; margin-top: 4px;">${safeText(options.detailLine)}</div>
-        </div>
-        <div style="flex:1; min-width: 280px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #ffffff;">
-          <div style="display:flex; justify-content: space-between; font-size: 12px; color: #64748b;">
-            <span>الفترة</span>
-            <span>من ${safeText(options.fromDate)} إلى ${safeText(options.toDate)}</span>
-          </div>
-          <div style="display:flex; justify-content: space-between; margin-top: 10px; font-size: 12px;">
-            <span style="color:#334155;">الرصيد الافتتاحي</span>
-            <span style="font-weight:700;">${fmt(options.openingBalance)} ${safeText(options.currency)}</span>
-          </div>
-          <div style="display:flex; justify-content: space-between; margin-top: 6px; font-size: 12px;">
-            <span style="color:#334155;">إجمالي المدين</span>
-            <span style="font-weight:700; color:#2563eb;">${fmt(options.totals.debit)} ${safeText(options.currency)}</span>
-          </div>
-          <div style="display:flex; justify-content: space-between; margin-top: 6px; font-size: 12px;">
-            <span style="color:#334155;">إجمالي الدائن</span>
-            <span style="font-weight:700; color:#10b981;">${fmt(options.totals.credit)} ${safeText(options.currency)}</span>
-          </div>
-          <div style="display:flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; font-size: 14px;">
-            <span style="font-weight:700; color:#0f172a;">الرصيد النهائي (${safeText(options.closingLabel)})</span>
-            <span style="font-weight:800; color:${BRAND.primaryColor};">${fmt(options.closingAmount)} ${safeText(options.currency)}</span>
-          </div>
-        </div>
-      </div>
+  const isSalesRow = (row: AccountStatementRow) =>
+    row.sourceType === 'SALES_INVOICE' || row.sourceType === 'INVOICE' ||
+    row.typeLabel === 'فاتورة بيع' || row.type === 'SALES_INVOICE';
 
-      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-        <thead>
-          <tr style="background: #0f172a; color: #f8fafc;">
-            <th style="padding: 12px; border: 1px solid #0b1220;">التاريخ</th>
-            <th style="padding: 12px; border: 1px solid #0b1220;">النوع</th>
-            <th style="padding: 12px; border: 1px solid #0b1220;">الرقم</th>
-            <th style="padding: 12px; border: 1px solid #0b1220;">البيان</th>
-            <th style="padding: 12px; border: 1px solid #0b1220; color:#93c5fd;">مدين</th>
-            <th style="padding: 12px; border: 1px solid #0b1220; color:#86efac;">دائن</th>
-            <th style="padding: 12px; border: 1px solid #0b1220;">الرصيد</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${
-            options.rows.length === 0
-              ? `
-                <tr>
-                  <td colspan="7" style="padding: 18px; text-align: center; border: 1px solid #e2e8f0; color: #64748b; background: #ffffff;">
-                    لا توجد حركات ضمن الفترة المحددة
-                  </td>
-                </tr>
-              `
-              : options.rows
-                  .map(
-                    (row, idx) => {
-                      const detailRows = resolveInvoiceDetailRowsForStatementRow(
-                        row,
-                        options.saleInvoices ?? [],
-                        {
-                          invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
-                          invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
-                        },
-                      );
-                      const detailsHtml =
-                        detailRows.length === 0
-                          ? ''
-                          : detailRows
-                              .map(
-                                (detail) => `
-                                  <tr style="background:#fff;">
-                                    <td colspan="7" style="padding:8px 12px; border:1px solid #e2e8f0; font-size:13px; line-height:1.6; color:#334155; text-align:right; direction:rtl;">
-                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#0f766e;">
-                                        رقم الفاتورة: ${safeText(row.documentNo)}
-                                      </span>
-                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
-                                        الخامة: ${safeText(detail.fabricName)}
-                                      </span>
-                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
-                                        عدد الأثواب: ${safeText(detail.rollsCount.toLocaleString('ar'))}
-                                      </span>
-                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
-                                        إجمالي الأطوال: ${safeText(detail.totalQuantity.toLocaleString('ar'))} م
-                                      </span>
-                                      <span style="display:inline-block; margin-left:14px; font-weight:700; color:#047857;">
-                                        السعر: ${safeText(currencySymbol(row.currency))} ${safeText(detail.unitPrice.toLocaleString('ar', { maximumFractionDigits: 2 }))} /م
-                                      </span>
-                                      <span style="display:inline-block; font-weight:700; color:#047857;">
-                                        إجمالي المبلغ: ${safeText(
-                                          `${detail.totalAmount.toLocaleString('ar', { maximumFractionDigits: 2 })} ${row.currency}`,
-                                        )}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                `,
-                              )
-                              .join('');
-                      return `
-                      <tr style="background-color: ${idx % 2 === 0 ? '#f8fafc' : '#ffffff'};">
-                        <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0;">${safeText(
-                          row.date,
-                        )}</td>
-                        <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0;">${safeText(
-                          row.typeLabel,
-                        )}</td>
-                        <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0; font-family: monospace;">${safeText(
-                          row.documentNo,
-                        )}</td>
-                        <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">${safeText(
-                          row.description,
-                        )}${row.notes && !/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(String(row.notes)) ? `<div style="font-size: 12px; color:#64748b; margin-top: 4px;">${safeText(String(row.notes))}</div>` : ''}</td>
-                        <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0; color:#2563eb; font-weight:700;">${fmt(
-                          row.debit,
-                        )}</td>
-                        <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0; color:#10b981; font-weight:700;">${fmt(
-                          row.credit,
-                        )}</td>
-                        <td style="padding: 12px; text-align: center; border: 1px solid #e2e8f0; font-weight:700; color:${row.balance >= 0 ? '#2563eb' : '#10b981'};">${fmt(
-                          row.balance,
-                        )}</td>
-                      </tr>
-                      ${detailsHtml}
-                    `;
-                    },
-                  )
-                  .join('')
-          }
-        </tbody>
-      </table>
+  // ── Palette ───────────────────────────────────────────────────────────────
+  const NAVY   = '#1a2744';
+  const GREEN  = '#16a34a';
+  const RED    = '#dc2626';
+  const BLUE   = '#2563eb';
 
-      <div style="text-align: center; font-size: 11px; color: #94a3b8; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
-        <p style="margin: 0;font-weight:700;letter-spacing:2px;color:${BRAND.primaryColor};">${BRAND.name} — ${BRAND.tagline}</p>
-        <p style="margin: 4px 0 0;">تم إنشاء هذا الكشف بواسطة ${BRAND.descriptionAr}</p>
+  // ── Parse detailLine → phone / address ───────────────────────────────────
+  const [phonePart = '', addressPart = ''] = options.detailLine.split(' | ');
+
+  // ── Count docNo occurrences (to know when to generate sub-rows) ───────────
+  const docNoCount: Record<string, number> = {};
+  for (const row of options.rows) {
+    const k = String(row.documentNo ?? '');
+    docNoCount[k] = (docNoCount[k] ?? 0) + 1;
+  }
+
+  // ── Build table rows + accumulate fabric total ────────────────────────────
+  const fabricGroupIdx: Record<string, number> = {};
+  let totalFabricAmount = 0;
+
+  const bodyHtml = (() => {
+    if (options.rows.length === 0) {
+      return `<tr>
+        <td colspan="11" style="padding:20px;text-align:center;color:#64748b;border:1px solid #e2e8f0;">
+          لا توجد حركات ضمن الفترة المحددة
+        </td>
+      </tr>`;
+    }
+
+    return options.rows.map((row, idx) => {
+      const sales     = isSalesRow(row);
+      const docNo     = String(row.documentNo ?? '');
+      const docCount  = docNoCount[docNo] ?? 1;
+      const grpIdx    = fabricGroupIdx[docNo] ?? 0;
+      fabricGroupIdx[docNo] = grpIdx + 1;
+
+      const allGroups: AccountStatementInvoiceDetail[] = sales
+        ? resolveInvoiceDetailRowsForStatementRow(row, options.saleInvoices ?? [], {
+            invoiceDetailsBySourceId : options.invoiceDetailsBySourceId,
+            invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
+          })
+        : [];
+
+      const grp = allGroups[grpIdx] ?? null;
+      if (grp) totalFabricAmount += grp.totalAmount;
+
+      // Sub-rows: only when docNo appears once in statement but invoice has >1 fabric group
+      const showSubRows = docCount === 1 && grpIdx === 0 && allGroups.length > 1;
+      if (showSubRows) {
+        for (const g of allGroups.slice(1)) totalFabricAmount += g.totalAmount;
+      }
+
+      const DASH  = '—';
+      const evBg  = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const border = '1px solid #e5e7eb';
+      const td = (content: string, extra = '') =>
+        `<td style="padding:8px 7px;border:${border};text-align:center;font-size:10.5px;vertical-align:middle;${extra}">${content}</td>`;
+
+      const mainRow = `<tr style="background:${evBg};">
+        ${td(safeText(row.date), 'white-space:nowrap;')}
+        ${td(safeText(docNo), 'font-family:monospace;font-size:10px;font-weight:600;')}
+        ${td(safeText(row.typeLabel || row.description))}
+        ${td(grp ? safeText(grp.fabricName) : DASH)}
+        ${td(grp ? grp.rollsCount.toLocaleString('ar') : DASH)}
+        ${td(grp ? fmt(grp.totalQuantity) : DASH)}
+        ${td(grp ? fmt(grp.unitPrice) : DASH)}
+        ${td(grp ? `${safeText(options.currency)} ${fmt(grp.totalAmount)}` : DASH, 'font-weight:600;')}
+        ${td(fmt(row.debit),  `color:${GREEN};font-weight:700;`)}
+        ${td(fmt(row.credit), `color:${RED};font-weight:700;`)}
+        ${td(fmt(Math.abs(row.balance)), `color:${BLUE};font-weight:700;`)}
+      </tr>`;
+
+      const subHtml = !showSubRows ? '' : allGroups.slice(1).map(g => `<tr style="background:${evBg};">
+        ${td('')}${td('')}${td('')}
+        ${td(safeText(g.fabricName))}
+        ${td(g.rollsCount.toLocaleString('ar'))}
+        ${td(fmt(g.totalQuantity))}
+        ${td(fmt(g.unitPrice))}
+        ${td(`${safeText(options.currency)} ${fmt(g.totalAmount)}`, 'font-weight:600;')}
+        ${td('—')}${td('—')}${td('—')}
+      </tr>`).join('');
+
+      return mainRow + subHtml;
+    }).join('');
+  })();
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 8mm 7mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Tahoma, "Segoe UI", sans-serif; background: #fff; color: #0f172a; direction: rtl; }
+
+  .stmt { width: 100%; }
+
+  /* ── Header ─────────────────────────────────────────── */
+  .hdr { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 10px; align-items: start; margin-bottom: 12px; }
+
+  .hdr-box {
+    border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 12px;
+    background: #f8fafc; font-size: 12px;
+  }
+  .hdr-box-label { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+  .hdr-box-val   { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+  .hdr-box-sub   { font-size: 11px; color: #475569; margin-top: 2px; }
+
+  .hdr-center { text-align: center; padding: 4px 0; }
+  .hdr-center .logo { height: 56px; width: auto; object-fit: contain; display: block; margin: 0 auto 4px; }
+  .hdr-center h1 { font-size: 22px; font-weight: 800; color: ${NAVY}; margin: 2px 0 0; letter-spacing: 0.5px; }
+  .hdr-center .sub { font-size: 13px; color: #475569; margin-top: 3px; }
+  .hdr-center .divider { width: 60px; height: 2.5px; background: ${NAVY}; margin: 5px auto; border-radius: 2px; }
+
+  /* ── Summary cards ───────────────────────────────────── */
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+
+  .card { border-radius: 10px; padding: 12px 14px; border: 1.5px solid; }
+  .card-icon { font-size: 18px; margin-bottom: 6px; }
+  .card-label { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+  .card-amount { font-size: 15px; font-weight: 800; }
+
+  .card-navy { background: ${NAVY}; border-color: ${NAVY}; color: #fff; }
+  .card-navy .card-label  { color: #94a3b8; }
+  .card-navy .card-amount { color: #fff; }
+
+  .card-green { background: #f0fdf4; border-color: ${GREEN}; }
+  .card-green .card-label  { color: #166534; }
+  .card-green .card-amount { color: ${GREEN}; }
+
+  .card-red { background: #fff5f5; border-color: ${RED}; }
+  .card-red .card-label  { color: #991b1b; }
+  .card-red .card-amount { color: ${RED}; }
+
+  .card-blue { background: #eff6ff; border-color: ${BLUE}; }
+  .card-blue .card-label  { color: #1e40af; }
+  .card-blue .card-amount { color: ${BLUE}; }
+
+  /* ── Table ───────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  thead tr { background: ${NAVY}; color: #fff; }
+  thead th {
+    padding: 9px 7px; border: 1px solid #0b1220; font-weight: 700;
+    font-size: 10.5px; text-align: center; white-space: nowrap;
+  }
+  thead th.th-green { color: #86efac; }
+  thead th.th-red   { color: #fca5a5; }
+  thead th.th-blue  { color: #93c5fd; }
+
+  tfoot tr { background: ${NAVY}; color: #fff; }
+  tfoot td {
+    padding: 9px 7px; border: 1px solid #0b1220; font-weight: 700;
+    font-size: 10.5px; text-align: center;
+  }
+  tfoot td.tf-green { color: #86efac; }
+  tfoot td.tf-red   { color: #fca5a5; }
+  tfoot td.tf-blue  { color: #93c5fd; }
+
+  /* ── Signatures ──────────────────────────────────────── */
+  .sigs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-top: 20px;
+  }
+  .sig-box {
+    border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; min-height: 72px;
+  }
+  .sig-label { font-size: 11.5px; font-weight: 700; color: #1e293b; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+  .sig-line  { border-top: 1px solid #94a3b8; margin: 6px 0; }
+  .sig-field { font-size: 10.5px; color: #64748b; margin-top: 4px; display: flex; justify-content: space-between; }
+
+  /* ── Footer strip ────────────────────────────────────── */
+  .footer-strip {
+    margin-top: 14px; border-top: 2px solid ${NAVY}; padding-top: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10.5px; color: #475569;
+  }
+  .footer-brand { display: flex; align-items: center; gap: 8px; }
+  .footer-logo  { height: 28px; width: auto; object-fit: contain; }
+  .footer-name  { font-weight: 800; font-size: 13px; color: ${NAVY}; }
+  .footer-tag   { font-size: 10px; color: #64748b; }
+  .footer-contacts { display: flex; gap: 14px; align-items: center; }
+  .footer-contacts span { display: flex; align-items: center; gap: 3px; }
+
+  @media print {
+    body { margin: 0; }
+    .stmt { padding: 0; }
+  }
+</style>
+<body>
+<div class="stmt">
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════ -->
+  <div class="hdr">
+    <!-- Period (right side in RTL) -->
+    <div class="hdr-box">
+      <div class="hdr-box-label">&#128197; الفترة</div>
+      <div class="hdr-box-val">من: ${safeText(options.fromDate)}</div>
+      <div class="hdr-box-val">إلى: ${safeText(options.toDate)}</div>
+    </div>
+
+    <!-- Logo + Title (center) -->
+    <div class="hdr-center">
+      <img class="logo" src="${BRAND.logoInline}" alt="${BRAND.name}" />
+      <h1>${safeText(options.title)}</h1>
+      <div class="divider"></div>
+      <div class="sub">(حركات مالية)</div>
+    </div>
+
+    <!-- Customer (left side in RTL) -->
+    <div class="hdr-box">
+      <div class="hdr-box-label">&#128100; ${safeText(options.partyLabel)}</div>
+      <div class="hdr-box-val">${safeText(options.partyName)}</div>
+      <div class="hdr-box-sub">${safeText(phonePart)}</div>
+      <div class="hdr-box-sub">${safeText(addressPart)}</div>
+    </div>
+  </div>
+
+  <!-- ══ SUMMARY CARDS ═══════════════════════════════════════════ -->
+  <div class="cards">
+    <div class="card card-navy">
+      <div class="card-icon">&#128179;</div>
+      <div class="card-label">الرصيد الافتتاحي</div>
+      <div class="card-amount">${safeText(options.currency)} ${fmt(options.openingBalance)}</div>
+    </div>
+    <div class="card card-green">
+      <div class="card-icon" style="color:${GREEN};">&#8595;</div>
+      <div class="card-label">إجمالي المدين</div>
+      <div class="card-amount">${safeText(options.currency)} ${fmt(options.totals.debit)}</div>
+    </div>
+    <div class="card card-red">
+      <div class="card-icon" style="color:${RED};">&#8593;</div>
+      <div class="card-label">إجمالي الدائن</div>
+      <div class="card-amount">${safeText(options.currency)} ${fmt(options.totals.credit)}</div>
+    </div>
+    <div class="card card-blue">
+      <div class="card-icon" style="color:${BLUE};">&#9878;</div>
+      <div class="card-label">الرصيد النهائي (${safeText(options.closingLabel)})</div>
+      <div class="card-amount">${safeText(options.currency)} ${fmt(options.closingAmount)}</div>
+    </div>
+  </div>
+
+  <!-- ══ TABLE ════════════════════════════════════════════════════ -->
+  <table>
+    <colgroup>
+      <col style="width:7%">  <!-- التاريخ -->
+      <col style="width:8%">  <!-- رقم الفاتورة -->
+      <col style="width:9%">  <!-- البيان -->
+      <col style="width:9%">  <!-- الخامة -->
+      <col style="width:6%">  <!-- عدد -->
+      <col style="width:7%">  <!-- إجمالي الأطوال -->
+      <col style="width:6%">  <!-- السعر -->
+      <col style="width:10%"> <!-- إجمالي المبلغ -->
+      <col style="width:9%">  <!-- مدين -->
+      <col style="width:9%">  <!-- دائن -->
+      <col style="width:10%"> <!-- الرصيد -->
+    </colgroup>
+    <thead>
+      <tr>
+        <th>التاريخ</th>
+        <th>رقم الفاتورة</th>
+        <th>البيان</th>
+        <th>الخامة</th>
+        <th>عدد<br>الأطوال</th>
+        <th>إجمالي<br>الأطوال (م)</th>
+        <th>السعر<br>(م)</th>
+        <th>إجمالي المبلغ</th>
+        <th class="th-green">مدين<br>(${safeText(options.currency)})</th>
+        <th class="th-red">دائن<br>(${safeText(options.currency)})</th>
+        <th class="th-blue">الرصيد<br>(${safeText(options.currency)})</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bodyHtml}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="7" style="text-align:right;padding-right:10px;">الإجمالي</td>
+        <td class="tf-green">${safeText(options.currency)} ${fmt(totalFabricAmount)}</td>
+        <td class="tf-green">${fmt(options.totals.debit)}</td>
+        <td class="tf-red">${fmt(options.totals.credit)}</td>
+        <td class="tf-blue">${fmt(options.closingAmount)}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- ══ SIGNATURES ═══════════════════════════════════════════════ -->
+  <div class="sigs">
+    <div class="sig-box">
+      <div class="sig-label">&#128100; مسؤول الحساب</div>
+      <div class="sig-field"><span>الاسم:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
+      <div class="sig-line"></div>
+      <div class="sig-field"><span>التوقيع:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-label">&#128100; اعتماد الحسابات</div>
+      <div class="sig-field"><span>الاسم:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
+      <div class="sig-line"></div>
+      <div class="sig-field"><span>التوقيع:</span><span style="flex:1;border-bottom:1px solid #94a3b8;margin-right:6px;margin-left:6px;"></span></div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-label">&#128203; ملاحظات</div>
+      <div style="height:40px;"></div>
+    </div>
+  </div>
+
+  <!-- ══ FOOTER STRIP ══════════════════════════════════════════════ -->
+  <div class="footer-strip">
+    <div class="footer-brand">
+      <img class="footer-logo" src="${BRAND.logoInline}" alt="${BRAND.name}" />
+      <div>
+        <div class="footer-name">${BRAND.name} — ${BRAND.tagline}</div>
+        <div class="footer-tag">${BRAND.descriptionAr}</div>
       </div>
     </div>
-  `;
+    <div class="footer-contacts">
+      <span>&#128222; ${BRAND.name}</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`;
 }
 
 export function renderCustomerAccountStatementPdfHtml(data: {
