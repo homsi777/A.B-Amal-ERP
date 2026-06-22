@@ -61,6 +61,27 @@ type FabricRollScanIdentity = FabricRollDto & {
   qr_code?: string | null;
 };
 
+type StockLookupOptions = {
+  /** حقل الباركود في الفاتورة: طابق عمود barcode فقط — لا roll_no (يتجنب تكراراً خاطئاً). */
+  barcodeColumnOnly?: boolean;
+};
+
+function rollMatchesBarcodeColumn(
+  stock: FabricRollDto | Record<string, unknown>,
+  scanned: string,
+): boolean {
+  const lc = String(scanned ?? '').trim().toLowerCase();
+  if (!lc) return true;
+  return collectRollBarcodeColumnCandidates(stock).includes(lc);
+}
+
+function collectRollBarcodeColumnCandidates(r: FabricRollDto | Record<string, unknown>): string[] {
+  const x = r as FabricRollScanIdentity & Record<string, unknown>;
+  return [x.barcode, x.supplierBarcode, x.supplier_barcode]
+    .filter((v): v is string => v != null && String(v).trim() !== '')
+    .map((v) => String(v).trim().toLowerCase());
+}
+
 function collectRollIdentityCandidates(r: FabricRollDto): string[] {
   const x: FabricRollScanIdentity = r;
   return [
@@ -976,15 +997,30 @@ export const InvoiceForm = () => {
     const incomingSanitized = sanitizeInvoiceFormItemBarcode(incoming);
     const incomingKey = buildInvoiceScanDuplicateKey(incomingSanitized);
     if (incomingKey.startsWith('i:')) return false;
-    const duplicate = items.some((line) => {
+    const duplicateLine = items.find((line) => {
       if (line.id === excludeLineId || isEmptyInvoiceItem(line)) return false;
       return buildInvoiceScanDuplicateKey(sanitizeInvoiceFormItemBarcode(line)) === incomingKey;
     });
-    if (!duplicate) return false;
+    if (!duplicateLine) return false;
     playWarningBeep();
+    const scanned = String(incoming.rawBarcodePayload || incoming.supplierBarcode || '').trim().toLowerCase();
+    const scannedAlreadyOnInvoice =
+      scanned &&
+      items.some(
+        (line) =>
+          line.id !== excludeLineId &&
+          !isEmptyInvoiceItem(line) &&
+          (line.supplierBarcode.trim().toLowerCase() === scanned ||
+            line.rawBarcodePayload.trim().toLowerCase() === scanned),
+      );
+    const existingBarcode = duplicateLine.supplierBarcode.trim();
     showToast({
       type: 'warning',
-      message: 'لم تتم إضافة السطر: هذا الرول أو الباركود مضاف مسبقاً في الفاتورة.',
+      message: scanned && !scannedAlreadyOnInvoice && existingBarcode
+        ? `لم تتم الإضافة: الرقم «${incoming.supplierBarcode || scanned}» يخص رولاً مضافاً مسبقاً بباركود ${existingBarcode}. امسح باركود اللصاقة.`
+        : scannedAlreadyOnInvoice
+          ? `لم تتم الإضافة: الباركود «${incoming.supplierBarcode || scanned}» مضاف مسبقاً في الفاتورة.`
+          : 'لم تتم إضافة السطر: هذا الرول أو الباركود مضاف مسبقاً في الفاتورة.',
     });
     setScanMessage('لم تتم الإضافة لأن السطر مكرر بنفس الطول/الباركود.');
     setItems((prev) =>
@@ -1036,27 +1072,28 @@ export const InvoiceForm = () => {
   };
 
   /** Auto-fill من المخزون فقط عند تطابق هوية صارمة (باركود / رقم رول / UUID) — ليس باسم الخامة أو كود التصميم وحده. */
-  const findStockMatchStrictIdentity = (value: string) => {
+  const findStockMatchStrictIdentity = (value: string, options: StockLookupOptions = {}) => {
     const query = value.trim().toLowerCase();
     if (!query) return null;
     const found =
       inventorySource.find((raw) => {
         const item = raw as Record<string, unknown>;
-        const candidates = [
-          // identifiers from both FabricRollDto and FabricItem
-          item.barcode,
-          item.supplierBarcode,
-          item.supplier_roll_ref,    // المورد (roll supplier reference)
-          item.supplier_code_item,   // كود المورد للخامة
-          item.roll_no,
-          item.rollNumber,
-          item.internalRollId,
-          item.internal_code,        // الكود الداخلي للخامة
-          item.qrCode,
-          item.id,
-        ]
-          .filter(Boolean)
-          .map((field) => String(field).trim().toLowerCase());
+        const candidates = options.barcodeColumnOnly
+          ? collectRollBarcodeColumnCandidates(item)
+          : [
+              item.barcode,
+              item.supplierBarcode,
+              item.supplier_roll_ref,
+              item.supplier_code_item,
+              item.roll_no,
+              item.rollNumber,
+              item.internalRollId,
+              item.internal_code,
+              item.qrCode,
+              item.id,
+            ]
+              .filter(Boolean)
+              .map((field) => String(field).trim().toLowerCase());
         return candidates.includes(query);
       }) ?? null;
     if (!found) return null;
@@ -1081,14 +1118,22 @@ export const InvoiceForm = () => {
    * same code hit the local cache instantly. A per-key in-flight map prevents
    * duplicate parallel requests when the user hammers the scanner.
    */
-  const lookupStockFromAnywhere = async (value: string): Promise<FabricRollDto | null> => {
+  const lookupStockFromAnywhere = async (
+    value: string,
+    options: StockLookupOptions = {},
+  ): Promise<FabricRollDto | null> => {
     const query = value.trim();
     if (!query) return null;
 
-    const local = findStockMatchStrictIdentity(query);
-    if (local) return local as FabricRollDto;
+    const local = findStockMatchStrictIdentity(query, options);
+    if (local) {
+      if (options.barcodeColumnOnly && !rollMatchesBarcodeColumn(local, query)) {
+        return null;
+      }
+      return local as FabricRollDto;
+    }
 
-    const cacheKey = query.toLowerCase();
+    const cacheKey = `${options.barcodeColumnOnly ? 'bc:' : 'id:'}${query.toLowerCase()}`;
     if (barcodeLookupCacheRef.current.has(cacheKey)) {
       return barcodeLookupCacheRef.current.get(cacheKey) ?? null;
     }
@@ -1101,9 +1146,11 @@ export const InvoiceForm = () => {
         // find an exact identity match, broaden to the generic `search` field
         // so roll_no / supplier_roll_ref / UUID scans are still picked up.
         const exactMatchOf = (rolls: FabricRollDto[]): FabricRollDto | null => {
-          const lc = cacheKey;
+          const lc = query.toLowerCase();
           for (const r of rolls) {
-            const candidates = collectRollIdentityCandidates(r);
+            const candidates = options.barcodeColumnOnly
+              ? collectRollBarcodeColumnCandidates(r)
+              : collectRollIdentityCandidates(r);
             if (candidates.includes(lc)) return r;
           }
           return null;
@@ -1113,7 +1160,7 @@ export const InvoiceForm = () => {
           const filter = isSales && withSaleFilter ? ({ onlyAvailable: true } as const) : ({} as Record<string, never>);
           const byBarcode = await listFabricRolls({ barcode: query, pageSize: 10, ...filter });
           let found = exactMatchOf(byBarcode.data);
-          if (!found) {
+          if (!found && !options.barcodeColumnOnly) {
             const bySearch = await listFabricRolls({ search: query, pageSize: 10, ...filter });
             found = exactMatchOf(bySearch.data);
           }
@@ -1425,7 +1472,7 @@ export const InvoiceForm = () => {
     if (rollQr) {
       const stock =
         (rollQr.rollId ? await lookupStockFromAnywhere(rollQr.rollId) : null) ||
-        (rollQr.barcode ? await lookupStockFromAnywhere(rollQr.barcode) : null);
+        (rollQr.barcode ? await lookupStockFromAnywhere(rollQr.barcode, { barcodeColumnOnly: true }) : null);
       if (isSales && !stock) {
         notifySalesBarcodeLookupMiss(raw);
         return false;
@@ -1541,7 +1588,7 @@ export const InvoiceForm = () => {
     if (rollQr) {
       const stock =
         (rollQr.rollId ? await lookupStockFromAnywhere(rollQr.rollId) : null) ||
-        (rollQr.barcode ? await lookupStockFromAnywhere(rollQr.barcode) : null);
+        (rollQr.barcode ? await lookupStockFromAnywhere(rollQr.barcode, { barcodeColumnOnly: true }) : null);
       if (isSales && !stock) {
         notifySalesBarcodeLookupMiss(raw);
         return;
@@ -1626,7 +1673,7 @@ export const InvoiceForm = () => {
     }
 
     if (isLikelyIdentityBarcodePayload(raw)) {
-      const stock = await lookupStockFromAnywhere(raw);
+      const stock = await lookupStockFromAnywhere(raw, { barcodeColumnOnly: true });
       if (stock ? rejectDuplicateStockScan(lineId, stock, raw) : rejectDuplicateInvoiceScan({ ...emptyItem(), id: lineId, supplierBarcode: raw, rawBarcodePayload: raw }, lineId)) {
         return;
       }
@@ -1652,13 +1699,17 @@ export const InvoiceForm = () => {
     // "likely barcode" payload, try a server lookup anyway. This protects
     // against shorter scanner outputs (e.g. 4-digit internal codes) that
     // `isLikelyIdentityBarcodePayload` may otherwise reject.
-    const fallback = await lookupStockFromAnywhere(raw);
+    const fallback = await lookupStockFromAnywhere(raw, { barcodeColumnOnly: true });
     if (fallback) {
       if (rejectDuplicateStockScan(lineId, fallback, raw)) return;
       applyStockToLine(lineId, fallback);
       setLatestScannedLineId(lineId);
       ensureTrailingEmptyLine(lineId);
       window.setTimeout(() => focusNextRowFirstField(rowEl || null), 60);
+      return;
+    }
+    if (isSales) {
+      notifySalesBarcodeLookupMiss(raw);
     }
   };
 

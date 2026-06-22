@@ -39,12 +39,20 @@ function baseLine(overrides: Record<string, unknown> = {}) {
   assert.match(b, /^i:/);
 }
 
-// Same UUID should collide.
+// Same UUID without barcode should collide.
 {
   const uuid = 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
   const a = buildInvoiceScanDuplicateKey(baseLine({ internalRollId: uuid }));
   const b = buildInvoiceScanDuplicateKey(baseLine({ id: 2, internalRollId: uuid }));
   assert.equal(a, b);
+}
+
+// Same UUID but different scanned barcodes are distinct lines (barcode label identity).
+{
+  const uuid = 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
+  const a = buildInvoiceScanDuplicateKey(baseLine({ internalRollId: uuid, supplierBarcode: '3220232' }));
+  const b = buildInvoiceScanDuplicateKey(baseLine({ id: 2, internalRollId: uuid, supplierBarcode: '8242978' }));
+  assert.notEqual(a, b);
 }
 
 // Stock conflict: different roll barcodes should not conflict.

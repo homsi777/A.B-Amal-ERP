@@ -146,16 +146,16 @@ export function buildInvoiceScanDuplicateKey(
     internalRollId: string;
   },
 ): string {
-  const u = line.internalRollId.trim();
-  if (u && INVOICE_LINE_UUID_RE.test(u)) {
-    return `u:${u.toLowerCase()}`;
-  }
   const bc =
     normalizeInvoiceIdentityToken(line.supplierBarcode) ||
     normalizeInvoiceIdentityToken(line.rawBarcodePayload) ||
     normalizeInvoiceIdentityToken(line.printBarcode ?? '');
   if (bc) {
     return `b:${bc}`;
+  }
+  const u = line.internalRollId.trim();
+  if (u && INVOICE_LINE_UUID_RE.test(u)) {
+    return `u:${u.toLowerCase()}`;
   }
   if (!lineHasMeaningfulFabricIdentity(line)) {
     return `i:${line.id}`;
