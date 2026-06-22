@@ -344,6 +344,8 @@ export function renderInvoiceStatementA4Html(opts: {
     })
     .join('');
 
+  const showGrandSubtotal = groups.length > 1;
+
   const grandSubtotalRow = `
     <tr class="grand-subtotal-row">
       <td class="subtotal-cell subtotal-label strong" colspan="4">إجمالي: ${totalRollsAll} نوب</td>
@@ -388,11 +390,14 @@ export function renderInvoiceStatementA4Html(opts: {
     : `
       <table class="financial-table">
         <tbody>
-          <tr>
+          ${discountAmount > 0 ? `<tr>
             <td class="fin-label">(المجموع قبل الخصم)</td>
             <td class="fin-value num">${formatAr(subtotalAmount)} ${escapeHtml(currency)}</td>
           </tr>
-          ${discountAmount > 0 ? `<tr><td class="fin-label">(الخصم)</td><td class="fin-value num">−${formatAr(discountAmount)} ${escapeHtml(currency)}</td></tr>` : ''}
+          <tr>
+            <td class="fin-label">(الخصم)</td>
+            <td class="fin-value num">−${formatAr(discountAmount)} ${escapeHtml(currency)}</td>
+          </tr>` : ''}
           ${taxAmount > 0 ? `<tr><td class="fin-label">(الضريبة)</td><td class="fin-value num">${formatAr(taxAmount)} ${escapeHtml(currency)}</td></tr>` : ''}
           <tr class="financial-final">
             <td class="fin-label">(الإجمالي النهائي)</td>
@@ -626,13 +631,13 @@ export function renderInvoiceStatementA4Html(opts: {
       margin: 28px 0 10px;
     }
     .signature-box {
-      flex: 0 0 34%;
-      min-height: 44px;
+      flex: 0 0 40%;
+      min-height: 72px;
       border: 1px solid ${CELL_LINE};
       display: flex;
       align-items: flex-start;
       justify-content: center;
-      padding-top: 4px;
+      padding: 6px 12px 14px;
       text-align: center;
       font-size: 10px;
       font-weight: 900;
@@ -693,7 +698,7 @@ export function renderInvoiceStatementA4Html(opts: {
         </thead>
         <tbody>
           ${bodyRows || `<tr><td class="cell center" colspan="8">—</td></tr>`}
-          ${groups.length > 0 ? grandSubtotalRow : ''}
+          ${showGrandSubtotal ? grandSubtotalRow : ''}
         </tbody>
       </table>
 

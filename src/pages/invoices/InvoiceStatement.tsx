@@ -892,10 +892,12 @@ export const InvoiceStatement = () => {
               <section className="rounded-lg border border-slate-200 bg-white p-4" dir="rtl">
                 <h3 className="text-lg font-black text-slate-950 mb-3">ملخص المبالغ</h3>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm max-w-xl">
-                  <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                    <dt className="text-slate-600">المجموع (قبل الخصم)</dt>
-                    <dd className="font-mono font-bold">{formatMoney(financialTotals.subtotal, currency)}</dd>
-                  </div>
+                  {financialTotals.discount > 0 && (
+                    <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
+                      <dt className="text-slate-600">المجموع (قبل الخصم)</dt>
+                      <dd className="font-mono font-bold">{formatMoney(financialTotals.subtotal, currency)}</dd>
+                    </div>
+                  )}
                   {financialTotals.discount > 0 && (
                     <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
                       <dt className="text-slate-600">الخصم</dt>
