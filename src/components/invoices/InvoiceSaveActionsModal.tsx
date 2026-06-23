@@ -4,6 +4,7 @@ import type { Invoice } from '../../types';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
 import { AR_INVOICE_STATEMENT } from '../../lib/i18n/arTerminology';
 import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
+import { buildInvoiceStatementFileName, pdfFileStem } from '../../lib/printing/documentFileNames';
 import { useToast } from '../NonBlockingToast';
 import { A4PreviewModal } from '../printing/A4PreviewModal';
 
@@ -43,12 +44,13 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
     });
 
   const safeInvoiceNo = safeFilePart(invoice.invoiceNumber || invoice.id, 'كشف');
-  const defaultFileName = `كشف_فاتورة_${safeInvoiceNo}.pdf`;
+  const safePartyName = safeFilePart(partyName, isPurchase ? 'مورد' : 'عميل');
+  const defaultFileName = `${buildInvoiceStatementFileName(safePartyName, safeInvoiceNo)}.pdf`;
 
   const handleExportPdf = async () => {
     setExporting(true);
     try {
-      const filePrefix = defaultFileName.replace(/\.pdf$/i, '');
+      const filePrefix = pdfFileStem(defaultFileName);
       const useElectronPdf =
         window.fabricApp?.isElectron === true && typeof window.fabricApp.printToPdf === 'function';
 

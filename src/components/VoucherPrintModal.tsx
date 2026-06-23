@@ -8,6 +8,8 @@ import {
   voucherRowToPrintData,
   type VoucherRenderOptions,
 } from '../lib/pdfExport';
+import { buildVoucherFileName, pdfFileStem } from '../lib/printing/documentFileNames';
+import { openDocumentPrintWindow } from '../lib/printing/documentPrint';
 import { buildVoucherNarrativeParagraph } from '../lib/printing/voucherNarrative';
 
 interface VoucherPrintModalProps {
@@ -28,7 +30,6 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
   const { showToast } = useToast();
   const [printing, setPrinting] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
-  const [bwPrint, setBwPrint] = React.useState(false);
 
   const printData = useMemo(() => (voucher ? voucherRowToPrintData(voucher) : null), [voucher]);
 
@@ -47,8 +48,8 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
   }, [printData]);
 
   const renderOptions: VoucherRenderOptions = useMemo(
-    () => ({ colorMode: bwPrint ? 'bw' : 'color' }),
-    [bwPrint],
+    () => ({ colorMode: 'color' }),
+    [],
   );
 
   if (!isOpen || !voucher || !printData) return null;
@@ -76,7 +77,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           pageSize: 'A5',
           silent: Boolean(settings.silentA4PrintingEnabled),
           printerName: settings.defaultA4PrinterName ?? undefined,
-          printBackground: !bwPrint,
+          printBackground: true,
         });
         if (result.ok) {
           showToast({ type: 'success', message: 'تم إرسال السند إلى الطابعة بنجاح' });
@@ -85,18 +86,10 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           showToast({ type: 'error', message: `خطأ في الطباعة: ${result.error || 'خطأ غير معروف'}` });
         }
       } else {
-        const printWindow = window.open('', '_blank', 'width=800,height=900');
-        if (!printWindow) {
+        if (!openDocumentPrintWindow(voucherHtml, `سند ${typeLabel}`)) {
           showToast({ type: 'error', message: 'الرجاء السماح بالنوافذ المنبثقة ثم أعد المحاولة' });
           return;
         }
-        printWindow.document.write(voucherHtml);
-        printWindow.document.close();
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-        };
         showToast({ type: 'success', message: 'تم فتح نافذة الطباعة' });
         onClose();
       }
@@ -123,22 +116,16 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
 
     setExporting(true);
     try {
-      const normalizedDate = String(voucher.voucher_date ?? '').trim() || new Date().toISOString().slice(0, 10);
-      const normalizedPartyName = String(voucher.party_name ?? '').trim() || 'بدون اسم';
-      const typeLabel = voucher.voucher_type === 'RECEIPT' ? 'قبض' : 'صرف';
-      const safeDate = normalizedDate
-        .split('T')[0]
-        .replace(/\//g, '-')
-        .replace(/:/g, '-')
-        .replace(/\\/g, '-')
-        .trim();
-      const safeName = normalizedPartyName.replace(/[<>:"/\\|?*]/g, '_').trim() || 'بدون_اسم';
-      const fileName = `سند_${typeLabel}_${safeName}_${safeDate}`;
+      const fileName = buildVoucherFileName(
+        voucher.voucher_type,
+        String(voucher.party_name ?? '').trim() || 'بدون اسم',
+        String(voucher.voucher_no ?? voucher.id),
+      );
 
       if (window.fabricApp?.printToPdf) {
         const result = await window.fabricApp.printToPdf(buildHtml(), {
           pageSize: 'A5',
-          defaultFileName: fileName,
+          defaultFileName: pdfFileStem(fileName),
         });
         if (result.ok) {
           showToast({ type: 'success', message: `تم حفظ السند في: ${result.filePath}` });
@@ -175,16 +162,6 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           <p className="text-sm text-emerald-900 font-bold mb-2">نص البيان على السند (A5):</p>
           <p className="text-sm text-slate-800 leading-relaxed">{narrativePreview}</p>
         </div>
-
-        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={bwPrint}
-            onChange={(e) => setBwPrint(e.target.checked)}
-            className="rounded border-slate-300"
-          />
-          طباعة أبيض وأسود (توفير الحبر)
-        </label>
 
         <div className="space-y-3">
           <button

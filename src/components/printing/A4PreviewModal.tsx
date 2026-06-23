@@ -1,6 +1,12 @@
 import React from 'react';
 import { Download, Loader2, Printer, X } from 'lucide-react';
-import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
+import { exportHtmlDocumentToPdf } from '../../lib/pdfExport';
+import {
+  openDocumentPrintWindow,
+  resolveDocumentPdfOptions,
+  resolveElectronPdfMargins,
+} from '../../lib/printing/documentPrint';
+import { pdfFileStem } from '../../lib/printing/documentFileNames';
 import { useToast } from '../NonBlockingToast';
 
 type PageSize = 'A4' | 'A5';
@@ -21,16 +27,7 @@ interface A4PreviewModalProps {
 }
 
 function openBrowserPrint(html: string, title: string) {
-  const printWindow = window.open('', '_blank', 'width=980,height=900');
-  if (!printWindow) return false;
-  printWindow.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>${title}</title></head><body>${html}</body></html>`);
-  printWindow.document.close();
-  printWindow.onload = () => {
-    window.setTimeout(() => {
-      printWindow.print();
-    }, 350);
-  };
-  return true;
+  return openDocumentPrintWindow(html, title);
 }
 
 export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
@@ -89,21 +86,25 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
   const handleExportPdf = async () => {
     setExporting(true);
     try {
-      const filePrefix = String(defaultFileName || title || 'document')
+      const filePrefix = pdfFileStem(String(defaultFileName || title || 'document')
         .trim()
-        .replace(/\.pdf$/i, '')
-        .replace(/[\\/:*?"<>|]+/g, '_');
+        .replace(/[\\/:*?"<>|]+/g, '_'));
 
       const useElectronPdf =
         window.fabricApp?.isElectron === true && typeof window.fabricApp.printToPdf === 'function';
+
+      const pdfOptions = resolveDocumentPdfOptions(html, {
+        fixedPageLayout,
+        pageSize,
+        orientation,
+      });
+      const electronMargins = resolveElectronPdfMargins(Boolean(fixedPageLayout), pageSize);
 
       if (useElectronPdf) {
         const result = await window.fabricApp!.printToPdf(html, {
           pageSize: pageSize as 'A4' | 'A5' | 'ROLL_LABEL',
           defaultFileName: filePrefix,
-          ...(fixedPageLayout && pageSize === 'A4'
-            ? { margins: { ...ELECTRON_A4_EMBEDDED_MARGINS } }
-            : {}),
+          ...(electronMargins ? { margins: electronMargins } : {}),
         });
         if (result.ok) {
           showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
@@ -114,17 +115,7 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
         return;
       }
 
-      await exportHtmlDocumentToPdf(
-        html,
-        filePrefix,
-        fixedPageLayout && pageSize === 'A4'
-          ? A4_FIXED_LAYOUT_PDF_OPTIONS
-          : {
-              orientation,
-              pageFormat: pageSize === 'A5' ? 'a5' : 'a4',
-              containerWidth: pageSize === 'A5' ? '148mm' : orientation === 'landscape' ? '297mm' : '210mm',
-            },
-      );
+      await exportHtmlDocumentToPdf(html, filePrefix, pdfOptions);
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
       onExported?.();
     } catch (error) {

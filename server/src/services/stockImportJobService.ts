@@ -8,6 +8,10 @@ import {
   ensureFabricCategoryChainFromImport,
 } from '../utils/purchaseImportMaterialCodes.js';
 import { buildAutoInternalCode } from '../utils/importItemCodes.js';
+import {
+  resolveStockImportItemCodes,
+  type StockImportLayout,
+} from '../utils/stockImportItemCodes.js';
 import { calcWeight, generateBarcode } from '../utils/rollHelpers.js';
 
 export type StockImportSourceType =
@@ -274,6 +278,8 @@ function parseRowPayload(payload: unknown): StockImportJobRow {
 interface PreparedRow {
   materialName: string;
   materialCode: string;
+  matchByCode: string;
+  resolvedInternalCode: string;
   colorName: string;
   colorNameTr: string;
   colorCode: string;
@@ -289,7 +295,7 @@ interface PreparedRow {
   wasClamped: boolean;
 }
 
-function prepareRow(row: StockImportJobRow, rowNo: number): PreparedRow {
+function prepareRow(row: StockImportJobRow, rowNo: number, importLayout: StockImportLayout | string = 'unknown'): PreparedRow {
   const materialName = String(row.itemName || '').trim();
   if (!materialName) throw new Error(`الصف ${rowNo}: اسم الخامة مطلوب`);
 
@@ -302,15 +308,22 @@ function prepareRow(row: StockImportJobRow, rowNo: number): PreparedRow {
   const safeActualWeightKg = clamp(Number(row.actualWeightKg ?? 0), MAX_WEIGHT_KG);
   const safeCalculatedWeightKg = clamp(calcWeight(safeLengthM, safeWidthCm, safeGsm) ?? 0, MAX_WEIGHT_KG);
 
-  const colorName = String(row.colorName || '').trim();
+  const itemCodes = resolveStockImportItemCodes(materialName, String(row.itemCode || ''), importLayout);
+  let colorName = String(row.colorName || '').trim();
   const colorNameTr = String(row.colorNameTr || '').trim();
+  const colorCode = String(row.colorCode || '').trim();
+  if (!colorName && !colorNameTr && !colorCode) {
+    colorName = 'غير محدد';
+  }
 
   return {
     materialName,
-    materialCode: String(row.itemCode || '').trim(),
+    materialCode: itemCodes.supplierCode ?? itemCodes.designLabel ?? '',
+    matchByCode: itemCodes.matchByCode,
+    resolvedInternalCode: itemCodes.internalCode,
     colorName,
     colorNameTr,
-    colorCode: String(row.colorCode || '').trim(),
+    colorCode,
     unit: String(row.unit || '').trim(),
     lengthM: safeLengthM,
     unitCost: safeUnitCost > 0 ? safeUnitCost : null,
@@ -336,8 +349,16 @@ async function ensureItem(
   prepared: PreparedRow,
   _rowNo: number,
 ): Promise<{ id: string; created: boolean }> {
-  const matCode = prepared.materialCode;
+  const existingByName = await client.query<{ id: string }>(
+    `SELECT id FROM fabric_items
+     WHERE company_id = $1 AND lower(btrim(name)) = lower(btrim($2))
+     ORDER BY created_at
+     LIMIT 1`,
+    [companyId, prepared.materialName],
+  );
+  if (existingByName.rows[0]?.id) return { id: existingByName.rows[0].id, created: false };
 
+  const matCode = prepared.matchByCode.trim();
   if (matCode) {
     const existingByCode = await client.query<{ id: string }>(
       `SELECT id FROM fabric_items
@@ -352,16 +373,8 @@ async function ensureItem(
     if (existingByCode.rows[0]?.id) return { id: existingByCode.rows[0].id, created: false };
   }
 
-  const existingByName = await client.query<{ id: string }>(
-    `SELECT id FROM fabric_items
-     WHERE company_id = $1 AND lower(btrim(name)) = lower(btrim($2))
-     ORDER BY created_at
-     LIMIT 1`,
-    [companyId, prepared.materialName],
-  );
-  if (existingByName.rows[0]?.id) return { id: existingByName.rows[0].id, created: false };
-
-  const internalCode = matCode || buildAutoInternalCode(prepared.materialName);
+  const supplierCode = prepared.materialCode.trim() || null;
+  const internalCode = prepared.resolvedInternalCode.trim() || buildAutoInternalCode(prepared.materialName);
   const inserted = await client.query<{ id: string }>(
     `INSERT INTO fabric_items
        (company_id, supplier_id, internal_code, supplier_code, name, unit, notes)
@@ -371,7 +384,7 @@ async function ensureItem(
       companyId,
       supplierId,
       internalCode,
-      matCode || null,
+      supplierCode,
       prepared.materialName,
       prepared.unit || 'meter',
       'تم إنشاؤه تلقائياً عبر استيراد وارد Excel',
@@ -480,6 +493,7 @@ export async function advanceStockImportBatch(
 
     const extracted = batch.extracted_metadata ?? {};
     const batchTag = typeof extracted.batchTag === 'string' ? extracted.batchTag : buildBatchTag(batch.notes ?? '');
+    const importLayout = typeof extracted.importLayout === 'string' ? extracted.importLayout : 'unknown';
     let createdRolls = 0;
     let createdItems = 0;
     let createdColors = 0;
@@ -493,7 +507,7 @@ export async function advanceStockImportBatch(
     for (const rowRec of rowsResult.rows) {
       try {
         const original = parseRowPayload(rowRec.normalized_data ?? rowRec.raw_data);
-        const prepared = prepareRow(original, rowRec.row_no);
+        const prepared = prepareRow(original, rowRec.row_no, importLayout);
         if (prepared.wasClamped) clampedValues += 1;
 
         const item = await ensureItem(client, companyId, batch.supplier_id ?? null, prepared, rowRec.row_no);

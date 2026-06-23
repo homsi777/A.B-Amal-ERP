@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Download, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
 import type { Customer, Invoice, Supplier } from '../../types';
 import {
+  exportHtmlDocumentToPdf,
   exportPdfFromHtmlString,
   type FabricStatementItem,
   renderCustomerAccountStatementPdfHtml,
@@ -10,6 +11,10 @@ import {
   renderSupplierStatementPdfHtml,
   type StatementTotals,
 } from '../../lib/pdfExport';
+import {
+  buildCustomerStatementFileName,
+  buildSupplierStatementFileName,
+} from '../../lib/printing/documentFileNames';
 import { buildFabricRowsFromSaleInvoices } from '../../lib/customerStatementFilters';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { useToast } from '../NonBlockingToast';
@@ -232,7 +237,9 @@ export function BatchStatementExportModal({
               ? await loadCustomerSaleInvoiceDetails(item.party.id, item.fromDate, item.toDate)
               : null;
 
-          const fileName = `كشف_حساب_${makeSafeFileName(partyName)}_${item.fromDate}_${item.toDate}.pdf`;
+          const fileName = type === 'customer'
+            ? `${buildCustomerStatementFileName(partyName, item.fromDate, item.toDate)}.pdf`
+            : `${buildSupplierStatementFileName(partyName, item.fromDate, item.toDate)}.pdf`;
           const pdfHtml =
             type === 'customer'
               ? renderCustomerAccountStatementPdfHtml({
@@ -259,7 +266,12 @@ export function BatchStatementExportModal({
                   totals: statement.totals,
                 });
 
-          await exportPdfFromHtmlString(pdfHtml, fileName.replace(/\.pdf$/i, ''), { orientation: 'portrait' });
+          await exportHtmlDocumentToPdf(pdfHtml, fileName.replace(/\.pdf$/i, ''), {
+            orientation: 'portrait',
+            pageFormat: 'a4',
+            containerWidth: '210mm',
+            pageMarginMm: 0,
+          });
 
           if (sendTelegram) {
             const closing = statement.totals.closingBalance;

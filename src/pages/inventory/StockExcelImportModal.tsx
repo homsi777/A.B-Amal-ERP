@@ -285,7 +285,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
   const importableRows = useMemo<StockImportRow[]>(() => {
     if (!activeSheet) return [];
     return activeSheet.rows
-      .filter((r) => Boolean(r.itemName))
+      .filter((r) => Boolean(r.itemName) && Number(r.quantity) > 0)
       .map((r) => ({
         itemName:          r.itemName,
         itemCode:          r.itemCode,
@@ -350,7 +350,11 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
         fileName: preview?.fileName,
         sheetName: activeSheet.sheetName,
         detectedColumns: activeSheet.rawHeaders.map((col, colIndex) => ({ col, colIndex })),
-        extractedMetadata: { headerRowIndex: activeSheet.headerRowIndex, sheetKind: activeSheet.kind },
+        extractedMetadata: {
+          headerRowIndex: activeSheet.headerRowIndex,
+          sheetKind: activeSheet.kind,
+          importLayout: activeSheet.importLayout,
+        },
         sourceLabel: (preview ? `${preview.fileName} · ${activeSheet.sheetName}` : activeSheet.sheetName).slice(0, 110),
         rows: importableRows,
       } satisfies {

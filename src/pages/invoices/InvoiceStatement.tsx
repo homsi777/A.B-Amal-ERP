@@ -23,6 +23,7 @@ import type { Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
 import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
+import { buildInvoiceStatementFileName, pdfFileStem } from '../../lib/printing/documentFileNames';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import {
   AR_INVOICE_STATEMENT,
@@ -457,7 +458,10 @@ export const InvoiceStatement = () => {
   };
 
   const defaultPdfFileName = invoice
-    ? `كشف_فاتورة_${displayStoredInvoiceNo(invoice.invoiceNumber).replace(/[<>:"/\\|?*]/g, '_').trim()}.pdf`
+    ? `${buildInvoiceStatementFileName(
+      partyName || (invoice.type === 'purchase' ? 'مورد' : 'عميل'),
+      displayStoredInvoiceNo(invoice.invoiceNumber).replace(/[<>:"/\\|?*]/g, '_').trim(),
+    )}.pdf`
     : 'كشف_فاتورة.pdf';
 
   const handlePrint = async () => {
@@ -500,8 +504,7 @@ export const InvoiceStatement = () => {
     if (!invoice) return;
     setExportingPdf(true);
     try {
-      const safeInvoiceNo = displayStoredInvoiceNo(invoice.invoiceNumber).replace(/[<>:"/\\|?*]/g, '_').trim();
-      const defaultFileName = `كشف_فاتورة_${safeInvoiceNo}`;
+      const defaultFileName = pdfFileStem(defaultPdfFileName);
       const html = renderInvoiceStatementA4Html({
         invoice,
         partyName,

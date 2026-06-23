@@ -21,6 +21,14 @@ import * as XLSX from 'xlsx';
 
 export type StockSheetKind = 'balance' | 'incoming' | 'outgoing' | 'unknown';
 
+/** Detected Excel layout — drives how «رمز الصنف» is interpreted during import. */
+export type StockImportLayout =
+  | 'aleppo_incoming_minimal'
+  | 'aleppo_movement'
+  | 'aleppo_balance'
+  | 'supplier_invoice'
+  | 'unknown';
+
 export interface StockExcelRow {
   /** 1-based row index in the original sheet (header excluded). */
   rowIndex: number;
@@ -63,6 +71,8 @@ export interface StockSheetPreview {
   sheetName: string;
   /** Detected kind based on the sheet name + headers. */
   kind: StockSheetKind;
+  /** Layout profile used by the import job (column semantics). */
+  importLayout: StockImportLayout;
   /** Index of the row used as header (0-based). */
   headerRowIndex: number;
   /** Raw header values as they appear in the file. */
@@ -209,6 +219,39 @@ function detectSheetKind(sheetName: string, headers: string[]): StockSheetKind {
   return 'unknown';
 }
 
+function headerHas(headers: string[], ...keys: string[]): boolean {
+  const norm = headers.map(normalize);
+  return keys.some((k) => norm.includes(normalize(k)));
+}
+
+/**
+ * Aleppo warehouse workbooks use different column semantics per sheet.
+ * «وارد» often has: اسم الصنف | رمز الصنف (weave type) | اللون | الكمية — no date/unit.
+ */
+export function detectImportLayout(kind: StockSheetKind, headers: string[]): StockImportLayout {
+  if (kind === 'balance') return 'aleppo_balance';
+  if (isSupplierPurchaseInvoiceHeaders(headers)) return 'supplier_invoice';
+  if (
+    kind === 'incoming'
+    && headerHas(headers, 'اسم الصنف', 'اسمالصنف')
+    && headerHas(headers, 'رمز الصنف', 'رمزالصنف')
+    && headerHas(headers, 'اللون')
+    && headerHas(headers, 'الكمية', 'الكميه')
+    && !headerHas(headers, 'التاريخ', 'الوحدة', 'الوحده', 'باركود', 'barkod')
+  ) {
+    return 'aleppo_incoming_minimal';
+  }
+  if (
+    (kind === 'incoming' || kind === 'outgoing')
+    && headerHas(headers, 'اسم الصنف', 'اسمالصنف')
+    && headerHas(headers, 'الكمية', 'الكميه')
+    && headerHas(headers, 'التاريخ')
+  ) {
+    return 'aleppo_movement';
+  }
+  return 'unknown';
+}
+
 // ─── Number coercion ─────────────────────────────────────────────────────────
 
 function toNumber(value: unknown): number {
@@ -299,6 +342,7 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
     return {
       sheetName,
       kind: 'unknown',
+      importLayout: 'unknown',
       headerRowIndex: 0,
       rawHeaders: [],
       totalRows: 0,
@@ -319,11 +363,16 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
   const rawHeaders = (aoa[headerRowIndex] || []).map((c) => String(c ?? '').trim());
   const cols = detectColumnIndices(rawHeaders);
   const kind = detectSheetKind(sheetName, rawHeaders);
+  const importLayout = detectImportLayout(kind, rawHeaders);
   const stockQuantityIndex = findHeaderIndex(rawHeaders, ['المخزن', 'الرصيد', 'المتوفر', 'stock', 'balance']);
 
-  // For balance sheets the quantity is "الوارد - الصادر" but in this customer
-  // file all those columns are zero, so we just expose them as-is and rely on
-  // the price/total columns. The "الوارد" column is mapped to `quantity`.
+  if (kind === 'balance') {
+    warnings.push('ورقة الرصيد للمعاينة فقط — الاستيراد يتم من ورقة «وارد» (كل صف = ثوب بمكوّاته).');
+  } else if (kind === 'outgoing') {
+    warnings.push('ورقة الصادر للمعاينة فقط — لا تُستورد كوارد.');
+  }
+
+  // For balance sheets the quantity is "المخزن" (on-hand), not "الوارد".
   if (cols.quantity < 0 && cols.itemName < 0) {
     warnings.push('لم يتم اكتشاف أعمدة معروفة في هذه الورقة — لن تُستورد البيانات.');
   }
@@ -345,24 +394,32 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
         : (cols.quantity >= 0 ? row[cols.quantity] : 0);
     const quantity = toNumber(quantitySource);
 
-    // Some Aleppo sheets have shifted columns: the color name appears under
-    // "unit", and the actual color code appears under "color".
-    if (!colorCode && colorName && unit && !isKnownUnit(unit) && looksLikeColorCode(colorName)) {
-      colorCode = colorName;
-      colorName = unit;
-      unit = '';
+    if (!colorName && !colorNameTr && colorCode && (kind === 'balance' || kind === 'outgoing')) {
+      colorName = colorCode;
+      colorCode = '';
     }
-    if (!colorCode && colorName && !unit && looksLikeColorCode(colorName)) {
-      colorCode = colorName;
-      colorName = '';
-    }
-    if (unit && !isKnownUnit(unit)) {
-      colorName = colorName && colorName !== unit ? `${unit} - ${colorName}` : unit;
-      unit = '';
-    }
-    if (!unit && !itemCode && colorName && cols.unit >= 0 && isKnownUnit(colorName)) {
-      unit = colorName;
-      colorName = '';
+
+    const useColumnShiftHeuristics = importLayout !== 'aleppo_incoming_minimal';
+    if (useColumnShiftHeuristics) {
+      // Some Aleppo sheets have shifted columns: the color name appears under
+      // "unit", and the actual color code appears under "color".
+      if (!colorCode && colorName && unit && !isKnownUnit(unit) && looksLikeColorCode(colorName)) {
+        colorCode = colorName;
+        colorName = unit;
+        unit = '';
+      }
+      if (!colorCode && colorName && !unit && looksLikeColorCode(colorName)) {
+        colorCode = colorName;
+        colorName = '';
+      }
+      if (unit && !isKnownUnit(unit)) {
+        colorName = colorName && colorName !== unit ? `${unit} - ${colorName}` : unit;
+        unit = '';
+      }
+      if (!unit && !itemCode && colorName && cols.unit >= 0 && isKnownUnit(colorName)) {
+        unit = colorName;
+        colorName = '';
+      }
     }
 
     // Skip completely empty rows OR rows with no item AND no quantity.
@@ -472,9 +529,15 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
     }))
     .sort((a, b) => b.totalQuantity - a.totalQuantity);
 
+  const rowsWithoutColor = rows.filter((r) => !stockRowColorLabel(r)).length;
+  if (importLayout === 'aleppo_incoming_minimal' && rowsWithoutColor > 0) {
+    warnings.push(`${rowsWithoutColor} صفاً بدون لون — سيُستخدم «غير محدد» عند الاستيراد.`);
+  }
+
   return {
     sheetName,
     kind,
+    importLayout,
     headerRowIndex,
     rawHeaders,
     totalRows: rows.length,

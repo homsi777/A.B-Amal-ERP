@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { ArrowUpCircle, FileText, Printer, Download, Calendar, MessageCircle, X, CreditCard, Banknote, Filter, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { exportPdfFromHtmlString, exportToPDF, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml } from '../../lib/pdfExport';
+import { exportHtmlDocumentToPdf, exportPdfFromHtmlString, exportToPDF, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml } from '../../lib/pdfExport';
+import { buildCustomerStatementFileName } from '../../lib/printing/documentFileNames';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
@@ -600,9 +601,11 @@ export const CustomerStatement = () => {
           invoiceDetailsByDocumentNo,
           saleInvoices: dbSaleInvoicesFromApi,
         });
-        await exportPdfFromHtmlString(pdfHtml, `كشف_حساب_${accountStatement.customer.name}_${fromDate}_${toDate}`, {
-          orientation: 'portrait',
-        });
+        await exportHtmlDocumentToPdf(
+          pdfHtml,
+          buildCustomerStatementFileName(accountStatement.customer.name, fromDate, toDate),
+          { orientation: 'portrait', pageFormat: 'a4', containerWidth: '210mm', pageMarginMm: 0 },
+        );
         return;
       }
 
@@ -685,7 +688,11 @@ export const CustomerStatement = () => {
 
   const buildStatementPrintHtml = () => statementPrintHtml;
 
-  const statementPrintFileName = `كشف_حساب_${selectedCustomer?.name || accountStatement?.customer?.name || 'عميل'}_${fromDate}_${toDate}.pdf`;
+  const statementPrintFileName = `${buildCustomerStatementFileName(
+    selectedCustomer?.name || accountStatement?.customer?.name || 'عميل',
+    fromDate,
+    toDate,
+  )}.pdf`;
 
   const handleShareWhatsApp = () => {
     if (!selectedCustomer || fabricItems.length === 0) {

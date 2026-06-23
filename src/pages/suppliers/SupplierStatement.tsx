@@ -3,11 +3,13 @@ import { useStore } from '../../store/useStore';
 import { ArrowUpCircle, Calendar, CreditCard, Download, FileText, Loader2, MessageCircle, Printer, X } from 'lucide-react';
 import { format } from 'date-fns';
 import {
+  exportHtmlDocumentToPdf,
   exportPdfFromHtmlString,
   exportSupplierStatementToPDF,
   renderSupplierAccountStatementPdfHtml,
   renderSupplierStatementPdfHtml,
 } from '../../lib/pdfExport';
+import { buildSupplierStatementFileName } from '../../lib/printing/documentFileNames';
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import { BRAND } from '../../branding';
@@ -311,9 +313,11 @@ export const SupplierStatement = () => {
           rows: accountStatement.rows,
           totals: accountStatement.totals,
         });
-        await exportPdfFromHtmlString(pdfHtml, `كشف_حساب_${accountStatement.supplier.name}_${fromDate}_${toDate}`, {
-          orientation: 'portrait',
-        });
+        await exportHtmlDocumentToPdf(
+          pdfHtml,
+          buildSupplierStatementFileName(accountStatement.supplier.name, fromDate, toDate),
+          { orientation: 'portrait', pageFormat: 'a4', containerWidth: '210mm', pageMarginMm: 0 },
+        );
         return;
       }
 
@@ -367,7 +371,11 @@ export const SupplierStatement = () => {
     });
   };
 
-  const statementPrintFileName = `كشف_حساب_${selectedSupplier?.company || selectedSupplier?.name || accountStatement?.supplier?.name || 'مورد'}_${fromDate}_${toDate}.pdf`;
+  const statementPrintFileName = `${buildSupplierStatementFileName(
+    selectedSupplier?.company || selectedSupplier?.name || accountStatement?.supplier?.name || 'مورد',
+    fromDate,
+    toDate,
+  )}.pdf`;
 
   const formatDuesMoney = (value: number) =>
     Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

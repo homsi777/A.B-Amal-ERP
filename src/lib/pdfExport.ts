@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas';
 import { BRAND } from '../branding';
 import type { Invoice } from '../types';
 import { flattenAccountStatementDisplayRows } from './customerStatementInvoiceDetails';
+import { buildCustomerStatementFileName, buildSupplierStatementFileName } from './printing/documentFileNames';
 import { documentFooterStyles, renderDocumentFooterHtml } from './printing/renderDocumentFooter';
 
 /** CLOTEX brand header reused across all PDF statements. */
@@ -512,6 +513,8 @@ function renderAccountStatementHtml(options: {
     direction: rtl;
     unicode-bidi: isolate;
     min-height: 100%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .ar {
     direction: rtl;
@@ -624,8 +627,13 @@ function renderAccountStatementHtml(options: {
 
   @media print {
     @page { size: A4 portrait; margin: 6mm 5mm 0; }
-    html, body { margin: 0; }
+    html, body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .stmt-page { min-height: auto; padding: 0; }
+    .card, .card-navy, .card-green, .card-red, .card-blue,
+    thead tr, tfoot tr, tbody td {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
     tbody td { color: #000000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     thead th, tfoot td { color: #000000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     thead th.th-green, tfoot td.tf-green { color: #14532d !important; }
@@ -929,8 +937,8 @@ const saveContainerAsPDF = async (
       }
     }
 
-    const currentDate = new Date().toISOString().split('T')[0];
-    pdf.save(`${filenamePrefix}_${currentDate}.pdf`);
+    const baseName = filenamePrefix.replace(/\.pdf$/i, '');
+    pdf.save(`${baseName}.pdf`);
   } finally {
     cleanupCompatibilityStyle();
     removeElement(container);
@@ -1101,8 +1109,8 @@ export async function exportHtmlDocumentToPdf(
       }
     }
 
-    const currentDate = new Date().toISOString().split('T')[0];
-    pdf.save(`${filenamePrefix}_${currentDate}.pdf`);
+    const baseName = filenamePrefix.replace(/\.pdf$/i, '');
+    pdf.save(`${baseName}.pdf`);
   } finally {
     cleanupCompatibilityStyle();
     document.body.removeChild(iframe);
@@ -1114,7 +1122,7 @@ export const exportToPDF = async (data: ExportData) => {
   container.innerHTML = renderCustomerStatementPdfHtml(data);
 
   try {
-    await saveContainerAsPDF(container, `كشف_حساب_${data.customerName}`);
+    await saveContainerAsPDF(container, buildCustomerStatementFileName(data.customerName, data.fromDate, data.toDate));
   } catch (error) {
     console.error('Error generating PDF:', error);
     throw error;
@@ -1126,7 +1134,10 @@ export const exportSupplierStatementToPDF = async (data: SupplierStatementExport
   container.innerHTML = renderSupplierStatementPdfHtml(data);
 
   try {
-    await saveContainerAsPDF(container, `كشف_حساب_${data.supplierCompany}`);
+    await saveContainerAsPDF(
+      container,
+      buildSupplierStatementFileName(data.supplierCompany || data.supplierName, data.fromDate, data.toDate),
+    );
   } catch (error) {
     console.error('Error generating supplier PDF:', error);
     throw error;

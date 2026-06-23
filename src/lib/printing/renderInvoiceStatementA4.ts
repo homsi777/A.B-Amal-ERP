@@ -694,6 +694,10 @@ export function renderInvoiceStatementA4Html(opts: {
     .sum-price { width: 14%; }
     .sum-amount { width: 20%; }
     @media print {
+      html, body, * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
       html, body {
         width: 210mm;
         height: 297mm;
