@@ -11,6 +11,7 @@ import { getCustomerStatement } from '../services/partyStatementService.js';
 import { createSalesInvoice } from '../services/salesInvoiceService.js';
 import { applyVoucherConfirmation, insertDraftVoucher } from '../services/voucherCashboxService.js';
 import { ensureCompanyInvoiceGlAccounts, getGlAccountIdByKey, GL_KEYS } from '../services/glCoaService.js';
+import { normalizeStatementImportSaleLines } from '../services/statementImportSaleLines.js';
 
 const customerBody = z.object({
   name: z.string().min(1, 'الاسم مطلوب'),
@@ -409,10 +410,10 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
           saleLines: d.saleLines,
         });
       }
-      if (!existingInvoice && d.computedSalesTotal > 0) {
-        const lines = d.saleLines.length
-          ? d.saleLines
-          : [
+      const rawImportSaleLines = d.saleLines.length
+        ? d.saleLines
+        : d.computedSalesTotal > 0
+          ? [
               {
                 date: d.orderDate,
                 originalDateValue: d.orderDate,
@@ -425,7 +426,12 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
                 total: d.computedSalesTotal,
                 note: d.fileName,
               },
-            ];
+            ]
+          : [];
+      const { lines: normalizedSaleLines, subtotal: normalizedSalesSubtotal } =
+        normalizeStatementImportSaleLines(rawImportSaleLines);
+
+      if (!existingInvoice && normalizedSalesSubtotal > 0) {
         await createSalesInvoice(client, companyId, userId, {
           invoiceNo: smartInvoiceNo,
           invoiceDate: d.orderDate,
@@ -435,31 +441,31 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
           currencyCode,
           exchangeRateToUsd: 1,
           notes: `استيراد كشف حساب عميل: ${d.fileName}. رقم مرجعي للكشف: ${referenceNo}`,
-          subtotal: d.computedSalesTotal,
+          subtotal: normalizedSalesSubtotal,
           discountTotal: 0,
           taxTotal: 0,
-          totalAmount: d.computedSalesTotal,
+          totalAmount: normalizedSalesSubtotal,
           paidAmount: 0,
-          remainingAmount: d.computedSalesTotal,
-          subtotalUsd: d.computedSalesTotal,
+          remainingAmount: normalizedSalesSubtotal,
+          subtotalUsd: normalizedSalesSubtotal,
           discountTotalUsd: 0,
           taxTotalUsd: 0,
-          totalAmountUsd: d.computedSalesTotal,
+          totalAmountUsd: normalizedSalesSubtotal,
           paidAmountUsd: 0,
-          remainingAmountUsd: d.computedSalesTotal,
+          remainingAmountUsd: normalizedSalesSubtotal,
           paymentStatus: 'unpaid',
           confirm: true,
           cashboxId: null,
           partyNameForVoucher: customer.name,
-          lines: lines.map((line, index) => ({
+          lines: normalizedSaleLines.map((line, index) => ({
             fabricRollId: null,
             fabricItemId: null,
             variantId: null,
             warehouseId: null,
             description: [line.materialName || 'بند مالي مستورد', line.city, line.note].filter(Boolean).join(' - '),
-            quantity: line.quantity > 0 ? line.quantity : 1,
+            quantity: line.quantity,
             unit: 'meter',
-            unitPrice: line.unitPrice > 0 ? line.unitPrice : line.total,
+            unitPrice: line.unitPrice,
             lineDiscount: 0,
             lineTax: 0,
             lineTotal: line.total,
@@ -472,6 +478,8 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
               materialName: line.materialName,
               city: line.city,
               unitPrice: line.unitPrice,
+              excelUnitPrice: rawImportSaleLines[index]?.unitPrice ?? line.unitPrice,
+              excelLineTotal: rawImportSaleLines[index]?.total ?? line.total,
               rolls: line.rolls,
               sourceLine: index + 1,
               note: line.note,

@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { importCustomerStatement } from '../../lib/api/customersApi';
 import { listCashboxes, type CashboxDto } from '../../lib/api/cashboxesApi';
 import { parseCustomerStatementImportDate, type CustomerStatementDateParseSource } from '../../lib/customerStatementImportDateParser';
+import { normalizeStatementImportSaleLines, scanStatementSheetTotals } from '../../lib/statementImportSaleLines';
 
 type ImportedSaleLine = {
   date: string;
@@ -152,12 +153,12 @@ function analyzeWorkbook(fileName: string, workbook: XLSX.WorkBook): ImportAnaly
     });
   }
 
-  const numericAt = (r: number, c: number) => parseMoney(rows[r - 1]?.[c - 1]);
-  const sheetSalesTotal = numericAt(37, 9) || numericAt(43, 5);
-  const sheetMetersTotal = numericAt(37, 3);
-  const sheetRollsTotal = numericAt(37, 6);
-  const sheetBalance = numericAt(65, 5) || numericAt(66, 5) || null;
-  const computedSalesTotal = round2(saleLines.reduce((sum, line) => sum + line.total, 0));
+  const sheetTotals = scanStatementSheetTotals(rows);
+  const sheetSalesTotal = sheetTotals.sheetSalesTotal;
+  const sheetMetersTotal = sheetTotals.sheetMetersTotal;
+  const sheetRollsTotal = sheetTotals.sheetRollsTotal;
+  const sheetBalance = sheetTotals.sheetBalance;
+  const { lines: normalizedSaleLines, subtotal: computedSalesTotal } = normalizeStatementImportSaleLines(saleLines);
   const computedRollsTotal = round2(saleLines.reduce((sum, line) => sum + line.rolls, 0));
   const paymentsTotal = round2(payments.filter((row) => row.kind === 'payment').reduce((sum, row) => sum + row.amount, 0));
   const returnsTotal = round2(payments.filter((row) => row.kind === 'return').reduce((sum, row) => sum + row.amount, 0));
@@ -181,7 +182,7 @@ function analyzeWorkbook(fileName: string, workbook: XLSX.WorkBook): ImportAnaly
     customerName,
     orderDate,
     currencyCode: 'USD',
-    saleLines,
+    saleLines: normalizedSaleLines,
     payments: payments.filter((row) => row.kind === 'payment'),
     returnPayments: payments.filter((row) => row.kind === 'return'),
     sheetSalesTotal: round2(sheetSalesTotal || computedSalesTotal),
