@@ -539,14 +539,21 @@ function renderAccountStatementHtml(options: {
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: A4 landscape; margin: 6mm 5mm 0; }
+  @page { size: A4 portrait; margin: 6mm 5mm 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
-    font-family: Tahoma, Arial, "Segoe UI", sans-serif;
+    font-family: Tahoma, "Segoe UI", "Arabic Typesetting", Arial, sans-serif;
     background: #fff;
     color: #0f172a;
     direction: rtl;
+    unicode-bidi: isolate;
     min-height: 100%;
+  }
+  .ar {
+    direction: rtl;
+    unicode-bidi: isolate;
+    letter-spacing: normal;
+    word-spacing: normal;
   }
 
   .stmt-page {
@@ -570,7 +577,7 @@ function renderAccountStatementHtml(options: {
 
   .hdr-center { text-align: center; padding: 0; }
   .hdr-center .logo { height: 72px; width: auto; object-fit: contain; display: block; margin: 0 auto 2px; }
-  .hdr-center h1 { font-size: 20px; font-weight: 800; color: ${NAVY}; margin: 0; letter-spacing: 0.3px; }
+  .hdr-center h1 { font-size: 20px; font-weight: 800; color: ${NAVY}; margin: 0; }
   .hdr-center .sub { font-size: 12px; color: #475569; margin-top: 2px; }
   .hdr-center .divider { width: 50px; height: 2px; background: ${NAVY}; margin: 4px auto; border-radius: 2px; }
 
@@ -651,6 +658,7 @@ function renderAccountStatementHtml(options: {
   ${documentFooterStyles(NAVY)}
 
   @media print {
+    @page { size: A4 portrait; margin: 6mm 5mm 0; }
     html, body { margin: 0; }
     .stmt-page { min-height: auto; padding: 0; }
   }
@@ -669,9 +677,9 @@ function renderAccountStatementHtml(options: {
 
     <div class="hdr-center">
       <img class="logo" src="${BRAND.logoInline}" alt="${BRAND.name}" />
-      <h1>${safeText(options.title)}</h1>
+      <h1 class="ar">${safeText(options.title)}</h1>
       <div class="divider"></div>
-      <div class="sub">(حركات مالية)</div>
+      <div class="sub ar">(حركات مالية)</div>
     </div>
 
     <div class="hdr-box">
@@ -784,7 +792,9 @@ function renderAccountStatementHtml(options: {
 
   </div>
 
-  ${renderDocumentFooterHtml('invoice')}
+  ${renderDocumentFooterHtml('invoice', false, {
+    slogan: 'شراكتنا لا تُقاس بالأرقام فقط، بل بالثقة التي نبنيها معاً',
+  })}
 
 </div>
 </body>

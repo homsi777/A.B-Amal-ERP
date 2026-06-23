@@ -288,7 +288,7 @@ export function BatchStatementExportModal({
         const exportData = buildExport(item);
         if (!exportData) continue;
         setStatus(`${index + 1} / ${validRows.length} - ${exportData.partyName}`);
-        await exportPdfFromHtmlString(exportData.pdfHtml, exportData.fileName.replace(/\.pdf$/i, ''), { orientation: 'landscape' });
+        await exportPdfFromHtmlString(exportData.pdfHtml, exportData.fileName.replace(/\.pdf$/i, ''), { orientation: 'portrait' });
         if (sendTelegram) {
           await sendTelegramStatementPdf({
             partyType: type,

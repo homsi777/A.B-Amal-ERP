@@ -68,7 +68,7 @@ export function documentFooterStyles(navy = '#2C405A', gold = '#C4A962', bw = fa
     }
     .doc-footer-right { text-align: right; }
     .doc-footer-center { text-align: center; }
-    .doc-footer-left { text-align: left; }
+    .doc-footer-left { text-align: left; line-height: 1.45; }
     .doc-footer-inline {
       display: inline-flex;
       align-items: center;
@@ -104,8 +104,13 @@ export function documentFooterStyles(navy = '#2C405A', gold = '#C4A962', bw = fa
   `;
 }
 
-export function renderDocumentFooterHtml(preset: DocumentFooterPreset, bw = false): string {
+export function renderDocumentFooterHtml(
+  preset: DocumentFooterPreset,
+  bw = false,
+  opts?: { slogan?: string },
+): string {
   const cfg = PRESETS[preset];
+  const slogan = opts?.slogan ?? cfg.slogan;
   const sloganIcon = footerIconSvg(cfg.icon);
   const phoneHtml = `<span class="doc-footer-phone">${esc(cfg.phone)}</span>`;
 
@@ -120,7 +125,7 @@ export function renderDocumentFooterHtml(preset: DocumentFooterPreset, bw = fals
             <span class="doc-footer-inline doc-footer-inline-center">${footerIconSvg('phone')}${phoneHtml}</span>
           </td>
           <td class="doc-footer-left" style="width:34%;">
-            <span class="doc-footer-inline">${sloganIcon}<span>${esc(cfg.slogan)}</span></span>
+            <span class="doc-footer-inline">${sloganIcon}<span>${esc(slogan)}</span></span>
           </td>
         </tr>
       </table>
