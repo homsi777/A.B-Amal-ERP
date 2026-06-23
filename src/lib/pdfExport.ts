@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { BRAND } from '../branding';
 import type { Invoice } from '../types';
-import { resolveInvoiceDetailRowsForStatementRow, aggregateInvoiceFabricGroups, buildStatementImportDisplayRows, findSaleInvoiceForStatementRow, shouldExpandStatementImportLines } from './customerStatementInvoiceDetails';
+import { flattenAccountStatementDisplayRows } from './customerStatementInvoiceDetails';
 import { documentFooterStyles, renderDocumentFooterHtml } from './printing/renderDocumentFooter';
 
 /** CLOTEX brand header reused across all PDF statements. */
@@ -414,32 +414,21 @@ function renderAccountStatementHtml(options: {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
-  const isSalesRow = (row: AccountStatementRow) =>
-    row.sourceType === 'SALES_INVOICE' || row.sourceType === 'INVOICE' ||
-    row.typeLabel === 'فاتورة بيع' || row.type === 'SALES_INVOICE';
-
   // ── Palette ───────────────────────────────────────────────────────────────
   const NAVY   = BRAND.primaryColor;
-  const GREEN  = '#16a34a';
-  const RED    = '#dc2626';
-  const BLUE   = '#2563eb';
+  const GREEN  = '#15803d';
+  const RED    = '#b91c1c';
+  const BLUE   = '#1d4ed8';
   const DASH   = '—';
 
   // ── Parse detailLine → phone / address ───────────────────────────────────
   const [phonePart = '', addressPart = ''] = options.detailLine.split(' | ');
 
-  // ── Build table rows (one line per sales invoice) ─────────────────────────
-  const invoiceRowKey = (row: AccountStatementRow) => {
-    const sourceId = String(row.sourceId ?? '').trim();
-    if (sourceId) return `id:${sourceId}`;
-    return `doc:${String(row.documentNo ?? '').trim()}`;
-  };
-
   let totalFabricAmount = 0;
   let totalFabricLength = 0;
 
   const td = (content: string, extra = '') =>
-    `<td style="padding:7px 6px;border:1px solid #e5e7eb;text-align:center;font-size:10px;vertical-align:middle;${extra}">${content}</td>`;
+    `<td style="padding:7px 6px;border:1px solid #e5e7eb;text-align:center;font-size:10px;vertical-align:middle;color:#000000;${extra}">${content}</td>`;
 
   const renderDataRow = (
     evBg: string,
@@ -475,89 +464,33 @@ function renderAccountStatementHtml(options: {
       </tr>`;
     }
 
-    const seenSalesKeys = new Set<string>();
+    const displayRows = flattenAccountStatementDisplayRows({
+      rows: options.rows,
+      openingBalance: options.openingBalance,
+      saleInvoices: options.saleInvoices,
+      invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
+      invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
+    });
+
     const parts: string[] = [];
-    let displayIdx = 0;
-
-    for (const row of options.rows) {
-      if (isSalesRow(row)) {
-        const key = invoiceRowKey(row);
-        if (seenSalesKeys.has(key)) continue;
-        seenSalesKeys.add(key);
-
-        const invoiceRows = options.rows.filter((r) => isSalesRow(r) && invoiceRowKey(r) === key);
-        const lastRow = invoiceRows[invoiceRows.length - 1] ?? row;
-        const lineGroups = resolveInvoiceDetailRowsForStatementRow(row, options.saleInvoices ?? [], {
-          invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
-          invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
-        });
-        const relatedInvoice = findSaleInvoiceForStatementRow(row, options.saleInvoices ?? []);
-        const expandImportedLines = shouldExpandStatementImportLines(relatedInvoice, lineGroups);
-
-        if (expandImportedLines) {
-          const expandedRows = buildStatementImportDisplayRows({
-            statementRow: row,
-            lineGroups,
-            invoiceRows,
-          });
-          for (const expanded of expandedRows) {
-            totalFabricAmount += expanded.fabric.totalAmount;
-            totalFabricLength += expanded.fabric.totalQuantity;
-            const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
-            displayIdx += 1;
-            parts.push(
-              renderDataRow(evBg, {
-                date: safeText(expanded.date),
-                docNo: safeText(expanded.documentNo),
-                typeLabel: safeText(expanded.typeLabel),
-                fabric: expanded.fabric,
-                debit: expanded.debit,
-                credit: expanded.credit,
-                balance: expanded.balance,
-              }),
-            );
-          }
-          continue;
-        }
-
-        const fabric = aggregateInvoiceFabricGroups(lineGroups);
-
-        if (fabric) {
-          totalFabricAmount += fabric.totalAmount;
-          totalFabricLength += fabric.totalQuantity;
-        }
-
-        const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
-        displayIdx += 1;
-
-        parts.push(
-          renderDataRow(evBg, {
-            date: safeText(row.date),
-            docNo: safeText(String(row.documentNo ?? '')),
-            typeLabel: safeText(row.typeLabel || row.description),
-            fabric,
-            debit: invoiceRows.reduce((sum, r) => sum + Number(r.debit || 0), 0),
-            credit: invoiceRows.reduce((sum, r) => sum + Number(r.credit || 0), 0),
-            balance: lastRow.balance,
-          }),
-        );
-        continue;
+    displayRows.forEach((row, displayIdx) => {
+      if (row.fabric) {
+        totalFabricAmount += row.fabric.totalAmount;
+        totalFabricLength += row.fabric.totalQuantity;
       }
-
       const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
-      displayIdx += 1;
       parts.push(
         renderDataRow(evBg, {
           date: safeText(row.date),
-          docNo: safeText(String(row.documentNo ?? '')),
-          typeLabel: safeText(row.typeLabel || row.description),
-          fabric: null,
+          docNo: safeText(row.documentNo),
+          typeLabel: safeText(row.typeLabel),
+          fabric: row.fabric,
           debit: row.debit,
           credit: row.credit,
           balance: row.balance,
         }),
       );
-    }
+    });
 
     return parts.join('');
   })();
@@ -636,6 +569,7 @@ function renderAccountStatementHtml(options: {
 
   /* ── Table ───────────────────────────────────────────── */
   table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  tbody td { color: #000000; }
   thead tr { background: ${NAVY}; color: #fff; }
   thead th {
     padding: 8px 5px; border: 1px solid #0b1220; font-weight: 700;
@@ -690,6 +624,7 @@ function renderAccountStatementHtml(options: {
     @page { size: A4 portrait; margin: 6mm 5mm 0; }
     html, body { margin: 0; }
     .stmt-page { min-height: auto; padding: 0; }
+    tbody td { color: #000000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 <body>

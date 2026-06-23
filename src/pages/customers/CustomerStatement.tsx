@@ -19,11 +19,8 @@ import {
 } from '../../lib/customerStatementFilters';
 import {
   buildInvoiceDetailsMaps,
-  buildStatementImportDisplayRows,
-  groupInvoiceLinesByFabric,
-  isStatementImportInvoice,
+  flattenAccountStatementDisplayRows,
   loadCustomerSaleInvoiceDetails,
-  shouldExpandStatementImportLines,
 } from '../../lib/customerStatementInvoiceDetails';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import type { Customer, Invoice } from '../../types';
@@ -331,6 +328,17 @@ export const CustomerStatement = () => {
     [dbSaleInvoicesFromApi],
   );
 
+  const accountStatementDisplayRows = useMemo(() => {
+    if (!accountStatement?.rows?.length) return [];
+    return flattenAccountStatementDisplayRows({
+      rows: accountStatement.rows,
+      openingBalance: accountStatement.openingBalance,
+      saleInvoices: dbSaleInvoicesFromApi,
+      invoiceDetailsBySourceId,
+      invoiceDetailsByDocumentNo,
+    });
+  }, [accountStatement, dbSaleInvoicesFromApi, invoiceDetailsBySourceId, invoiceDetailsByDocumentNo]);
+
   const presetBanner = useMemo(() => {
     if (preset === 'manual') return null;
     const name = selectedCustomer?.name ?? '';
@@ -620,6 +628,17 @@ export const CustomerStatement = () => {
       showToast({ type: 'error', message: 'حدث خطأ في إنشاء PDF. حاول مرة أخرى.' });
     }
   };
+
+  const sortedAccountStatementRows = useMemo(() => {
+    if (!accountStatement?.rows?.length) return [];
+    return flattenAccountStatementDisplayRows({
+      rows: accountStatement.rows,
+      openingBalance: accountStatement.openingBalance,
+      saleInvoices: dbSaleInvoicesFromApi,
+      invoiceDetailsBySourceId,
+      invoiceDetailsByDocumentNo,
+    });
+  }, [accountStatement, dbSaleInvoicesFromApi, invoiceDetailsBySourceId, invoiceDetailsByDocumentNo]);
 
   const statementPrintHtml = useMemo(() => {
     console.log('[CustomerStatement] recomputing statementPrintHtml, dbSaleInvoicesFromApi:', dbSaleInvoicesFromApi.length, 'accountStatement rows:', accountStatement?.rows?.length ?? 0);
@@ -1116,105 +1135,48 @@ export const CustomerStatement = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {!accountStatement?.rows?.length ? (
+                {!accountStatementDisplayRows.length ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-slate-500 bg-white">
                       لا توجد حركات ضمن الفترة المحددة
                     </td>
                   </tr>
                 ) : (
-                  accountStatement.rows.flatMap((row) => {
-                    const isInvoice = row.sourceType === 'INVOICE' || row.sourceType === 'SALES_INVOICE';
-                    const relatedInvoice = isInvoice ? dbSaleInvoicesFromApi.find((inv) => inv.id === row.sourceId) : null;
-                    const fabricGroups = relatedInvoice ? groupInvoiceLinesByFabric(relatedInvoice) : [];
-                    const expandImportedLines = shouldExpandStatementImportLines(relatedInvoice, fabricGroups);
-
-                    if (isInvoice && expandImportedLines) {
-                      const expandedRows = buildStatementImportDisplayRows({
-                        statementRow: row,
-                        lineGroups: fabricGroups,
-                        invoiceRows: [row],
-                      });
-                      return expandedRows.map((expanded, idx) => (
-                        <tr key={`${row.sourceType}-${row.sourceId}-import-${idx}`} className="bg-white hover:bg-slate-50">
-                          <td className="px-4 py-3 text-slate-600">{expanded.date}</td>
-                          <td className="px-4 py-3 text-slate-700">{expanded.typeLabel}</td>
-                          <td className="px-4 py-3 font-mono text-xs">
-                            <button
-                              type="button"
-                              onClick={() => openAccountStatementSource(row)}
-                              className="text-indigo-700 hover:underline"
-                              title="فتح المستند"
-                            >
-                              {expanded.documentNo}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-slate-700 max-w-xl truncate" title={expanded.fabric.fabricName}>
-                            {expanded.fabric.fabricName}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-slate-700">
-                            {expanded.fabric.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {row.currency}
-                            <span className="block text-xs text-slate-500">
-                              {expanded.fabric.totalQuantity.toLocaleString('ar')} م × {expanded.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-blue-700">
-                            {expanded.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-emerald-700">
-                            {expanded.credit > 0 ? expanded.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
-                          </td>
-                          <td className="px-4 py-3 font-mono text-slate-900">
-                            {expanded.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      ));
-                    }
-
-                    return [
-                      <tr key={`${row.sourceType}-${row.sourceId}`} className="bg-white hover:bg-slate-50">
-                        <td className="px-4 py-3 text-slate-600">{row.date}</td>
-                        <td className="px-4 py-3 text-slate-700">{row.typeLabel}</td>
-                        <td className="px-4 py-3 font-mono text-xs">
-                          <button
-                            type="button"
-                            onClick={() => openAccountStatementSource(row)}
-                            className="text-indigo-700 hover:underline"
-                            title="فتح المستند"
-                          >
-                            {row.documentNo}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700 max-w-xl truncate" title={row.description}>
-                          {row.description}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-700">
-                          {row.debitOriginal && row.debitOriginal !== 0
-                            ? `مدين: ${row.debitOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${row.currency}`
-                            : row.creditOriginal && row.creditOriginal !== 0
-                              ? `دائن: ${row.creditOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${row.currency}`
-                              : `— ${row.currency}`}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-blue-700">{row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 font-mono text-emerald-700">{row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 font-mono text-slate-900">{row.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      </tr>,
-                      ...(fabricGroups.length > 0 && !isStatementImportInvoice(relatedInvoice)
-                        ? fabricGroups.map((fg, fgIdx) => (
-                            <tr key={`${row.sourceType}-${row.sourceId}-fab-${fgIdx}`} className="bg-slate-50 border-t border-slate-100">
-                              <td colSpan={2} className="px-4 py-1.5 text-xs text-slate-500 pr-8" />
-                              <td colSpan={1} className="px-4 py-1.5 text-xs font-semibold text-indigo-700 pr-8">{fg.fabricName}</td>
-                              <td className="px-4 py-1.5 text-xs text-center">
-                                <span className="bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded text-xs">{fg.rollsCount} ثوب</span>
-                              </td>
-                              <td className="px-4 py-1.5 text-xs font-semibold text-slate-700">{fg.totalQuantity.toLocaleString('ar')} م</td>
-                              <td colSpan={2} className="px-4 py-1.5 text-xs text-left font-bold text-emerald-700">{fg.totalAmount.toLocaleString('ar')} {row.currency}</td>
-                              <td className="px-4 py-1.5 text-xs text-slate-400" />
-                            </tr>
-                          ))
-                        : []),
-                    ];
-                  })
+                  accountStatementDisplayRows.map((row, idx) => (
+                    <tr key={`stmt-row-${idx}-${row.documentNo}-${row.date}`} className="bg-white hover:bg-slate-50">
+                      <td className="px-4 py-3 text-black">{row.date}</td>
+                      <td className="px-4 py-3 text-black">{row.typeLabel}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-black">{row.documentNo}</td>
+                      <td className="px-4 py-3 text-black max-w-xl truncate" title={row.fabric?.fabricName || row.typeLabel}>
+                        {row.fabric?.fabricName || row.typeLabel}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-black">
+                        {row.fabric
+                          ? (
+                              <>
+                                {row.fabric.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {statementCurrency}
+                                <span className="block text-xs text-slate-600">
+                                  {row.fabric.totalQuantity.toLocaleString('ar')} م × {row.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                              </>
+                            )
+                          : row.debit > 0
+                            ? `مدين: ${row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${statementCurrency}`
+                            : row.credit > 0
+                              ? `دائن: ${row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${statementCurrency}`
+                              : `— ${statementCurrency}`}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-blue-800">
+                        {row.debit > 0 ? row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-emerald-800">
+                        {row.credit > 0 ? row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-black font-semibold">
+                        {row.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

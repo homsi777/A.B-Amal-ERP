@@ -42,28 +42,139 @@ export function buildStatementImportDisplayRows(args: {
   lineGroups: StatementFabricGroup[];
   invoiceRows: Array<{ debit?: number; credit?: number; balance?: number }>;
 }): StatementDisplayRow[] {
-  const invoiceRows = args.invoiceRows;
-  const lastRow = invoiceRows[invoiceRows.length - 1];
-  const totalDebit = invoiceRows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
-  const totalCredit = invoiceRows.reduce((sum, row) => sum + Number(row.credit || 0), 0);
-  const balanceAfter = Number(lastRow?.balance ?? 0);
-  let running = Math.round((balanceAfter - totalDebit + totalCredit) * 100) / 100;
+  const sortedGroups = [...args.lineGroups].sort((a, b) => {
+    const dateCmp = String(a.lineDate ?? '').localeCompare(String(b.lineDate ?? ''));
+    if (dateCmp !== 0) return dateCmp;
+    return a.fabricName.localeCompare(b.fabricName, 'ar');
+  });
 
   const typeLabel = args.statementRow.typeLabel || args.statementRow.description || 'فاتورة بيع';
   const docNo = String(args.statementRow.documentNo ?? '');
 
-  return args.lineGroups.map((group) => {
-    const lineDebit = Number(group.totalAmount || 0);
-    running = Math.round((running + lineDebit) * 100) / 100;
-    return {
-      date: group.lineDate || args.statementRow.date,
-      documentNo: docNo,
-      typeLabel,
-      fabric: group,
-      debit: lineDebit,
-      credit: 0,
-      balance: running,
-    };
+  return sortedGroups.map((group) => ({
+    date: group.lineDate || args.statementRow.date,
+    documentNo: docNo,
+    typeLabel,
+    fabric: group,
+    debit: Number(group.totalAmount || 0),
+    credit: 0,
+    balance: 0,
+  }));
+}
+
+export type AccountStatementSourceRow = {
+  date: string;
+  typeLabel?: string;
+  description?: string;
+  documentNo?: string;
+  debit?: number;
+  credit?: number;
+  balance?: number;
+  sourceType?: string;
+  type?: string;
+  sourceId?: string;
+};
+
+export type AccountStatementDisplayRow = {
+  date: string;
+  documentNo: string;
+  typeLabel: string;
+  fabric: StatementFabricGroup | null;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+function invoiceRowKey(row: AccountStatementSourceRow): string {
+  const sourceId = String(row.sourceId ?? '').trim();
+  if (sourceId) return `id:${sourceId}`;
+  return `doc:${String(row.documentNo ?? '').trim()}`;
+}
+
+/** Flatten API rows (expand imported invoice lines) then sort chronologically and recompute balance. */
+export function flattenAccountStatementDisplayRows(args: {
+  rows: AccountStatementSourceRow[];
+  openingBalance: number;
+  saleInvoices?: Invoice[];
+  invoiceDetailsBySourceId?: InvoiceDetailsBySourceId;
+  invoiceDetailsByDocumentNo?: InvoiceDetailsByDocumentNo;
+}): AccountStatementDisplayRow[] {
+  const pending: Array<AccountStatementDisplayRow & { sortDate: string; sortKey: string }> = [];
+  const seenSalesKeys = new Set<string>();
+
+  for (const row of args.rows) {
+    if (isStatementSalesInvoiceRow(row)) {
+      const key = invoiceRowKey(row);
+      if (seenSalesKeys.has(key)) continue;
+      seenSalesKeys.add(key);
+
+      const invoiceRows = args.rows.filter((r) => isStatementSalesInvoiceRow(r) && invoiceRowKey(r) === key);
+      const lineGroups = resolveInvoiceDetailRowsForStatementRow(row, args.saleInvoices ?? [], {
+        invoiceDetailsBySourceId: args.invoiceDetailsBySourceId,
+        invoiceDetailsByDocumentNo: args.invoiceDetailsByDocumentNo,
+      });
+      const relatedInvoice = findSaleInvoiceForStatementRow(row, args.saleInvoices ?? []);
+      const expandImportedLines = shouldExpandStatementImportLines(relatedInvoice, lineGroups);
+
+      if (expandImportedLines) {
+        const expanded = buildStatementImportDisplayRows({
+          statementRow: row,
+          lineGroups,
+          invoiceRows,
+        });
+        for (const line of expanded) {
+          pending.push({
+            ...line,
+            balance: 0,
+            sortDate: line.date,
+            sortKey: `${line.documentNo}:${line.fabric.fabricName}`,
+          });
+        }
+        continue;
+      }
+
+      const fabric = aggregateInvoiceFabricGroups(lineGroups);
+      pending.push({
+        date: row.date,
+        documentNo: String(row.documentNo ?? ''),
+        typeLabel: row.typeLabel || row.description || 'فاتورة بيع',
+        fabric,
+        debit: invoiceRows.reduce((sum, r) => sum + Number(r.debit || 0), 0),
+        credit: invoiceRows.reduce((sum, r) => sum + Number(r.credit || 0), 0),
+        balance: 0,
+        sortDate: row.date,
+        sortKey: String(row.documentNo ?? ''),
+      });
+      continue;
+    }
+
+    pending.push({
+      date: row.date,
+      documentNo: String(row.documentNo ?? ''),
+      typeLabel: row.typeLabel || row.description || '',
+      fabric: null,
+      debit: Number(row.debit || 0),
+      credit: Number(row.credit || 0),
+      balance: 0,
+      sortDate: row.date,
+      sortKey: String(row.documentNo ?? ''),
+    });
+  }
+
+  pending.sort((a, b) => {
+    const dateCmp = a.sortDate.localeCompare(b.sortDate);
+    if (dateCmp !== 0) return dateCmp;
+    const aDebit = a.debit > 0;
+    const bDebit = b.debit > 0;
+    if (aDebit !== bDebit) return aDebit ? -1 : 1;
+    return a.sortKey.localeCompare(b.sortKey, 'ar');
+  });
+
+  let running = args.openingBalance;
+  return pending.map((row) => {
+    running = Math.round((running + row.debit - row.credit) * 100) / 100;
+    const { sortDate: _sortDate, sortKey: _sortKey, ...display } = row;
+    return { ...display, balance: running };
   });
 }
 
