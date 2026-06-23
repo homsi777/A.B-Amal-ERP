@@ -127,7 +127,7 @@ function cartelaFontCss(fontSizePt: number) {
   };
 }
 
-export function buildCartelaLabelHtml(data: CartelaLabelData): string {
+function buildCartelaLabelSheetInner(data: CartelaLabelData): string {
   const serial = data.serialNo.trim();
   const fontSizePt = clampFontSizePt(data.fontSizePt);
   const fonts = cartelaFontCss(fontSizePt);
@@ -138,6 +138,8 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
   const brandStripe = data.showLogo
     ? `<aside class="brand-stripe"><span>CLOTEX</span></aside>`
     : '';
+  const frameClass = data.showLogo ? 'frame frame-logo' : 'frame frame-plain';
+  const footerClass = data.qrSvg ? 'footer footer-qr' : 'footer footer-no-qr';
 
   const rows = [
     row('ART CODE', data.artCode),
@@ -148,11 +150,27 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     compositionRow(data.compositionLines),
   ].join('');
 
-  return `<!doctype html>
-<html lang="en" dir="ltr">
-<head>
-  <meta charset="utf-8" />
-  <style>
+  return `<main class="sheet">
+    <section class="${frameClass}">
+      <div class="content">
+        <div class="rows">${rows}</div>
+        <div class="${footerClass}">
+          ${qrBlock}
+          ${careSymbolsHtml(data.careSymbols)}
+          <div class="bc-wrap">
+            ${barcodeSvg ? `<div class="bc-svg">${barcodeSvg}</div>` : ''}
+            ${serial ? `<div class="bc-num">${esc(serial)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+      ${brandStripe}
+    </section>
+  </main>`;
+}
+
+function buildCartelaLabelDocumentCss(fontSizePt = CARTELA_DEFAULT_FONT_SIZE_PT): string {
+  const fonts = cartelaFontCss(clampFontSizePt(fontSizePt));
+  return `
     @page { size: ${CARTELA_WIDTH_MM}mm ${CARTELA_HEIGHT_MM}mm; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html, body { margin: 0; padding: 0; background: #fff; color: #000; }
@@ -163,16 +181,19 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       padding: 1.5mm;
       overflow: hidden;
       page-break-after: always;
+      break-after: page;
     }
+    .sheet:last-child { page-break-after: auto; break-after: auto; }
     .frame {
       width: 100%;
       height: 100%;
       border: 0.35mm solid #000;
       display: grid;
-      grid-template-columns: ${data.showLogo ? '1fr 9mm' : '1fr'};
       grid-template-rows: 1fr;
       overflow: hidden;
     }
+    .frame-logo { grid-template-columns: 1fr 9mm; }
+    .frame-plain { grid-template-columns: 1fr; }
     .content {
       padding: 1.2mm 1.5mm 1mm;
       display: flex;
@@ -189,9 +210,9 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       line-height: 1.15;
       margin-bottom: 0.35mm;
     }
-    .lbl { font-size: ${fonts.lbl}; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap; }
-    .sep { font-size: ${fonts.lbl}; font-weight: 700; text-align: center; }
-    .val { font-size: ${fonts.val}; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lbl { font-size: ${fonts.lbl}; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap; color: #000; }
+    .sep { font-size: ${fonts.lbl}; font-weight: 700; text-align: center; color: #000; }
+    .val { font-size: ${fonts.val}; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #000; }
     .row-comp { align-items: start; }
     .val-comp {
       white-space: normal;
@@ -201,15 +222,17 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       line-height: 1.1;
       font-size: ${fonts.comp};
       min-width: 0;
+      color: #000;
     }
     .footer {
       display: grid;
-      grid-template-columns: ${data.qrSvg ? '13mm 1fr 1fr' : '1fr 1fr'};
       align-items: end;
       gap: 1mm;
       margin-top: 0.5mm;
       min-height: 14mm;
     }
+    .footer-qr { grid-template-columns: 13mm 1fr 1fr; }
+    .footer-no-qr { grid-template-columns: 1fr 1fr; }
     .qr {
       width: 12mm;
       height: 12mm;
@@ -233,7 +256,7 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
     .sym { width: 5mm; height: 5mm; flex-shrink: 0; display: block; overflow: visible; }
     .bc-wrap { text-align: center; min-width: 0; }
     .bc-svg svg { width: 100%; max-width: 28mm; height: 5.5mm; display: block; margin: 0 auto; }
-    .bc-num { font-size: ${fonts.bcNum}; font-weight: 700; letter-spacing: 0.8px; margin-top: 0.3mm; }
+    .bc-num { font-size: ${fonts.bcNum}; font-weight: 700; letter-spacing: 0.8px; margin-top: 0.3mm; color: #000; }
     .brand-stripe {
       border-left: 0.25mm solid #000;
       display: flex;
@@ -246,30 +269,58 @@ export function buildCartelaLabelHtml(data: CartelaLabelData): string {
       font-weight: 900;
       letter-spacing: 1.5px;
       padding: 1mm 0;
+      color: #000;
     }
     .brand-stripe span { display: block; }
     @media screen {
       body { background: #fff; }
-    }
-  </style>
+    }`;
+}
+
+export function buildCartelaLabelHtml(data: CartelaLabelData): string {
+  return `<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <style>${buildCartelaLabelDocumentCss(data.fontSizePt)}</style>
 </head>
 <body>
-  <main class="sheet">
-    <section class="frame">
-      <div class="content">
-        <div class="rows">${rows}</div>
-        <div class="footer">
-          ${qrBlock}
-          ${careSymbolsHtml(data.careSymbols)}
-          <div class="bc-wrap">
-            ${barcodeSvg ? `<div class="bc-svg">${barcodeSvg}</div>` : ''}
-            ${serial ? `<div class="bc-num">${esc(serial)}</div>` : ''}
-          </div>
-        </div>
-      </div>
-      ${brandStripe}
-    </section>
-  </main>
+  ${buildCartelaLabelSheetInner(data)}
+</body>
+</html>`;
+}
+
+/** High-quality batch document — one thermal page per cartela, same renderer as single print. */
+export function buildCartelaLabelsBatchHtml(labels: CartelaLabelData[]): string {
+  if (!labels.length) {
+    return buildCartelaLabelHtml({
+      artCode: '',
+      designNo: '',
+      colour: '',
+      widthValue: '',
+      widthUnit: 'cm',
+      widthToleranceEnabled: true,
+      widthTolerancePercent: 3,
+      weightValue: '',
+      weightUnit: 'gr/m²',
+      weightToleranceEnabled: true,
+      weightTolerancePercent: 5,
+      compositionLines: [],
+      careSymbols: [],
+      serialNo: '',
+      showLogo: true,
+    });
+  }
+  const referenceFont = labels[0]?.fontSizePt ?? CARTELA_DEFAULT_FONT_SIZE_PT;
+  const sheets = labels.map((label) => buildCartelaLabelSheetInner(label)).join('\n');
+  return `<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <style>${buildCartelaLabelDocumentCss(referenceFont)}</style>
+</head>
+<body>
+  ${sheets}
 </body>
 </html>`;
 }

@@ -426,6 +426,7 @@ function renderAccountStatementHtml(options: {
 
   let totalFabricAmount = 0;
   let totalFabricLength = 0;
+  let totalFabricRolls = 0;
 
   const td = (content: string, extra = '') =>
     `<td style="padding:7px 6px;border:1px solid #e5e7eb;text-align:center;font-size:10px;vertical-align:middle;color:#000000;${extra}">${content}</td>`;
@@ -477,6 +478,7 @@ function renderAccountStatementHtml(options: {
       if (row.fabric) {
         totalFabricAmount += row.fabric.totalAmount;
         totalFabricLength += row.fabric.totalQuantity;
+        totalFabricRolls += row.fabric.rollsCount;
       }
       const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
       parts.push(
@@ -570,23 +572,23 @@ function renderAccountStatementHtml(options: {
   /* ── Table ───────────────────────────────────────────── */
   table { width: 100%; border-collapse: collapse; font-size: 10px; }
   tbody td { color: #000000; }
-  thead tr { background: ${NAVY}; color: #fff; }
+  thead tr { background: #e2e8f0; color: #000000; }
   thead th {
-    padding: 8px 5px; border: 1px solid #0b1220; font-weight: 700;
-    font-size: 10px; text-align: center; white-space: nowrap;
+    padding: 8px 5px; border: 1px solid #64748b; font-weight: 800;
+    font-size: 10px; text-align: center; white-space: nowrap; color: #000000;
   }
-  thead th.th-green { color: #86efac; }
-  thead th.th-red   { color: #fca5a5; }
-  thead th.th-blue  { color: #93c5fd; }
+  thead th.th-green { color: #14532d; }
+  thead th.th-red   { color: #7f1d1d; }
+  thead th.th-blue  { color: #1e3a8a; }
 
-  tfoot tr { background: ${NAVY}; color: #fff; }
+  tfoot tr { background: #e2e8f0; color: #000000; }
   tfoot td {
-    padding: 8px 5px; border: 1px solid #0b1220; font-weight: 700;
-    font-size: 10px; text-align: center;
+    padding: 8px 5px; border: 1px solid #64748b; font-weight: 800;
+    font-size: 10px; text-align: center; color: #000000;
   }
-  tfoot td.tf-green { color: #86efac; }
-  tfoot td.tf-red   { color: #fca5a5; }
-  tfoot td.tf-blue  { color: #93c5fd; }
+  tfoot td.tf-green { color: #14532d; }
+  tfoot td.tf-red   { color: #7f1d1d; }
+  tfoot td.tf-blue  { color: #1e3a8a; }
 
   /* ── Signatures ──────────────────────────────────────── */
   .sigs {
@@ -625,6 +627,10 @@ function renderAccountStatementHtml(options: {
     html, body { margin: 0; }
     .stmt-page { min-height: auto; padding: 0; }
     tbody td { color: #000000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    thead th, tfoot td { color: #000000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    thead th.th-green, tfoot td.tf-green { color: #14532d !important; }
+    thead th.th-red, tfoot td.tf-red { color: #7f1d1d !important; }
+    thead th.th-blue, tfoot td.tf-blue { color: #1e3a8a !important; }
   }
 </style>
 <body>
@@ -713,7 +719,8 @@ function renderAccountStatementHtml(options: {
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="5" style="text-align:right;padding-right:10px;">الإجمالي</td>
+        <td colspan="4" style="text-align:right;padding-right:10px;">الإجمالي</td>
+        <td>${totalFabricRolls > 0 ? totalFabricRolls.toLocaleString('ar') : DASH}</td>
         <td class="tf-green">${fmt(totalFabricLength)}</td>
         <td></td>
         <td class="tf-green">${safeText(options.currency)} ${fmt(totalFabricAmount)}</td>

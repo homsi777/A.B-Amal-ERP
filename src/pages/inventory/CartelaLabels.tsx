@@ -15,6 +15,7 @@ import {
   Pencil,
   Copy,
   List,
+  Layers,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -51,6 +52,7 @@ import { generateQrSvg } from '../../lib/printing/qrGenerator';
 import {
   buildCartelaLabelHtml,
   buildCartelaLabelPreviewHtml,
+  buildCartelaLabelsBatchHtml,
   cartelaQrPayload,
   CARTELA_HEIGHT_MM,
   CARTELA_WIDTH_MM,
@@ -135,6 +137,8 @@ export const CartelaLabels: React.FC = () => {
   const [busy, setBusy] = useState<PrintMode | null>(null);
   const [activeTab, setActiveTab] = useState<CartelaTab>('form');
   const [registryPrintingId, setRegistryPrintingId] = useState<string | null>(null);
+  const [selectedCartelaIds, setSelectedCartelaIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState<PrintMode | null>(null);
 
   const labelData: CartelaLabelData = useMemo(
     () => ({
@@ -333,7 +337,9 @@ export const CartelaLabels: React.FC = () => {
     });
     showToast({
       type: result.ok ? 'success' : 'error',
-      message: result.ok ? 'تم إرسال اللصاقة للطباعة الحرارية' : result.error || 'فشلت الطباعة',
+      message: result.ok
+        ? (fileStem.startsWith('cartela-batch-') ? 'تم إرسال الكارتيلات للطباعة الجماعية' : 'تم إرسال اللصاقة للطباعة الحرارية')
+        : result.error || 'فشلت الطباعة',
     });
   };
 
@@ -476,6 +482,58 @@ export const CartelaLabels: React.FC = () => {
     }
   };
 
+  const toggleCartelaSelection = (id: string) => {
+    setSelectedCartelaIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllVisibleCartelas = () => {
+    if (!items.length) return;
+    setSelectedCartelaIds((current) => {
+      const allSelected = items.every((item) => current.has(item.id));
+      if (allSelected) return new Set();
+      return new Set(items.map((item) => item.id));
+    });
+  };
+
+  const prepareCartelaLabelData = async (id: string): Promise<CartelaLabelData> => {
+    const row = await getCartelaLabel(id);
+    const payload = cartelaDtoToPayload(row);
+    const active = activeCompositionLines(payload.compositionLines);
+    const validationError = validateCompositionLines(active);
+    if (active.length > 0 && validationError) {
+      throw new Error(`${cartelaListLabel(row)}: ${validationError}`);
+    }
+    const qr = await generateQrSvg(cartelaQrPayload(payload), { size: 96, margin: 1 });
+    return payloadToLabelData({ ...payload, compositionLines: active }, qr);
+  };
+
+  const handleBulkPrint = async (mode: PrintMode) => {
+    if (selectedCartelaIds.size === 0) {
+      showToast({ type: 'warning', message: 'اختر كارتيلة واحدة على الأقل للطباعة الجماعية.' });
+      return;
+    }
+
+    const orderedIds = items.filter((item) => selectedCartelaIds.has(item.id)).map((item) => item.id);
+    setBulkBusy(mode);
+    try {
+      const labelDataList: CartelaLabelData[] = [];
+      for (const id of orderedIds) {
+        labelDataList.push(await prepareCartelaLabelData(id));
+      }
+      const html = buildCartelaLabelsBatchHtml(labelDataList);
+      await printHtml(html, mode, `cartela-batch-${new Date().toISOString().slice(0, 10)}`);
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الطباعة الجماعية' });
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
   const inputCls =
     'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
@@ -568,10 +626,69 @@ export const CartelaLabels: React.FC = () => {
               </button>
             </div>
           </div>
+          <div className="px-4 py-3 border-b border-indigo-100 bg-indigo-50/70 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-slate-700">
+              <span className="font-bold text-indigo-700">{selectedCartelaIds.size}</span>
+              <span> كارتيلة مختارة من </span>
+              <span className="font-bold">{items.length}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={toggleAllVisibleCartelas}
+                disabled={!items.length || Boolean(bulkBusy)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {items.length > 0 && items.every((item) => selectedCartelaIds.has(item.id))
+                  ? 'إلغاء تحديد الكل'
+                  : 'تحديد الكل'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleBulkPrint('dialog')}
+                disabled={selectedCartelaIds.size === 0 || Boolean(bulkBusy)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {bulkBusy === 'dialog' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5" />}
+                طباعة جماعية
+              </button>
+              {canSilent && (
+                <button
+                  type="button"
+                  onClick={() => void handleBulkPrint('silent')}
+                  disabled={selectedCartelaIds.size === 0 || Boolean(bulkBusy)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {bulkBusy === 'silent' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  طباعة جماعية صامتة
+                </button>
+              )}
+              {isElectronRenderer() && (
+                <button
+                  type="button"
+                  onClick={() => void handleBulkPrint('pdf')}
+                  disabled={selectedCartelaIds.size === 0 || Boolean(bulkBusy)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {bulkBusy === 'pdf' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                  PDF جماعي
+                </button>
+              )}
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
+                  <th className="p-3 w-10 text-center font-bold">
+                    <input
+                      type="checkbox"
+                      checked={items.length > 0 && items.every((item) => selectedCartelaIds.has(item.id))}
+                      onChange={toggleAllVisibleCartelas}
+                      className="accent-indigo-600"
+                      aria-label="تحديد كل الكارتيلات"
+                    />
+                  </th>
                   <th className="p-3 text-right font-bold">الرقم</th>
                   <th className="p-3 text-right font-bold">ART CODE</th>
                   <th className="p-3 text-right font-bold">DESIGN NO</th>
@@ -583,20 +700,34 @@ export const CartelaLabels: React.FC = () => {
               <tbody>
                 {listLoading && (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-500">
+                    <td colSpan={7} className="p-6 text-center text-slate-500">
                       جاري التحميل...
                     </td>
                   </tr>
                 )}
                 {!listLoading && items.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-500">
+                    <td colSpan={7} className="p-6 text-center text-slate-500">
                       لا توجد كارتيلات بعد — استخدم «توليد كارتيلا» لإضافة أول لصاقة.
                     </td>
                   </tr>
                 )}
                 {items.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-100 hover:bg-slate-50/80">
+                  <tr
+                    key={item.id}
+                    className={`border-t border-slate-100 hover:bg-slate-50/80 ${
+                      selectedCartelaIds.has(item.id) ? 'bg-indigo-50/40' : ''
+                    }`}
+                  >
+                    <td className="p-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedCartelaIds.has(item.id)}
+                        onChange={() => toggleCartelaSelection(item.id)}
+                        className="accent-indigo-600"
+                        aria-label={`تحديد ${item.serial_no || item.art_code}`}
+                      />
+                    </td>
                     <td className="p-3 font-mono font-bold text-slate-900" dir="ltr">
                       {item.serial_no || '—'}
                     </td>
