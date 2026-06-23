@@ -19,8 +19,11 @@ import {
 } from '../../lib/customerStatementFilters';
 import {
   buildInvoiceDetailsMaps,
+  buildStatementImportDisplayRows,
   groupInvoiceLinesByFabric,
+  isStatementImportInvoice,
   loadCustomerSaleInvoiceDetails,
+  shouldExpandStatementImportLines,
 } from '../../lib/customerStatementInvoiceDetails';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import type { Customer, Invoice } from '../../types';
@@ -1120,10 +1123,54 @@ export const CustomerStatement = () => {
                     </td>
                   </tr>
                 ) : (
-                  accountStatement.rows.map((row) => {
+                  accountStatement.rows.flatMap((row) => {
                     const isInvoice = row.sourceType === 'INVOICE' || row.sourceType === 'SALES_INVOICE';
-                    const relatedInvoice = isInvoice ? dbSaleInvoicesFromApi.find(inv => inv.id === row.sourceId) : null;
+                    const relatedInvoice = isInvoice ? dbSaleInvoicesFromApi.find((inv) => inv.id === row.sourceId) : null;
                     const fabricGroups = relatedInvoice ? groupInvoiceLinesByFabric(relatedInvoice) : [];
+                    const expandImportedLines = shouldExpandStatementImportLines(relatedInvoice, fabricGroups);
+
+                    if (isInvoice && expandImportedLines) {
+                      const expandedRows = buildStatementImportDisplayRows({
+                        statementRow: row,
+                        lineGroups: fabricGroups,
+                        invoiceRows: [row],
+                      });
+                      return expandedRows.map((expanded, idx) => (
+                        <tr key={`${row.sourceType}-${row.sourceId}-import-${idx}`} className="bg-white hover:bg-slate-50">
+                          <td className="px-4 py-3 text-slate-600">{expanded.date}</td>
+                          <td className="px-4 py-3 text-slate-700">{expanded.typeLabel}</td>
+                          <td className="px-4 py-3 font-mono text-xs">
+                            <button
+                              type="button"
+                              onClick={() => openAccountStatementSource(row)}
+                              className="text-indigo-700 hover:underline"
+                              title="فتح المستند"
+                            >
+                              {expanded.documentNo}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 max-w-xl truncate" title={expanded.fabric.fabricName}>
+                            {expanded.fabric.fabricName}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-700">
+                            {expanded.fabric.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {row.currency}
+                            <span className="block text-xs text-slate-500">
+                              {expanded.fabric.totalQuantity.toLocaleString('ar')} م × {expanded.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-blue-700">
+                            {expanded.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-emerald-700">
+                            {expanded.credit > 0 ? expanded.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-900">
+                            {expanded.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ));
+                    }
+
                     return [
                       <tr key={`${row.sourceType}-${row.sourceId}`} className="bg-white hover:bg-slate-50">
                         <td className="px-4 py-3 text-slate-600">{row.date}</td>
@@ -1152,18 +1199,20 @@ export const CustomerStatement = () => {
                         <td className="px-4 py-3 font-mono text-emerald-700">{row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="px-4 py-3 font-mono text-slate-900">{row.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                       </tr>,
-                      ...(fabricGroups.length > 0 ? fabricGroups.map((fg, fgIdx) => (
-                        <tr key={`${row.sourceType}-${row.sourceId}-fab-${fgIdx}`} className="bg-slate-50 border-t border-slate-100">
-                          <td colSpan={2} className="px-4 py-1.5 text-xs text-slate-500 pr-8" />
-                          <td colSpan={1} className="px-4 py-1.5 text-xs font-semibold text-indigo-700 pr-8">{fg.fabricName}</td>
-                          <td className="px-4 py-1.5 text-xs text-center">
-                            <span className="bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded text-xs">{fg.rollsCount} ثوب</span>
-                          </td>
-                          <td className="px-4 py-1.5 text-xs font-semibold text-slate-700">{fg.totalQuantity.toLocaleString('ar')} م</td>
-                          <td colSpan={2} className="px-4 py-1.5 text-xs text-left font-bold text-emerald-700">{fg.totalAmount.toLocaleString('ar')} {row.currency}</td>
-                          <td className="px-4 py-1.5 text-xs text-slate-400" />
-                        </tr>
-                      )) : [])
+                      ...(fabricGroups.length > 0 && !isStatementImportInvoice(relatedInvoice)
+                        ? fabricGroups.map((fg, fgIdx) => (
+                            <tr key={`${row.sourceType}-${row.sourceId}-fab-${fgIdx}`} className="bg-slate-50 border-t border-slate-100">
+                              <td colSpan={2} className="px-4 py-1.5 text-xs text-slate-500 pr-8" />
+                              <td colSpan={1} className="px-4 py-1.5 text-xs font-semibold text-indigo-700 pr-8">{fg.fabricName}</td>
+                              <td className="px-4 py-1.5 text-xs text-center">
+                                <span className="bg-violet-100 text-violet-800 font-bold px-2 py-0.5 rounded text-xs">{fg.rollsCount} ثوب</span>
+                              </td>
+                              <td className="px-4 py-1.5 text-xs font-semibold text-slate-700">{fg.totalQuantity.toLocaleString('ar')} م</td>
+                              <td colSpan={2} className="px-4 py-1.5 text-xs text-left font-bold text-emerald-700">{fg.totalAmount.toLocaleString('ar')} {row.currency}</td>
+                              <td className="px-4 py-1.5 text-xs text-slate-400" />
+                            </tr>
+                          ))
+                        : []),
                     ];
                   })
                 )}

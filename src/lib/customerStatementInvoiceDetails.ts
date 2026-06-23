@@ -11,6 +11,60 @@ export interface StatementFabricGroup {
   totalQuantity: number;
   unitPrice: number;
   totalAmount: number;
+  /** تاريخ البند الأصلي من استيراد كشف Excel */
+  lineDate?: string;
+}
+
+export type StatementDisplayRow = {
+  date: string;
+  documentNo: string;
+  typeLabel: string;
+  fabric: StatementFabricGroup;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+export function isStatementImportInvoice(invoice: Invoice | null | undefined): boolean {
+  if (!invoice?.items?.length) return false;
+  return invoice.items.every((item) => item.statementImport === true);
+}
+
+export function shouldExpandStatementImportLines(
+  invoice: Invoice | null | undefined,
+  lineGroups: StatementFabricGroup[],
+): boolean {
+  return Boolean(invoice && isStatementImportInvoice(invoice) && lineGroups.length > 1);
+}
+
+export function buildStatementImportDisplayRows(args: {
+  statementRow: { date: string; documentNo?: string; typeLabel?: string; description?: string };
+  lineGroups: StatementFabricGroup[];
+  invoiceRows: Array<{ debit?: number; credit?: number; balance?: number }>;
+}): StatementDisplayRow[] {
+  const invoiceRows = args.invoiceRows;
+  const lastRow = invoiceRows[invoiceRows.length - 1];
+  const totalDebit = invoiceRows.reduce((sum, row) => sum + Number(row.debit || 0), 0);
+  const totalCredit = invoiceRows.reduce((sum, row) => sum + Number(row.credit || 0), 0);
+  const balanceAfter = Number(lastRow?.balance ?? 0);
+  let running = Math.round((balanceAfter - totalDebit + totalCredit) * 100) / 100;
+
+  const typeLabel = args.statementRow.typeLabel || args.statementRow.description || 'فاتورة بيع';
+  const docNo = String(args.statementRow.documentNo ?? '');
+
+  return args.lineGroups.map((group) => {
+    const lineDebit = Number(group.totalAmount || 0);
+    running = Math.round((running + lineDebit) * 100) / 100;
+    return {
+      date: group.lineDate || args.statementRow.date,
+      documentNo: docNo,
+      typeLabel,
+      fabric: group,
+      debit: lineDebit,
+      credit: 0,
+      balance: running,
+    };
+  });
 }
 
 export type InvoiceDetailsBySourceId = Record<string, StatementFabricGroup[]>;
@@ -62,13 +116,20 @@ export function groupInvoiceLinesByFabric(invoice: Invoice): StatementFabricGrou
         : 1;
     const quantity = Number(item.quantity || 0);
     const lineTotal = Number(item.total || 0) || quantity * Number(item.unitPrice || 0);
-    const unitPrice = Number(item.unitPrice || (quantity > 0 ? lineTotal / quantity : 0));
+    const excelUnitPrice =
+      typeof item.excelUnitPrice === 'number' && Number.isFinite(item.excelUnitPrice) && item.excelUnitPrice > 0
+        ? item.excelUnitPrice
+        : undefined;
+    const unitPrice =
+      excelUnitPrice ??
+      Number(item.unitPrice || (quantity > 0 ? lineTotal / quantity : 0));
     return {
       fabricName: name,
       rollsCount,
       totalQuantity: quantity,
       unitPrice,
       totalAmount: lineTotal,
+      lineDate: item.lineDate,
     };
   });
 }

@@ -90,6 +90,9 @@ function mapLineToInvoiceItem(l: Record<string, unknown>): InvoiceItem {
     rawQrPayload: stringFromMeta(meta, ['rawQrPayload']) || undefined,
     rawBarcodePayload: stringFromMeta(meta, ['rawBarcodePayload']) || undefined,
     note: stringFromMeta(meta, ['note']) || '',
+    lineDate: stringFromMeta(meta, ['rowDate']) || undefined,
+    excelUnitPrice: optionalNumFromDb(meta.excelUnitPrice),
+    statementImport: meta.statementImport === true,
   };
 }
 

@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { BRAND } from '../branding';
 import type { Invoice } from '../types';
-import { resolveInvoiceDetailRowsForStatementRow, aggregateInvoiceFabricGroups } from './customerStatementInvoiceDetails';
+import { resolveInvoiceDetailRowsForStatementRow, aggregateInvoiceFabricGroups, buildStatementImportDisplayRows, findSaleInvoiceForStatementRow, shouldExpandStatementImportLines } from './customerStatementInvoiceDetails';
 import { documentFooterStyles, renderDocumentFooterHtml } from './printing/renderDocumentFooter';
 
 /** CLOTEX brand header reused across all PDF statements. */
@@ -491,6 +491,35 @@ function renderAccountStatementHtml(options: {
           invoiceDetailsBySourceId: options.invoiceDetailsBySourceId,
           invoiceDetailsByDocumentNo: options.invoiceDetailsByDocumentNo,
         });
+        const relatedInvoice = findSaleInvoiceForStatementRow(row, options.saleInvoices ?? []);
+        const expandImportedLines = shouldExpandStatementImportLines(relatedInvoice, lineGroups);
+
+        if (expandImportedLines) {
+          const expandedRows = buildStatementImportDisplayRows({
+            statementRow: row,
+            lineGroups,
+            invoiceRows,
+          });
+          for (const expanded of expandedRows) {
+            totalFabricAmount += expanded.fabric.totalAmount;
+            totalFabricLength += expanded.fabric.totalQuantity;
+            const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+            displayIdx += 1;
+            parts.push(
+              renderDataRow(evBg, {
+                date: safeText(expanded.date),
+                docNo: safeText(expanded.documentNo),
+                typeLabel: safeText(expanded.typeLabel),
+                fabric: expanded.fabric,
+                debit: expanded.debit,
+                credit: expanded.credit,
+                balance: expanded.balance,
+              }),
+            );
+          }
+          continue;
+        }
+
         const fabric = aggregateInvoiceFabricGroups(lineGroups);
 
         if (fabric) {

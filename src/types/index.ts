@@ -157,6 +157,12 @@ export interface InvoiceItem {
   note?: string;
   /** عدد الأتواب (البكر) لهذا البند عند الإبلاغ عنه في الفاتورة */
   rollsCount?: number;
+  /** تاريخ البند الأصلي من استيراد كشف حساب Excel */
+  lineDate?: string;
+  /** سعر المتر كما في ملف Excel قبل تطبيع الفاتورة */
+  excelUnitPrice?: number;
+  /** بند مستورد من كشف ذمم قديمة — بدون ربط مخزون */
+  statementImport?: boolean;
 }
 
 export interface Expense {
