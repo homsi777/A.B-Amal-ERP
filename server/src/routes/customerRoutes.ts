@@ -624,6 +624,11 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
                   lineDiscount: 0,
                   lineTax: 0,
                   lineTotal: adjustmentAmount,
+                  metadata: {
+                    statementImport: true,
+                    fileName: d.fileName,
+                    adjustmentType: 'BALANCE_DEBIT',
+                  },
                 },
               ],
             });

@@ -3,6 +3,7 @@ import {
   fitImportedSaleLineAmounts,
   grossLineTotal,
   INVOICE_AMOUNT_EPS,
+  isStatementImportLineMetadata,
   normalizeStatementImportSaleLines,
 } from './statementImportSaleLines.js';
 import { validateInvoiceLineAmounts } from './invoiceAmountHelpers.js';
@@ -34,5 +35,9 @@ validateInvoiceLineAmounts(
   0,
   subtotal,
 );
+
+assert.equal(isStatementImportLineMetadata({ statementImport: true }), true);
+assert.equal(isStatementImportLineMetadata({ statementImport: false }), false);
+assert.equal(isStatementImportLineMetadata(null), false);
 
 console.log('statementImportSaleLines.test.ts OK');

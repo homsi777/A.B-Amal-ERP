@@ -16,6 +16,7 @@ import {
   INVOICE_AMOUNT_EPS,
   validateInvoiceLineAmounts,
 } from './invoiceAmountHelpers.js';
+import { isStatementImportLineMetadata } from './statementImportSaleLines.js';
 
 const EPS = INVOICE_AMOUNT_EPS;
 
@@ -1101,6 +1102,21 @@ export async function confirmSalesInvoice(
 
   for (const ln of lines.rows) {
     const qtyM = quantityToMeters(Number(ln.quantity), ln.unit as 'meter' | 'yard');
+
+    if (isStatementImportLineMetadata(ln.metadata)) {
+      const meta = parseSalesLineMetadata(ln);
+      meta.inventory = { skipped: true, reason: 'STATEMENT_IMPORT' };
+      await client.query(
+        `UPDATE sales_invoice_lines SET
+           metadata=$3::jsonb,
+           cost_missing=true,
+           cost_source='MISSING'
+         WHERE id=$1 AND company_id=$2`,
+        [ln.id, companyId, JSON.stringify(meta)],
+      );
+      continue;
+    }
+
     let rollId = await resolveFabricRollIdForSalesLine(client, companyId, ln);
     if (!rollId) {
       if (qtyM > EPS) {

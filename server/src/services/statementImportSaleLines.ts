@@ -73,3 +73,15 @@ export function normalizeStatementImportSaleLines(lines: StatementImportSaleLine
   const subtotal = round2(normalized.reduce((sum, line) => sum + line.total, 0));
   return { lines: normalized, subtotal };
 }
+
+export function isStatementImportLineMetadata(metadata: unknown): boolean {
+  try {
+    const meta =
+      typeof metadata === 'string'
+        ? (JSON.parse(metadata) as Record<string, unknown>)
+        : ((metadata as Record<string, unknown> | null) ?? {});
+    return meta.statementImport === true;
+  } catch {
+    return false;
+  }
+}
