@@ -792,3 +792,21 @@ export async function getStockImportBatchStatus(
     client.release();
   }
 }
+
+/** يُشغّل advanceStockImportBatch حتى اكتمال الدفعة (للسكriptات CLI). */
+export async function runStockImportBatchToCompletion(
+  logger: Pick<FastifyBaseLogger, 'info' | 'error'>,
+  companyId: string,
+  batchId: string,
+  maxIterations = 5000,
+): Promise<StockImportBatchStatus | null> {
+  for (let i = 0; i < maxIterations; i += 1) {
+    await advanceStockImportBatch(logger, companyId, batchId);
+    const status = await getStockImportBatchStatus(companyId, batchId);
+    if (!status) return null;
+    if (['CONFIRMED', 'PARTIALLY_CONFIRMED', 'FAILED', 'CANCELLED'].includes(status.status)) {
+      return status;
+    }
+  }
+  throw new Error('انتهت محاولات استيراد الدفعة قبل اكتمالها');
+}

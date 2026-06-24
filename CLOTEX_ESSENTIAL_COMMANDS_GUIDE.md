@@ -235,6 +235,29 @@ npm run db:ping
 npm run activation:generate -- --count=1 --plan=FULL
 ```
 
+### تنظيف + استيراد مخزون جديد (أمر واحد — VPS)
+
+```bash
+cd ~/ab-amal-erp
+git pull origin clotex
+npm install
+
+# 1) ارفع ملف Excel إلى السيرفر (مثلاً داخل مجلد المشروع)
+# 2) معاينة
+npm run stock-import:reset -- --file="مستودعات حلب-15.xlsx"
+
+# 3) تنظيف آخر دفعة + استيراد جديد تلقائياً
+npm run stock-import:reset -- --file="مستودعات حلب-15.xlsx" --apply
+
+# تنظيف فقط بدون إعادة استيراد
+npm run stock-import:reset -- --clean-only --apply
+
+# إذا وُجدت أثواب مباعة من الدفعة القديمة
+npm run stock-import:reset -- --file="مسار/الملف.xlsx" --apply --force
+```
+
+> السكربت: يحذف أثواب الدفعة المتاحة → يلغي الدفعة → يحذف خامات يتيمة → يستورد من Excel بكود الإصلاح الجديد.
+
 ### إصلاح استيراد مخزون Excel سابق (على VPS)
 
 يُعيد ربط كل ثوب بالخامة الصحيحة حسب اسم الصنف في Excel (مثلاً دفعة `حلب-15` التي دُمجت تحت كود واحد).

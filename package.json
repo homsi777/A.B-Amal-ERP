@@ -25,6 +25,8 @@
     "repair:import-colors:apply": "tsx server/src/scripts/repairImportRollColors.ts --apply",
     "repair:stock-import": "tsx server/src/scripts/repairStockImportItems.ts",
     "repair:stock-import:apply": "tsx server/src/scripts/repairStockImportItems.ts --apply",
+    "stock-import:reset": "tsx scripts/reset-stock-import.mjs",
+    "stock-import:reset:apply": "tsx scripts/reset-stock-import.mjs --apply",
     "repair:sales-roll-links": "tsx server/src/scripts/repairSalesInvoiceRollLinks.ts",
     "repair:sales-roll-links:apply": "tsx server/src/scripts/repairSalesInvoiceRollLinks.ts --apply",
     "predeploy:check": "npm run server:check && npm run lint && npm run test",
