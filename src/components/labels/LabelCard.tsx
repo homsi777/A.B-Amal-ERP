@@ -33,6 +33,7 @@ import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { RollLabelPreviewDto } from '../../lib/api/labelsApi';
 import { BRAND } from '../../branding';
+import { displayLabelMaterialCode } from '../../lib/importDisplay';
 import { thermalBrandLogoHtml, thermalLogoImgReactStyle } from '../../lib/printing/thermalBrandLogo';
 
 // ─── Code128 SVG generator ───────────────────────────────────────────────────
@@ -154,6 +155,13 @@ function pickLot(roll: RollLabelPreviewDto): string {
 function pickPrintableBarcode(roll: RollLabelPreviewDto): string {
   const barcode = String(roll.barcode ?? '').trim();
   return barcode;
+}
+
+function pickMaterialCode(roll: RollLabelPreviewDto): string {
+  return displayLabelMaterialCode({
+    internalCode: roll.internalCode,
+    supplierCode: roll.supplierCode,
+  });
 }
 
 // ─── Field row primitive ─────────────────────────────────────────────────────
@@ -308,7 +316,7 @@ export const LabelCard: React.FC<LabelCardProps> = ({
         <div>
           {cfg.showItemName && <FieldRow label="رمز الصنف" value={roll.itemName} textDirection={textDir} />}
           {cfg.showInternalCode && (
-            <FieldRow label="كود الخامة" value={(roll.internalCode || roll.supplierCode || '').trim() || ''} textDirection={textDir} />
+            <FieldRow label="كود الخامة" value={pickMaterialCode(roll)} textDirection={textDir} />
           )}
           {(cfg.showColorName || cfg.showSupplierCode) && (
             <FieldRow label="اسم اللون" value={color} textDirection={textDir} />
@@ -498,7 +506,7 @@ export function buildPrintDocument(
       ${cfg.showItemName ? fieldRow('رمز الصنف', roll.itemName) : ''}
       ${
         cfg.showInternalCode
-          ? fieldRow('كود الخامة', (roll.internalCode || roll.supplierCode || '').trim() || '')
+          ? fieldRow('كود الخامة', pickMaterialCode(roll))
           : ''
       }
       ${

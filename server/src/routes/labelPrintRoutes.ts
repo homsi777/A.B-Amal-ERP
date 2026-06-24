@@ -4,6 +4,7 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
+import { displayMaterialCode } from '../utils/displayMaterialCode.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -32,10 +33,14 @@ function toDto(row: RollLabelRow) {
       .replace(/\s+/g, ' ')
       .trim();
   const colorForQr = row.color_name_tr || row.color_code || row.supplier_color_code || row.color_name_ar;
+  const materialCodeForDisplay = displayMaterialCode({
+    internalCode: row.internal_code,
+    supplierCode: row.supplier_code,
+  });
   const qrPayload = [
     compactQrValue(row.barcode),
     compactQrValue(row.item_name),
-    compactQrValue(row.internal_code || row.supplier_code),
+    compactQrValue(materialCodeForDisplay || row.internal_code || row.supplier_code),
     compactQrValue(colorForQr),
     compactQrValue(row.color_code || row.supplier_color_code),
     compactQrValue(lengthM),

@@ -33,6 +33,7 @@ import {
  import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
  import { listImportBatches, type PurchaseImportBatchDto } from '../../lib/api/purchaseImportApi';
 import { LabelCard, buildPrintDocument, type LabelConfig } from '../../components/labels/LabelCard';
+import { displayLabelMaterialCode } from '../../lib/importDisplay';
 import { generateQrSvgMap } from '../../lib/printing/qrGenerator';
 import { getPrintAdapter, isElectronRenderer, canUseSilentLabelPrinting } from '../../lib/printing/printAdapters';
 import { ElectronPrintAdapter } from '../../lib/printing/electronPrintAdapter';
@@ -247,7 +248,12 @@ const RollRow = ({
     </td>
     <td className="py-2 px-3 font-mono text-xs text-slate-600">{roll.barcode}</td>
     <td className="py-2 px-3 font-medium text-slate-800">{roll.item_name ?? '—'}</td>
-    <td className="py-2 px-3 font-mono text-xs text-slate-600">{roll.internal_code ?? roll.supplier_code_item ?? '—'}</td>
+    <td className="py-2 px-3 font-mono text-xs text-slate-600">
+      {displayLabelMaterialCode({
+        internal_code: roll.internal_code,
+        supplier_code_item: roll.supplier_code_item,
+      }) || '—'}
+    </td>
     <td className="py-2 px-3 text-slate-500">{roll.color_name_ar ?? roll.color_name_tr ?? '—'}</td>
     <td className="py-2 px-3 font-mono text-slate-600">
       {roll.length_m ? `${parseFloat(roll.length_m).toFixed(2)} م` : '—'}
@@ -341,7 +347,9 @@ const normalizeSortText = (value: unknown) =>
 const getLabelPrintSortValue = (roll: RollLabelPreviewDto, key: LabelPrintSortKey) => {
   if (key === 'fabric') return roll.itemName;
   if (key === 'color') return roll.colorNameAr || roll.colorNameTr || roll.colorCode;
-  if (key === 'fabricCode') return roll.internalCode || roll.supplierCode;
+  if (key === 'fabricCode') {
+    return displayLabelMaterialCode({ internalCode: roll.internalCode, supplierCode: roll.supplierCode });
+  }
   return '';
 };
 
@@ -378,7 +386,12 @@ const sortLabelPreviewRolls = (rolls: RollLabelPreviewDto[], key: LabelPrintSort
 const getFabricRollSortValue = (roll: FabricRollDto, key: LabelPrintSortKey) => {
   if (key === 'fabric') return roll.item_name;
   if (key === 'color') return roll.color_name_ar || roll.color_name_tr || roll.color_code;
-  if (key === 'fabricCode') return roll.internal_code || roll.supplier_code_item;
+  if (key === 'fabricCode') {
+    return displayLabelMaterialCode({
+      internal_code: roll.internal_code,
+      supplier_code_item: roll.supplier_code_item,
+    });
+  }
   return '';
 };
 

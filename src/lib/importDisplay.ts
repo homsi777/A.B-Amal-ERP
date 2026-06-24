@@ -21,6 +21,19 @@ export function displayInventoryMaterialCode(roll: {
   return String(roll.supplier_code_item ?? '').trim();
 }
 
+/** كود الخامة على اللصاقة / DTO — نفس منطق المخزون (يتجنّب IMP-AUTO-*). */
+export function displayLabelMaterialCode(input: {
+  internalCode?: string | null;
+  internal_code?: string | null;
+  supplierCode?: string | null;
+  supplier_code_item?: string | null;
+}): string {
+  return displayInventoryMaterialCode({
+    internal_code: input.internalCode ?? input.internal_code,
+    supplier_code_item: input.supplierCode ?? input.supplier_code_item,
+  });
+}
+
 /** استخراج كود الخامة من QR المضغوط: barcode|materialName|materialCode|… */
 export function parseCompactQrMaterialCode(payload?: string | null): string {
   const raw = String(payload ?? '').trim();
