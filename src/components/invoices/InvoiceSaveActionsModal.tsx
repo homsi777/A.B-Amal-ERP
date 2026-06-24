@@ -3,7 +3,8 @@ import { Download, FileText, Loader2, Printer, X } from 'lucide-react';
 import type { Invoice } from '../../types';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
 import { AR_INVOICE_STATEMENT } from '../../lib/i18n/arTerminology';
-import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
+import { ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
+import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
 import { buildInvoiceStatementFileName, pdfFileStem } from '../../lib/printing/documentFileNames';
 import { useToast } from '../NonBlockingToast';
 import { A4PreviewModal } from '../printing/A4PreviewModal';
@@ -69,7 +70,7 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
         return;
       }
 
-      await exportHtmlDocumentToPdf(buildHtml(), filePrefix, A4_FIXED_LAYOUT_PDF_OPTIONS);
+      await exportPrintHtmlToPdf(buildHtml(), filePrefix);
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
       onClose();
     } catch (error) {

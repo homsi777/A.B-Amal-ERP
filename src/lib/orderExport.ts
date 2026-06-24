@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Customer, CustomerOrder } from '../types';
-import { exportHtmlDocumentToPdf } from './pdfExport';
+import { exportPrintHtmlToPdf } from './printing/documentPrint';
 import { BRAND } from '../branding';
 import { displayCustomerOrderNumber, orderLineColorLabel, orderLineDesignNo } from './orderDisplay';
 import {
@@ -408,12 +408,7 @@ export async function printCustomerOrderDocument(
 export async function exportCustomerOrderPdf(order: CustomerOrder, customer: Customer, statusLabelAr: string): Promise<void> {
   const html = renderReservationOrderA4Document(order, customer, statusLabelAr);
   const safeName = order.orderNumber.replace(/[^\w\u0600-\u06FF-]/g, '_');
-  await exportHtmlDocumentToPdf(html, `طلبية_${safeName}`, {
-    pageFormat: 'a4',
-    orientation: 'portrait',
-    canvasScale: 2,
-    jpegQuality: 0.92,
-  });
+  await exportPrintHtmlToPdf(html, `طلبية_${safeName}`);
 }
 
 export function exportCustomerOrderExcel(order: CustomerOrder, customer: Customer, statusLabelAr: string): void {

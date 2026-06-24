@@ -4,11 +4,11 @@ import {
   A5_VOUCHER_PDF_OPTIONS,
   ELECTRON_A4_EMBEDDED_MARGINS,
   ELECTRON_A5_EMBEDDED_MARGINS,
-  exportHtmlDocumentToPdf,
   isAccountStatementHtml,
   isVoucherA5Html,
   type PdfExportOptions,
 } from '../pdfExport';
+import { downloadPrintPdf } from '../api/documentPdfApi';
 
 /** CSS snippet — keeps printed output matching PDF background colors. */
 export const PRINT_COLOR_EXACT_CSS = `
@@ -90,19 +90,14 @@ export function resolveDocumentPdfOptions(
   };
 }
 
-/** تصدير PDF من نفس HTML المعروض في معاينة الطباعة — خيارات موحّدة حسب نوع المستند */
+/** تصدير PDF = نفس HTML الطباعة عبر Chromium (الخادم أو Electron) */
 export async function exportPrintHtmlToPdf(
   html: string,
   filenamePrefix: string,
-  overrides: Partial<PdfExportOptions> = {},
+  _overrides: Partial<PdfExportOptions> = {},
 ): Promise<void> {
-  const pageSize: 'A4' | 'A5' =
-    overrides.pageFormat === 'a5' || isVoucherA5Html(html) ? 'A5' : 'A4';
-  const options = {
-    ...resolveDocumentPdfOptions(html, { pageSize, orientation: 'portrait' }),
-    ...overrides,
-  };
-  await exportHtmlDocumentToPdf(html, filenamePrefix, options);
+  const fileName = `${filenamePrefix.replace(/\.pdf$/i, '')}.pdf`;
+  await downloadPrintPdf(html, fileName);
 }
 
 export function resolveElectronPdfMargins(

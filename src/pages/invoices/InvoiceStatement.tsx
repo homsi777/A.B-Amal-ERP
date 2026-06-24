@@ -22,7 +22,8 @@ import { mapSalesInvoiceDetailToInvoice, mapPurchaseInvoiceDetailToInvoice, disp
 import type { Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
 import { renderInvoiceStatementA4Html } from '../../lib/printing/renderInvoiceStatementA4';
-import { exportHtmlDocumentToPdf, A4_FIXED_LAYOUT_PDF_OPTIONS, ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
+import { ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
+import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
 import { buildInvoiceStatementFileName, pdfFileStem } from '../../lib/printing/documentFileNames';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import {
@@ -530,7 +531,7 @@ export const InvoiceStatement = () => {
         return;
       }
 
-      await exportHtmlDocumentToPdf(html, defaultFileName, A4_FIXED_LAYOUT_PDF_OPTIONS);
+      await exportPrintHtmlToPdf(html, defaultFileName);
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
     } catch (err) {
       showToast({ type: 'error', message: err instanceof Error ? err.message : 'تعذر تصدير PDF' });

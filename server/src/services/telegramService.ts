@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import https from 'node:https';
 import { getEnv } from '../config/env.js';
 import { getPool } from '../db/pool.js';
+import { renderHtmlToPrintPdf } from './htmlPrintPdfService.js';
 
 export type TelegramTargetType = 'USER' | 'CUSTOMER' | 'SUPPLIER' | 'EMPLOYEE' | 'OTHER';
 
@@ -120,41 +121,6 @@ function telegramRequest<T>(botToken: string, method: string, payload?: Record<s
     if (body) req.write(body);
     req.end();
   });
-}
-
-const findBrowserExecutable = () => {
-  const candidates = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-  ].filter(Boolean) as string[];
-
-  return candidates.find((candidate) => fs.existsSync(candidate));
-};
-
-async function renderPdf(html: string): Promise<Uint8Array> {
-  const puppeteer = await import('puppeteer-core');
-  const executablePath = findBrowserExecutable();
-  if (!executablePath) throw new Error('No Chrome/Edge executable found for PDF rendering');
-
-  const browser = await puppeteer.default.launch({
-    executablePath,
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    return await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-    });
-  } finally {
-    await browser.close();
-  }
 }
 
 function telegramMultipartDocument(
@@ -760,7 +726,7 @@ export async function sendTelegramDocumentMessage(companyId: string, payload: Te
   if (!payload.message.trim()) throw new Error('نص رسالة تيليغرام مطلوب');
 
   const targets = await resolveTelegramTargets(companyId, payload);
-  const pdf = payload.pdfHtml?.trim() ? await renderPdf(payload.pdfHtml) : null;
+  const pdf = payload.pdfHtml?.trim() ? await renderHtmlToPrintPdf(payload.pdfHtml) : null;
   const sent: Array<{ chatId: string; telegramMessageId: string | null; documentMessageId: string | null; copyRole?: string }> = [];
   const failures: string[] = [];
 

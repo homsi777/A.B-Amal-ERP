@@ -1309,6 +1309,7 @@ export async function exportVoucherToPdf(
   options?: import('./printing/renderVoucherA5').VoucherRenderOptions,
 ): Promise<void> {
   const { renderVoucherA5Html } = await import('./printing/renderVoucherA5');
+  const { downloadPrintPdf } = await import('./api/documentPdfApi');
   const html = renderVoucherA5Html(data, options);
-  await exportHtmlDocumentToPdf(html, filenamePrefix.replace(/\.pdf$/i, ''), A5_VOUCHER_PDF_OPTIONS);
+  await downloadPrintPdf(html, `${filenamePrefix.replace(/\.pdf$/i, '')}.pdf`);
 }

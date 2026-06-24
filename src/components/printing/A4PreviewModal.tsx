@@ -1,11 +1,6 @@
 import React from 'react';
 import { Download, Loader2, Printer, X } from 'lucide-react';
-import { exportHtmlDocumentToPdf } from '../../lib/pdfExport';
-import {
-  openDocumentPrintWindow,
-  resolveDocumentPdfOptions,
-  resolveElectronPdfMargins,
-} from '../../lib/printing/documentPrint';
+import { exportPrintHtmlToPdf, openDocumentPrintWindow, resolveElectronPdfMargins } from '../../lib/printing/documentPrint';
 import { pdfFileStem } from '../../lib/printing/documentFileNames';
 import { useToast } from '../NonBlockingToast';
 
@@ -93,12 +88,7 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
       const useElectronPdf =
         window.fabricApp?.isElectron === true && typeof window.fabricApp.printToPdf === 'function';
 
-      const pdfOptions = resolveDocumentPdfOptions(html, {
-        fixedPageLayout,
-        pageSize,
-        orientation,
-      });
-      const electronMargins = resolveElectronPdfMargins(Boolean(fixedPageLayout), pageSize, html);
+      const electronMargins = resolveElectronPdfMargins(Boolean(fixedPageLayout), pageSize as 'A4' | 'A5', html);
 
       if (useElectronPdf) {
         const result = await window.fabricApp!.printToPdf(html, {
@@ -115,7 +105,7 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
         return;
       }
 
-      await exportHtmlDocumentToPdf(html, filePrefix, pdfOptions);
+      await exportPrintHtmlToPdf(html, filePrefix);
       showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
       onExported?.();
     } catch (error) {
