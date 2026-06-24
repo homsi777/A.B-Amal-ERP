@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Download, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
+import { CheckSquare, Download, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
 import type { Customer, Invoice, Supplier } from '../../types';
 import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
 import { exportPdfFromHtmlString, type FabricStatementItem, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml, renderSupplierAccountStatementPdfHtml, renderSupplierStatementPdfHtml, type StatementTotals } from '../../lib/pdfExport';
@@ -160,6 +160,22 @@ export function BatchStatementExportModal({
 
   const removeRow = (id: string) => {
     setRows((current) => (current.length === 1 ? current : current.filter((row) => row.id !== id)));
+  };
+
+  const selectAllParties = () => {
+    if (!parties.length) {
+      showToast({ type: 'warning', message: `لا يوجد ${type === 'customer' ? 'عملاء' : 'موردون'} للتحديد` });
+      return;
+    }
+    setRows(
+      parties.map((party, index) => ({
+        id: `${makeRowId()}-${index}`,
+        partyId: party.id,
+        fromDate: defaultFromDate,
+        toDate: defaultToDate,
+      })),
+    );
+    setStatus(`تم تحديد ${parties.length.toLocaleString('ar')} ${type === 'customer' ? 'عميل' : 'مورد'}`);
   };
 
   const buildExport = (item: (typeof prepared)[number]) => {
@@ -388,15 +404,29 @@ export function BatchStatementExportModal({
             </tbody>
           </table>
 
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={addRow}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <Plus className="h-4 w-4" />
-              <span>إضافة سطر</span>
-            </button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={addRow}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Plus className="h-4 w-4" />
+                <span>إضافة سطر</span>
+              </button>
+              <button
+                type="button"
+                onClick={selectAllParties}
+                disabled={busy || parties.length === 0}
+                className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 font-bold text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CheckSquare className="h-4 w-4" />
+                <span>
+                  اختيار الكل
+                  {parties.length > 0 ? ` (${parties.length.toLocaleString('ar')})` : ''}
+                </span>
+              </button>
+            </div>
             {status && <p className="text-sm font-medium text-slate-600">{status}</p>}
           </div>
         </div>

@@ -70,9 +70,17 @@ export const SupplierStatement = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await listSuppliers({ status: 'active', pageSize: 1000 });
-        if (cancelled) return;
-        setApiSuppliers(res.data);
+        const allRows: ApiSupplier[] = [];
+        let page = 1;
+        const pageSize = 100;
+        for (;;) {
+          const res = await listSuppliers({ status: 'active', page, pageSize });
+          if (cancelled) return;
+          allRows.push(...res.data);
+          if (res.data.length < pageSize || allRows.length >= res.total) break;
+          page += 1;
+        }
+        if (!cancelled) setApiSuppliers(allRows);
       } catch {
         if (!cancelled) setApiSuppliers([]);
       }

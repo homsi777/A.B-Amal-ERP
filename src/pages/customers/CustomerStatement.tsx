@@ -72,9 +72,17 @@ export const CustomerStatement = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await listCustomers({ status: 'active', pageSize: 1000 });
-        if (cancelled) return;
-        setApiCustomers(res.data);
+        const allRows: ApiCustomer[] = [];
+        let page = 1;
+        const pageSize = 100;
+        for (;;) {
+          const res = await listCustomers({ status: 'active', page, pageSize });
+          if (cancelled) return;
+          allRows.push(...res.data);
+          if (res.data.length < pageSize || allRows.length >= res.total) break;
+          page += 1;
+        }
+        if (!cancelled) setApiCustomers(allRows);
       } catch {
         if (!cancelled) setApiCustomers([]);
       }
