@@ -2,8 +2,8 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { ArrowUpCircle, Calendar, CreditCard, Download, FileText, Loader2, MessageCircle, Printer, X } from 'lucide-react';
 import { format } from 'date-fns';
+import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
 import {
-  exportHtmlDocumentToPdf,
   exportPdfFromHtmlString,
   exportSupplierStatementToPDF,
   renderSupplierAccountStatementPdfHtml,
@@ -313,10 +313,9 @@ export const SupplierStatement = () => {
           rows: accountStatement.rows,
           totals: accountStatement.totals,
         });
-        await exportHtmlDocumentToPdf(
+        await exportPrintHtmlToPdf(
           pdfHtml,
           buildSupplierStatementFileName(accountStatement.supplier.name, fromDate, toDate),
-          { orientation: 'portrait', pageFormat: 'a4', containerWidth: '210mm', pageMarginMm: 0 },
         );
         return;
       }

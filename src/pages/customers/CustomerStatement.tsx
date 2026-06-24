@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { ArrowUpCircle, FileText, Printer, Download, Calendar, MessageCircle, X, CreditCard, Banknote, Filter, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { exportHtmlDocumentToPdf, exportPdfFromHtmlString, exportToPDF, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml } from '../../lib/pdfExport';
+import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
+import { exportPdfFromHtmlString, exportToPDF, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml } from '../../lib/pdfExport';
 import { buildCustomerStatementFileName } from '../../lib/printing/documentFileNames';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
@@ -601,10 +602,9 @@ export const CustomerStatement = () => {
           invoiceDetailsByDocumentNo,
           saleInvoices: dbSaleInvoicesFromApi,
         });
-        await exportHtmlDocumentToPdf(
+        await exportPrintHtmlToPdf(
           pdfHtml,
           buildCustomerStatementFileName(accountStatement.customer.name, fromDate, toDate),
-          { orientation: 'portrait', pageFormat: 'a4', containerWidth: '210mm', pageMarginMm: 0 },
         );
         return;
       }

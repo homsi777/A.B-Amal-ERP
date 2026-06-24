@@ -98,7 +98,7 @@ export const A4PreviewModal: React.FC<A4PreviewModalProps> = ({
         pageSize,
         orientation,
       });
-      const electronMargins = resolveElectronPdfMargins(Boolean(fixedPageLayout), pageSize);
+      const electronMargins = resolveElectronPdfMargins(Boolean(fixedPageLayout), pageSize, html);
 
       if (useElectronPdf) {
         const result = await window.fabricApp!.printToPdf(html, {

@@ -103,6 +103,20 @@ export const A4_FIXED_LAYOUT_PDF_OPTIONS: PdfExportOptions = {
   pageMarginMm: 0,
 };
 
+/** تصدير PDF لكشف الحساب (.stmt-page) — نفس HTML الطباعة، صفحات متعددة عند الحاجة */
+export const ACCOUNT_STATEMENT_PDF_OPTIONS: PdfExportOptions = {
+  orientation: 'portrait',
+  pageFormat: 'a4',
+  containerWidth: '210mm',
+  pageMarginMm: 0,
+  canvasScale: PDF_SHARP_CANVAS_SCALE,
+  jpegQuality: PDF_SHARP_JPEG_QUALITY,
+};
+
+export function isAccountStatementHtml(html: string): boolean {
+  return /class\s*=\s*["']stmt-page["']/.test(html);
+}
+
 /** هوامش Electron صفرية — الهوامش مدمجة داخل HTML */
 export const ELECTRON_A4_EMBEDDED_MARGINS = {
   top: 0,
@@ -996,6 +1010,67 @@ const appendA4FixedLayoutExportStyle = (doc: Document) => {
   doc.head.appendChild(style);
 };
 
+/** يطابق @media print في قالب كشف الحساب — html2canvas لا يطبّق @page تلقائياً */
+const appendAccountStatementExportStyle = (doc: Document) => {
+  const style = doc.createElement('style');
+  style.setAttribute('data-pdf-account-statement', 'true');
+  style.textContent = `
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .stmt-page {
+      min-height: auto !important;
+      padding: 6mm 5mm 6mm !important;
+      overflow: visible !important;
+      background: #ffffff !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .stmt-body { flex: 1 1 auto !important; }
+    .hdr { display: grid !important; grid-template-columns: 1fr 1.8fr 1fr !important; }
+    .cards { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; }
+    .sigs { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; }
+    table { width: 100% !important; border-collapse: collapse !important; }
+    .card, .card-navy, .card-green, .card-red, .card-blue,
+    thead tr, tfoot tr, tbody tr, tbody td {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    tbody td { color: #000000 !important; }
+    thead th, tfoot td { color: #000000 !important; }
+    thead th.th-green, tfoot td.tf-green { color: #14532d !important; }
+    thead th.th-red, tfoot td.tf-red { color: #7f1d1d !important; }
+    thead th.th-blue, tfoot td.tf-blue { color: #1e3a8a !important; }
+  `;
+  doc.head.appendChild(style);
+};
+
+const waitForDocumentImages = async (doc: Document, timeoutMs = 2500): Promise<void> => {
+  const images = Array.from(doc.images);
+  if (images.length === 0) return;
+  await Promise.race([
+    Promise.all(
+      images.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete) {
+              resolve();
+              return;
+            }
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          }),
+      ),
+    ),
+    new Promise<void>((resolve) => window.setTimeout(resolve, timeoutMs)),
+  ]);
+};
+
 /** تصدير PDF من مستند HTML كامل (كشوف فواتير A4، …) بجودة أعلى وعرض صفحة صحيح. */
 export async function exportHtmlDocumentToPdf(
   html: string,
@@ -1005,7 +1080,6 @@ export async function exportHtmlDocumentToPdf(
   const pageFormat = options.pageFormat ?? 'a4';
   const containerWidth = options.containerWidth ?? (pageFormat === 'a5' ? '148mm' : '210mm');
   const fitSinglePage = options.fitSinglePage ?? false;
-  const pageMarginMm = options.pageMarginMm ?? (fitSinglePage ? 0 : 4);
   const iframe = document.createElement('iframe');
   iframe.style.cssText = `position:absolute;left:-9999px;top:0;width:${containerWidth};border:0;`;
   document.body.appendChild(iframe);
@@ -1019,14 +1093,24 @@ export async function exportHtmlDocumentToPdf(
   doc.open();
   doc.write(html);
   doc.close();
-  await new Promise((resolve) => window.setTimeout(resolve, 220));
+
+  const pageEl = doc.querySelector('.page') as HTMLElement | null;
+  const stmtPageEl = doc.querySelector('.stmt-page') as HTMLElement | null;
+  const isAccountStatement = Boolean(stmtPageEl);
+
+  await waitForDocumentImages(doc);
+  await new Promise((resolve) => window.setTimeout(resolve, isAccountStatement ? 280 : 220));
 
   if (fitSinglePage) {
     appendA4FixedLayoutExportStyle(doc);
   }
+  if (isAccountStatement) {
+    appendAccountStatementExportStyle(doc);
+  }
 
-  const pageEl = doc.querySelector('.page') as HTMLElement | null;
-  const target = fitSinglePage && pageEl ? pageEl : doc.body;
+  const resolvedPageMarginMm =
+    options.pageMarginMm ?? (fitSinglePage ? 0 : isAccountStatement ? 0 : 4);
+  const target = fitSinglePage && pageEl ? pageEl : (stmtPageEl ?? doc.body);
   const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(doc);
 
   const measureWidth = () =>
@@ -1037,8 +1121,8 @@ export async function exportHtmlDocumentToPdf(
       doc.documentElement.offsetWidth,
     );
 
-  const captureWidth = fitSinglePage ? Math.ceil(measureWidth()) : measureWidth() + 24;
-  if (!fitSinglePage) {
+  const captureWidth = fitSinglePage ? Math.ceil(measureWidth()) : measureWidth() + (isAccountStatement ? 0 : 24);
+  if (!fitSinglePage && !isAccountStatement) {
     iframe.style.width = `${captureWidth}px`;
     await new Promise((resolve) => window.setTimeout(resolve, 60));
   }
@@ -1061,13 +1145,16 @@ export async function exportHtmlDocumentToPdf(
         if (fitSinglePage) {
           appendA4FixedLayoutExportStyle(clonedDocument);
         }
+        if (clonedDocument.querySelector('.stmt-page')) {
+          appendAccountStatementExportStyle(clonedDocument);
+        }
+        const clonedPage = clonedDocument.querySelector('.page') as HTMLElement | null;
+        const clonedStmt = clonedDocument.querySelector('.stmt-page') as HTMLElement | null;
         const clonedTarget =
-          fitSinglePage && clonedDocument.querySelector('.page')
-            ? (clonedDocument.querySelector('.page') as HTMLElement)
-            : clonedDocument.body;
+          fitSinglePage && clonedPage ? clonedPage : (clonedStmt ?? clonedDocument.body);
         if (clonedTarget) {
           clonedTarget.style.overflow = 'visible';
-          if (!fitSinglePage) {
+          if (!fitSinglePage && !clonedStmt) {
             clonedTarget.style.width = `${captureWidth}px`;
           }
         }
@@ -1080,8 +1167,8 @@ export async function exportHtmlDocumentToPdf(
     const pdf = new jsPDF({ orientation, unit: 'mm', format: pageFormat });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const usablePageWidth = pageWidth - pageMarginMm * 2;
-    const usablePageHeight = pageHeight - pageMarginMm * 2;
+    const usablePageWidth = pageWidth - resolvedPageMarginMm * 2;
+    const usablePageHeight = pageHeight - resolvedPageMarginMm * 2;
 
     let imgWidth = usablePageWidth;
     let imgHeight = (canvas.height * imgWidth) / canvas.width;
@@ -1091,20 +1178,20 @@ export async function exportHtmlDocumentToPdf(
       imgWidth = (canvas.width * imgHeight) / canvas.height;
     }
 
-    const xOffset = pageMarginMm + (fitSinglePage ? Math.max(0, (usablePageWidth - imgWidth) / 2) : 0);
+    const xOffset = resolvedPageMarginMm + (fitSinglePage ? Math.max(0, (usablePageWidth - imgWidth) / 2) : 0);
 
     if (fitSinglePage || imgHeight <= usablePageHeight) {
-      addCompressedImageToPDF(pdf, imgData, xOffset, pageMarginMm, imgWidth, imgHeight);
+      addCompressedImageToPDF(pdf, imgData, xOffset, resolvedPageMarginMm, imgWidth, imgHeight);
     } else {
       let heightLeft = imgHeight;
       let position = 0;
-      addCompressedImageToPDF(pdf, imgData, pageMarginMm, position, usablePageWidth, imgHeight);
+      addCompressedImageToPDF(pdf, imgData, resolvedPageMarginMm, position, usablePageWidth, imgHeight);
       heightLeft -= pageHeight;
 
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        addCompressedImageToPDF(pdf, imgData, pageMarginMm, position, usablePageWidth, imgHeight);
+        addCompressedImageToPDF(pdf, imgData, resolvedPageMarginMm, position, usablePageWidth, imgHeight);
         heightLeft -= pageHeight;
       }
     }

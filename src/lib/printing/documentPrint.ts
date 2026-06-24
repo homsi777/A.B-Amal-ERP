@@ -1,6 +1,9 @@
 import {
+  ACCOUNT_STATEMENT_PDF_OPTIONS,
   A4_FIXED_LAYOUT_PDF_OPTIONS,
   ELECTRON_A4_EMBEDDED_MARGINS,
+  exportHtmlDocumentToPdf,
+  isAccountStatementHtml,
   type PdfExportOptions,
 } from '../pdfExport';
 
@@ -57,6 +60,12 @@ export function resolveDocumentPdfOptions(
   },
 ): PdfExportOptions {
   if (opts.fixedPageLayout) return A4_FIXED_LAYOUT_PDF_OPTIONS;
+  if (isAccountStatementHtml(html)) {
+    return {
+      ...ACCOUNT_STATEMENT_PDF_OPTIONS,
+      orientation: opts.orientation ?? ACCOUNT_STATEMENT_PDF_OPTIONS.orientation,
+    };
+  }
   if (isFullHtmlDocument(html)) {
     return {
       orientation: opts.orientation ?? 'portrait',
@@ -72,7 +81,29 @@ export function resolveDocumentPdfOptions(
   };
 }
 
-export function resolveElectronPdfMargins(fixedPageLayout: boolean, pageSize: 'A4' | 'A5' | 'ROLL_LABEL') {
-  if (fixedPageLayout && pageSize === 'A4') return { ...ELECTRON_A4_EMBEDDED_MARGINS };
+/** تصدير PDF من نفس HTML المعروض في معاينة الطباعة — خيارات موحّدة حسب نوع المستند */
+export async function exportPrintHtmlToPdf(
+  html: string,
+  filenamePrefix: string,
+  overrides: Partial<PdfExportOptions> = {},
+): Promise<void> {
+  const options = {
+    ...resolveDocumentPdfOptions(html, { pageSize: 'A4', orientation: 'portrait' }),
+    ...overrides,
+  };
+  await exportHtmlDocumentToPdf(html, filenamePrefix, options);
+}
+
+export function resolveElectronPdfMargins(
+  fixedPageLayout: boolean,
+  pageSize: 'A4' | 'A5' | 'ROLL_LABEL',
+  html?: string,
+) {
+  if (
+    pageSize === 'A4'
+    && (fixedPageLayout || (html ? isAccountStatementHtml(html) : false))
+  ) {
+    return { ...ELECTRON_A4_EMBEDDED_MARGINS };
+  }
   return undefined;
 }

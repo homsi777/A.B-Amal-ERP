@@ -1,16 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Download, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
 import type { Customer, Invoice, Supplier } from '../../types';
-import {
-  exportHtmlDocumentToPdf,
-  exportPdfFromHtmlString,
-  type FabricStatementItem,
-  renderCustomerAccountStatementPdfHtml,
-  renderCustomerStatementPdfHtml,
-  renderSupplierAccountStatementPdfHtml,
-  renderSupplierStatementPdfHtml,
-  type StatementTotals,
-} from '../../lib/pdfExport';
+import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
+import { exportPdfFromHtmlString, type FabricStatementItem, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml, renderSupplierAccountStatementPdfHtml, renderSupplierStatementPdfHtml, type StatementTotals } from '../../lib/pdfExport';
 import {
   buildCustomerStatementFileName,
   buildSupplierStatementFileName,
@@ -266,12 +258,7 @@ export function BatchStatementExportModal({
                   totals: statement.totals,
                 });
 
-          await exportHtmlDocumentToPdf(pdfHtml, fileName.replace(/\.pdf$/i, ''), {
-            orientation: 'portrait',
-            pageFormat: 'a4',
-            containerWidth: '210mm',
-            pageMarginMm: 0,
-          });
+          await exportPrintHtmlToPdf(pdfHtml, fileName.replace(/\.pdf$/i, ''));
 
           if (sendTelegram) {
             const closing = statement.totals.closingBalance;
