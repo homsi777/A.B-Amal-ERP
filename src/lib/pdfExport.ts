@@ -5,7 +5,7 @@ import type { Invoice } from '../types';
 import { flattenAccountStatementDisplayRows } from './customerStatementInvoiceDetails';
 import { buildCustomerStatementFileName, buildSupplierStatementFileName } from './printing/documentFileNames';
 import { documentFooterStyles, renderDocumentFooterHtml } from './printing/renderDocumentFooter';
-import { VOUCHER_A5_PDF_EXPORT_CSS } from './printing/renderVoucherA5';
+import { VOUCHER_A5_PDF_EXPORT_CSS, A5_CAPTURE_WIDTH_PX, prepareVoucherDocumentForCanvas } from './printing/renderVoucherA5';
 
 /** CLOTEX brand header reused across all PDF statements. */
 const renderBrandHeaderHtml = (): string => `
@@ -187,7 +187,19 @@ const removeElement = (element: HTMLElement) => {
   }
 };
 
-const addCompressedImageToPDF = (pdf: jsPDF, imageData: string, x: number, y: number, width: number, height: number) => {
+const addCompressedImageToPDF = (
+  pdf: jsPDF,
+  imageData: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  format: 'JPEG' | 'PNG' = 'JPEG',
+) => {
+  if (format === 'PNG') {
+    pdf.addImage(imageData, 'PNG', x, y, width, height);
+    return;
+  }
   pdf.addImage(imageData, 'JPEG', x, y, width, height, undefined, 'FAST');
 };
 
@@ -1145,15 +1157,21 @@ export async function exportHtmlDocumentToPdf(
   }
   if (isVoucher) {
     appendVoucherA5ExportStyle(doc);
+    prepareVoucherDocumentForCanvas(doc);
+    await waitForDocumentImages(doc);
+    iframe.style.width = `${A5_CAPTURE_WIDTH_PX}px`;
+    await new Promise((resolve) => window.setTimeout(resolve, 60));
   }
 
   const resolvedPageMarginMm =
     options.pageMarginMm ?? (fitSinglePage ? 0 : isAccountStatement ? 0 : 4);
   const target = fitSinglePage && pageEl ? pageEl : (stmtPageEl ?? doc.body);
-  const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(doc);
-  const captureWidth = fitSinglePage
-    ? Math.ceil(measureHtmlCaptureWidth(target, doc))
-    : measureHtmlCaptureWidth(target, doc) + (isAccountStatement || isVoucher ? 0 : 24);
+  const cleanupCompatibilityStyle = isVoucher ? () => {} : appendHtml2CanvasCompatibilityStyle(doc);
+  const captureWidth = isVoucher
+    ? A5_CAPTURE_WIDTH_PX
+    : fitSinglePage
+      ? Math.ceil(measureHtmlCaptureWidth(target, doc))
+      : measureHtmlCaptureWidth(target, doc) + (isAccountStatement ? 0 : 24);
   if (!fitSinglePage && !isAccountStatement && !isVoucher) {
     iframe.style.width = `${captureWidth}px`;
     await new Promise((resolve) => window.setTimeout(resolve, 60));
@@ -1173,8 +1191,10 @@ export async function exportHtmlDocumentToPdf(
       x: 0,
       y: 0,
       onclone: (clonedDocument) => {
-        appendHtml2CanvasCompatibilityStyle(clonedDocument);
         const clonedVoucher = clonedDocument.querySelector('[data-clotex-doc="voucher-a5"]');
+        if (!clonedVoucher) {
+          appendHtml2CanvasCompatibilityStyle(clonedDocument);
+        }
         if (fitSinglePage && !clonedVoucher) {
           appendA4FixedLayoutExportStyle(clonedDocument);
         }
@@ -1183,6 +1203,7 @@ export async function exportHtmlDocumentToPdf(
         }
         if (clonedVoucher) {
           appendVoucherA5ExportStyle(clonedDocument);
+          prepareVoucherDocumentForCanvas(clonedDocument);
         }
         const clonedPage = clonedDocument.querySelector('.page') as HTMLElement | null;
         const clonedStmt = clonedDocument.querySelector('.stmt-page') as HTMLElement | null;
@@ -1198,7 +1219,10 @@ export async function exportHtmlDocumentToPdf(
     });
 
     const jpegQuality = options.jpegQuality ?? PDF_SHARP_JPEG_QUALITY;
-    const imgData = canvas.toDataURL('image/jpeg', jpegQuality);
+    const imgFormat: 'JPEG' | 'PNG' = isVoucher ? 'PNG' : 'JPEG';
+    const imgData = isVoucher
+      ? canvas.toDataURL('image/png')
+      : canvas.toDataURL('image/jpeg', jpegQuality);
     const orientation = options.orientation ?? 'portrait';
     const pdf = new jsPDF({ orientation, unit: 'mm', format: pageFormat });
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -1217,17 +1241,17 @@ export async function exportHtmlDocumentToPdf(
     const xOffset = resolvedPageMarginMm + (fitSinglePage ? Math.max(0, (usablePageWidth - imgWidth) / 2) : 0);
 
     if (fitSinglePage || imgHeight <= usablePageHeight) {
-      addCompressedImageToPDF(pdf, imgData, xOffset, resolvedPageMarginMm, imgWidth, imgHeight);
+      addCompressedImageToPDF(pdf, imgData, xOffset, resolvedPageMarginMm, imgWidth, imgHeight, imgFormat);
     } else {
       let heightLeft = imgHeight;
       let position = 0;
-      addCompressedImageToPDF(pdf, imgData, resolvedPageMarginMm, position, usablePageWidth, imgHeight);
+      addCompressedImageToPDF(pdf, imgData, resolvedPageMarginMm, position, usablePageWidth, imgHeight, imgFormat);
       heightLeft -= pageHeight;
 
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        addCompressedImageToPDF(pdf, imgData, resolvedPageMarginMm, position, usablePageWidth, imgHeight);
+        addCompressedImageToPDF(pdf, imgData, resolvedPageMarginMm, position, usablePageWidth, imgHeight, imgFormat);
         heightLeft -= pageHeight;
       }
     }

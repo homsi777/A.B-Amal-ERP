@@ -204,8 +204,8 @@ function voucherStyles(accent: string, accentSoft: string, bw: boolean): string 
       padding: 4px 12px;
       font-size: 10px;
       font-weight: 800;
-      margin: 0 auto 8px;
     }
+    .status-wrap { text-align: center; margin-bottom: 8px; }
     .status-badge .ico { width: 12px; height: 12px; fill: ${accentColor}; }
     .accent-bar {
       height: 3px;
@@ -428,18 +428,49 @@ export const VOUCHER_A5_PDF_EXPORT_CSS = `
     background: #ffffff !important;
   }
   .page-content { flex: 1 1 auto !important; }
-  .status-badge, .card-head, .narrative-head, .sign-title, .footer-inline {
-    display: inline-flex !important;
-    align-items: center !important;
+  .status-wrap { text-align: center !important; width: 100% !important; margin-bottom: 8px !important; }
+  .status-badge {
+    display: inline-block !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .status-badge span, .status-text {
+    display: inline !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: inherit !important;
+    -webkit-text-fill-color: inherit !important;
+  }
+  .card-head, .narrative-head, .sign-title {
+    display: block !important;
+    line-height: 1.4 !important;
+  }
+  .card-head span, .narrative-head span, .sign-title span {
+    display: inline !important;
+    vertical-align: middle !important;
+  }
+  .card-head img, .narrative-head img, .sign-title img,
+  .meta-label img, .footer-inline img, .status-badge img {
+    display: inline-block !important;
+    vertical-align: middle !important;
   }
   .cards-table, .sign-table, .header-table, .meta-table, .footer-table {
     border-collapse: collapse !important;
   }
+  .cards-table { border-collapse: separate !important; border-spacing: 6px 0 !important; }
+  .sign-table { border-collapse: separate !important; border-spacing: 8px 0 !important; }
+  .meta-table { table-layout: fixed !important; width: 100% !important; }
+  .meta-label { width: 38% !important; }
+  .meta-value { width: 62% !important; text-align: left !important; }
   .card, .amount-box, .narrative-box, .footer-bar,
   .status-badge, .type-pill, .doc-title, .amount-value {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+  .amount-box { border-width: 2px !important; border-style: solid !important; }
+  .narrative-text { font-weight: 600 !important; }
   .footer-bar {
     flex-shrink: 0 !important;
     margin: 10px -8mm 0 !important;
@@ -449,8 +480,43 @@ export const VOUCHER_A5_PDF_EXPORT_CSS = `
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .ico { display: inline-block !important; }
+  .footer-inline { display: inline-flex !important; align-items: center !important; }
+  .ico, img.ico { display: inline-block !important; vertical-align: middle !important; }
 `;
+
+/** html2canvas لا يرسم SVG — نحوّلها لصور قبل الالتقاط */
+export function prepareVoucherDocumentForCanvas(doc: Document): void {
+  const svgs = Array.from(doc.querySelectorAll('[data-clotex-doc="voucher-a5"] svg, .page[data-clotex-doc="voucher-a5"] svg'));
+  for (const svg of svgs) {
+    try {
+      const svgEl = svg as SVGSVGElement;
+      const computed = doc.defaultView?.getComputedStyle(svgEl);
+      const w = svgEl.getBoundingClientRect().width
+        || parseFloat(computed?.width || '0')
+        || 12;
+      const h = svgEl.getBoundingClientRect().height
+        || parseFloat(computed?.height || '0')
+        || 12;
+      const clone = svgEl.cloneNode(true) as SVGSVGElement;
+      if (!clone.getAttribute('xmlns')) {
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      }
+      const serialized = new XMLSerializer().serializeToString(clone);
+      const img = doc.createElement('img');
+      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+      img.className = svgEl.className?.toString() || 'ico';
+      img.style.width = `${Math.max(w, 10)}px`;
+      img.style.height = `${Math.max(h, 10)}px`;
+      img.style.display = 'inline-block';
+      img.style.verticalAlign = 'middle';
+      svgEl.parentNode?.replaceChild(img, svgEl);
+    } catch {
+      // إبقاء SVG الأصلي
+    }
+  }
+}
+
+export const A5_CAPTURE_WIDTH_PX = Math.round((148 / 25.4) * 96);
 
 export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: VoucherRenderOptions = {}): string {
   const bw = options.colorMode === 'bw';
@@ -486,8 +552,8 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
           </tr>
         </table>
         <div class="doc-title">${docTitle}</div>
-        <div style="text-align:center;">
-          <div class="status-badge">${iconSvg('check')}<span>${statusText}</span></div>
+        <div class="status-wrap">
+          <div class="status-badge">${iconSvg('check')}<span class="status-text">${statusText}</span></div>
         </div>
         <div class="accent-bar"></div>
 
