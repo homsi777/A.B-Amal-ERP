@@ -27,6 +27,8 @@ import {
 } from '../lib/importDisplay';
 import { rollColorSwatch } from '../lib/colorDisplay';
 import { getRollLengthMeters, isRollInDraftSalesInvoice } from '../lib/inventory/rollAvailability';
+import { renderInventoryRollsAuditA4Html } from '../lib/printing/renderInventoryRollsAuditA4';
+import { openDocumentPrintWindow } from '../lib/printing/documentPrint';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -584,6 +586,10 @@ export const Inventory = () => {
     () => rolls.filter((roll) => isRollInDraftSalesInvoice(roll)).length,
     [rolls],
   );
+  const warehouseFilterLabel = useMemo(() => {
+    if (!filterWarehouseId) return 'كل المستودعات';
+    return warehouses.find((w) => w.id === filterWarehouseId)?.name?.trim() || '—';
+  }, [filterWarehouseId, warehouses]);
   const deletableRolls = rolls.filter((roll) => roll.status !== 'INACTIVE');
   const selectedRolls = rolls.filter((roll) => selectedRollIds.has(roll.id) && roll.status !== 'INACTIVE');
   const allVisibleSelected = deletableRolls.length > 0 && deletableRolls.every((roll) => selectedRollIds.has(roll.id));
@@ -661,6 +667,24 @@ export const Inventory = () => {
       return next.size === prev.size ? prev : next;
     });
   }, [rolls]);
+
+  const handlePrintVisibleRollsA4 = () => {
+    if (loading || rolls.length === 0) return;
+    const html = renderInventoryRollsAuditA4Html({
+      rolls,
+      searchQuery: search.trim(),
+      scopeLabel: SCOPE_LABELS[inventoryScope],
+      warehouseLabel: warehouseFilterLabel,
+      printedAt: new Date(),
+    });
+    const title = search.trim()
+      ? `كشف جرد — ${search.trim()}`
+      : 'كشف جرد أتواب الأقمشة';
+    const ok = openDocumentPrintWindow(html, title);
+    if (!ok) {
+      window.alert('تعذر فتح نافذة الطباعة. تحقق من إعدادات مانع النوافذ المنبثقة.');
+    }
+  };
 
   const handleSort = (field: InventorySortableField) => {
     if (sortBy === field) {
@@ -993,6 +1017,20 @@ return (
             <Filter className="w-3 h-3" />
             فلاتر
             <ChevronDown className={`w-3 h-3 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={handlePrintVisibleRollsA4}
+            disabled={loading || rolls.length === 0}
+            title={
+              rolls.length === 0
+                ? 'لا توجد نتائج للطباعة'
+                : 'طباعة الأتواب الظاهرة فقط (حسب البحث والفلاتر)'
+            }
+            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            طباعة A4
           </button>
           <button
             onClick={() => fetchRolls()}
