@@ -117,6 +117,21 @@ export function isAccountStatementHtml(html: string): boolean {
   return /class\s*=\s*["']stmt-page["']/.test(html);
 }
 
+/** تصدير PDF لسند قبض/صرف A5 (.page) — نفس HTML الطباعة، صفحة واحدة */
+export const A5_VOUCHER_PDF_OPTIONS: PdfExportOptions = {
+  orientation: 'portrait',
+  pageFormat: 'a5',
+  containerWidth: '148mm',
+  fitSinglePage: true,
+  pageMarginMm: 0,
+  canvasScale: PDF_SHARP_CANVAS_SCALE,
+  jpegQuality: PDF_SHARP_JPEG_QUALITY,
+};
+
+export function isVoucherA5Html(html: string): boolean {
+  return /data-clotex-doc\s*=\s*["']voucher-a5["']/.test(html);
+}
+
 /** هوامش Electron صفرية — الهوامش مدمجة داخل HTML */
 export const ELECTRON_A4_EMBEDDED_MARGINS = {
   top: 0,
@@ -124,6 +139,8 @@ export const ELECTRON_A4_EMBEDDED_MARGINS = {
   left: 0,
   right: 0,
 } as const;
+
+export const ELECTRON_A5_EMBEDDED_MARGINS = { ...ELECTRON_A4_EMBEDDED_MARGINS } as const;
 
 const appendHtml2CanvasCompatibilityStyle = (doc: Document) => {
   const style = doc.createElement('style');
@@ -1050,6 +1067,55 @@ const appendAccountStatementExportStyle = (doc: Document) => {
   doc.head.appendChild(style);
 };
 
+/** يطابق قالب سند A5 للطباعة — html2canvas يحتاج تثبيت flex/grid والألوان */
+const appendVoucherA5ExportStyle = (doc: Document) => {
+  const style = doc.createElement('style');
+  style.setAttribute('data-pdf-voucher-a5', 'true');
+  style.textContent = `
+    html, body {
+      width: 148mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .page {
+      width: 148mm !important;
+      min-height: 210mm !important;
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 7mm 8mm 0 !important;
+      overflow: visible !important;
+      background: #ffffff !important;
+    }
+    .page-content { flex: 1 1 auto !important; }
+    .status-badge, .card-head, .narrative-head, .sign-title, .footer-inline {
+      display: inline-flex !important;
+      align-items: center !important;
+    }
+    .cards-table, .sign-table, .header-table, .meta-table, .footer-table {
+      border-collapse: collapse !important;
+    }
+    .card, .amount-box, .narrative-box, .footer-bar,
+    .status-badge, .type-pill, .doc-title, .amount-value {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .footer-bar {
+      flex-shrink: 0 !important;
+      margin: 10px -8mm 0 !important;
+      width: calc(100% + 16mm) !important;
+    }
+    .footer-bar, .footer-bar * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .ico { display: inline-block !important; }
+  `;
+  doc.head.appendChild(style);
+};
+
 const waitForDocumentImages = async (doc: Document, timeoutMs = 2500): Promise<void> => {
   const images = Array.from(doc.images);
   if (images.length === 0) return;
@@ -1097,23 +1163,25 @@ export async function exportHtmlDocumentToPdf(
   const pageEl = doc.querySelector('.page') as HTMLElement | null;
   const stmtPageEl = doc.querySelector('.stmt-page') as HTMLElement | null;
   const isAccountStatement = Boolean(stmtPageEl);
+  const isVoucher = isVoucherA5Html(html) || Boolean(doc.querySelector('[data-clotex-doc="voucher-a5"]'));
 
   await waitForDocumentImages(doc);
-  await new Promise((resolve) => window.setTimeout(resolve, isAccountStatement ? 280 : 220));
+  await new Promise((resolve) => window.setTimeout(resolve, isAccountStatement || isVoucher ? 320 : 220));
 
-  if (fitSinglePage) {
+  if (fitSinglePage && !isVoucher) {
     appendA4FixedLayoutExportStyle(doc);
   }
   if (isAccountStatement) {
     appendAccountStatementExportStyle(doc);
+  }
+  if (isVoucher) {
+    appendVoucherA5ExportStyle(doc);
   }
 
   const resolvedPageMarginMm =
     options.pageMarginMm ?? (fitSinglePage ? 0 : isAccountStatement ? 0 : 4);
   const target = fitSinglePage && pageEl ? pageEl : (stmtPageEl ?? doc.body);
   const cleanupCompatibilityStyle = appendHtml2CanvasCompatibilityStyle(doc);
-
-  const measureWidth = () =>
     Math.max(
       target.scrollWidth,
       target.offsetWidth,
@@ -1121,8 +1189,10 @@ export async function exportHtmlDocumentToPdf(
       doc.documentElement.offsetWidth,
     );
 
-  const captureWidth = fitSinglePage ? Math.ceil(measureWidth()) : measureWidth() + (isAccountStatement ? 0 : 24);
-  if (!fitSinglePage && !isAccountStatement) {
+  const captureWidth = fitSinglePage
+    ? Math.ceil(measureWidth())
+    : measureWidth() + (isAccountStatement || isVoucher ? 0 : 24);
+  if (!fitSinglePage && !isAccountStatement && !isVoucher) {
     iframe.style.width = `${captureWidth}px`;
     await new Promise((resolve) => window.setTimeout(resolve, 60));
   }
@@ -1142,11 +1212,15 @@ export async function exportHtmlDocumentToPdf(
       y: 0,
       onclone: (clonedDocument) => {
         appendHtml2CanvasCompatibilityStyle(clonedDocument);
-        if (fitSinglePage) {
+        const clonedVoucher = clonedDocument.querySelector('[data-clotex-doc="voucher-a5"]');
+        if (fitSinglePage && !clonedVoucher) {
           appendA4FixedLayoutExportStyle(clonedDocument);
         }
         if (clonedDocument.querySelector('.stmt-page')) {
           appendAccountStatementExportStyle(clonedDocument);
+        }
+        if (clonedVoucher) {
+          appendVoucherA5ExportStyle(clonedDocument);
         }
         const clonedPage = clonedDocument.querySelector('.page') as HTMLElement | null;
         const clonedStmt = clonedDocument.querySelector('.stmt-page') as HTMLElement | null;
@@ -1154,7 +1228,7 @@ export async function exportHtmlDocumentToPdf(
           fitSinglePage && clonedPage ? clonedPage : (clonedStmt ?? clonedDocument.body);
         if (clonedTarget) {
           clonedTarget.style.overflow = 'visible';
-          if (!fitSinglePage && !clonedStmt) {
+          if (!fitSinglePage && !clonedStmt && !clonedVoucher) {
             clonedTarget.style.width = `${captureWidth}px`;
           }
         }
@@ -1250,42 +1324,5 @@ export async function exportVoucherToPdf(
 ): Promise<void> {
   const { renderVoucherA5Html } = await import('./printing/renderVoucherA5');
   const html = renderVoucherA5Html(data, options);
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:absolute;left:-9999px;top:0;width:148mm;height:210mm;border:0;';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-  if (!doc) {
-    document.body.removeChild(iframe);
-    throw new Error('تعذر تجهيز PDF');
-  }
-
-  doc.open();
-  doc.write(html);
-  doc.close();
-  await new Promise((resolve) => window.setTimeout(resolve, 180));
-
-  try {
-    const { default: html2canvas } = await import('html2canvas');
-    const { default: jsPDF } = await import('jspdf');
-    const target = doc.body;
-    const canvas = await html2canvas(target, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      width: target.scrollWidth,
-      height: target.scrollHeight,
-    });
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const y = imgHeight <= pageHeight ? Math.max(0, (pageHeight - imgHeight) / 2) : 0;
-    pdf.addImage(imgData, 'JPEG', 0, y, imgWidth, Math.min(imgHeight, pageHeight));
-    pdf.save(`${filenamePrefix}.pdf`);
-  } finally {
-    document.body.removeChild(iframe);
-  }
+  await exportHtmlDocumentToPdf(html, filenamePrefix.replace(/\.pdf$/i, ''), A5_VOUCHER_PDF_OPTIONS);
 }

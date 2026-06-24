@@ -418,7 +418,7 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
   const amountWords = esc(amountToArabicWords(Number(data.amount) || 0, data.currencyCode));
 
   return `
-    <div class="page" dir="rtl">
+    <div class="page" dir="rtl" data-clotex-doc="voucher-a5">
       <div class="page-content">
         <table class="header-table">
           <tr>

@@ -1,9 +1,12 @@
 import {
   ACCOUNT_STATEMENT_PDF_OPTIONS,
   A4_FIXED_LAYOUT_PDF_OPTIONS,
+  A5_VOUCHER_PDF_OPTIONS,
   ELECTRON_A4_EMBEDDED_MARGINS,
+  ELECTRON_A5_EMBEDDED_MARGINS,
   exportHtmlDocumentToPdf,
   isAccountStatementHtml,
+  isVoucherA5Html,
   type PdfExportOptions,
 } from '../pdfExport';
 
@@ -66,6 +69,12 @@ export function resolveDocumentPdfOptions(
       orientation: opts.orientation ?? ACCOUNT_STATEMENT_PDF_OPTIONS.orientation,
     };
   }
+  if (isVoucherA5Html(html)) {
+    return {
+      ...A5_VOUCHER_PDF_OPTIONS,
+      orientation: opts.orientation ?? A5_VOUCHER_PDF_OPTIONS.orientation,
+    };
+  }
   if (isFullHtmlDocument(html)) {
     return {
       orientation: opts.orientation ?? 'portrait',
@@ -87,8 +96,10 @@ export async function exportPrintHtmlToPdf(
   filenamePrefix: string,
   overrides: Partial<PdfExportOptions> = {},
 ): Promise<void> {
+  const pageSize: 'A4' | 'A5' =
+    overrides.pageFormat === 'a5' || isVoucherA5Html(html) ? 'A5' : 'A4';
   const options = {
-    ...resolveDocumentPdfOptions(html, { pageSize: 'A4', orientation: 'portrait' }),
+    ...resolveDocumentPdfOptions(html, { pageSize, orientation: 'portrait' }),
     ...overrides,
   };
   await exportHtmlDocumentToPdf(html, filenamePrefix, options);
@@ -99,6 +110,9 @@ export function resolveElectronPdfMargins(
   pageSize: 'A4' | 'A5' | 'ROLL_LABEL',
   html?: string,
 ) {
+  if (html && isVoucherA5Html(html) && pageSize === 'A5') {
+    return { ...ELECTRON_A5_EMBEDDED_MARGINS };
+  }
   if (
     pageSize === 'A4'
     && (fixedPageLayout || (html ? isAccountStatementHtml(html) : false))

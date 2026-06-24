@@ -2,14 +2,14 @@ import React, { useMemo } from 'react';
 import { Download, Printer, X, Loader2 } from 'lucide-react';
 import type { VoucherRow } from '../lib/api/vouchersApi';
 import { useToast } from './NonBlockingToast';
+import { buildVoucherFileName, pdfFileStem } from '../lib/printing/documentFileNames';
+import { exportPrintHtmlToPdf, openDocumentPrintWindow } from '../lib/printing/documentPrint';
 import {
-  exportVoucherToPdf,
+  ELECTRON_A5_EMBEDDED_MARGINS,
   renderVoucherA5Html,
   voucherRowToPrintData,
   type VoucherRenderOptions,
 } from '../lib/pdfExport';
-import { buildVoucherFileName, pdfFileStem } from '../lib/printing/documentFileNames';
-import { openDocumentPrintWindow } from '../lib/printing/documentPrint';
 import { buildVoucherNarrativeParagraph } from '../lib/printing/voucherNarrative';
 
 interface VoucherPrintModalProps {
@@ -126,6 +126,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
         const result = await window.fabricApp.printToPdf(buildHtml(), {
           pageSize: 'A5',
           defaultFileName: pdfFileStem(fileName),
+          margins: { ...ELECTRON_A5_EMBEDDED_MARGINS },
         });
         if (result.ok) {
           showToast({ type: 'success', message: `تم حفظ السند في: ${result.filePath}` });
@@ -134,7 +135,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           showToast({ type: 'error', message: `خطأ في التصدير: ${result.error || 'تم إلغاء العملية'}` });
         }
       } else {
-        await exportVoucherToPdf(printData, fileName, renderOptions);
+        await exportPrintHtmlToPdf(buildHtml(), pdfFileStem(fileName));
         showToast({ type: 'success', message: 'تم تصدير السند كـ PDF بنجاح' });
         onClose();
       }
