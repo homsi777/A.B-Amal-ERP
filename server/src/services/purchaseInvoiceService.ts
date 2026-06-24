@@ -421,7 +421,14 @@ export async function getPurchaseInvoiceById(
   );
   if (!h.rows.length) return null;
   const lines = await db.query(
-    `SELECT * FROM purchase_invoice_lines WHERE invoice_id=$1 AND company_id=$2 ORDER BY line_no`,
+    `SELECT pil.*,
+            fi.internal_code AS item_internal_code,
+            fi.supplier_code AS item_supplier_code
+     FROM purchase_invoice_lines pil
+     LEFT JOIN fabric_rolls fr ON fr.id = pil.fabric_roll_id AND fr.company_id = pil.company_id
+     LEFT JOIN fabric_items fi ON fi.id = COALESCE(pil.fabric_item_id, fr.item_id) AND fi.company_id = pil.company_id
+     WHERE pil.invoice_id=$1 AND pil.company_id=$2
+     ORDER BY pil.line_no`,
     [id, companyId],
   );
   return { header: h.rows[0] as Record<string, unknown>, lines: lines.rows as Record<string, unknown>[] };

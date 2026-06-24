@@ -49,6 +49,14 @@ import {
   INVOICE_LINE_UUID_RE,
 } from '../../lib/invoiceLineDuplicateIdentity';
 import type { Invoice } from '../../types';
+import { resolveDisplayMaterialCode } from '../../lib/importDisplay';
+
+function stockDisplayMaterialCode(stock: Record<string, unknown>): string {
+  return resolveDisplayMaterialCode({
+    internalCode: String(stock.internal_code || stock.fabricCode || stock.designNumber || ''),
+    supplierCode: String(stock.supplier_code_item || ''),
+  });
+}
 
 /** Optional keys some APIs return for scanner / label matching (not all on FabricRollDto). */
 type FabricRollScanIdentity = FabricRollDto & {
@@ -1057,7 +1065,7 @@ export const InvoiceForm = () => {
       ...emptyItem(),
       id: lineId,
       materialName: stock.item_name || stock.name || '',
-      dsamNumber: stock.internal_code || stock.fabricCode || stock.designNumber || '',
+      dsamNumber: stockDisplayMaterialCode(stock as Record<string, unknown>),
       rollNo: stock.roll_no || stock.rollNumber || stock.internalRollId || '',
       colorCode: stock.color_code || stock.colorCode || '',
       colorName: stock.color_name_ar || stock.colorName || '',
@@ -1266,7 +1274,7 @@ export const InvoiceForm = () => {
         const updated = {
               ...line,
               materialName: stock.item_name || stock.name || line.materialName,
-              dsamNumber: stock.internal_code || stock.fabricCode || stock.designNumber || line.dsamNumber,
+              dsamNumber: stockDisplayMaterialCode(stock as Record<string, unknown>) || line.dsamNumber,
               rollNo: stock.roll_no || stock.rollNumber || stock.internalRollId || line.rollNo,
               colorCode: stock.color_code || stock.colorCode || line.colorCode,
               colorName: stock.color_name_ar || stock.colorName || line.colorName,

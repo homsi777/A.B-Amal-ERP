@@ -21,6 +21,35 @@ export function displayInventoryMaterialCode(roll: {
   return String(roll.supplier_code_item ?? '').trim();
 }
 
+/** استخراج كود الخامة من QR المضغوط: barcode|materialName|materialCode|… */
+export function parseCompactQrMaterialCode(payload?: string | null): string {
+  const raw = String(payload ?? '').trim();
+  if (!raw.includes('|')) return '';
+  const parts = raw.split('|').map((part) => part.trim());
+  return parts.length >= 3 ? parts[2] : '';
+}
+
+/** كود الخامة للعرض في كشف الفاتورة — يتجنّب IMP-AUTO-* ويُفضّل كود المورد. */
+export function resolveDisplayMaterialCode(input: {
+  internalCode?: string | null;
+  supplierCode?: string | null;
+  rawQrPayload?: string | null;
+}): string {
+  const internal = String(input.internalCode ?? '').trim();
+  let supplier = String(input.supplierCode ?? '').trim();
+  if (!supplier) {
+    const fromQr = parseCompactQrMaterialCode(input.rawQrPayload);
+    if (fromQr && fromQr !== internal && !fromQr.startsWith(AUTO_INTERNAL_CODE_PREFIX)) {
+      supplier = fromQr;
+    }
+  }
+  const shown = displayInventoryMaterialCode({
+    internal_code: internal,
+    supplier_code_item: supplier,
+  });
+  return shown || internal;
+}
+
 /** كود الخامة كما في Excel: يُفضَّل كود المورد عند الاستيراد. */
 export function displayImportedItemCode(roll: {
   internal_code?: string | null;

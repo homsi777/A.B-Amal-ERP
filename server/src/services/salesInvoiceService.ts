@@ -774,7 +774,14 @@ export async function getSalesInvoiceById(
   );
   if (!h.rows.length) return null;
   const lines = await db.query(
-    `SELECT * FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2 ORDER BY line_no`,
+    `SELECT sil.*,
+            fi.internal_code AS item_internal_code,
+            fi.supplier_code AS item_supplier_code
+     FROM sales_invoice_lines sil
+     LEFT JOIN fabric_rolls fr ON fr.id = sil.fabric_roll_id AND fr.company_id = sil.company_id
+     LEFT JOIN fabric_items fi ON fi.id = COALESCE(sil.fabric_item_id, fr.item_id) AND fi.company_id = sil.company_id
+     WHERE sil.invoice_id=$1 AND sil.company_id=$2
+     ORDER BY sil.line_no`,
     [id, companyId],
   );
   return { header: h.rows[0] as Record<string, unknown>, lines: lines.rows as Record<string, unknown>[] };

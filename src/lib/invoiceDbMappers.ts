@@ -1,4 +1,5 @@
 import type { Invoice, InvoiceItem } from '../types';
+import { resolveDisplayMaterialCode } from './importDisplay';
 
 /** عرض في نموذج إنشاء فاتورة جديدة قبل الحفظ — لا يُخزَّن كـ invoice_no. */
 export const INVOICE_NUMBER_PENDING_LABEL = 'سيتم توليده عند الحفظ';
@@ -64,6 +65,12 @@ function mapLineToInvoiceItem(l: Record<string, unknown>): InvoiceItem {
   const rollNo = stringFromMeta(meta, ['rollNo', 'rollNumber']);
   const supplierBarcode = stringFromMeta(meta, ['supplierBarcode', 'barcode']);
   const printBarcode = stringFromMeta(meta, ['printBarcode']);
+  const rawQrPayload = stringFromMeta(meta, ['rawQrPayload']) || undefined;
+  const storedDesignCode = stringFromMeta(meta, ['designCode', 'dsamNumber']);
+  const supplierMaterialCode =
+    stringFromMeta(meta, ['supplierMaterialCode', 'supplierCode', 'supplier_code_item']) ||
+    String(l.item_supplier_code ?? '').trim();
+  const itemInternalCode = String(l.item_internal_code ?? '').trim();
   return {
     fabricId: rollId || String(l.id ?? ''),
     quantity: numFromDb(l.quantity),
@@ -73,7 +80,11 @@ function mapLineToInvoiceItem(l: Record<string, unknown>): InvoiceItem {
     total: numFromDb(l.line_total),
     fabricName: materialName,
     materialName,
-    designCode: stringFromMeta(meta, ['designCode', 'dsamNumber']),
+    designCode: resolveDisplayMaterialCode({
+      internalCode: itemInternalCode || storedDesignCode,
+      supplierCode: supplierMaterialCode,
+      rawQrPayload,
+    }),
     rollNumber: rollNo,
     rollNo,
     colorCode: stringFromMeta(meta, ['colorCode']),
@@ -87,7 +98,7 @@ function mapLineToInvoiceItem(l: Record<string, unknown>): InvoiceItem {
     widthCm: optionalNumFromDb(meta.widthCm),
     gsm: optionalNumFromDb(meta.gsm),
     internalRollId: rollId,
-    rawQrPayload: stringFromMeta(meta, ['rawQrPayload']) || undefined,
+    rawQrPayload,
     rawBarcodePayload: stringFromMeta(meta, ['rawBarcodePayload']) || undefined,
     note: stringFromMeta(meta, ['note']) || '',
     lineDate: stringFromMeta(meta, ['rowDate']) || undefined,

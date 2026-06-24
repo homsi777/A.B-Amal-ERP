@@ -1,5 +1,6 @@
 import type { Invoice, InvoiceItem } from '../../types';
 import { BRAND } from '../../branding';
+import { resolveDisplayMaterialCode } from '../importDisplay';
 import { displayStoredInvoiceNo } from '../invoiceDbMappers';
 import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocumentFooter';
 
@@ -162,7 +163,13 @@ export function renderInvoiceStatementA4Html(opts: {
 
   const rawLines: Line[] = (invoice.items || []).map((item) => ({
     materialName: normalizeText(item.materialName || item.fabricName, '—'),
-    designCode: normalizeText(item.designCode, '—'),
+    designCode: normalizeText(
+      resolveDisplayMaterialCode({
+        internalCode: item.designCode,
+        rawQrPayload: item.rawQrPayload,
+      }),
+      '—',
+    ),
     barcode: normalizeBarcodeValue(item),
     lotNo: normalizeText(item.rollNo || item.rollNumber, ''),
     meters: Number(item.quantity || 0),
@@ -532,7 +539,7 @@ export function renderInvoiceStatementA4Html(opts: {
       line-height: 1.3;
       vertical-align: middle;
     }
-    .data-table thead th:first-child { border-left: none; }
+    .data-table thead th:last-child { border-left: none; }
     .data-table tbody .cell {
       padding: 7px 5px;
       font-size: 9.2px;
@@ -544,7 +551,7 @@ export function renderInvoiceStatementA4Html(opts: {
       line-height: 1.3;
       background: #fff;
     }
-    .data-table tbody .cell:first-child { border-left: none; }
+    .data-table tbody .cell:last-child { border-left: none; }
     .subtotal-cell {
       padding: 7px 5px;
       font-size: 9.5px;
