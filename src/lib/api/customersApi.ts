@@ -28,6 +28,23 @@ export interface CustomerPayload {
   telegramLabel?: string;
 }
 
+function normalizeCustomerPayload(payload: CustomerPayload): CustomerPayload {
+  const text = (value?: string | null) => String(value ?? '').trim();
+  const email = text(payload.email);
+  const emailValid = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return {
+    name: text(payload.name),
+    code: payload.code !== undefined ? text(payload.code) || undefined : undefined,
+    phone: text(payload.phone),
+    email: emailValid ? email : '',
+    address: text(payload.address),
+    notes: text(payload.notes),
+    telegramChatId: text(payload.telegramChatId),
+    telegramEnabled: Boolean(payload.telegramEnabled),
+    telegramLabel: text(payload.telegramLabel),
+  };
+}
+
 export interface CustomersListParams {
   search?: string;
   status?: 'active' | 'inactive';
@@ -59,9 +76,10 @@ export async function getCustomer(id: string): Promise<ApiCustomer> {
 }
 
 export async function createCustomer(payload: CustomerPayload): Promise<ApiCustomer> {
+  const body = normalizeCustomerPayload(payload);
   const res = await apiFetch<{ ok: boolean; data: ApiCustomer }>('/api/customers', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   return res.data;
 }
@@ -111,9 +129,10 @@ export async function importCustomerStatement(payload: {
 }
 
 export async function updateCustomer(id: string, payload: CustomerPayload): Promise<ApiCustomer> {
+  const body = normalizeCustomerPayload(payload);
   const res = await apiFetch<{ ok: boolean; data: ApiCustomer }>(`/api/customers/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   return res.data;
 }

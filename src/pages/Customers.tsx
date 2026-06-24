@@ -112,10 +112,10 @@ export const Customers = () => {
     setForm({
       name: c.name,
       code: c.code,
-      phone: c.phone,
+      phone: c.phone || '',
       email: c.email || '',
-      address: c.address,
-      notes: c.notes,
+      address: c.address || '',
+      notes: c.notes || '',
       telegramChatId: c.telegram_chat_id || '',
       telegramEnabled: c.telegram_enabled,
       telegramLabel: c.telegram_label || '',

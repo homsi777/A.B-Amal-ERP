@@ -6,19 +6,9 @@ import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { insertPartyActivityLog } from '../services/partyActivityLogService.js';
 import { getSupplierStatement } from '../services/partyStatementService.js';
+import { formatZodValidationMessage, supplierBodySchema } from '../utils/partyBodySchema.js';
 
-const supplierBody = z.object({
-  name: z.string().min(1, 'الاسم مطلوب'),
-  code: z.string().optional(),
-  phone: z.string().optional().default(''),
-  email: z.string().email().optional().or(z.literal('')),
-  address: z.string().optional().default(''),
-  country: z.string().optional().default(''),
-  notes: z.string().optional().default(''),
-  telegramChatId: z.string().trim().max(64).optional().default(''),
-  telegramEnabled: z.boolean().optional().default(false),
-  telegramLabel: z.string().trim().max(120).optional().default(''),
-});
+const supplierBody = supplierBodySchema;
 
 function genCode(prefix = 'SUP') {
   return `${prefix}-${Date.now().toString(36).toUpperCase().slice(-6)}`;
@@ -112,7 +102,9 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
   app.post('/', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const parsed = supplierBody.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) {
+      return sendError(reply, 400, formatZodValidationMessage(parsed.error), 'VALIDATION');
+    }
     const d = parsed.data;
     const code = d.code?.trim() || genCode();
     const pool = getPool();
@@ -151,7 +143,9 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     const { companyId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = supplierBody.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) {
+      return sendError(reply, 400, formatZodValidationMessage(parsed.error), 'VALIDATION');
+    }
     const d = parsed.data;
     const pool = getPool();
     try {
