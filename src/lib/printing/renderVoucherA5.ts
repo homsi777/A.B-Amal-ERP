@@ -430,11 +430,25 @@ export const VOUCHER_A5_PDF_EXPORT_CSS = `
   .page-content { flex: 1 1 auto !important; }
   .status-wrap { text-align: center !important; width: 100% !important; margin-bottom: 8px !important; }
   .status-badge {
-    display: inline-block !important;
-    text-align: center !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    border-radius: 14px !important;
+    padding: 4px 12px !important;
+    line-height: 1.25 !important;
+    box-sizing: border-box !important;
     white-space: nowrap !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+  .status-badge img, .status-badge .ico {
+    width: 12px !important;
+    height: 12px !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    vertical-align: middle !important;
   }
   .status-badge span, .status-text {
     display: inline !important;
@@ -442,7 +456,26 @@ export const VOUCHER_A5_PDF_EXPORT_CSS = `
     opacity: 1 !important;
     color: inherit !important;
     -webkit-text-fill-color: inherit !important;
+    line-height: 1.25 !important;
   }
+  .type-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 10px !important;
+    padding: 2px 10px 3px !important;
+    min-width: 40px !important;
+    min-height: 17px !important;
+    text-align: center !important;
+    line-height: 1.25 !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .meta-value .type-pill { float: none !important; }
   .card-head, .narrative-head, .sign-title {
     display: block !important;
     line-height: 1.4 !important;
@@ -463,7 +496,7 @@ export const VOUCHER_A5_PDF_EXPORT_CSS = `
   .sign-table { border-collapse: separate !important; border-spacing: 8px 0 !important; }
   .meta-table { table-layout: fixed !important; width: 100% !important; }
   .meta-label { width: 38% !important; }
-  .meta-value { width: 62% !important; text-align: left !important; }
+  .meta-value { width: 62% !important; text-align: left !important; overflow: visible !important; vertical-align: middle !important; }
   .card, .amount-box, .narrative-box, .footer-bar,
   .status-badge, .type-pill, .doc-title, .amount-value {
     -webkit-print-color-adjust: exact !important;
@@ -514,6 +547,27 @@ export function prepareVoucherDocumentForCanvas(doc: Document): void {
       // إبقاء SVG الأصلي
     }
   }
+
+  doc.querySelectorAll('[data-clotex-doc="voucher-a5"] .status-badge').forEach((el) => {
+    const node = el as HTMLElement;
+    node.style.display = 'inline-flex';
+    node.style.alignItems = 'center';
+    node.style.justifyContent = 'center';
+    node.style.gap = '5px';
+    node.style.borderRadius = '14px';
+    node.style.padding = '4px 12px';
+  });
+
+  doc.querySelectorAll('[data-clotex-doc="voucher-a5"] .type-pill').forEach((el) => {
+    const node = el as HTMLElement;
+    node.style.display = 'inline-flex';
+    node.style.alignItems = 'center';
+    node.style.justifyContent = 'center';
+    node.style.borderRadius = '10px';
+    node.style.padding = '2px 10px 3px';
+    node.style.minWidth = '40px';
+    node.style.textAlign = 'center';
+  });
 }
 
 export const A5_CAPTURE_WIDTH_PX = Math.round((148 / 25.4) * 96);
