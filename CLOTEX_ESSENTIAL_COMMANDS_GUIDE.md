@@ -235,6 +235,35 @@ npm run db:ping
 npm run activation:generate -- --count=1 --plan=FULL
 ```
 
+### إصلاح استيراد مخزون Excel سابق (على VPS)
+
+يُعيد ربط كل ثوب بالخامة الصحيحة حسب اسم الصنف في Excel (مثلاً دفعة `حلب-15` التي دُمجت تحت كود واحد).
+
+```bash
+cd ~/ab-amal-erp
+git pull origin clotex
+npm install
+
+# 1) عرض دفعات الاستيراد
+npm run repair:stock-import -- --list
+
+# 2) معاينة الإصلاح (بدون تعديل)
+npm run repair:stock-import -- --file-name=حلب-15
+
+# 3) تطبيق الإصلاح
+npm run repair:stock-import -- --file-name=حلب-15 --apply
+
+# أو بمعرّف الدفعة + إصلاح الألوان + حذف خامات يتيمة
+npm run repair:stock-import -- --batch-id=<uuid> --apply --fix-colors --purge-orphans
+
+# بديل: حذف أثواب الدفعة المتاحة ثم إعادة الاستيراد من الواجهة
+npm run repair:stock-import -- --batch-id=<uuid> --rollback
+npm run repair:stock-import -- --batch-id=<uuid> --rollback --apply
+```
+
+> `--apply` مطلوب للتنفيذ الفعلي. بدونه يعمل السكربت في وضع معاينة فقط.
+> يقرأ إعدادات DB من `server/.env` على السيرفر.
+
 ---
 
 ## 8) مسار عمل مقترح (مختصر)

@@ -2,8 +2,12 @@ import * as fs from 'fs';
 import * as XLSX from 'xlsx';
 import { parseStockWorkbook, pickDefaultSheet } from '../src/lib/stockExcelImport.ts';
 
-const path = process.argv[2] || 'مستودعات حلب للتنزيل.xlsx';
-const buf = fs.readFileSync(path);
+const xlsxPath = process.argv[2] || 'مستودعات حلب للتنزيل.xlsx';
+if (!fs.existsSync(xlsxPath)) {
+  const hit = fs.readdirSync('.').find((f) => /حلب/i.test(f) && f.endsWith('.xlsx'));
+  if (hit) xlsxPath = hit;
+}
+const buf = fs.readFileSync(xlsxPath);
 const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
 
 console.log('=== RAW SHEET NAMES ===');
@@ -17,7 +21,7 @@ for (const name of wb.SheetNames) {
 }
 
 const file = {
-  name: path,
+  name: xlsxPath,
   size: buf.length,
   arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
 };

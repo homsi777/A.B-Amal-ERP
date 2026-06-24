@@ -47,11 +47,12 @@ export function resolveStockImportItemCodes(
 
   const unique = looksLikeUniqueDesignSku(code);
   if (layoutMinimal || !unique) {
+    // «رمز الصنف» في ملف حلب = نوع نسيج (Jakar, Düz) وليس كود خامة فريد — لا يُخزَّن كـ supplier/internal code.
     return {
       matchByCode: '',
       internalCode: unique ? code : buildAutoInternalCode(name),
-      supplierCode: code,
-      designLabel: code,
+      supplierCode: unique ? code : null,
+      designLabel: code || null,
     };
   }
 

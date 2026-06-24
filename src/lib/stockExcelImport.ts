@@ -534,6 +534,22 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
     warnings.push(`${rowsWithoutColor} صفاً بدون لون — سيُستخدم «غير محدد» عند الاستيراد.`);
   }
 
+  if (importLayout === 'aleppo_incoming_minimal') {
+    const codeToNames = new Map<string, Set<string>>();
+    for (const row of rows) {
+      if (!row.itemCode || !row.itemName) continue;
+      const set = codeToNames.get(row.itemCode) ?? new Set<string>();
+      set.add(row.itemName);
+      codeToNames.set(row.itemCode, set);
+    }
+    const sharedCodes = [...codeToNames.entries()].filter(([, names]) => names.size > 1);
+    if (sharedCodes.length > 0) {
+      warnings.push(
+        `عمود «رمز الصنف» = نوع النسيج (مثل Jakar/Düz) وليس كود خامة فريد — كل «اسم الصنف» يُستورد كخامة مستقلة (${sharedCodes.length} رمز مشترك بين أصناف مختلفة).`,
+      );
+    }
+  }
+
   return {
     sheetName,
     kind,

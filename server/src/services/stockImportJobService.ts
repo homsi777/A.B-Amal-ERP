@@ -422,6 +422,17 @@ async function finalizeBatchIfDone(client: PoolClient, companyId: string, batchI
   );
 }
 
+function resolveStockImportLayout(
+  extracted: Record<string, unknown> | null | undefined,
+  sheetName: string | null | undefined,
+): string {
+  const fromMeta = typeof extracted?.importLayout === 'string' ? extracted.importLayout : '';
+  if (fromMeta && fromMeta !== 'unknown') return fromMeta;
+  const sheet = String(sheetName ?? '').trim().toLowerCase();
+  if (sheet.includes('وارد') || sheet === 'incoming') return 'aleppo_incoming_minimal';
+  return fromMeta || 'unknown';
+}
+
 export async function advanceStockImportBatch(
   logger: Pick<FastifyBaseLogger, 'info' | 'error'>,
   companyId: string,
@@ -440,11 +451,12 @@ export async function advanceStockImportBatch(
       supplier_id: string | null;
       source_type: string;
       notes: string | null;
+      sheet_name: string | null;
       extracted_metadata: Record<string, unknown> | null;
       created_by_user_id: string;
       status: string;
     }>(
-      `SELECT id, warehouse_id, supplier_id, source_type, notes, extracted_metadata, created_by_user_id, status
+      `SELECT id, warehouse_id, supplier_id, source_type, notes, sheet_name, extracted_metadata, created_by_user_id, status
        FROM purchase_import_batches
        WHERE id = $1 AND company_id = $2
        FOR UPDATE`,
@@ -493,7 +505,7 @@ export async function advanceStockImportBatch(
 
     const extracted = batch.extracted_metadata ?? {};
     const batchTag = typeof extracted.batchTag === 'string' ? extracted.batchTag : buildBatchTag(batch.notes ?? '');
-    const importLayout = typeof extracted.importLayout === 'string' ? extracted.importLayout : 'unknown';
+    const importLayout = resolveStockImportLayout(extracted, batch.sheet_name);
     let createdRolls = 0;
     let createdItems = 0;
     let createdColors = 0;
@@ -515,7 +527,8 @@ export async function advanceStockImportBatch(
 
         const importNd = {
           materialName: prepared.materialName,
-          supplierMaterialCode: prepared.materialCode,
+          internalMaterialCode: prepared.resolvedInternalCode,
+          supplierMaterialCode: prepared.materialCode || null,
           colorName: prepared.colorName,
           colorNameTr: prepared.colorNameTr,
           colorCode: prepared.colorCode,

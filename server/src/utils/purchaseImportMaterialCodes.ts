@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { cleanString, type NormalizedField } from './importColumnDetector.js';
+import { looksLikeUniqueDesignSku } from './stockImportItemCodes.js';
 
 type NormalizedRowData = Partial<Record<NormalizedField, string | number | null>>;
 
@@ -19,8 +20,9 @@ async function ensureCategoryNode(
   const byCode = await client.query<{ id: string }>(
     `SELECT id FROM fabric_categories
      WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
+       AND parent_id IS NOT DISTINCT FROM $3
      LIMIT 1`,
-    [companyId, code],
+    [companyId, code, parentId],
   );
   if (byCode.rows.length) return { id: byCode.rows[0].id, created: false };
 
@@ -37,8 +39,9 @@ async function ensureCategoryNode(
     const again = await client.query<{ id: string }>(
       `SELECT id FROM fabric_categories
        WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
+         AND parent_id IS NOT DISTINCT FROM $3
        LIMIT 1`,
-      [companyId, code],
+      [companyId, code, parentId],
     );
     if (!again.rows.length) throw e;
     return { id: again.rows[0].id, created: false };
@@ -85,7 +88,7 @@ export async function applyPurchaseImportMaterialCodes(
   let nextInternal: string | null = null;
   if (intCode) {
     nextInternal = intCode;
-  } else if (supCode && internalLooksPlaceholder) {
+  } else if (supCode && internalLooksPlaceholder && looksLikeUniqueDesignSku(supCode)) {
     nextInternal = supCode;
   }
 
@@ -119,7 +122,8 @@ export async function ensureFabricCategoryChainFromImport(
   nd: NormalizedRowData,
 ): Promise<number> {
   const materialName = cleanString(nd.materialName);
-  const designCode = resolveImportMaterialCode(nd);
+  const rawDesignCode = resolveImportMaterialCode(nd);
+  const designCode = rawDesignCode && looksLikeUniqueDesignSku(rawDesignCode) ? rawDesignCode : '';
   const colorName = cleanString(nd.colorName) || cleanString(nd.colorNameTr);
   const colorCode = cleanString(nd.colorCode) || cleanString(nd.supplierColorCode);
 
