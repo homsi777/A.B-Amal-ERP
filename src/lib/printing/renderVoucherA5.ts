@@ -391,8 +391,66 @@ function voucherStyles(accent: string, accentSoft: string, bw: boolean): string 
       pointer-events: none;
     }
     .ltr { direction: ltr; unicode-bidi: embed; }
+
+    @media print {
+      html, body {
+        width: 148mm;
+        margin: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .page { min-height: auto; overflow: visible; }
+      .card, .amount-box, .narrative-box, .footer-bar, .status-badge, .type-pill {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
   `;
 }
+
+/** أنماط html2canvas — نفس قواعد الطباعة، مصدر واحد مع القالب */
+export const VOUCHER_A5_PDF_EXPORT_CSS = `
+  html, body {
+    width: 148mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .page {
+    width: 148mm !important;
+    min-height: 210mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 7mm 8mm 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+  .page-content { flex: 1 1 auto !important; }
+  .status-badge, .card-head, .narrative-head, .sign-title, .footer-inline {
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+  .cards-table, .sign-table, .header-table, .meta-table, .footer-table {
+    border-collapse: collapse !important;
+  }
+  .card, .amount-box, .narrative-box, .footer-bar,
+  .status-badge, .type-pill, .doc-title, .amount-value {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .footer-bar {
+    flex-shrink: 0 !important;
+    margin: 10px -8mm 0 !important;
+    width: calc(100% + 16mm) !important;
+  }
+  .footer-bar, .footer-bar * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .ico { display: inline-block !important; }
+`;
 
 export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: VoucherRenderOptions = {}): string {
   const bw = options.colorMode === 'bw';
