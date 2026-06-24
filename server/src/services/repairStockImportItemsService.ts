@@ -107,23 +107,6 @@ async function ensureCorrectItem(
 ): Promise<{ id: string; name: string; internalCode: string; created: boolean }> {
   const codes = resolveStockImportItemCodes(materialName, rawItemCode, importLayout);
 
-  const byName = await client.query<{ id: string; name: string; internal_code: string }>(
-    `SELECT id, name, internal_code
-     FROM fabric_items
-     WHERE company_id = $1 AND lower(btrim(name)) = lower(btrim($2))
-     ORDER BY created_at
-     LIMIT 1`,
-    [companyId, materialName],
-  );
-  if (byName.rows[0]?.id) {
-    return {
-      id: byName.rows[0].id,
-      name: byName.rows[0].name,
-      internalCode: byName.rows[0].internal_code,
-      created: false,
-    };
-  }
-
   if (codes.matchByCode) {
     const byCode = await client.query<{ id: string; name: string; internal_code: string }>(
       `SELECT id, name, internal_code
@@ -144,11 +127,28 @@ async function ensureCorrectItem(
         created: false,
       };
     }
+  } else {
+    const byName = await client.query<{ id: string; name: string; internal_code: string }>(
+      `SELECT id, name, internal_code
+       FROM fabric_items
+       WHERE company_id = $1 AND lower(btrim(name)) = lower(btrim($2))
+       ORDER BY created_at
+       LIMIT 1`,
+      [companyId, materialName],
+    );
+    if (byName.rows[0]?.id) {
+      return {
+        id: byName.rows[0].id,
+        name: byName.rows[0].name,
+        internalCode: byName.rows[0].internal_code,
+        created: false,
+      };
+    }
   }
 
   if (dryRun) {
     return {
-      id: `dry-run-${materialName}`,
+      id: `dry-run-${materialName}-${codes.internalCode}`,
       name: materialName,
       internalCode: codes.internalCode,
       created: true,

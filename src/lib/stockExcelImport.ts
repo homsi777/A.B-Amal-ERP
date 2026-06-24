@@ -536,16 +536,27 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
 
   if (importLayout === 'aleppo_incoming_minimal') {
     const codeToNames = new Map<string, Set<string>>();
+    const nameToCodes = new Map<string, Set<string>>();
     for (const row of rows) {
       if (!row.itemCode || !row.itemName) continue;
       const set = codeToNames.get(row.itemCode) ?? new Set<string>();
       set.add(row.itemName);
       codeToNames.set(row.itemCode, set);
+      const nameKey = row.itemName.trim().toLowerCase();
+      const codeSet = nameToCodes.get(nameKey) ?? new Set<string>();
+      codeSet.add(row.itemCode);
+      nameToCodes.set(nameKey, codeSet);
     }
     const sharedCodes = [...codeToNames.entries()].filter(([, names]) => names.size > 1);
     if (sharedCodes.length > 0) {
       warnings.push(
         `عمود «رمز الصنف» = نوع النسيج (مثل Jakar/Düz) وليس كود خامة فريد — كل «اسم الصنف» يُستورد كخامة مستقلة (${sharedCodes.length} رمز مشترك بين أصناف مختلفة).`,
+      );
+    }
+    const sharedNames = [...nameToCodes.entries()].filter(([, codes]) => codes.size > 1);
+    if (sharedNames.length > 0) {
+      warnings.push(
+        `نفس «اسم الصنف» يظهر بأكواد خامة مختلفة (مثل asya → 5114/5011) — كل كود يُستورد كخامة مستقلة حسب «رمز الصنف» (${sharedNames.length} اسم مشترك).`,
       );
     }
   }

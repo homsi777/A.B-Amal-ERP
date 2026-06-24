@@ -24,17 +24,18 @@ export interface ResolvedStockItemCodes {
 }
 
 /**
- * Aleppo «وارد» sheets put weave/design type in «رمز الصنف» (Jakar, Düz, …).
- * That column must NOT merge distinct fabric names into one inventory item.
+ * «رمز الصنف» in Aleppo workbooks is either:
+ * - a real material code (5114, nw-48142) → inventory identity is THIS code
+ *   (same name «asya» may appear with 5114, 5011, 5111 — each is a separate item)
+ * - a shared weave label (Jakar, Düz) → identity is «اسم الصنف», not this column
  */
 export function resolveStockImportItemCodes(
   materialName: string,
   rawItemCode: string,
-  importLayout: StockImportLayout | string = 'unknown',
+  _importLayout: StockImportLayout | string = 'unknown',
 ): ResolvedStockItemCodes {
   const name = materialName.trim();
   const code = rawItemCode.trim();
-  const layoutMinimal = importLayout === 'aleppo_incoming_minimal';
 
   if (!code) {
     return {
@@ -45,21 +46,30 @@ export function resolveStockImportItemCodes(
     };
   }
 
-  const unique = looksLikeUniqueDesignSku(code);
-  if (layoutMinimal || !unique) {
-    // «رمز الصنف» في ملف حلب = نوع نسيج (Jakar, Düz) وليس كود خامة فريد — لا يُخزَّن كـ supplier/internal code.
+  if (looksLikeUniqueDesignSku(code)) {
     return {
-      matchByCode: '',
-      internalCode: unique ? code : buildAutoInternalCode(name),
-      supplierCode: unique ? code : null,
-      designLabel: code || null,
+      matchByCode: code,
+      internalCode: code,
+      supplierCode: code,
+      designLabel: code,
     };
   }
 
   return {
-    matchByCode: code,
-    internalCode: code,
-    supplierCode: code,
+    matchByCode: '',
+    internalCode: buildAutoInternalCode(name),
+    supplierCode: null,
     designLabel: code,
   };
+}
+
+export function fabricItemMatchesMaterialCode(
+  item: { internal_code: string; supplier_code: string | null },
+  materialCode: string,
+): boolean {
+  const target = materialCode.trim().toLowerCase();
+  if (!target) return true;
+  const internal = String(item.internal_code ?? '').trim().toLowerCase();
+  const supplier = String(item.supplier_code ?? '').trim().toLowerCase();
+  return internal === target || supplier === target;
 }

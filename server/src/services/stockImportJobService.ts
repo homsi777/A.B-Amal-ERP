@@ -349,16 +349,8 @@ async function ensureItem(
   prepared: PreparedRow,
   _rowNo: number,
 ): Promise<{ id: string; created: boolean }> {
-  const existingByName = await client.query<{ id: string }>(
-    `SELECT id FROM fabric_items
-     WHERE company_id = $1 AND lower(btrim(name)) = lower(btrim($2))
-     ORDER BY created_at
-     LIMIT 1`,
-    [companyId, prepared.materialName],
-  );
-  if (existingByName.rows[0]?.id) return { id: existingByName.rows[0].id, created: false };
-
   const matCode = prepared.matchByCode.trim();
+
   if (matCode) {
     const existingByCode = await client.query<{ id: string }>(
       `SELECT id FROM fabric_items
@@ -371,6 +363,16 @@ async function ensureItem(
       [companyId, matCode],
     );
     if (existingByCode.rows[0]?.id) return { id: existingByCode.rows[0].id, created: false };
+    // كود خامة صريح (5114 ≠ 5111) — لا ندمج باسم «asya» المشترك بين أكواد مختلفة.
+  } else {
+    const existingByName = await client.query<{ id: string }>(
+      `SELECT id FROM fabric_items
+       WHERE company_id = $1 AND lower(btrim(name)) = lower(btrim($2))
+       ORDER BY created_at
+       LIMIT 1`,
+      [companyId, prepared.materialName],
+    );
+    if (existingByName.rows[0]?.id) return { id: existingByName.rows[0].id, created: false };
   }
 
   const supplierCode = prepared.materialCode.trim() || null;
