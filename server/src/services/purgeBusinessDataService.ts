@@ -48,6 +48,21 @@ export async function purgeBusinessData(
     await deleteByCompany(
       client,
       companyId,
+      `DELETE FROM cartela_labels WHERE company_id = $1`,
+      'cartela_labels',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM cartela_fiber_types WHERE company_id = $1`,
+      'cartela_fiber_types',
+      summary,
+    );
+
+    await deleteByCompany(
+      client,
+      companyId,
       `DELETE FROM return_invoice_lines WHERE company_id = $1`,
       'return_invoice_lines',
       summary,
