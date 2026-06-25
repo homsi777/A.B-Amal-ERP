@@ -5,7 +5,7 @@ import { useStore } from '../../store/useStore';
 import { ArrowRight, Save, X, FileText, Plus, Trash2, QrCode, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { calculateFabricInvoiceSummary, calculateFabricWeightKg } from '../../lib/fabricInvoiceSummary';
-import { sendTelegramInvoiceNotification } from '../../lib/telegramInvoice';
+import { sendTelegramInvoiceFromSavedInvoice } from '../../lib/telegramInvoice';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import {
@@ -2442,6 +2442,8 @@ export const InvoiceForm = () => {
       if (!window.confirm('سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟')) return;
     }
 
+    let invoiceForTelegram: Invoice | null = null;
+
     try {
       if (!editInvoiceId) {
         if (isSales) {
@@ -2486,6 +2488,7 @@ export const InvoiceForm = () => {
               partyName: partyNameForVoucher,
             });
           });
+          if (status === 'final') invoiceForTelegram = savedInvoiceForActions;
           showToast({
             type: 'success',
             message:
@@ -2535,6 +2538,7 @@ export const InvoiceForm = () => {
               partyName: partyNameForVoucher,
             });
           });
+          if (status === 'final') invoiceForTelegram = savedInvoiceForActions;
           showToast({
             type: 'success',
             message:
@@ -2589,6 +2593,7 @@ export const InvoiceForm = () => {
               partyName: partyNameForVoucher,
             });
           });
+          invoiceForTelegram = savedInvoiceForActions;
           showToast({
             type: 'success',
             message: `تم تأكيد الفاتورة رقم: ${confirmedNo}`,
@@ -2641,6 +2646,7 @@ export const InvoiceForm = () => {
               partyName: partyNameForVoucher,
             });
           });
+          invoiceForTelegram = savedInvoiceForActions;
           showToast({
             type: 'success',
             message: `تم ترحيل فاتورة الشراء رقم: ${confirmedNo}`,
@@ -2655,14 +2661,15 @@ export const InvoiceForm = () => {
       return;
     }
 
-    try {
-      await sendTelegramInvoiceNotification({
-        invoice: invoicePayload,
-        invoiceType: isSales ? 'sale' : 'purchase',
-        partyName: selectedParty?.name || (selectedParty as any)?.company || 'عميل',
-      });
-    } catch (error) {
-      console.warn('Telegram invoice notification failed', error);
+    if (status === 'final' && invoiceForTelegram) {
+      try {
+        await sendTelegramInvoiceFromSavedInvoice(
+          invoiceForTelegram,
+          invoiceForTelegram.partyDisplayName || partyNameForVoucher,
+        );
+      } catch (error) {
+        console.warn('Telegram invoice notification failed', error);
+      }
     }
 
     if (isSales) {

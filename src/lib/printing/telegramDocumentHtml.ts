@@ -10,7 +10,7 @@ export type SaleInvoiceTelegramPayload = {
   partyName: string;
 };
 
-export function buildTelegramSaleInvoiceHtml({ invoice, partyName }: SaleInvoiceTelegramPayload): string {
+export function buildTelegramInvoiceHtml(invoice: Invoice, partyName: string): string {
   return renderInvoiceStatementA4Html({
     invoice,
     partyName,
@@ -19,8 +19,12 @@ export function buildTelegramSaleInvoiceHtml({ invoice, partyName }: SaleInvoice
   });
 }
 
+export function buildTelegramSaleInvoiceHtml({ invoice, partyName }: SaleInvoiceTelegramPayload): string {
+  return buildTelegramInvoiceHtml(invoice, partyName);
+}
+
 export function buildTelegramPurchaseInvoiceHtml({ invoice, partyName }: SaleInvoiceTelegramPayload): string {
-  return buildTelegramSaleInvoiceHtml({ invoice, partyName });
+  return buildTelegramInvoiceHtml(invoice, partyName);
 }
 
 export type CustomerAccountStatementHtmlInput = Parameters<typeof renderCustomerAccountStatementPdfHtml>[0];

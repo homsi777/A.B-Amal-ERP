@@ -722,7 +722,7 @@ export function renderInvoiceStatementA4Html(opts: {
   </style>
 </head>
 <body>
-  <div class="page">
+  <div class="page" data-clotex-doc="invoice-statement-a4">
     <div class="page-no-box">1 / 1</div>
     <div class="page-body">
       <div class="brand-wrap">

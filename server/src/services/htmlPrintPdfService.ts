@@ -81,9 +81,13 @@ function isAccountStatementHtml(html: string): boolean {
   return /class\s*=\s*["']stmt-page["']/.test(html);
 }
 
+function isInvoiceStatementA4Html(html: string): boolean {
+  return /data-clotex-doc\s*=\s*["']invoice-statement-a4["']/.test(html);
+}
+
 function resolvePdfViewport(html: string): { width: number; height: number } {
   if (isVoucherA5Html(html)) return { width: 559, height: 794 };
-  if (isAccountStatementHtml(html)) return { width: 794, height: 1123 };
+  if (isAccountStatementHtml(html) || isInvoiceStatementA4Html(html)) return { width: 794, height: 1123 };
   return { width: 794, height: 1123 };
 }
 

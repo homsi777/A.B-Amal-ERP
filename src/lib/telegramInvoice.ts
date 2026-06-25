@@ -4,10 +4,7 @@ import { BRAND } from '../branding';
 import { arInvoicePaymentStatusCode } from './i18n/arTerminology';
 import { sendTelegramDocument } from './api/telegramApi';
 import { buildInvoiceStatementFileName } from './printing/documentFileNames';
-import {
-  buildTelegramPurchaseInvoiceHtml,
-  buildTelegramSaleInvoiceHtml,
-} from './printing/telegramDocumentHtml';
+import { buildTelegramInvoiceHtml } from './printing/telegramDocumentHtml';
 
 interface TelegramInvoicePayload {
   invoice: Omit<Invoice, 'id' | 'type'> & { id?: string };
@@ -101,11 +98,14 @@ ${currency !== 'USD' && remainingUsd != null ? `المتبقي بالدولار:
 }
 
 /** نفس قالب كشف الفاتورة A4 — للطباعة والتصدير وتيليغرام */
-export function formatTelegramInvoicePdfHtml({ invoice, invoiceType, partyName }: TelegramInvoicePayload): string {
-  const payload = { invoice: invoice as Invoice, partyName };
-  return invoiceType === 'sale'
-    ? buildTelegramSaleInvoiceHtml(payload)
-    : buildTelegramPurchaseInvoiceHtml(payload);
+export function formatTelegramInvoicePdfHtml({ invoice, partyName }: TelegramInvoicePayload): string {
+  return buildTelegramInvoiceHtml(invoice as Invoice, partyName);
+}
+
+/** إرسال تيليغرام بفاتورة كاملة (نفس كائن التصدير بعد الحفظ) */
+export async function sendTelegramInvoiceFromSavedInvoice(invoice: Invoice, partyName: string): Promise<void> {
+  const invoiceType = invoice.type === 'purchase' ? 'purchase' : 'sale';
+  await sendTelegramInvoiceNotification({ invoice, invoiceType, partyName });
 }
 
 export async function sendTelegramInvoiceNotification(payload: TelegramInvoicePayload): Promise<void> {
