@@ -33,6 +33,7 @@
     "server:dev": "tsx watch server/src/index.ts",
     "server:start": "tsx server/src/index.ts",
     "server:migrate": "tsx server/src/db/migrate.ts",
+    "ai:diagnose": "tsx server/src/scripts/diagnoseClotexAi.ts",
     "server:seed": "tsx server/src/db/seed.ts",
     "server:reset:clean": "cross-env ALLOW_DB_RESET=true tsx server/src/db/resetClean.ts",
     "activation:generate": "tsx server/src/scripts/generateActivationKeys.ts",
