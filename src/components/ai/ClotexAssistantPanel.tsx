@@ -34,8 +34,8 @@ function mapError(reply: string, errorCode: string | null): { text: string; isEr
   if (errorCode === 'AI_NOT_CONFIGURED' || errorCode === 'AI_DISABLED') {
     return { text: ERR_MISSING_KEY, isError: true };
   }
-  if (errorCode === 'AI_API_ERROR') {
-    return { text: ERR_API, isError: true };
+  if (errorCode === 'AI_API_ERROR' || errorCode === 'AI_OPENAI_ERROR') {
+    return { text: reply || ERR_API, isError: true };
   }
   if (reply.includes(ERR_SCOPE)) {
     return { text: ERR_SCOPE, isError: true };

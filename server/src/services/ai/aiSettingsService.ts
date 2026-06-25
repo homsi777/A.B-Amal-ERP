@@ -1,4 +1,5 @@
 import { getPool } from '../../db/pool.js';
+import { formatOpenAiError, postOpenAiChatCompletion } from './openAiClient.js';
 import {
   decryptSecret,
   encryptSecret,
@@ -114,21 +115,13 @@ export async function testOpenAiConnection(companyId: string, apiKeyOverride?: s
     throw new Error('لم يتم ضبط مفتاح OpenAI بعد. يرجى ضبطه من الإعدادات.');
   }
   const model = await resolveAiModel(companyId);
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: 'ping' }],
-      max_tokens: 5,
-    }),
+  const result = await postOpenAiChatCompletion(key, {
+    model,
+    messages: [{ role: 'user', content: 'ping' }],
+    max_tokens: 5,
   });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(errText.includes('invalid_api_key') ? 'مفتاح OpenAI غير صالح.' : 'فشل اختبار الاتصال بـ OpenAI.');
+  if (!result.ok) {
+    throw new Error(formatOpenAiError(result.status, result.body));
   }
   return { ok: true, model };
 }

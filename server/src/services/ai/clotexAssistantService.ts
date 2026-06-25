@@ -8,6 +8,7 @@ import {
   executeFabricAiTool,
   FABRIC_AI_TOOL_DEFINITIONS,
 } from './fabricAiTools.js';
+import { formatOpenAiError, postOpenAiChatCompletion } from './openAiClient.js';
 
 export const SCOPE_REFUSAL =
   'أنا CLOTEX، مساعد خاص بمشروع الأقمشة فقط، ولا أستطيع الإجابة خارج بيانات المشروع.';
@@ -51,7 +52,6 @@ interface OpenAiResponse {
     };
     finish_reason?: string;
   }>;
-  error?: { message?: string };
 }
 
 async function callOpenAi(
@@ -64,24 +64,17 @@ async function callOpenAi(
     model,
     messages,
     temperature: 0.2,
+    max_tokens: 1200,
   };
   if (tools) {
     body.tools = FABRIC_AI_TOOL_DEFINITIONS;
     body.tool_choice = 'auto';
   }
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as OpenAiResponse;
-  if (!res.ok) {
-    throw new Error(data.error?.message || API_FAILURE_MESSAGE);
+  const result = await postOpenAiChatCompletion(apiKey, body);
+  if (!result.ok) {
+    throw new Error(formatOpenAiError(result.status, result.body));
   }
-  return data;
+  return result.data as OpenAiResponse;
 }
 
 async function persistChat(
@@ -91,28 +84,33 @@ async function persistChat(
   userMessage: string,
   assistantMessage: string,
   toolMetadata: unknown,
-): Promise<string> {
-  const pool = getPool();
-  let sid = sessionId;
-  if (!sid) {
-    const ins = await pool.query<{ id: string }>(
-      `INSERT INTO ai_chat_sessions (company_id, user_id) VALUES ($1, $2) RETURNING id`,
-      [companyId, userId],
+): Promise<string | null> {
+  try {
+    const pool = getPool();
+    let sid = sessionId;
+    if (!sid) {
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO ai_chat_sessions (company_id, user_id) VALUES ($1, $2) RETURNING id`,
+        [companyId, userId],
+      );
+      sid = ins.rows[0].id;
+    } else {
+      await pool.query(`UPDATE ai_chat_sessions SET updated_at = now() WHERE id = $1`, [sid]);
+    }
+    await pool.query(
+      `INSERT INTO ai_chat_messages (session_id, company_id, role, content) VALUES ($1, $2, 'user', $3)`,
+      [sid, companyId, userMessage],
     );
-    sid = ins.rows[0].id;
-  } else {
-    await pool.query(`UPDATE ai_chat_sessions SET updated_at = now() WHERE id = $1`, [sid]);
+    await pool.query(
+      `INSERT INTO ai_chat_messages (session_id, company_id, role, content, tool_metadata)
+       VALUES ($1, $2, 'assistant', $3, $4)`,
+      [sid, companyId, assistantMessage, toolMetadata ? JSON.stringify(toolMetadata) : null],
+    );
+    return sid!;
+  } catch (error) {
+    console.warn('[clotex-ai] تعذر حفظ سجل المحادثة:', error instanceof Error ? error.message : error);
+    return sessionId;
   }
-  await pool.query(
-    `INSERT INTO ai_chat_messages (session_id, company_id, role, content) VALUES ($1, $2, 'user', $3)`,
-    [sid, companyId, userMessage],
-  );
-  await pool.query(
-    `INSERT INTO ai_chat_messages (session_id, company_id, role, content, tool_metadata)
-     VALUES ($1, $2, 'assistant', $3, $4)`,
-    [sid, companyId, assistantMessage, toolMetadata ? JSON.stringify(toolMetadata) : null],
-  );
-  return sid!;
 }
 
 export async function runFabricChat(
@@ -187,11 +185,21 @@ export async function runFabricChat(
         reply,
         toolsUsed.length ? { tools: toolsUsed } : null,
       );
-      return { reply, sessionId: newSessionId };
+      return { reply, sessionId: newSessionId ?? sessionId };
     }
 
     return { reply: API_FAILURE_MESSAGE, sessionId, errorCode: 'AI_API_ERROR' };
-  } catch {
-    return { reply: API_FAILURE_MESSAGE, sessionId, errorCode: 'AI_API_ERROR' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : API_FAILURE_MESSAGE;
+    console.warn('[clotex-ai] فشل المحادثة:', message);
+    const isConfigError =
+      message.includes('مفتاح OpenAI')
+      || message.includes('رصيد OpenAI')
+      || message.includes('خطأ OpenAI');
+    return {
+      reply: isConfigError ? message : API_FAILURE_MESSAGE,
+      sessionId,
+      errorCode: isConfigError ? 'AI_OPENAI_ERROR' : 'AI_API_ERROR',
+    };
   }
 }

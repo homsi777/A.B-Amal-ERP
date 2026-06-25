@@ -80,21 +80,25 @@ async function checkSettings(companyId: string): Promise<void> {
   }
 }
 
-async function checkKeyDecrypt(companyId: string): Promise<boolean> {
+async function checkKeyDecrypt(companyId: string): Promise<string | null> {
   console.log('\n── 4) فك تشفير المفتاح ──');
   try {
     const key = await resolveOpenAiApiKey(companyId);
     if (!key) {
       console.log('❌ لا يمكن قراءة المفتاح (غير مفعّل أو غير محفوظ)');
-      return false;
+      return null;
     }
-    console.log(`✅ المفتاح يُقرأ بنجاح (ينتهي بـ ...${key.slice(-4)})`);
-    return true;
+    const prefix = key.startsWith('sk-proj-') ? 'sk-proj-...' : key.startsWith('sk-') ? 'sk-...' : 'غير معروف';
+    console.log(`✅ المفتاح يُقرأ بنجاح (${prefix} ينتهي بـ ...${key.slice(-4)}, الطول: ${key.length})`);
+    if (key.length < 20) {
+      console.log('⚠️  طول المفتاح قصير جداً — قد يكون تالفاً عند الحفظ.');
+    }
+    return key;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.log(`❌ فشل فك التشفير: ${msg}`);
     console.log('   → أعد حفظ المفتاح من الإعدادات (قد يكون SETTINGS_ENCRYPTION_KEY أو JWT_SECRET تغيّر).');
-    return false;
+    return null;
   }
 }
 
@@ -129,8 +133,8 @@ async function main() {
   }
 
   await checkSettings(companyId);
-  const hasKey = await checkKeyDecrypt(companyId);
-  if (hasKey) {
+  const key = await checkKeyDecrypt(companyId);
+  if (key) {
     await checkOpenAiWithKey(companyId);
   }
 
