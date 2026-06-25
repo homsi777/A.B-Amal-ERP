@@ -1,5 +1,6 @@
 import type { Invoice, InvoiceItem } from '../../types';
 import { BRAND } from '../../branding';
+import { AR_INVOICE_STATEMENT } from '../i18n/arTerminology';
 import { resolveDisplayMaterialCode } from '../importDisplay';
 import { displayStoredInvoiceNo } from '../invoiceDbMappers';
 import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocumentFooter';
@@ -138,8 +139,13 @@ export function renderInvoiceStatementA4Html(opts: {
   hideFinancialColumns?: boolean;
   title?: string;
   subtitle?: string;
+  /** عند true يُظهر شريط «مسودة غير مؤكدة» على المستند */
+  isDraft?: boolean;
+  draftLabel?: string;
 }): string {
   const invoice = opts.invoice;
+  const isDraft = opts.isDraft ?? invoice.documentStatus === 'DRAFT';
+  const draftLabel = opts.draftLabel ?? AR_INVOICE_STATEMENT.draftBanner;
   const currency = (invoice.currency || 'USD').trim() || 'USD';
   const title = opts.title ?? 'إشعار تسليم تفصيلي';
   const subtitle = opts.subtitle ?? 'كشف الفاتورة';
@@ -477,6 +483,32 @@ export function renderInvoiceStatementA4Html(opts: {
       margin: 0 0 10px;
       line-height: 1.2;
     }
+    .draft-banner {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 900;
+      color: #92400e;
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      border-radius: 6px;
+      padding: 7px 12px;
+      margin: 0 0 10px;
+      letter-spacing: 0.3px;
+    }
+    .draft-watermark {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-28deg);
+      font-size: 42px;
+      font-weight: 900;
+      color: #f59e0b;
+      opacity: 0.1;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 0;
+      user-select: none;
+    }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     table th,
     table td {
@@ -723,12 +755,14 @@ export function renderInvoiceStatementA4Html(opts: {
 </head>
 <body>
   <div class="page" data-clotex-doc="invoice-statement-a4">
+    ${isDraft ? `<div class="draft-watermark">${escapeHtml(draftLabel)}</div>` : ''}
     <div class="page-no-box">1 / 1</div>
     <div class="page-body">
       <div class="brand-wrap">
         <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
       </div>
       <div class="doc-title">${escapeHtml(title)}</div>
+      ${isDraft ? `<div class="draft-banner">${escapeHtml(draftLabel)}</div>` : ''}
 
       ${metaRowsHtml}
 

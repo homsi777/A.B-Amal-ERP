@@ -42,6 +42,7 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
       partyName,
       title: AR_INVOICE_STATEMENT.printTitle,
       subtitle: AR_INVOICE_STATEMENT.printSubtitle,
+      isDraft: invoice.documentStatus === 'DRAFT',
     });
 
   const safeInvoiceNo = safeFilePart(invoice.invoiceNumber || invoice.id, 'كشف');

@@ -447,6 +447,8 @@ export const InvoiceStatement = () => {
     }));
   }, [invoice, summary.groups]);
 
+  const isDraftStatement = documentStatus === 'DRAFT';
+
   const buildA4Html = () => {
     if (!invoice) return '';
     return renderInvoiceStatementA4Html({
@@ -455,6 +457,7 @@ export const InvoiceStatement = () => {
       hideFinancialColumns,
       title: AR_INVOICE_STATEMENT.printTitle,
       subtitle: AR_INVOICE_STATEMENT.printSubtitle,
+      isDraft: isDraftStatement,
     });
   };
 
@@ -478,6 +481,7 @@ export const InvoiceStatement = () => {
           hideFinancialColumns,
           title: AR_INVOICE_STATEMENT.printTitle,
           subtitle: AR_INVOICE_STATEMENT.printSubtitle,
+          isDraft: isDraftStatement,
         });
         const settings = await window.fabricApp.getSettings();
         const result = await window.fabricApp.printHtml(html, {
@@ -506,13 +510,7 @@ export const InvoiceStatement = () => {
     setExportingPdf(true);
     try {
       const defaultFileName = pdfFileStem(defaultPdfFileName);
-      const html = renderInvoiceStatementA4Html({
-        invoice,
-        partyName,
-        hideFinancialColumns,
-        title: AR_INVOICE_STATEMENT.printTitle,
-        subtitle: AR_INVOICE_STATEMENT.printSubtitle,
-      });
+      const html = buildA4Html();
 
       const useElectronPdf =
         window.fabricApp?.isElectron === true && typeof window.fabricApp.printToPdf === 'function';

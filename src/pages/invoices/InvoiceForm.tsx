@@ -2344,6 +2344,7 @@ export const InvoiceForm = () => {
       currency,
       warehouse,
       notes: headerNotes.trim(),
+      documentStatus: status === 'draft' ? ('DRAFT' as const) : ('CONFIRMED' as const),
       totalAmount: persistedFinalTotal,
       paidAmount,
       remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),

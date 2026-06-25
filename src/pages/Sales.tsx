@@ -293,6 +293,12 @@ export const Sales = () => {
                           {doc === 'DRAFT' ? (
                             <>
                               <Link
+                                to={`/invoices/statement/${invoice.id}`}
+                                className="text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition text-xs"
+                              >
+                                كشف المسودة
+                              </Link>
+                              <Link
                                 to={`/invoices/sales/${invoice.id}/edit`}
                                 className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
                               >

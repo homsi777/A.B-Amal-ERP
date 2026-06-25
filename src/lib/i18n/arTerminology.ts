@@ -36,6 +36,8 @@ export const AR_INVOICE_STATEMENT = {
   preparedBy: 'أعدّها',
   deliveredBy: 'سلّمها',
   receivedBy: 'استلمها',
+  /** يُطبع على كشوف المسودات قبل التأكيد */
+  draftBanner: 'مسودة غير مؤكدة',
 } as const;
 
 /** Payment progress for display (حالة الدفع) from settled amounts. */
