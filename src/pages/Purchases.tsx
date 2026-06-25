@@ -20,7 +20,7 @@ import {
   voidPurchaseInvoice,
 } from '../lib/api/purchaseInvoicesApi';
 import { displayStoredInvoiceNo, mapPurchaseListRowToInvoice, type ListedPurchaseInvoice } from '../lib/invoiceDbMappers';
-import { arInvoicePaymentStatusCode, arDocumentStatus } from '../lib/i18n/arTerminology';
+import { arInvoicePaymentStatusTable, arDocumentStatus } from '../lib/i18n/arTerminology';
 import { useToast } from '../components/NonBlockingToast';
 import { ApiRequestError } from '../lib/api/client';
 
@@ -421,7 +421,7 @@ export const Purchases = () => {
                 <th className="px-6 py-4">المدفوع ($)</th>
                 <th className="px-6 py-4">المتبقي ($)</th>
                 <th className="px-6 py-4">حالة المستند</th>
-                <th className="px-6 py-4">حالة الدفع</th>
+                <th className="px-4 py-4 whitespace-nowrap">حالة الدفع</th>
                 <th className="px-6 py-4">الإجراءات</th>
               </tr>
             </thead>
@@ -456,9 +456,9 @@ export const Purchases = () => {
                         {arDocumentStatus(doc)}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       <span
-                        className={`px-2 py-1 rounded text-xs font-bold ${
+                        className={`inline-flex items-center justify-center whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold leading-none ${
                           ps === 'paid'
                             ? 'bg-emerald-100 text-emerald-700'
                             : ps === 'partial'
@@ -466,7 +466,7 @@ export const Purchases = () => {
                               : 'bg-rose-100 text-rose-700'
                         }`}
                       >
-                        {arInvoicePaymentStatusCode(ps)}
+                        {arInvoicePaymentStatusTable(ps)}
                       </span>
                     </td>
                     <td className="px-6 py-4">

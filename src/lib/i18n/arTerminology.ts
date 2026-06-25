@@ -70,6 +70,13 @@ export function arInvoicePaymentStatusCode(status: Invoice['status']): string {
   return 'غير مدفوع';
 }
 
+/** نسخة مضغوطة لجداول الفواتير — تمنع التكدس في عمود حالة الدفع */
+export function arInvoicePaymentStatusTable(status: Invoice['status']): string {
+  if (status === 'paid') return 'مدفوع';
+  if (status === 'partial') return 'جزئي';
+  return 'غير\u00A0مدفوع';
+}
+
 /** Document lifecycle status from backend enums (uppercase). */
 export function arDocumentStatus(status: string | null | undefined): string {
   if (!status) return '—';
