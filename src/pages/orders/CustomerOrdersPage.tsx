@@ -21,6 +21,9 @@ import { ORDER_STATUS_LABELS, statusBadgeClass } from './orderStatusUi';
 import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
 import { deliveryCountdownClass, orderDeliveryCountdown } from '../../lib/orderDeliveryCountdown';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
+import { TelegramSendButton } from '../../components/telegram/TelegramSendButton';
+import { sendTelegramCustomerOrder } from '../../lib/telegramOrder';
+import { useToast } from '../../components/NonBlockingToast';
 import {
   createCustomerOrderApi,
   createOrderTemplateApi,
@@ -57,6 +60,7 @@ const mapApiCustomer = (c: ApiCustomer): Customer => ({
 
 export function CustomerOrdersPage() {
   const inventory = useStore((s) => s.inventory);
+  const { showToast } = useToast();
 
   const [tab, setTab] = useState<TabId>('registry');
   const [search, setSearch] = useState('');
@@ -68,6 +72,7 @@ export function CustomerOrdersPage() {
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<CustomerOrder | null>(null);
   const [detailOrder, setDetailOrder] = useState<CustomerOrder | null>(null);
+  const [telegramBusyId, setTelegramBusyId] = useState<string | null>(null);
 
   const [tplModalOpen, setTplModalOpen] = useState(false);
   const [tplName, setTplName] = useState('');
@@ -198,6 +203,26 @@ export function CustomerOrdersPage() {
     } catch (e) {
       setCustomerOrders(previous);
       setError(e instanceof Error ? e.message : 'Failed to delete order');
+    }
+  };
+
+  const handleSendTelegram = async (order: CustomerOrder) => {
+    const customer = customers.find((c) => c.id === order.customerId);
+    if (!customer) {
+      showToast({ type: 'error', message: 'تعذر العثور على بيانات العميل لهذه الطلبية.' });
+      return;
+    }
+    setTelegramBusyId(order.id);
+    try {
+      await sendTelegramCustomerOrder(order, customer);
+      showToast({ type: 'success', message: 'تم إرسال الطلبية إلى تيليغرام.' });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'تعذر إرسال الطلبية إلى تيليغرام',
+      });
+    } finally {
+      setTelegramBusyId(null);
     }
   };
 
@@ -405,6 +430,12 @@ export function CustomerOrdersPage() {
                             <Pencil className="w-3.5 h-3.5" />
                             تعديل
                           </button>
+                          <TelegramSendButton
+                            size="compact"
+                            label="تيليغرام"
+                            busy={telegramBusyId === o.id}
+                            onClick={() => void handleSendTelegram(o)}
+                          />
                           <button
                             type="button"
                             onClick={(e) => {

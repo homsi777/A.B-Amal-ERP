@@ -10,6 +10,8 @@ import {
 import { renderReservationOrderA4Document } from '../../lib/printing/renderReservationOrderA4';
 import { ORDER_STATUS_LABELS } from '../../pages/orders/orderStatusUi';
 import { useToast } from '../NonBlockingToast';
+import { TelegramSendButton } from '../telegram/TelegramSendButton';
+import { sendTelegramCustomerOrder } from '../../lib/telegramOrder';
 
 export interface OrderDetailModalProps {
   open: boolean;
@@ -30,6 +32,7 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
   const { showToast } = useToast();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [printBusy, setPrintBusy] = useState(false);
+  const [telegramBusy, setTelegramBusy] = useState(false);
   const party = customer ?? FALLBACK_CUSTOMER;
   const statusLabel = order ? ORDER_STATUS_LABELS[order.status] : '';
 
@@ -73,6 +76,22 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
     const text = buildCustomerOrderWhatsAppText(order, party, statusLabel);
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   }, [order, party, statusLabel]);
+
+  const handleTelegram = useCallback(async () => {
+    if (!order) return;
+    setTelegramBusy(true);
+    try {
+      await sendTelegramCustomerOrder(order, party, statusLabel);
+      showToast({ type: 'success', message: 'تم إرسال الطلبية إلى تيليغرام.' });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'تعذر إرسال الطلبية إلى تيليغرام',
+      });
+    } finally {
+      setTelegramBusy(false);
+    }
+  }, [order, party, statusLabel, showToast]);
 
   if (!open || !order) return null;
 
@@ -131,6 +150,13 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
               <MessageCircle className="w-4 h-4 shrink-0" />
               واتساب
             </button>
+            <TelegramSendButton
+              size="toolbar"
+              label="إرسال تيليغرام"
+              busy={telegramBusy}
+              onClick={handleTelegram}
+              className="rounded-xl"
+            />
             <button
               type="button"
               onClick={onClose}

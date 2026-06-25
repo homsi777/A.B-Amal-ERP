@@ -3,6 +3,9 @@ import { Search, Filter, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-re
 import { listVouchers, type VoucherRow } from '../lib/api/vouchersApi';
 import { ApiRequestError } from '../lib/api/client';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../components/NonBlockingToast';
+import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
+import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
 
 function typeLabel(t: string) {
   return t === 'RECEIPT' ? 'قبض' : 'صرف';
@@ -17,9 +20,11 @@ function statusLabel(s: string) {
 
 export const BondRecords = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [bonds, setBonds] = useState<VoucherRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [telegramBusyId, setTelegramBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,6 +42,21 @@ export const BondRecords = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleSendTelegram = async (bond: VoucherRow) => {
+    setTelegramBusyId(bond.id);
+    try {
+      await sendTelegramVoucherFromRow(bond);
+      showToast({ type: 'success', message: 'تم إرسال السند إلى تيليغرام.' });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'تعذر إرسال السند إلى تيليغرام',
+      });
+    } finally {
+      setTelegramBusyId(null);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -82,19 +102,20 @@ export const BondRecords = () => {
                 <th className="px-6 py-4">الصندوق</th>
                 <th className="px-6 py-4">البيان</th>
                 <th className="px-6 py-4">الحالة</th>
+                <th className="px-6 py-4">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
                     جاري التحميل...
                   </td>
                 </tr>
               ) : bonds.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
                     لا توجد سندات بعد
                   </td>
                 </tr>
@@ -136,6 +157,18 @@ export const BondRecords = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-700">{statusLabel(bond.status)}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {bond.status === 'CONFIRMED' ? (
+                        <TelegramSendButton
+                          size="compact"
+                          label="تيليغرام"
+                          busy={telegramBusyId === bond.id}
+                          onClick={() => void handleSendTelegram(bond)}
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))

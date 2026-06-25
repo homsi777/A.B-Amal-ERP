@@ -35,6 +35,8 @@ import {
 } from '../../lib/i18n/arTerminology';
 import { ApiRequestError } from '../../lib/api/client';
 import { listCashboxes } from '../../lib/api/cashboxesApi';
+import { TelegramSendButton } from '../../components/telegram/TelegramSendButton';
+import { sendTelegramInvoiceFromSavedInvoice } from '../../lib/telegramInvoice';
 
 const formatNumber = (value: number) => value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatMoney = (value: number, currency: string) => `${formatNumber(value)} ${currency || 'USD'}`;
@@ -69,6 +71,7 @@ export const InvoiceStatement = () => {
   const [invoiceActionBusy, setInvoiceActionBusy] = useState(false);
   const [confirmCashboxId, setConfirmCashboxId] = useState('');
   const [cashboxOptions, setCashboxOptions] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [telegramBusy, setTelegramBusy] = useState(false);
 
   const currentId = id || searchId;
 
@@ -372,6 +375,23 @@ export const InvoiceStatement = () => {
     (party as { company?: string })?.company ||
     (invoice?.partyId?.trim() ? '—' : arCashPartyFallbackLabel());
   const currency = invoice?.currency || 'USD';
+
+  const handleSendTelegram = async () => {
+    if (!invoice) return;
+    setTelegramBusy(true);
+    try {
+      await sendTelegramInvoiceFromSavedInvoice(invoice, partyName);
+      showToast({ type: 'success', message: 'تم إرسال الفاتورة إلى تيليغرام.' });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'تعذر إرسال الفاتورة إلى تيليغرام',
+      });
+    } finally {
+      setTelegramBusy(false);
+    }
+  };
+
   const exchangeRateToUsd = invoice ? (currency === 'USD' ? 1 : invoice.exchangeRateToUsd ?? 0) : 0;
   const totalAmountUsd =
     invoice && !hideFinancialColumns
@@ -593,6 +613,15 @@ export const InvoiceStatement = () => {
             <Share2 className="w-4 h-4" />
             <span className="hidden sm:inline">مشاركة</span>
           </button>
+          {documentStatus === 'CONFIRMED' ? (
+            <TelegramSendButton
+              size="toolbar"
+              label="إرسال تيليغرام"
+              busy={telegramBusy}
+              disabled={!invoice}
+              onClick={handleSendTelegram}
+            />
+          ) : null}
           <button
             type="button"
             onClick={() => setHideFinancialColumns((value) => !value)}

@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { getCustomerStatement } from '../lib/api/partyStatementsApi';
 import { exportPdfFromHtmlString } from '../lib/pdfExport';
 import { buildTelegramCustomerAccountStatementHtml } from '../lib/printing/telegramDocumentHtml';
+import { DUES_REPORT_TABLE_HEAD_CSS, sanitizePartyNotesForExport } from '../lib/printing/sanitizeExportNotes';
 import { loadCustomerSaleInvoiceDetails } from '../lib/customerStatementInvoiceDetails';
 import { BRAND } from '../branding';
 import { CustomerStatementImportModal } from '../components/customers/CustomerStatementImportModal';
@@ -174,7 +175,7 @@ export const Customers = () => {
             <td>${formatMoney(s.debit)}</td>
             <td>${formatMoney(s.remaining)}</td>
             <td>${escapeHtml(s.currency)}</td>
-            <td>${escapeHtml(customer.notes || '—')}</td>
+            <td>${escapeHtml(sanitizePartyNotesForExport(customer.notes))}</td>
           </tr>
         `;
       })
@@ -195,7 +196,7 @@ export const Customers = () => {
             .meta { display:flex; justify-content:space-between; margin-bottom:8px; color:#334155; font-size:11px; }
             table { width:100%; border-collapse:collapse; }
             th, td { border:1px solid #cbd5e1; padding:6px; text-align:right; }
-            thead th { background:#0f172a; color:#fff; }
+            ${DUES_REPORT_TABLE_HEAD_CSS}
             tbody tr:nth-child(even) { background:#f8fafc; }
           </style>
         </head>

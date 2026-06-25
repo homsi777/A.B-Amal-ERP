@@ -5,6 +5,8 @@ import { ApiRequestError } from '../lib/api/client';
 import { cancelVoucher, confirmVoucher, getVoucher, type VoucherRow } from '../lib/api/vouchersApi';
 import { useToast } from '../components/NonBlockingToast';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
+import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
+import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
 
 function typeLabel(t: string) {
   return t === 'RECEIPT' ? 'قبض' : 'صرف';
@@ -28,6 +30,7 @@ export const BondDetails = () => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [telegramBusy, setTelegramBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -73,6 +76,22 @@ export const BondDetails = () => {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر إلغاء السند' });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleSendTelegram = async () => {
+    if (!bond) return;
+    setTelegramBusy(true);
+    try {
+      await sendTelegramVoucherFromRow(bond);
+      showToast({ type: 'success', message: 'تم إرسال السند إلى تيليغرام.' });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'تعذر إرسال السند إلى تيليغرام',
+      });
+    } finally {
+      setTelegramBusy(false);
     }
   };
 
@@ -130,6 +149,14 @@ export const BondDetails = () => {
                   طباعة / PDF
                 </span>
               </button>
+              {bond.status === 'CONFIRMED' ? (
+                <TelegramSendButton
+                  size="toolbar"
+                  label="إرسال تيليغرام"
+                  busy={telegramBusy}
+                  onClick={handleSendTelegram}
+                />
+              ) : null}
               {bond.status === 'DRAFT' && (
                 <button
                   type="button"

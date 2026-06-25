@@ -37,6 +37,10 @@ export function buildVoucherFileName(
   return `سند_${typeLabel}_${sanitizeDocumentFilePart(partyName, 'طرف')}_${sanitizeDocumentFilePart(voucherNo, 'سند')}`;
 }
 
+export function buildCustomerOrderFileName(customerName: string, orderNo: string): string {
+  return `طلبية_${sanitizeDocumentFilePart(customerName, 'عميل')}_${sanitizeDocumentFilePart(orderNo, 'طلبية')}`;
+}
+
 /** Strip .pdf extension for Electron save dialogs that add it automatically. */
 export function pdfFileStem(fileName: string): string {
   return fileName.replace(/\.pdf$/i, '');

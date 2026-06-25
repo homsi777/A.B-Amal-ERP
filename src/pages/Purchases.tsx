@@ -23,6 +23,8 @@ import { displayStoredInvoiceNo, mapPurchaseListRowToInvoice, type ListedPurchas
 import { arInvoicePaymentStatusTable, arDocumentStatus } from '../lib/i18n/arTerminology';
 import { useToast } from '../components/NonBlockingToast';
 import { ApiRequestError } from '../lib/api/client';
+import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
+import { sendTelegramPurchaseInvoiceById } from '../lib/telegramSendById';
 
 const SCAN_DEBOUNCE_MS = 300;
 /** Minimum normalized length to auto-fire after debounce (warehouse scanners). */
@@ -47,6 +49,7 @@ export const Purchases = () => {
   const [scanValue, setScanValue] = useState('');
   const [scanFeedback, setScanFeedback] = useState<ScanFeedback>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [telegramBusyId, setTelegramBusyId] = useState<string | null>(null);
   
   const refreshPurchaseList = useCallback(async () => {
     setPiLoading(true);
@@ -113,6 +116,21 @@ export const Purchases = () => {
         type: 'error',
         message: e instanceof ApiRequestError ? e.message : 'تعذر إلغاء الفاتورة',
       });
+    }
+  };
+
+  const handleSendTelegram = async (invoiceId: string, partyName: string) => {
+    setTelegramBusyId(invoiceId);
+    try {
+      await sendTelegramPurchaseInvoiceById(invoiceId, partyName);
+      showToast({ type: 'success', message: 'تم إرسال الفاتورة إلى تيليغرام.' });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'تعذر إرسال الفاتورة إلى تيليغرام',
+      });
+    } finally {
+      setTelegramBusyId(null);
     }
   };
 
@@ -504,13 +522,21 @@ export const Purchases = () => {
                           </Link>
                         ) : null}
                         {doc === 'CONFIRMED' ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleVoidPurchase(invoice.id)}
-                            className="text-slate-800 font-medium bg-slate-100 px-2 py-1 rounded-lg hover:bg-slate-200 transition text-xs"
-                          >
-                            إلغاء
-                          </button>
+                          <>
+                            <TelegramSendButton
+                              size="compact"
+                              label="تيليغرام"
+                              busy={telegramBusyId === invoice.id}
+                              onClick={() => void handleSendTelegram(invoice.id, partyName)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleVoidPurchase(invoice.id)}
+                              className="text-slate-800 font-medium bg-slate-100 px-2 py-1 rounded-lg hover:bg-slate-200 transition text-xs"
+                            >
+                              إلغاء
+                            </button>
+                          </>
                         ) : null}
                       </div>
                     </td>

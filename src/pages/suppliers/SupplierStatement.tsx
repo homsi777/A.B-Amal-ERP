@@ -13,6 +13,7 @@ import { buildSupplierStatementFileName } from '../../lib/printing/documentFileN
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import { BRAND } from '../../branding';
+import { DUES_REPORT_TABLE_HEAD_CSS, sanitizePartyNotesForExport } from '../../lib/printing/sanitizeExportNotes';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { listPurchaseInvoices, getPurchaseInvoice } from '../../lib/api/purchaseInvoicesApi';
 import { mapPurchaseInvoiceDetailToInvoice } from '../../lib/invoiceDbMappers';
@@ -443,7 +444,7 @@ export const SupplierStatement = () => {
           .summary td, .summary th { padding:8px 6px; font-weight:800; }
           table { width:100%; border-collapse:collapse; }
           th, td { border:1px solid #cbd5e1; padding:7px 6px; text-align:right; }
-          thead th { background:#0f172a; color:#fff; font-weight:800; }
+          ${DUES_REPORT_TABLE_HEAD_CSS}
           tbody tr:nth-child(even) { background:#f8fafc; }
           .num { direction:ltr; text-align:right; white-space:nowrap; }
           .note { color:#334155; }
@@ -514,7 +515,7 @@ export const SupplierStatement = () => {
                       <td class="num">${formatDuesMoney(row.debit)}</td>
                       <td class="num">${formatDuesMoney(row.remaining)}</td>
                       <td>${escapeDuesHtml(row.currency)}</td>
-                      <td class="note">${escapeDuesHtml(row.notes || '')}</td>
+                      <td class="note">${escapeDuesHtml(sanitizePartyNotesForExport(row.notes))}</td>
                     </tr>
                   `,
                 )
