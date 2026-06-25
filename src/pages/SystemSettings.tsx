@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { ThemeDisplaySettings } from '../components/settings/ThemeDisplaySettings';
 import { TelegramBotSettingsPanel } from '../components/settings/TelegramBotSettingsPanel';
+import { AiAssistantSettingsPanel } from '../components/settings/AiAssistantSettingsPanel';
 import { ActiveDevicesPanel } from '../components/settings/ActiveDevicesPanel';
 import { ActivationSettingsPanel } from '../components/activation/ActivationSettingsPanel';
 import { DesktopSettingsBody } from './settings/DesktopSettings';
@@ -48,7 +49,7 @@ import { fetchMe, type AuthUser } from '../lib/api/authApi';
 import { listExchangeRates, updateExchangeRate, type ExchangeRateDto, type SupportedCurrencyCode } from '../lib/api/exchangeRatesApi';
 import { useToast } from '../components/NonBlockingToast';
 
-type SettingsSectionId = 'company' | 'general' | 'desktop' | 'invoice' | 'users' | 'mail' | 'activation' | 'backup' | 'themes' | 'stub' | 'activeDevices';
+type SettingsSectionId = 'company' | 'general' | 'desktop' | 'invoice' | 'users' | 'mail' | 'ai' | 'activation' | 'backup' | 'themes' | 'stub' | 'activeDevices';
 
 type NavRow = {
   navKey: string;
@@ -65,6 +66,7 @@ const NAV_ITEMS: NavRow[] = [
   { navKey: 'users',   section: 'users',   label: 'المستخدمين والصلاحيات', icon: ShieldCheck },
   { navKey: 'activeDevices', section: 'activeDevices', label: 'الأجهزة النشطة', icon: Wifi },
   { navKey: 'mail',    section: 'mail',    label: 'إعدادات المراسلة', icon: Mail },
+  { navKey: 'ai',      section: 'ai',      label: 'مساعد CLOTEX', icon: Bot },
   { navKey: 'backup',  section: 'backup',  label: 'قواعد البيانات (النسخ الاحتياطي)', icon: Database },
   { navKey: 'themes',  section: 'themes',  label: 'الثيمات و عرض', icon: Sparkles },
 ];
@@ -674,6 +676,7 @@ export const SystemSettings = () => {
           )}
 
           {activeSection === 'mail' && <TelegramBotSettingsPanel />}
+          {activeSection === 'ai' && <AiAssistantSettingsPanel />}
 
           {activeSection === 'activation' && <ActivationSettingsPanel />}
 

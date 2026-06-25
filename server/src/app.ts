@@ -38,6 +38,7 @@ import { purchaseInvoiceRoutes } from './routes/purchaseInvoiceRoutes.js';
 import { customerOrderRoutes } from './routes/customerOrderRoutes.js';
 import { financialAuditRoutes } from './routes/financialAuditRoutes.js';
 import { documentPdfRoutes } from './routes/documentPdfRoutes.js';
+import { aiRoutes } from './routes/aiRoutes.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -147,6 +148,8 @@ export async function buildApp() {
   await app.register(customerOrderRoutes, { prefix: '/api/customer-orders' });
   await app.register(financialAuditRoutes, { prefix: '/api/financial-audit' });
   await app.register(documentPdfRoutes, { prefix: '/api/documents' });
+  await app.register(aiRoutes, { prefix: '/api/ai' });
+  await app.register(aiRoutes, { prefix: '/api/v1/ai' });
 
   return app;
 }

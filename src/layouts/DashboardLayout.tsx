@@ -31,6 +31,7 @@ import { ORDER_STATUS_LABELS } from '../pages/orders/orderStatusUi';
 import { useTranslation } from 'react-i18next';
 import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { ClotexAssistant } from '../components/ai/ClotexAssistant';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { SessionPresenceTracker } from '../components/SessionPresenceTracker';
 import { BRAND } from '../branding';
@@ -365,6 +366,7 @@ const Topbar = () => {
         </div>
         <div className="flex items-center gap-2 shrink-0 md:order-1 md:justify-self-start md:gap-3">
           <LanguageSwitcher />
+          <ClotexAssistant />
           {renderNotificationBell('relative rounded-xl p-2 md:p-2.5 transition border')}
           <Link
             to="/login"
