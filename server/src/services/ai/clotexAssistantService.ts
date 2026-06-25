@@ -1,14 +1,11 @@
 import { getPool } from '../../db/pool.js';
-import {
-  getAiSettingsMasked,
-  resolveAiModel,
-  resolveOpenAiApiKey,
-} from './aiSettingsService.js';
+import type { AiProvider } from './aiProviders.js';
+import { resolveAiConfig } from './aiSettingsService.js';
 import {
   executeFabricAiTool,
   FABRIC_AI_TOOL_DEFINITIONS,
 } from './fabricAiTools.js';
-import { formatOpenAiError, postOpenAiChatCompletion } from './openAiClient.js';
+import { formatLlmError, postChatCompletion } from './llmClient.js';
 
 export const SCOPE_REFUSAL =
   'أنا CLOTEX، مساعد خاص بمشروع الأقمشة فقط، ولا أستطيع الإجابة خارج بيانات المشروع.';
@@ -17,7 +14,7 @@ export const NO_DATA_MESSAGE =
   'لا توجد بيانات كافية في النظام للإجابة على هذا السؤال.';
 
 export const MISSING_KEY_MESSAGE =
-  'لم يتم ضبط مفتاح OpenAI بعد. يرجى ضبطه من الإعدادات.';
+  'لم يتم ضبط مفتاح الذكاء الاصطناعي بعد. يرجى ضبطه من الإعدادات.';
 
 export const API_FAILURE_MESSAGE =
   'تعذر الحصول على رد الآن. حاول مرة أخرى.';
@@ -43,7 +40,7 @@ interface OpenAiToolCall {
   function: { name: string; arguments: string };
 }
 
-interface OpenAiResponse {
+interface ChatCompletionResponse {
   choices?: Array<{
     message?: {
       role: string;
@@ -54,12 +51,13 @@ interface OpenAiResponse {
   }>;
 }
 
-async function callOpenAi(
+async function callLlm(
+  provider: AiProvider,
   apiKey: string,
   model: string,
   messages: ApiMessage[],
   tools = true,
-): Promise<OpenAiResponse> {
+): Promise<ChatCompletionResponse> {
   const body: Record<string, unknown> = {
     model,
     messages,
@@ -70,11 +68,11 @@ async function callOpenAi(
     body.tools = FABRIC_AI_TOOL_DEFINITIONS;
     body.tool_choice = 'auto';
   }
-  const result = await postOpenAiChatCompletion(apiKey, body);
+  const result = await postChatCompletion(provider, apiKey, body);
   if (!result.ok) {
-    throw new Error(formatOpenAiError(result.status, result.body));
+    throw new Error(formatLlmError(provider, result.status, result.body));
   }
-  return result.data as OpenAiResponse;
+  return result.data as ChatCompletionResponse;
 }
 
 async function persistChat(
@@ -120,20 +118,12 @@ export async function runFabricChat(
   history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
   sessionId: string | null = null,
 ): Promise<{ reply: string; sessionId: string | null; errorCode?: string }> {
-  const settings = await getAiSettingsMasked(companyId);
-  if (!settings.enabled) {
-    return { reply: MISSING_KEY_MESSAGE, sessionId, errorCode: 'AI_DISABLED' };
-  }
-  if (!settings.hasApiKey) {
+  const config = await resolveAiConfig(companyId);
+  if (!config) {
     return { reply: MISSING_KEY_MESSAGE, sessionId, errorCode: 'AI_NOT_CONFIGURED' };
   }
 
-  const apiKey = await resolveOpenAiApiKey(companyId);
-  if (!apiKey) {
-    return { reply: MISSING_KEY_MESSAGE, sessionId, errorCode: 'AI_NOT_CONFIGURED' };
-  }
-
-  const model = await resolveAiModel(companyId);
+  const { provider, apiKey, model } = config;
   const messages: ApiMessage[] = [
     { role: 'system', content: SYSTEM_PROMPT },
     ...history.slice(-12).map((m) => ({ role: m.role, content: m.content })),
@@ -144,7 +134,7 @@ export async function runFabricChat(
 
   try {
     for (let round = 0; round < 6; round++) {
-      const data = await callOpenAi(apiKey, model, messages, true);
+      const data = await callLlm(provider, apiKey, model, messages, true);
       const choice = data.choices?.[0];
       const msg = choice?.message;
       if (!msg) {
@@ -193,13 +183,16 @@ export async function runFabricChat(
     const message = error instanceof Error ? error.message : API_FAILURE_MESSAGE;
     console.warn('[clotex-ai] فشل المحادثة:', message);
     const isConfigError =
-      message.includes('مفتاح OpenAI')
-      || message.includes('رصيد OpenAI')
-      || message.includes('خطأ OpenAI');
+      message.includes('مفتاح')
+      || message.includes('رصيد')
+      || message.includes('خطأ')
+      || message.includes('Gemini')
+      || message.includes('OpenAI')
+      || message.includes('DeepSeek');
     return {
       reply: isConfigError ? message : API_FAILURE_MESSAGE,
       sessionId,
-      errorCode: isConfigError ? 'AI_OPENAI_ERROR' : 'AI_API_ERROR',
+      errorCode: isConfigError ? 'AI_PROVIDER_ERROR' : 'AI_API_ERROR',
     };
   }
 }

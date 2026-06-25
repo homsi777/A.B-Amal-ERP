@@ -10,6 +10,11 @@ chmod +x scripts/deploy-clotex-vps.sh
 ./scripts/deploy-clotex-vps.sh
 
 
+# اختبار Gemini من VPS (ضع مفتاحك محلياً — لا ترفع المفتاح إلى GitHub)
+# curl -sS "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" \
+#   -H "Authorization: Bearer YOUR_GEMINI_API_KEY" \
+#   -H "Content-Type: application/json" \
+#   -d '{"model":"gemini-2.0-flash","messages":[{"role":"user","content":"مرحبا"}],"max_tokens":50}'
 
 
 cd ~/ab-amal-erp

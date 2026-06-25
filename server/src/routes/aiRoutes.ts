@@ -3,12 +3,16 @@ import { z } from 'zod';
 import { authenticateRequest } from '../middleware/auth.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
+import { normalizeAiProvider } from '../services/ai/aiProviders.js';
 import {
   getAiSettingsMasked,
   saveAiSettings,
-  testOpenAiConnection,
+  testAiConnection,
 } from '../services/ai/aiSettingsService.js';
-import { isValidOpenAiKey } from '../services/ai/settingsEncryption.js';
+import {
+  apiKeyValidationMessage,
+  isValidApiKey,
+} from '../services/ai/settingsEncryption.js';
 import { runFabricChat } from '../services/ai/clotexAssistantService.js';
 
 function requirePermission(user: { role: string; permissions: string[] } | undefined, code: string) {
@@ -16,14 +20,19 @@ function requirePermission(user: { role: string; permissions: string[] } | undef
   return user.role === 'admin' || user.permissions.includes(code);
 }
 
+const providerSchema = z.enum(['openai', 'gemini', 'deepseek']);
+
 const settingsBody = z.object({
   enabled: z.boolean(),
+  provider: providerSchema.default('openai'),
   model: z.string().trim().min(1).default('gpt-4o-mini'),
   apiKey: z.string().trim().optional(),
 });
 
 const testBody = z.object({
   apiKey: z.string().trim().optional(),
+  model: z.string().trim().optional(),
+  provider: providerSchema.optional(),
 });
 
 const chatBody = z.object({
@@ -54,13 +63,15 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
     }
     const parsed = settingsBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const provider = normalizeAiProvider(parsed.data.provider);
     const apiKey = parsed.data.apiKey?.trim();
-    if (apiKey && !isValidOpenAiKey(apiKey)) {
-      return sendError(reply, 400, 'مفتاح OpenAI غير صالح. يجب أن يبدأ بـ sk-.', 'INVALID_OPENAI_KEY');
+    if (apiKey && !isValidApiKey(provider, apiKey)) {
+      return sendError(reply, 400, apiKeyValidationMessage(provider), 'INVALID_API_KEY');
     }
     try {
       const data = await saveAiSettings(companyId, userId, {
         enabled: parsed.data.enabled,
+        provider,
         model: parsed.data.model,
         apiKey,
       });
@@ -78,16 +89,20 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
     }
     const parsed = testBody.safeParse(req.body ?? {});
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const provider = normalizeAiProvider(parsed.data.provider);
     const key = parsed.data.apiKey?.trim();
-    if (key && !isValidOpenAiKey(key)) {
-      return sendError(reply, 400, 'مفتاح OpenAI غير صالح. يجب أن يبدأ بـ sk-.', 'INVALID_OPENAI_KEY');
+    if (key && !isValidApiKey(provider, key)) {
+      return reply.send({
+        ok: true,
+        data: { success: false, message: apiKeyValidationMessage(provider) },
+      });
     }
     try {
-      const data = await testOpenAiConnection(companyId, key);
-      return reply.send({ ok: true, data });
+      const data = await testAiConnection(companyId, key, parsed.data.model?.trim(), provider);
+      return reply.send({ ok: true, data: { success: true, model: data.model, provider: data.provider } });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return sendError(reply, 400, message, 'AI_TEST_FAILED');
+      const message = error instanceof Error ? error.message : 'فشل اختبار الاتصال.';
+      return reply.send({ ok: true, data: { success: false, message } });
     }
   });
 

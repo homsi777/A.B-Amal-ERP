@@ -4,7 +4,8 @@
  * أو: tsx server/src/scripts/diagnoseClotexAi.ts
  */
 import { getPool } from '../db/pool.js';
-import { getAiSettingsMasked, resolveAiModel, resolveOpenAiApiKey, testOpenAiConnection } from '../services/ai/aiSettingsService.js';
+import { getAiSettingsMasked, resolveAiConfig, testAiConnection } from '../services/ai/aiSettingsService.js';
+import { getProviderDefinition } from '../services/ai/aiProviders.js';
 
 async function checkOpenAiReachability(): Promise<void> {
   console.log('\n── 1) الوصول إلى api.openai.com (بدون مفتاح) ──');
@@ -68,6 +69,7 @@ async function checkSettings(companyId: string): Promise<void> {
   console.log('\n── 3) إعدادات CLOTEX المحفوظة ──');
   const settings = await getAiSettingsMasked(companyId);
   console.log(`   مفعّل: ${settings.enabled ? 'نعم' : 'لا'}`);
+  console.log(`   المزود: ${settings.provider}`);
   console.log(`   النموذج: ${settings.model}`);
   console.log(`   مفتاح محفوظ: ${settings.hasApiKey ? 'نعم' : 'لا'}`);
   if (settings.maskedApiKey) console.log(`   المفتاح المقنّع: ${settings.maskedApiKey}`);
@@ -83,12 +85,13 @@ async function checkSettings(companyId: string): Promise<void> {
 async function checkKeyDecrypt(companyId: string): Promise<string | null> {
   console.log('\n── 4) فك تشفير المفتاح ──');
   try {
-    const key = await resolveOpenAiApiKey(companyId);
-    if (!key) {
+    const config = await resolveAiConfig(companyId);
+    if (!config) {
       console.log('❌ لا يمكن قراءة المفتاح (غير مفعّل أو غير محفوظ)');
       return null;
     }
-    const prefix = key.startsWith('sk-proj-') ? 'sk-proj-...' : key.startsWith('sk-') ? 'sk-...' : 'غير معروف';
+    const key = config.apiKey;
+    const prefix = key.startsWith('AIza') ? 'AIza...' : key.startsWith('sk-proj-') ? 'sk-proj-...' : key.startsWith('sk-') ? 'sk-...' : 'مفتاح';
     console.log(`✅ المفتاح يُقرأ بنجاح (${prefix} ينتهي بـ ...${key.slice(-4)}, الطول: ${key.length})`);
     if (key.length < 20) {
       console.log('⚠️  طول المفتاح قصير جداً — قد يكون تالفاً عند الحفظ.');
@@ -102,22 +105,17 @@ async function checkKeyDecrypt(companyId: string): Promise<string | null> {
   }
 }
 
-async function checkOpenAiWithKey(companyId: string): Promise<void> {
-  console.log('\n── 5) اختبار OpenAI بالمفتاح المحفوظ ──');
-  const model = await resolveAiModel(companyId);
+async function checkProviderWithKey(companyId: string): Promise<void> {
+  const settings = await getAiSettingsMasked(companyId);
+  const label = getProviderDefinition(settings.provider).labelAr;
+  console.log(`\n── 5) اختبار ${label} بالمفتاح المحفوظ ──`);
   try {
-    const result = await testOpenAiConnection(companyId);
-    console.log(`✅ نجح الاتصال — النموذج: ${result.model}`);
+    const result = await testAiConnection(companyId);
+    console.log(`✅ نجح الاتصال — ${label} — النموذج: ${result.model}`);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.log(`❌ فشل اختبار OpenAI (النموذج: ${model})`);
+    console.log(`❌ فشل اختبار ${label} (النموذج: ${settings.model})`);
     console.log(`   الخطأ: ${msg}`);
-    if (/model/i.test(msg) && /not found|does not exist|invalid/i.test(msg)) {
-      console.log('   → جرّب تغيير النموذج إلى gpt-4o-mini من الإعدادات.');
-    }
-    if (/timeout|fetch failed|ECONNREFUSED|ENOTFOUND|network/i.test(msg)) {
-      console.log('   → مشكلة شبكة من السيرفر إلى OpenAI — قد تحتاج VPN/بروكسي على السيرفر.');
-    }
   }
 }
 
@@ -135,7 +133,7 @@ async function main() {
   await checkSettings(companyId);
   const key = await checkKeyDecrypt(companyId);
   if (key) {
-    await checkOpenAiWithKey(companyId);
+    await checkProviderWithKey(companyId);
   }
 
   console.log('\n── انتهى التشخيص ──\n');

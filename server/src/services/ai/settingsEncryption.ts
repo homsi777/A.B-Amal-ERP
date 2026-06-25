@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getEnv } from '../../config/env.js';
+import type { AiProvider } from './aiProviders.js';
 
 const PREFIX = 'enc:v1:';
 
@@ -31,14 +32,38 @@ export function decryptSecret(value: string): string {
   ]).toString('utf8');
 }
 
-export function maskOpenAiKey(key: string): string {
+export function maskApiKey(key: string, provider: AiProvider = 'openai'): string {
   const value = key.trim();
   if (!value) return '';
-  if (value.length <= 8) return 'sk-••••••••';
-  return `sk-••••••••••••${value.slice(-4)}`;
+  const prefix = provider === 'gemini' ? 'AIza••••' : 'sk-••••••••••••';
+  return `${prefix}${value.slice(-4)}`;
 }
 
-export function isValidOpenAiKey(key: string): boolean {
+/** @deprecated use maskApiKey */
+export function maskOpenAiKey(key: string): string {
+  return maskApiKey(key, 'openai');
+}
+
+export function isValidApiKey(provider: AiProvider, key: string): boolean {
   const value = key.trim();
-  return value.length > 0 && value.startsWith('sk-');
+  if (!value || value.length < 12) return false;
+  if (provider === 'gemini') {
+    return value.startsWith('AIza') || value.length >= 20;
+  }
+  return value.startsWith('sk-');
+}
+
+/** @deprecated use isValidApiKey */
+export function isValidOpenAiKey(key: string): boolean {
+  return isValidApiKey('openai', key);
+}
+
+export function apiKeyValidationMessage(provider: AiProvider): string {
+  if (provider === 'gemini') {
+    return 'مفتاح Google Gemini غير صالح. أنشئه من Google AI Studio (يبدأ عادة بـ AIza).';
+  }
+  if (provider === 'deepseek') {
+    return 'مفتاح DeepSeek غير صالح. يجب أن يبدأ بـ sk-.';
+  }
+  return 'مفتاح OpenAI غير صالح. يجب أن يبدأ بـ sk-.';
 }
