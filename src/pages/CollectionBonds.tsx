@@ -5,7 +5,7 @@ import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
 import { listCustomers } from '../lib/api/customersApi';
 import { ApiRequestError } from '../lib/api/client';
 import type { ApiCustomer } from '../lib/api/customersApi';
-import { sendTelegramVoucher } from '../lib/telegramVoucher';
+import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
 import { focusNextFormControl } from '../lib/forms/enterNavigation';
 import { listExchangeRates, type ExchangeRateDto } from '../lib/api/exchangeRatesApi';
 import { convertToUsd, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../lib/currency';
@@ -127,17 +127,15 @@ export const CollectionBonds = () => {
       setPartyName('');
 
       try {
-        await sendTelegramVoucher({
-          voucherType: 'RECEIPT',
-          voucherNo: created.data.voucher_no,
-          voucherDate,
-          partyType: customerId ? 'customer' : 'other',
-          partyId: customerId || null,
-          partyName: name,
-          amount: amountOriginal,
-          currency: currencyCode,
-          cashboxName: cashboxes.find((cashbox) => cashbox.id === cashboxId)?.name,
-          description: description || null,
+        await sendTelegramVoucherFromRow({
+          ...created.data,
+          voucher_type: created.data.voucher_type || 'RECEIPT',
+          voucher_date: created.data.voucher_date || voucherDate,
+          party_name: created.data.party_name || name,
+          amount: created.data.amount || String(amountOriginal),
+          currency_code: created.data.currency_code || currencyCode,
+          cashbox_name: created.data.cashbox_name || cashboxes.find((cashbox) => cashbox.id === cashboxId)?.name || null,
+          description: created.data.description ?? description ?? null,
         });
       } catch (error) {
         console.warn('Telegram receipt voucher failed', error);

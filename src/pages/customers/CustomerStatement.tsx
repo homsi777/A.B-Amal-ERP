@@ -3,7 +3,8 @@ import { useStore } from '../../store/useStore';
 import { ArrowUpCircle, FileText, Printer, Download, Calendar, MessageCircle, X, CreditCard, Banknote, Filter, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
-import { exportPdfFromHtmlString, exportToPDF, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml } from '../../lib/pdfExport';
+import { exportPdfFromHtmlString, exportToPDF, renderCustomerStatementPdfHtml } from '../../lib/pdfExport';
+import { buildTelegramCustomerAccountStatementHtml } from '../../lib/printing/telegramDocumentHtml';
 import { buildCustomerStatementFileName } from '../../lib/printing/documentFileNames';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
@@ -597,7 +598,7 @@ export const CustomerStatement = () => {
   const handleExportPDF = async () => {
     try {
       if (accountStatement?.customer) {
-        const pdfHtml = renderCustomerAccountStatementPdfHtml({
+        const pdfHtml = buildTelegramCustomerAccountStatementHtml({
           customerName: accountStatement.customer.name,
           customerPhone: accountStatement.customer.phone ?? null,
           customerAddress: accountStatement.customer.address ?? null,
@@ -654,7 +655,7 @@ export const CustomerStatement = () => {
   const statementPrintHtml = useMemo(() => {
     console.log('[CustomerStatement] recomputing statementPrintHtml, dbSaleInvoicesFromApi:', dbSaleInvoicesFromApi.length, 'accountStatement rows:', accountStatement?.rows?.length ?? 0);
     if (accountStatement?.customer) {
-      return renderCustomerAccountStatementPdfHtml({
+      return buildTelegramCustomerAccountStatementHtml({
         customerName: accountStatement.customer.name,
         customerPhone: accountStatement.customer.phone ?? null,
         customerAddress: accountStatement.customer.address ?? null,
@@ -727,7 +728,7 @@ export const CustomerStatement = () => {
       if (accountStatement?.customer) {
         const closing = accountStatement.totals.closingBalance;
         const closingLabel = closing >= 0 ? 'مدين' : 'دائن';
-        const pdfHtml = renderCustomerAccountStatementPdfHtml({
+        const pdfHtml = statementPrintHtml || buildTelegramCustomerAccountStatementHtml({
           customerName: accountStatement.customer.name,
           customerPhone: accountStatement.customer.phone ?? null,
           customerAddress: accountStatement.customer.address ?? null,

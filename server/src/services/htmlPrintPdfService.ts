@@ -59,17 +59,44 @@ async function getBrowser(): Promise<Browser> {
   return sharedBrowserPromise;
 }
 
+async function waitForDocumentAssets(page: import('puppeteer-core').Page): Promise<void> {
+  await page.evaluate(`(() => {
+    const waitImages = Array.from(document.images).map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      });
+    });
+    const waitFonts = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    return Promise.all([...waitImages, waitFonts]);
+  })()`);
+}
+
+function isVoucherA5Html(html: string): boolean {
+  return /data-clotex-doc\s*=\s*["']voucher-a5["']/.test(html);
+}
+
+function isAccountStatementHtml(html: string): boolean {
+  return /class\s*=\s*["']stmt-page["']/.test(html);
+}
+
+function resolvePdfViewport(html: string): { width: number; height: number } {
+  if (isVoucherA5Html(html)) return { width: 559, height: 794 };
+  if (isAccountStatementHtml(html)) return { width: 794, height: 1123 };
+  return { width: 794, height: 1123 };
+}
+
 /** نفس محرك الطباعة (Chromium) — يحترم @page و printBackground */
 export async function renderHtmlToPrintPdf(html: string): Promise<Buffer> {
   const browser = await getBrowser();
   const page = await browser.newPage();
+  const viewport = resolvePdfViewport(html);
 
   try {
-    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
+    await page.setViewport({ ...viewport, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 45_000 });
-    await page.evaluate(`(() => {
-      if (document.fonts && document.fonts.ready) return document.fonts.ready;
-    })()`);
+    await waitForDocumentAssets(page);
     await page.emulateMediaType('print');
 
     const pdf = await page.pdf({

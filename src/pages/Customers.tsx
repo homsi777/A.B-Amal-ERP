@@ -11,7 +11,8 @@ import {
 import { focusNextFormControl } from '../lib/forms/enterNavigation';
 import { useNavigate } from 'react-router-dom';
 import { getCustomerStatement } from '../lib/api/partyStatementsApi';
-import { exportPdfFromHtmlString, renderCustomerAccountStatementPdfHtml } from '../lib/pdfExport';
+import { exportPdfFromHtmlString } from '../lib/pdfExport';
+import { buildTelegramCustomerAccountStatementHtml } from '../lib/printing/telegramDocumentHtml';
 import { loadCustomerSaleInvoiceDetails } from '../lib/customerStatementInvoiceDetails';
 import { BRAND } from '../branding';
 import { CustomerStatementImportModal } from '../components/customers/CustomerStatementImportModal';
@@ -318,7 +319,7 @@ export const Customers = () => {
           telegramFromDate,
           telegramToDate,
         );
-        const pdfHtml = renderCustomerAccountStatementPdfHtml({
+        const pdfHtml = buildTelegramCustomerAccountStatementHtml({
           customerName: partyName,
           customerPhone: party?.phone ?? customer.phone ?? null,
           customerAddress: party?.address ?? customer.address ?? null,

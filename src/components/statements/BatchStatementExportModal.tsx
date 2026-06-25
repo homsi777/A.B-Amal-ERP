@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { CheckSquare, Download, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
 import type { Customer, Invoice, Supplier } from '../../types';
 import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
-import { exportPdfFromHtmlString, type FabricStatementItem, renderCustomerAccountStatementPdfHtml, renderCustomerStatementPdfHtml, renderSupplierAccountStatementPdfHtml, renderSupplierStatementPdfHtml, type StatementTotals } from '../../lib/pdfExport';
+import { exportPdfFromHtmlString, type FabricStatementItem, renderCustomerStatementPdfHtml, renderSupplierAccountStatementPdfHtml, renderSupplierStatementPdfHtml, type StatementTotals } from '../../lib/pdfExport';
+import { buildTelegramCustomerAccountStatementHtml } from '../../lib/printing/telegramDocumentHtml';
 import {
   buildCustomerStatementFileName,
   buildSupplierStatementFileName,
@@ -250,7 +251,7 @@ export function BatchStatementExportModal({
             : `${buildSupplierStatementFileName(partyName, item.fromDate, item.toDate)}.pdf`;
           const pdfHtml =
             type === 'customer'
-              ? renderCustomerAccountStatementPdfHtml({
+              ? buildTelegramCustomerAccountStatementHtml({
                   customerName: partyName,
                   customerPhone: statement.customer?.phone ?? null,
                   customerAddress: statement.customer?.address ?? null,
