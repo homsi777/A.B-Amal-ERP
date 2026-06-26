@@ -261,15 +261,51 @@ const ensureCategory = async (
     const { companyId } = req.user!;
     const q = req.query as Record<string, string>;
     const search = q.search?.trim() || '';
+    const parentIdRaw = q.parentId?.trim() || '';
     const pool = getPool();
     const conditions = ['company_id=$1'];
     const params: unknown[] = [companyId];
-    if (search) { conditions.push('(name ILIKE $2 OR code ILIKE $2)'); params.push(`%${search}%`); }
+    let p = 2;
+    if (search) {
+      conditions.push(`(name ILIKE $${p} OR code ILIKE $${p})`);
+      params.push(`%${search}%`);
+      p++;
+    }
+    if (parentIdRaw === 'root') {
+      conditions.push('parent_id IS NULL');
+    } else if (parentIdRaw) {
+      conditions.push(`parent_id = $${p}`);
+      params.push(parentIdRaw);
+      p++;
+    }
     const rows = await pool.query<DbCategory>(
       `SELECT id,parent_id,code,name,is_active FROM fabric_categories
        WHERE ${conditions.join(' AND ')} ORDER BY name ASC`,
       params,
     );
+    return reply.send({ ok: true, data: rows.rows });
+  });
+
+  app.get('/path/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const rows = await pool.query<DbCategory>(
+      `WITH RECURSIVE ancestors AS (
+         SELECT id, parent_id, code, name, is_active, 0 AS depth
+         FROM fabric_categories
+         WHERE id = $1 AND company_id = $2
+         UNION ALL
+         SELECT c.id, c.parent_id, c.code, c.name, c.is_active, ancestors.depth + 1
+         FROM fabric_categories c
+         INNER JOIN ancestors ON c.id = ancestors.parent_id
+       )
+       SELECT id, parent_id, code, name, is_active
+       FROM ancestors
+       ORDER BY depth DESC`,
+      [id, companyId],
+    );
+    if (!rows.rows.length) return sendError(reply, 404, 'التصنيف غير موجود', 'NOT_FOUND');
     return reply.send({ ok: true, data: rows.rows });
   });
 

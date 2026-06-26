@@ -15,11 +15,21 @@ export interface CategoryPayload {
   parent_id?: string | null;
 }
 
-export async function listCategories(params: { search?: string } = {}): Promise<ApiCategory[]> {
+export async function listCategories(
+  params: { search?: string; parentId?: string | null } = {},
+): Promise<ApiCategory[]> {
   const q = new URLSearchParams();
   if (params.search) q.set('search', params.search);
+  if (params.parentId !== undefined) {
+    q.set('parentId', params.parentId === null ? 'root' : params.parentId);
+  }
   const qs = q.toString() ? `?${q}` : '';
   const res = await apiFetch<{ ok: boolean; data: ApiCategory[] }>(`/api/fabric/categories${qs}`);
+  return res.data;
+}
+
+export async function getCategoryPath(id: string): Promise<ApiCategory[]> {
+  const res = await apiFetch<{ ok: boolean; data: ApiCategory[] }>(`/api/fabric/categories/path/${id}`);
   return res.data;
 }
 
