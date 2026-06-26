@@ -348,7 +348,7 @@ export function OrderFormModal({
       setAdvancePayment(editingOrder.advancePayment != null ? String(editingOrder.advancePayment) : '');
       setStatus(editingOrder.status);
       setTemplateId(editingOrder.templateId ?? undefined);
-      setItems(editingOrder.items.length ? editingOrder.items.map(toFormLine) : [emptyLine()]);
+      setItems(editingOrder.items.length ? [...editingOrder.items.map(toFormLine), emptyLine()] : [emptyLine()]);
     } else {
       setDate(format(new Date(), 'yyyy-MM-dd'));
       setOrderNumber('');
@@ -409,23 +409,30 @@ export function OrderFormModal({
     const commitLine = (merged: Partial<FormLine>) => {
       let focusRowId = '';
       setItems((prev) => {
-        const source = prev.find((it) => it.id === lineId);
-        const filled = source
-          ? (() => {
-              const u = syncLineQuantities({ ...source, ...merged });
-              u.weight = recalcCartelaWeight(u);
-              return u;
-            })()
-          : null;
-        const next = prev.map((it) => {
-          if (it.id !== lineId) return it;
-          return filled ?? syncLineQuantities({ ...it, ...merged });
-        });
-        const inherited = filled ? inheritNextLineFrom(filled) : emptyLine();
+        const lineIndex = prev.findIndex((it) => it.id === lineId);
+        if (lineIndex === -1) return prev;
+
+        const source = prev[lineIndex];
+        const filled = (() => {
+          const u = syncLineQuantities({ ...source, ...merged });
+          u.weight = recalcCartelaWeight(u);
+          return u;
+        })();
+
+        const next = prev.map((it) => (it.id === lineId ? filled : it));
+
+        // السطر التالي يُفتح فقط عند إكمال آخر سطر في الجدول — وليس عند تعديل سطر سابق
+        if (lineIndex !== prev.length - 1) {
+          return next;
+        }
+
+        const inherited = inheritNextLineFrom(filled);
         focusRowId = inherited.id;
         return [...next, inherited];
       });
-      setTimeout(() => colorCodeInputRefs.current[focusRowId]?.focus(), 50);
+      if (focusRowId) {
+        setTimeout(() => colorCodeInputRefs.current[focusRowId]?.focus(), 50);
+      }
     };
 
     try {
@@ -495,8 +502,7 @@ export function OrderFormModal({
     const t = templates.find((x) => x.id === tid);
     if (!t || !t.lines.length) return;
     setTemplateId(tid);
-    setItems(
-      t.lines.map((line) => {
+    setItems([...t.lines.map((line) => {
         const row = emptyLine();
         return {
           ...row,
@@ -512,8 +518,7 @@ export function OrderFormModal({
           price: String(line.price),
           note: line.note || '',
         };
-      }),
-    );
+      }), emptyLine()]);
     setSummaryOpen(true);
   };
 
@@ -669,27 +674,32 @@ export function OrderFormModal({
     }
   };
 
-  const handleKeyDownTable = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDownTable = (e: KeyboardEvent<HTMLInputElement>, lineId: string) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
+    const lineIndex = items.findIndex((i) => i.id === lineId);
+    if (lineIndex === -1) return;
+
     const currentInput = e.currentTarget;
     const currentRow = currentInput.closest('tr');
     if (!currentRow) return;
-    const inputsInRow = Array.from(currentRow.querySelectorAll('input[type="number"],input:not([type])')) as HTMLInputElement[];
+    const inputsInRow = Array.from(
+      currentRow.querySelectorAll('input[type="number"],input:not([type])'),
+    ) as HTMLInputElement[];
     const currentIndex = inputsInRow.indexOf(currentInput);
     if (currentIndex > -1 && currentIndex < inputsInRow.length - 1) {
       inputsInRow[currentIndex + 1].focus();
       return;
     }
-    const table = currentRow.closest('tbody');
-    const rows = table ? (Array.from(table.querySelectorAll('tr')) as HTMLTableRowElement[]) : [];
-    const currentRowIndex = rows.indexOf(currentRow);
-    const nextRow = rows[currentRowIndex + 1];
-    const nextRowInput = nextRow?.querySelector('input[type="number"],input:not([type])');
-    if (nextRowInput) {
-      (nextRowInput as HTMLInputElement).focus();
+
+    if (lineIndex < items.length - 1) {
+      const nextLineId = items[lineIndex + 1].id;
+      const nextFocus =
+        barcodeInputRefs.current[nextLineId] ?? colorCodeInputRefs.current[nextLineId];
+      nextFocus?.focus();
       return;
     }
+
     handleAddItem();
   };
 
@@ -983,7 +993,7 @@ export function OrderFormModal({
                             placeholder="اسم الخامة"
                             value={item.materialName}
                             onChange={(e) => patchLine(item.id, { materialName: e.target.value })}
-                            onKeyDown={handleKeyDownTable}
+                            onKeyDown={(e) => handleKeyDownTable(e, item.id)}
                             className={inputClass()}
                           />
                         </td>
@@ -995,7 +1005,7 @@ export function OrderFormModal({
                             onChange={(e) =>
                               patchLine(item.id, { fabricCode: e.target.value, rollNo: e.target.value })
                             }
-                            onKeyDown={handleKeyDownTable}
+                            onKeyDown={(e) => handleKeyDownTable(e, item.id)}
                             className={`${inputClass()} font-mono text-xs`}
                             dir="ltr"
                             title="DESIGN NO من الكارتيلا"
@@ -1010,7 +1020,7 @@ export function OrderFormModal({
                             placeholder="كود لون"
                             value={item.colorCode}
                             onChange={(e) => patchLine(item.id, { colorCode: e.target.value })}
-                            onKeyDown={handleKeyDownTable}
+                            onKeyDown={(e) => handleKeyDownTable(e, item.id)}
                             className={inputClass()}
                           />
                         </td>
@@ -1020,7 +1030,7 @@ export function OrderFormModal({
                             placeholder="لون"
                             value={item.colorName}
                             onChange={(e) => patchLine(item.id, { colorName: e.target.value })}
-                            onKeyDown={handleKeyDownTable}
+                            onKeyDown={(e) => handleKeyDownTable(e, item.id)}
                             className={inputClass()}
                           />
                         </td>
@@ -1031,7 +1041,7 @@ export function OrderFormModal({
                             step="0.01"
                             value={item.metersPerRoll}
                             onChange={(e) => patchLine(item.id, { metersPerRoll: e.target.value })}
-                            onKeyDown={handleKeyDownTable}
+                            onKeyDown={(e) => handleKeyDownTable(e, item.id)}
                             title={lengthError}
                             placeholder="0"
                             className={`${inputClass(Boolean(lengthError))} min-w-[4.5rem]`}
@@ -1045,7 +1055,7 @@ export function OrderFormModal({
                             step="1"
                             value={item.rollCount}
                             onChange={(e) => patchLine(item.id, { rollCount: e.target.value })}
-                            onKeyDown={handleKeyDownTable}
+                            onKeyDown={(e) => handleKeyDownTable(e, item.id)}
                             title={rollCountError}
                             placeholder="1"
                             className={`${inputClass(Boolean(rollCountError))} min-w-[3.5rem]`}
