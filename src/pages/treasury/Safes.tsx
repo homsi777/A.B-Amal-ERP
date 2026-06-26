@@ -10,6 +10,8 @@ import {
   type CashboxTransferDto,
 } from '../../lib/api/cashboxTransfersApi';
 import { useToast } from '../../components/NonBlockingToast';
+import { ExchangeRateQuickPanel } from '../../components/treasury/ExchangeRateQuickPanel';
+import { SUPPORTED_CURRENCIES } from '../../lib/currency';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -24,6 +26,7 @@ export const Safes = () => {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [opening, setOpening] = useState('0');
+  const [currencyCode, setCurrencyCode] = useState<'USD' | 'SYP' | 'TRY' | 'EGP'>('USD');
   const [saving, setSaving] = useState(false);
   const [transferSaving, setTransferSaving] = useState(false);
   const [transferDate, setTransferDate] = useState(today());
@@ -76,7 +79,7 @@ export const Safes = () => {
         code: code.trim() || `CB-${Date.now()}`,
         name: name.trim() || 'صندوق جديد',
         openingBalance: Number(opening) || 0,
-        currencyCode: 'USD',
+        currencyCode,
       });
       setModalOpen(false);
       setCode('');
@@ -196,6 +199,8 @@ export const Safes = () => {
 
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">{error}</div>}
 
+      <ExchangeRateQuickPanel title="أسعار الصرف (الخزينة والرواتب والسندات)" />
+
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200">
@@ -209,7 +214,21 @@ export const Safes = () => {
               <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-700">رصيد افتتاحي (USD)</label>
+              <label className="text-sm text-slate-700">عملة الصندوق</label>
+              <select
+                value={currencyCode}
+                onChange={(e) => setCurrencyCode(e.target.value as typeof currencyCode)}
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+              >
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.nameAr} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm text-slate-700">رصيد افتتاحي</label>
               <input
                 type="number"
                 value={opening}

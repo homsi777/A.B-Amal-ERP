@@ -25,6 +25,10 @@ import {
 } from '../lib/api/payrollApi';
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
 import { ApiRequestError } from '../lib/api/client';
+import type { ExchangeRateDto } from '../lib/api/exchangeRatesApi';
+import { listExchangeRates } from '../lib/api/exchangeRatesApi';
+import { ExchangeRateQuickPanel } from '../components/treasury/ExchangeRateQuickPanel';
+import { convertToUsd, formatUsd, normalizeExchangeRate, round2 } from '../lib/currency';
 
 type EmployeeForm = {
   employeeCode: string;
@@ -82,6 +86,8 @@ export const Salaries = () => {
   const [payAmount, setPayAmount] = useState('');
   const [payModalLoading, setPayModalLoading] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRateDto[]>([]);
+  const [payExchangeRateToUsd, setPayExchangeRateToUsd] = useState('1');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -172,12 +178,20 @@ export const Salaries = () => {
     }
   };
 
-  const loadCashboxesForCurrency = async (currency: string, preferEmployeeFund = true) => {
-    const res = await listCashboxes({ active: true, currency });
-    const boxes = (res.data ?? []).filter((b) => b.currency_code === currency);
+  const loadPayModalData = async (paymentCurrency: string) => {
+    const [cashRes, rateRes] = await Promise.all([listCashboxes({ active: true }), listExchangeRates()]);
+    const boxes = cashRes.data ?? [];
+    const rates = rateRes.data ?? [];
     setPayCashboxes(boxes);
-    const employeeFund = boxes.find((b) => b.code === `EMP-${currency}` || b.code.startsWith('EMP-'));
-    setPayCashboxId(preferEmployeeFund && employeeFund ? employeeFund.id : boxes.length === 1 ? boxes[0].id : '');
+    setExchangeRates(rates);
+    const preferred =
+      boxes.find((b) => b.is_default) ||
+      boxes.find((b) => b.code === `EMP-${paymentCurrency}` || b.code.startsWith('EMP-')) ||
+      boxes[0];
+    setPayCashboxId(preferred?.id ?? '');
+    const code = String(paymentCurrency || 'USD').trim().toUpperCase();
+    const rateRow = rates.find((r) => r.currency_code === code);
+    setPayExchangeRateToUsd(code === 'USD' ? '1' : String(rateRow?.exchange_rate_to_usd ?? '15000'));
   };
 
   const openEmployeePayModal = async (employee: PayrollEmployeeDto) => {
@@ -189,7 +203,7 @@ export const Salaries = () => {
     setPayAmount(String(Number(employee.base_salary || 0)));
     setPayModalLoading(true);
     try {
-      await loadCashboxesForCurrency(employee.currency_code);
+      await loadPayModalData(employee.currency_code);
     } catch (e) {
       setPayCashboxes([]);
       setPayErr(e instanceof ApiRequestError ? e.message : 'تعذر تحميل الصناديق');
@@ -207,7 +221,7 @@ export const Salaries = () => {
     setPayAmount(String(Number(run.total_net || 0)));
     setPayModalLoading(true);
     try {
-      await loadCashboxesForCurrency(run.currency_code);
+      await loadPayModalData(run.currency_code);
     } catch (e) {
       setPayCashboxes([]);
       setPayErr(e instanceof ApiRequestError ? e.message : 'تعذر تحميل الصناديق');
@@ -225,7 +239,7 @@ export const Salaries = () => {
     setPayAmount('');
     setPayModalLoading(true);
     try {
-      await loadCashboxesForCurrency(employee.currency_code);
+      await loadPayModalData(employee.currency_code);
     } catch (e) {
       setPayCashboxes([]);
       setPayErr(e instanceof ApiRequestError ? e.message : 'تعذر تحميل صناديق الموظفين');
@@ -247,12 +261,20 @@ export const Salaries = () => {
   const submitCashOut = async () => {
     if (!payRun && !payEmployee && !advanceEmployee) return;
     if (!payCashboxId) {
-      setPayErr('اختر صندوقا بنفس العملة.');
+      setPayErr('اختر صندوقاً من الخزينة.');
+      return;
+    }
+    const payRate =
+      payTargetCurrency === 'USD' ? 1 : normalizeExchangeRate(payExchangeRateToUsd);
+    if (payTargetCurrency !== 'USD' && !payRate) {
+      setPayErr('أدخل سعر صرف صحيحاً لعملة الراتب.');
       return;
     }
     setPayErr(null);
     setPayModalLoading(true);
     try {
+      const exchangePayload =
+        payTargetCurrency === 'USD' ? undefined : { exchangeRateToUsd: payRate };
       if (advanceEmployee) {
         const amount = Number(payAmount);
         if (!Number.isFinite(amount) || amount <= 0) {
@@ -264,6 +286,7 @@ export const Salaries = () => {
           advanceDate: payDate,
           amount,
           notes: `سلفة للموظف ${advanceEmployee.full_name}`,
+          ...exchangePayload,
         });
       } else if (payEmployee) {
         await payEmployeeSalary(payEmployee.id, {
@@ -271,9 +294,14 @@ export const Salaries = () => {
           paymentDate: payDate,
           amount: Number(payAmount) || Number(payEmployee.base_salary),
           notes: `تسليم راتب ${payEmployee.full_name}`,
+          ...exchangePayload,
         });
       } else if (payRun) {
-        await markPayrollRunPaid(payRun.id, { cashboxId: payCashboxId, paymentDate: payDate });
+        await markPayrollRunPaid(payRun.id, {
+          cashboxId: payCashboxId,
+          paymentDate: payDate,
+          ...exchangePayload,
+        });
       }
       closePayModal();
       await load();
@@ -374,6 +402,38 @@ export const Salaries = () => {
   const payTargetTitle = advanceEmployee ? 'إضافة سلفة موظف' : payEmployee ? 'تسليم راتب موظف' : 'صرف مسير الرواتب';
   const payTargetName = advanceEmployee?.full_name || payEmployee?.full_name || payRun?.payroll_no;
 
+  const selectedPayCashbox = payCashboxes.find((b) => b.id === payCashboxId);
+  const payAmountNum = Number(payAmount) || payTargetAmount;
+  const payRateNum = payTargetCurrency === 'USD' ? 1 : normalizeExchangeRate(payExchangeRateToUsd);
+  const payAmountUsd =
+    payTargetCurrency === 'USD' ? payAmountNum : payRateNum > 0 ? round2(convertToUsd(payAmountNum, payRateNum)) : 0;
+  const cashboxCurrency = selectedPayCashbox?.currency_code || 'USD';
+  const cashboxRate =
+    cashboxCurrency === 'USD'
+      ? 1
+      : normalizeExchangeRate(exchangeRates.find((r) => r.currency_code === cashboxCurrency)?.exchange_rate_to_usd);
+  const cashboxDeduction =
+    !selectedPayCashbox || payAmountNum <= 0
+      ? 0
+      : cashboxCurrency === payTargetCurrency
+        ? payAmountNum
+        : cashboxCurrency === 'USD'
+          ? payAmountUsd
+          : cashboxRate > 0
+            ? round2(payAmountUsd * cashboxRate)
+            : 0;
+
+  const formSalaryUsd = useMemo(() => {
+    const salary = Number(form.baseSalary);
+    if (!Number.isFinite(salary) || salary <= 0) return null;
+    if (form.currencyCode === 'USD') return salary;
+    const rate = normalizeExchangeRate(
+      exchangeRates.find((r) => r.currency_code === form.currencyCode)?.exchange_rate_to_usd,
+    );
+    if (!rate) return null;
+    return round2(convertToUsd(salary, rate));
+  }, [form.baseSalary, form.currencyCode, exchangeRates]);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6" dir="rtl">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
@@ -402,6 +462,8 @@ export const Salaries = () => {
       </div>
 
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">{error}</div>}
+
+      <ExchangeRateQuickPanel onRatesChange={setExchangeRates} />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {(Object.entries(totalsByCurrency) as Array<[string, number]>).map(([currency, total]) => (
@@ -552,6 +614,9 @@ export const Salaries = () => {
               </Field>
               <Field label="الراتب">
                 <input type="number" min="0" value={form.baseSalary} onChange={(e) => patchForm({ baseSalary: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2" dir="ltr" />
+                {formSalaryUsd != null && form.currencyCode !== 'USD' ? (
+                  <p className="text-xs text-indigo-700 mt-1 font-semibold">يعادل تقريباً: {formatUsd(formSalaryUsd)}</p>
+                ) : null}
               </Field>
               <Field label="عملة الراتب">
                 <select value={form.currencyCode} onChange={(e) => patchForm({ currencyCode: e.target.value as EmployeeForm['currencyCode'] })} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white">
@@ -593,16 +658,43 @@ export const Salaries = () => {
                 <p className="text-slate-500 text-xs mb-1">{advanceEmployee ? 'قيمة السلفة' : 'قيمة التسليم'}</p>
                 <input type="number" value={payAmount || String(payTargetAmount)} onChange={(e) => setPayAmount(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono" dir="ltr" />
                 <p className="text-xs text-slate-500 mt-1">
-                  {payTargetCurrency} - سيتم السحب من صندوق الموظفين الخاص بهذه العملة إذا كان موجودا.
+                  المبلغ بعملة الراتب: {payTargetCurrency}
+                  {payTargetCurrency !== 'USD' && payAmountUsd > 0 ? (
+                    <span className="text-indigo-700 font-semibold"> — يعادل {formatUsd(payAmountUsd)}</span>
+                  ) : null}
                 </p>
               </div>
+              {payTargetCurrency !== 'USD' ? (
+                <Field label={`سعر صرف ${payTargetCurrency} مقابل 1 دولار`}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.000001"
+                    value={payExchangeRateToUsd}
+                    onChange={(e) => setPayExchangeRateToUsd(e.target.value)}
+                    disabled={payModalLoading}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm"
+                    dir="ltr"
+                  />
+                </Field>
+              ) : null}
               <Field label="الصندوق">
                 <select value={payCashboxId} onChange={(e) => setPayCashboxId(e.target.value)} disabled={payModalLoading} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 bg-white text-sm">
-                  <option value="">اختر صندوقا ({payTargetCurrency})</option>
+                  <option value="">— اختر صندوقاً —</option>
                   {payCashboxes.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name} ({b.code}) - رصيد {Number(b.current_balance).toLocaleString()}</option>
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code}) — {b.currency_code} — رصيد {Number(b.current_balance).toLocaleString()}
+                    </option>
                   ))}
                 </select>
+                {payCashboxes.length === 0 ? (
+                  <p className="text-xs text-amber-700 mt-1">لا توجد صناديق نشطة — أنشئ صندوقاً من قسم الخزينة أولاً.</p>
+                ) : null}
+                {selectedPayCashbox && cashboxCurrency !== payTargetCurrency && cashboxDeduction > 0 ? (
+                  <p className="text-xs text-amber-800 mt-1 font-semibold">
+                    سيُخصم من الصندوق: {cashboxDeduction.toLocaleString(undefined, { maximumFractionDigits: 2 })} {cashboxCurrency}
+                  </p>
+                ) : null}
               </Field>
               <Field label="تاريخ التسليم">
                 <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} disabled={payModalLoading} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />

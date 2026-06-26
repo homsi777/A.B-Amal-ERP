@@ -7,7 +7,7 @@ import { ArabicErrors } from '../utils/arabicErrors.js';
 import { generateDocumentNo } from '../utils/documentNumbers.js';
 import { postPayrollAccrualToGl, postPayrollPaymentToGl, reversePayrollAccrualGl } from '../services/glPostingService.js';
 import { applyPayrollCashOut } from '../services/payrollCashboxService.js';
-import { getExchangeRateToUsdTx } from '../services/exchangeRateService.js';
+import { resolveCashboxOutAmount } from '../services/cashboxCrossCurrencyService.js';
 import { applyVoucherConfirmation, insertDraftVoucher } from '../services/voucherCashboxService.js';
 
 const employeeBody = z.object({
@@ -42,6 +42,7 @@ const runCreateBody = z.object({
 const markPaidBody = z.object({
   cashboxId: z.string().uuid(),
   paymentDate: z.string().optional().nullable(),
+  exchangeRateToUsd: z.coerce.number().positive().optional(),
 });
 
 const employeeSalaryPaymentBody = z.object({
@@ -49,6 +50,7 @@ const employeeSalaryPaymentBody = z.object({
   paymentDate: z.string().optional().nullable(),
   amount: z.coerce.number().positive().optional(),
   notes: z.string().optional().nullable(),
+  exchangeRateToUsd: z.coerce.number().positive().optional(),
 });
 
 const employeeAdvanceBody = z.object({
@@ -56,6 +58,7 @@ const employeeAdvanceBody = z.object({
   advanceDate: z.string().optional().nullable(),
   amount: z.coerce.number().positive(),
   notes: z.string().optional().nullable(),
+  exchangeRateToUsd: z.coerce.number().positive().optional(),
 });
 
 const runUpdateBody = runCreateBody;
@@ -71,16 +74,6 @@ function sumRun(lines: { baseSalary: number; allowances: number; deductions: num
 
 function round2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
-}
-
-async function resolveExchangeRateToUsd(client: any, companyId: string, currencyCode: string): Promise<number> {
-  const code = String(currencyCode || 'USD').trim().toUpperCase();
-  if (code === 'USD') return 1;
-  const rate = await getExchangeRateToUsdTx(client, companyId, code);
-  if (!rate || rate <= 0) {
-    throw Object.assign(new Error('لا يمكن تنفيذ العملية بدون سعر صرف صالح لعملة الموظف'), { code: 'VALIDATION' });
-  }
-  return rate;
 }
 
 export const payrollRoutes: FastifyPluginAsync = async (app) => {
@@ -287,6 +280,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         currencyCode: employee.currency_code,
         cashboxId: d.cashboxId,
         userId,
+        exchangeRateToUsd: d.exchangeRateToUsd,
       });
 
       await client.query(
@@ -360,10 +354,26 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
       }
       const employee = emp.rows[0];
       const amount = round2(d.amount);
-      const exchangeRateToUsd = await resolveExchangeRateToUsd(client, companyId, employee.currency_code);
-      const amountUsd = round2(amount / exchangeRateToUsd);
+      const box = await client.query<{ currency_code: string }>(
+        `SELECT currency_code FROM cashboxes WHERE id=$1 AND company_id=$2 AND is_active=true`,
+        [d.cashboxId, companyId],
+      );
+      if (!box.rows.length) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 404, 'الصندوق غير موجود أو غير نشط', 'NOT_FOUND');
+      }
+      const resolved = await resolveCashboxOutAmount(client, companyId, {
+        paymentAmount: amount,
+        paymentCurrency: employee.currency_code,
+        cashboxCurrency: box.rows[0].currency_code,
+        paymentExchangeRateToUsd: d.exchangeRateToUsd,
+      });
       const advanceNo = generateDocumentNo('ADV');
-      const description = `سلفة موظف ${employee.full_name} - ${advanceNo}`;
+      const crossNote =
+        resolved.cashboxCurrency !== String(employee.currency_code || 'USD').trim().toUpperCase()
+          ? ` — مكافئ ${amount} ${employee.currency_code}`
+          : '';
+      const description = `سلفة موظف ${employee.full_name} - ${advanceNo}${crossNote}`;
 
       const voucher = await insertDraftVoucher(client, {
         companyId,
@@ -374,10 +384,10 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         partyType: 'EMPLOYEE',
         partyId: employee.id,
         partyName: employee.full_name,
-        amount,
-        currencyCode: employee.currency_code,
-        exchangeRateToUsd,
-        amountUsd,
+        amount: resolved.cashboxAmount,
+        currencyCode: resolved.cashboxCurrency,
+        exchangeRateToUsd: resolved.cashboxExchangeRateToUsd,
+        amountUsd: resolved.amountUsd,
         description,
         notes: d.notes ?? null,
         referenceDocumentType: 'EMPLOYEE_ADVANCE',
@@ -390,10 +400,10 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         voucherNo: voucher.voucherNo,
         voucherDate: advanceDate,
         voucherType: 'PAYMENT',
-        amount,
-        currencyCode: employee.currency_code,
-        exchangeRateToUsd,
-        amountUsd,
+        amount: resolved.cashboxAmount,
+        currencyCode: resolved.cashboxCurrency,
+        exchangeRateToUsd: resolved.cashboxExchangeRateToUsd,
+        amountUsd: resolved.amountUsd,
         cashboxId: d.cashboxId,
         partyType: 'EMPLOYEE',
         partyId: employee.id,
@@ -743,6 +753,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         currencyCode: r.currency_code,
         cashboxId,
         userId,
+        exchangeRateToUsd: parsed.data.exchangeRateToUsd,
       });
 
       const upd = await client.query(

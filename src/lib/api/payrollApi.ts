@@ -65,7 +65,13 @@ export async function createPayrollEmployee(payload: {
 
 export async function payEmployeeSalary(
   employeeId: string,
-  payload: { cashboxId: string; paymentDate?: string | null; amount?: number; notes?: string | null },
+  payload: {
+    cashboxId: string;
+    paymentDate?: string | null;
+    amount?: number;
+    notes?: string | null;
+    exchangeRateToUsd?: number;
+  },
 ) {
   return apiFetch<{
     ok: boolean;
@@ -85,7 +91,13 @@ export async function payEmployeeSalary(
 
 export async function createEmployeeAdvance(
   employeeId: string,
-  payload: { cashboxId: string; advanceDate?: string | null; amount: number; notes?: string | null },
+  payload: {
+    cashboxId: string;
+    advanceDate?: string | null;
+    amount: number;
+    notes?: string | null;
+    exchangeRateToUsd?: number;
+  },
 ) {
   return apiFetch<{
     ok: boolean;
@@ -112,7 +124,7 @@ export async function listPayrollRuns() {
 
 export async function markPayrollRunPaid(
   runId: string,
-  payload: { cashboxId: string; paymentDate?: string | null },
+  payload: { cashboxId: string; paymentDate?: string | null; exchangeRateToUsd?: number },
 ) {
   return apiFetch<{
     ok: boolean;
@@ -123,6 +135,7 @@ export async function markPayrollRunPaid(
     body: JSON.stringify({
       cashboxId: payload.cashboxId,
       paymentDate: payload.paymentDate ?? undefined,
+      exchangeRateToUsd: payload.exchangeRateToUsd,
     }),
   });
 }
