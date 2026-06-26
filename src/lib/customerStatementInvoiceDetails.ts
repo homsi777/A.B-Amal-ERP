@@ -85,6 +85,7 @@ export type AccountStatementDisplayRow = {
   debit: number;
   credit: number;
   balance: number;
+  isCustomerDiscount?: boolean;
 };
 
 function invoiceRowKey(row: AccountStatementSourceRow): string {
@@ -162,6 +163,7 @@ export function flattenAccountStatementDisplayRows(args: {
       debit: Number(row.debit || 0),
       credit: Number(row.credit || 0),
       balance: 0,
+      isCustomerDiscount: row.type === 'CUSTOMER_DISCOUNT',
       sortDate: row.date,
       sortKey: String(row.documentNo ?? ''),
     });

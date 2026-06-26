@@ -482,24 +482,34 @@ function renderAccountStatementHtml(options: {
       date: string;
       docNo: string;
       typeLabel: string;
+      detailText?: string;
       fabric: AccountStatementInvoiceDetail | null;
       debit: number | null;
       credit: number | null;
       balance: number | null;
     },
-  ) => `<tr style="background:${evBg};">
-    ${td(cols.date, 'white-space:nowrap;')}
-    ${td(cols.docNo, 'font-family:monospace;font-size:9.5px;font-weight:600;')}
-    ${td(cols.typeLabel)}
-    ${td(cols.fabric ? safeText(cols.fabric.fabricName) : DASH)}
-    ${td(cols.fabric ? cols.fabric.rollsCount.toLocaleString('ar') : DASH)}
-    ${td(cols.fabric ? fmt(cols.fabric.totalQuantity) : DASH)}
-    ${td(cols.fabric ? fmt(cols.fabric.unitPrice) : DASH)}
-    ${td(cols.fabric ? `${safeText(options.currency)} ${fmt(cols.fabric.totalAmount)}` : DASH, 'font-weight:600;')}
-    ${td(cols.debit != null && cols.debit > 0 ? fmt(cols.debit) : DASH, `color:${GREEN};font-weight:700;`)}
-    ${td(cols.credit != null && cols.credit > 0 ? fmt(cols.credit) : DASH, `color:${RED};font-weight:700;`)}
-    ${td(cols.balance != null ? fmt(Math.abs(cols.balance)) : DASH, `color:${BLUE};font-weight:700;`)}
+    emphasize = false,
+  ) => {
+    const rowEmphasis = emphasize ? `color:${RED};font-weight:800;` : '';
+    const detailCell = cols.fabric
+      ? safeText(cols.fabric.fabricName)
+      : cols.detailText
+        ? safeText(cols.detailText)
+        : DASH;
+    return `<tr style="background:${evBg};${emphasize ? `color:${RED};` : ''}">
+    ${td(cols.date, `white-space:nowrap;${rowEmphasis}`)}
+    ${td(cols.docNo, `font-family:monospace;font-size:9.5px;font-weight:600;${rowEmphasis}`)}
+    ${td(cols.typeLabel, rowEmphasis)}
+    ${td(detailCell, rowEmphasis)}
+    ${td(cols.fabric ? cols.fabric.rollsCount.toLocaleString('ar') : DASH, rowEmphasis)}
+    ${td(cols.fabric ? fmt(cols.fabric.totalQuantity) : DASH, rowEmphasis)}
+    ${td(cols.fabric ? fmt(cols.fabric.unitPrice) : DASH, rowEmphasis)}
+    ${td(cols.fabric ? `${safeText(options.currency)} ${fmt(cols.fabric.totalAmount)}` : DASH, `font-weight:600;${rowEmphasis}`)}
+    ${td(cols.debit != null && cols.debit > 0 ? fmt(cols.debit) : DASH, emphasize ? rowEmphasis : `color:${GREEN};font-weight:700;`)}
+    ${td(cols.credit != null && cols.credit > 0 ? fmt(cols.credit) : DASH, emphasize ? rowEmphasis : `color:${RED};font-weight:700;`)}
+    ${td(cols.balance != null ? fmt(Math.abs(cols.balance)) : DASH, emphasize ? rowEmphasis : `color:${BLUE};font-weight:700;`)}
   </tr>`;
+  };
 
   const bodyHtml = (() => {
     if (options.rows.length === 0) {
@@ -525,17 +535,22 @@ function renderAccountStatementHtml(options: {
         totalFabricLength += row.fabric.totalQuantity;
         totalFabricRolls += row.fabric.rollsCount;
       }
-      const evBg = displayIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const evBg = row.isCustomerDiscount
+        ? '#fef2f2'
+        : displayIdx % 2 === 0
+          ? '#ffffff'
+          : '#f8fafc';
       parts.push(
         renderDataRow(evBg, {
           date: safeText(row.date),
           docNo: safeText(row.documentNo),
           typeLabel: safeText(row.typeLabel),
+          detailText: row.detailText ? safeText(row.detailText) : undefined,
           fabric: row.fabric,
           debit: row.debit,
           credit: row.credit,
           balance: row.balance,
-        }),
+        }, row.isCustomerDiscount === true),
       );
     });
 

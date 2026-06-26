@@ -1254,20 +1254,28 @@ export const CustomerStatement = () => {
                     </td>
                   </tr>
                 ) : (
-                  accountStatementDisplayRows.map((row, idx) => (
-                    <tr key={`stmt-row-${idx}-${row.documentNo}-${row.date}`} className="bg-white hover:bg-slate-50">
-                      <td className="px-4 py-3 text-black">{row.date}</td>
-                      <td className="px-4 py-3 text-black">{row.typeLabel}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-black">{row.documentNo}</td>
-                      <td className="px-4 py-3 text-black max-w-xl truncate" title={row.detailText || row.fabric?.fabricName || row.typeLabel}>
+                  accountStatementDisplayRows.map((row, idx) => {
+                    const discountRow = row.isCustomerDiscount === true;
+                    const cellBase = discountRow
+                      ? 'px-4 py-3 font-bold text-red-700'
+                      : 'px-4 py-3 text-black';
+                    return (
+                    <tr
+                      key={`stmt-row-${idx}-${row.documentNo}-${row.date}`}
+                      className={discountRow ? 'bg-rose-50 hover:bg-rose-100/80' : 'bg-white hover:bg-slate-50'}
+                    >
+                      <td className={cellBase}>{row.date}</td>
+                      <td className={cellBase}>{row.typeLabel}</td>
+                      <td className={`${cellBase} font-mono text-xs`}>{row.documentNo}</td>
+                      <td className={`${cellBase} max-w-xl truncate`} title={row.detailText || row.fabric?.fabricName || row.typeLabel}>
                         {row.fabric?.fabricName || row.detailText || row.typeLabel}
                       </td>
-                      <td className="px-4 py-3 font-mono text-black">
+                      <td className={`${cellBase} font-mono`}>
                         {row.fabric
                           ? (
                               <>
                                 {row.fabric.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {statementCurrency}
-                                <span className="block text-xs text-slate-600">
+                                <span className={`block text-xs ${discountRow ? 'text-red-600' : 'text-slate-600'}`}>
                                   {row.fabric.totalQuantity.toLocaleString('ar')} م × {row.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </span>
                               </>
@@ -1278,17 +1286,18 @@ export const CustomerStatement = () => {
                               ? `دائن: ${row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${statementCurrency}`
                               : `— ${statementCurrency}`}
                       </td>
-                      <td className="px-4 py-3 font-mono text-blue-800">
+                      <td className={`${cellBase} font-mono ${discountRow ? '' : 'text-blue-800'}`}>
                         {row.debit > 0 ? row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                       </td>
-                      <td className="px-4 py-3 font-mono text-emerald-800">
+                      <td className={`${cellBase} font-mono ${discountRow ? '' : 'text-emerald-800'}`}>
                         {row.credit > 0 ? row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                       </td>
-                      <td className="px-4 py-3 font-mono text-black font-semibold">
+                      <td className={`${cellBase} font-mono ${discountRow ? '' : 'font-semibold'}`}>
                         {row.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
