@@ -144,3 +144,45 @@ export async function toggleCustomerStatus(id: string): Promise<{ id: string; is
   );
   return res.data;
 }
+
+export interface CustomerPurgePreviewDto {
+  customer: { id: string; code: string; name: string };
+  counts: {
+    salesInvoicesDraft: number;
+    salesInvoicesConfirmed: number;
+    salesInvoicesVoided: number;
+    vouchersActive: number;
+    returnInvoicesActive: number;
+    customerOrders: number;
+  };
+  closingBalance: number;
+  warnings: string[];
+}
+
+export interface CustomerPurgeSummaryDto {
+  voidedSalesInvoices: number;
+  deletedDraftSalesInvoices: number;
+  cancelledVouchers: number;
+  cancelledReturnInvoices: number;
+  deletedSalesInvoices: number;
+  deletedVouchers: number;
+  deletedReturnInvoices: number;
+  deletedCustomerOrders: number;
+  deletedJournalEntries: number;
+  deletedCashboxMovements: number;
+}
+
+export async function previewCustomerPurge(id: string): Promise<CustomerPurgePreviewDto> {
+  const res = await apiFetch<{ ok: boolean; data: CustomerPurgePreviewDto }>(
+    `/api/customers/${encodeURIComponent(id)}/purge-preview`,
+  );
+  return res.data;
+}
+
+export async function deleteCustomerAccount(id: string): Promise<CustomerPurgeSummaryDto> {
+  const res = await apiFetch<{ ok: boolean; data: CustomerPurgeSummaryDto; message?: string }>(
+    `/api/customers/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  );
+  return res.data;
+}

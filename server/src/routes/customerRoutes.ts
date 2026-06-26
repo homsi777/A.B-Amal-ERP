@@ -8,6 +8,7 @@ import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { insertPartyActivityLog } from '../services/partyActivityLogService.js';
 import { getCustomerStatement } from '../services/partyStatementService.js';
+import { previewCustomerPurge, purgeCustomerAccount } from '../services/purgeCustomerService.js';
 import { createSalesInvoice } from '../services/salesInvoiceService.js';
 import { applyVoucherConfirmation, insertDraftVoucher } from '../services/voucherCashboxService.js';
 import { ensureCompanyInvoiceGlAccounts, getGlAccountIdByKey, GL_KEYS } from '../services/glCoaService.js';
@@ -723,5 +724,42 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     );
     if (!row.rows.length) return sendError(reply, 404, 'العميل غير موجود', 'NOT_FOUND');
     return reply.send({ ok: true, data: row.rows[0] });
+  });
+
+  app.get('/:id/purge-preview', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    try {
+      const data = await previewCustomerPurge(companyId, id);
+      return reply.send({ ok: true, data });
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === 'NOT_FOUND') {
+        return sendError(reply, 404, e instanceof Error ? e.message : 'العميل غير موجود', 'NOT_FOUND');
+      }
+      throw e;
+    }
+  });
+
+  app.delete('/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const { id } = req.params as { id: string };
+    try {
+      const summary = await purgeCustomerAccount(companyId, id, userId);
+      return reply.send({
+        ok: true,
+        data: summary,
+        message: 'تم حذف العميل وجميع مستنداته بعد العكس المحاسبي.',
+      });
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === 'NOT_FOUND') {
+        return sendError(reply, 404, e instanceof Error ? e.message : 'العميل غير موجود', 'NOT_FOUND');
+      }
+      if (code === 'VALIDATION' || code === 'INVALID_STATE') {
+        return sendError(reply, 400, e instanceof Error ? e.message : ArabicErrors.validation, code);
+      }
+      throw e;
+    }
   });
 };

@@ -3,11 +3,16 @@ import { Calendar, Check, Download, FileUp, Loader2, Pencil, Plus, Printer, Refr
 import {
   type ApiCustomer,
   type CustomerPayload,
+  type CustomerPurgePreviewDto,
   createCustomer,
+  deleteCustomerAccount,
   listCustomers,
+  previewCustomerPurge,
   toggleCustomerStatus,
   updateCustomer,
 } from '../lib/api/customersApi';
+import { ApiRequestError } from '../lib/api/client';
+import { useToast } from '../components/NonBlockingToast';
 import { focusNextFormControl } from '../lib/forms/enterNavigation';
 import { useNavigate } from 'react-router-dom';
 import { getCustomerStatement } from '../lib/api/partyStatementsApi';
@@ -27,6 +32,7 @@ const emptyForm = (): CustomerPayload => ({
 
 export const Customers = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [customers, setCustomers] = useState<ApiCustomer[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -59,6 +65,13 @@ export const Customers = () => {
   const [telegramToDate, setTelegramToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [telegramBusy, setTelegramBusy] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState('');
+
+  const [deleteTarget, setDeleteTarget] = useState<ApiCustomer | null>(null);
+  const [deletePreview, setDeletePreview] = useState<CustomerPurgePreviewDto | null>(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -146,10 +159,48 @@ export const Customers = () => {
     } catch { /* no-op */ }
   };
 
-  const handleDeactivate = async (customer: ApiCustomer) => {
-    if (!customer.is_active) return;
-    if (!window.confirm(`تعطيل العميل "${customer.name}"؟ سيبقى محفوظاً للفواتير والكشوفات السابقة.`)) return;
-    await handleToggle(customer.id);
+  const openDeleteModal = async (customer: ApiCustomer) => {
+    setDeleteTarget(customer);
+    setDeletePreview(null);
+    setDeleteConfirmName('');
+    setDeleteError(null);
+    setDeletePreviewLoading(true);
+    try {
+      const preview = await previewCustomerPurge(customer.id);
+      setDeletePreview(preview);
+    } catch (e) {
+      setDeleteError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل معاينة الحذف');
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  };
+
+  const closeDeleteModal = () => {
+    if (deleteBusy) return;
+    setDeleteTarget(null);
+    setDeletePreview(null);
+    setDeleteConfirmName('');
+    setDeleteError(null);
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!deleteTarget || !deletePreview) return;
+    if (deleteConfirmName.trim() !== deleteTarget.name.trim()) {
+      setDeleteError('اكتب اسم العميل بالكامل للتأكيد.');
+      return;
+    }
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteCustomerAccount(deleteTarget.id);
+      showToast({ type: 'success', message: `تم حذف العميل "${deleteTarget.name}" وجميع مستنداته بعد العكس المحاسبي.` });
+      closeDeleteModal();
+      void load();
+    } catch (e) {
+      setDeleteError(e instanceof ApiRequestError ? e.message : 'تعذر حذف العميل');
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   const totalPages = Math.ceil(total / pageSize);
@@ -697,14 +748,20 @@ export const Customers = () => {
                               title={c.is_active ? 'تعطيل الحساب' : 'تفعيل الحساب'}
                               className={`px-2 py-1 text-xs font-bold rounded-lg transition ${
                                 c.is_active
-                                  ? 'text-rose-700 bg-rose-50 hover:bg-rose-100'
+                                  ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
                                   : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
                               }`}
                             >
                               {c.is_active ? 'تعطيل' : 'تفعيل'}
                             </button>
-                            <button onClick={() => void handleDeactivate(c)} disabled={!c.is_active} title="تعطيل العميل" className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition disabled:opacity-30">
-                              <Trash2 className="w-4 h-4" />
+                            <button
+                              type="button"
+                              onClick={() => void openDeleteModal(c)}
+                              title="حذف العميل وكل مستنداته (عكس محاسبي)"
+                              className="px-2 py-1 text-xs font-bold rounded-lg transition text-rose-700 bg-rose-50 hover:bg-rose-100 inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              حذف
                             </button>
                           </div>
                         </td>
@@ -817,6 +874,89 @@ export const Customers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[230] flex items-center justify-center bg-slate-900/50 p-4" dir="rtl">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-rose-200">
+            <div className="px-6 py-4 border-b border-rose-100 bg-rose-50 flex justify-between items-start gap-3">
+              <div>
+                <h3 className="font-bold text-lg text-rose-900">حذف عميل نهائياً</h3>
+                <p className="text-sm text-rose-800 mt-1">
+                  {deleteTarget.name} — <span className="font-mono">{deleteTarget.code}</span>
+                </p>
+              </div>
+              <button type="button" onClick={closeDeleteModal} disabled={deleteBusy} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {deletePreviewLoading ? (
+                <div className="py-8 text-center text-slate-500">
+                  <Loader2 className="w-6 h-6 animate-spin inline ml-2" />
+                  جاري تحليل مستندات العميل...
+                </div>
+              ) : deletePreview ? (
+                <>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                    <p>
+                      فواتير مؤكدة: <strong>{deletePreview.counts.salesInvoicesConfirmed}</strong> — مسودة:{' '}
+                      <strong>{deletePreview.counts.salesInvoicesDraft}</strong> — ملغاة:{' '}
+                      <strong>{deletePreview.counts.salesInvoicesVoided}</strong>
+                    </p>
+                    <p>
+                      سندات نشطة: <strong>{deletePreview.counts.vouchersActive}</strong> — مرتجعات:{' '}
+                      <strong>{deletePreview.counts.returnInvoicesActive}</strong> — طلبيات:{' '}
+                      <strong>{deletePreview.counts.customerOrders}</strong>
+                    </p>
+                    <p>
+                      الرصيد الحالي: <strong>{deletePreview.closingBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+                    </p>
+                  </div>
+                  <ul className="text-sm text-slate-700 space-y-1.5 list-disc pr-5">
+                    {deletePreview.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-bold text-slate-700">
+                      للتأكيد اكتب اسم العميل بالكامل: <span className="text-rose-700">{deleteTarget.name}</span>
+                    </span>
+                    <input
+                      type="text"
+                      value={deleteConfirmName}
+                      onChange={(e) => setDeleteConfirmName(e.target.value)}
+                      disabled={deleteBusy}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-400 focus:outline-none"
+                    />
+                  </label>
+                </>
+              ) : null}
+              {deleteError && (
+                <div className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{deleteError}</div>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={deleteBusy}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteBusy || deletePreviewLoading || !deletePreview || deleteConfirmName.trim() !== deleteTarget.name.trim()}
+                  onClick={() => void handleDeleteCustomer()}
+                  className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {deleteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  حذف نهائي
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
