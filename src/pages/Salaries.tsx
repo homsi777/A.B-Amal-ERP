@@ -27,7 +27,7 @@ import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
 import { ApiRequestError } from '../lib/api/client';
 import type { ExchangeRateDto } from '../lib/api/exchangeRatesApi';
 import { listExchangeRates } from '../lib/api/exchangeRatesApi';
-import { ExchangeRateQuickPanel } from '../components/treasury/ExchangeRateQuickPanel';
+import { ExchangeRatePopupButton } from '../components/treasury/ExchangeRatePopupButton';
 import { convertToUsd, formatUsd, normalizeExchangeRate, round2 } from '../lib/currency';
 
 type EmployeeForm = {
@@ -106,6 +106,12 @@ export const Salaries = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void listExchangeRates()
+      .then((res) => setExchangeRates(res.data))
+      .catch(() => setExchangeRates([]));
+  }, []);
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -442,6 +448,7 @@ export const Salaries = () => {
           <p className="text-slate-500 mt-1">إدارة بيانات الموظفين وتسليم الرواتب من الخزينة مع طباعة وتصدير A4/Excel.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ExchangeRatePopupButton onRatesChange={setExchangeRates} />
           <button type="button" onClick={printEmployeesA4} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50">
             <Printer className="w-4 h-4" />
             طباعة A4
@@ -462,8 +469,6 @@ export const Salaries = () => {
       </div>
 
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">{error}</div>}
-
-      <ExchangeRateQuickPanel onRatesChange={setExchangeRates} />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {(Object.entries(totalsByCurrency) as Array<[string, number]>).map(([currency, total]) => (

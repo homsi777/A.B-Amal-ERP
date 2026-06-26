@@ -14,12 +14,14 @@ type Draft = Record<string, { rate: string; isActive: boolean }>;
 export interface ExchangeRateQuickPanelProps {
   title?: string;
   className?: string;
+  embedded?: boolean;
   onRatesChange?: (rates: ExchangeRateDto[]) => void;
 }
 
 export function ExchangeRateQuickPanel({
   title = 'أسعار الصرف مقابل الدولار',
   className = '',
+  embedded = false,
   onRatesChange,
 }: ExchangeRateQuickPanelProps) {
   const { showToast } = useToast();
@@ -85,22 +87,42 @@ export function ExchangeRateQuickPanel({
   };
 
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden ${className}`}>
-      <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="font-bold text-slate-900 text-sm">{title}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">عدد وحدات العملة مقابل 1 دولار — مثال: 15000 ل.س = 1$</p>
+    <div
+      className={
+        embedded
+          ? `overflow-hidden ${className}`
+          : `rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden ${className}`
+      }
+    >
+      {!embedded ? (
+        <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm">{title}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">عدد وحدات العملة مقابل 1 دولار — مثال: 15000 ل.س = 1$</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            تحديث
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          تحديث
-        </button>
-      </div>
+      ) : (
+        <div className="px-4 py-2 flex justify-end border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            تحديث
+          </button>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-right text-sm">
           <thead className="bg-slate-100 text-slate-600 text-xs">

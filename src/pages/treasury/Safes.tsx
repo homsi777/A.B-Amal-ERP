@@ -10,7 +10,7 @@ import {
   type CashboxTransferDto,
 } from '../../lib/api/cashboxTransfersApi';
 import { useToast } from '../../components/NonBlockingToast';
-import { ExchangeRateQuickPanel } from '../../components/treasury/ExchangeRateQuickPanel';
+import { ExchangeRatePopupButton } from '../../components/treasury/ExchangeRatePopupButton';
 import { SUPPORTED_CURRENCIES } from '../../lib/currency';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -175,6 +175,7 @@ export const Safes = () => {
           <p className="text-slate-500 mt-1">إدارة الصناديق وأرصدة المناقلات الفعلية من قاعدة البيانات</p>
         </div>
         <div className="flex items-center gap-2">
+          <ExchangeRatePopupButton />
           <button
             type="button"
             onClick={() => {
@@ -198,8 +199,6 @@ export const Safes = () => {
       </div>
 
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">{error}</div>}
-
-      <ExchangeRateQuickPanel title="أسعار الصرف (الخزينة والرواتب والسندات)" />
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
