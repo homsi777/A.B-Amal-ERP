@@ -14,6 +14,8 @@ export const GL_KEYS = {
   INVENTORY: 'GL_INVENTORY',
   SALES_REVENUE: 'GL_SALES_REVENUE',
   COGS: 'GL_COGS',
+  /** حسم/خصم منح للعملاء — يُستخدم عند تخفيض ذمة العميل دون قبض نقدي */
+  SALES_DISCOUNT_ALLOWANCE: 'GL_SALES_DISCOUNT_ALLOWANCE',
 } as const;
 
 /**
@@ -134,6 +136,15 @@ export async function ensureCompanyGlCoa(client: PoolClient, companyId: string):
       sort_order: 130,
     },
     {
+      code: '5102',
+      name: 'حسومات منحة للعملاء',
+      account_type: 'EXPENSE',
+      parent_code: '5',
+      is_posting: true,
+      system_key: GL_KEYS.SALES_DISCOUNT_ALLOWANCE,
+      sort_order: 132,
+    },
+    {
       code: '5131',
       name: 'تكلفة البضاعة المباعة',
       account_type: 'EXPENSE',
@@ -180,6 +191,7 @@ export async function ensureCompanyInvoiceGlAccounts(client: PoolClient, company
   }> = [
     { code: '1130', name: 'مخزون الأقمشة', account_type: 'ASSET', parent_code: '11', system_key: GL_KEYS.INVENTORY, sort_order: 45 },
     { code: '4001', name: 'إيرادات مبيعات أقمشة', account_type: 'REVENUE', parent_code: '4', system_key: GL_KEYS.SALES_REVENUE, sort_order: 102 },
+    { code: '5102', name: 'حسومات منحة للعملاء', account_type: 'EXPENSE', parent_code: '5', system_key: GL_KEYS.SALES_DISCOUNT_ALLOWANCE, sort_order: 132 },
     { code: '5131', name: 'تكلفة البضاعة المباعة', account_type: 'EXPENSE', parent_code: '5', system_key: GL_KEYS.COGS, sort_order: 135 },
   ];
 

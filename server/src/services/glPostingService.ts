@@ -843,3 +843,79 @@ export async function postManualJournal(
     lines,
   });
 }
+
+/** Customer allowance discount: Dr discount expense, Cr AR (party). */
+export async function postCustomerDiscountToGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    discountId: string;
+    discountNo: string;
+    discountDate: string;
+    customerId: string;
+    customerName: string;
+    amountUsd: number;
+    currencyCode: string;
+    description: string;
+    userId: string | null;
+  },
+): Promise<string> {
+  await ensureCompanyInvoiceGlAccounts(client, input.companyId);
+  const exist = await client.query(
+    `SELECT id FROM journal_entries WHERE company_id=$1 AND source_type='CUSTOMER_DISCOUNT' AND source_id=$2`,
+    [input.companyId, input.discountId],
+  );
+  if (exist.rows.length) return exist.rows[0].id as string;
+
+  const discountAcct = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.SALES_DISCOUNT_ALLOWANCE);
+  const arId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.AR);
+  const amount = round2(input.amountUsd);
+  const desc = input.description.trim() || `حسم عميل ${input.discountNo}`;
+
+  return insertBalancedJournal(client, {
+    companyId: input.companyId,
+    entryDate: input.discountDate.slice(0, 10),
+    description: desc,
+    sourceType: 'CUSTOMER_DISCOUNT',
+    sourceId: input.discountId,
+    userId: input.userId,
+    lines: [
+      {
+        glAccountId: discountAcct,
+        debit: amount,
+        credit: 0,
+        currencyCode: 'USD',
+        description: desc,
+      },
+      {
+        glAccountId: arId,
+        debit: 0,
+        credit: amount,
+        currencyCode: 'USD',
+        description: desc,
+        partyType: 'CUSTOMER',
+        partyId: input.customerId,
+      },
+    ],
+  });
+}
+
+export async function reverseCustomerDiscountGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    discountId: string;
+    discountNo: string;
+    userId: string | null;
+  },
+): Promise<void> {
+  await reverseJournalBySource(client, {
+    companyId: input.companyId,
+    originalSourceType: 'CUSTOMER_DISCOUNT',
+    originalSourceId: input.discountId,
+    reversalSourceType: 'CUSTOMER_DISCOUNT_REVERSAL',
+    reversalSourceId: input.discountId,
+    description: `عكس حسم عميل ${input.discountNo}`,
+    userId: input.userId,
+  });
+}

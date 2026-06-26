@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { ArrowUpCircle, FileText, Printer, Download, Calendar, MessageCircle, X, CreditCard, Banknote, Filter, Loader2 } from 'lucide-react';
+import { ArrowUpCircle, FileText, Printer, Download, Calendar, MessageCircle, X, CreditCard, Banknote, Filter, Loader2, Percent } from 'lucide-react';
 import { format } from 'date-fns';
 import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
 import { exportPdfFromHtmlString, exportToPDF, renderCustomerStatementPdfHtml } from '../../lib/pdfExport';
@@ -27,6 +27,9 @@ import {
   loadCustomerSaleInvoiceDetails,
 } from '../../lib/customerStatementInvoiceDetails';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
+import { createCustomerDiscount } from '../../lib/api/customerDiscountsApi';
+import { listExchangeRates, type ExchangeRateDto } from '../../lib/api/exchangeRatesApi';
+import { ApiRequestError } from '../../lib/api/client';
 import type { Customer, Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
 import { SmartPartySearch } from '../../components/SmartPartySearch';
@@ -65,6 +68,15 @@ export const CustomerStatement = () => {
   const [vouchersLoading, setVouchersLoading] = useState(false);
   const [voucherRefreshTick, setVoucherRefreshTick] = useState(0);
   const [payNote, setPayNote] = useState('');
+  const [discountModalOpen, setDiscountModalOpen] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountDate, setDiscountDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [discountCurrency, setDiscountCurrency] = useState('USD');
+  const [discountExchangeRate, setDiscountExchangeRate] = useState('1');
+  const [discountDescription, setDiscountDescription] = useState('');
+  const [discountNotes, setDiscountNotes] = useState('');
+  const [discountBusy, setDiscountBusy] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRateDto[]>([]);
   const [dbSaleInvoicesFromApi, setDbSaleInvoicesFromApi] = useState<Invoice[]>([]);
   const [accountStatement, setAccountStatement] = useState<PartyStatementData | null>(null);
   const [accountStatementLoading, setAccountStatementLoading] = useState(false);
@@ -154,6 +166,8 @@ export const CustomerStatement = () => {
           const def = list.find((b) => b.is_default) ?? list[0];
           return def?.id ?? '';
         });
+        const rates = await listExchangeRates();
+        if (!cancelled) setExchangeRates(rates.data ?? []);
       } catch {
         if (!cancelled) {
           setCashboxes([]);
@@ -164,6 +178,16 @@ export const CustomerStatement = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const code = discountCurrency.trim().toUpperCase();
+    if (code === 'USD') {
+      setDiscountExchangeRate('1');
+      return;
+    }
+    const row = exchangeRates.find((r) => r.currency_code === code);
+    if (row) setDiscountExchangeRate(String(row.exchange_rate_to_usd ?? '1'));
+  }, [discountCurrency, exchangeRates]);
 
   const isUuid = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -861,6 +885,68 @@ export const CustomerStatement = () => {
     closePaymentModal();
   };
 
+  const closeDiscountModal = () => {
+    setDiscountModalOpen(false);
+    setDiscountAmount('');
+    setDiscountDescription('');
+    setDiscountNotes('');
+    setDiscountDate(format(new Date(), 'yyyy-MM-dd'));
+    setDiscountCurrency('USD');
+    setDiscountExchangeRate('1');
+  };
+
+  const submitCustomerDiscount = async () => {
+    if (!selectedCustomerId) {
+      showToast({ type: 'warning', message: 'اختر عميلاً أولاً' });
+      return;
+    }
+    const uuidRe =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(selectedCustomerId)) {
+      showToast({ type: 'warning', message: 'لا يمكن تسجيل الحسم إلا لعملاء مسجلين على الخادم.' });
+      return;
+    }
+    const amount = Number(String(discountAmount).replace(/,/g, ''));
+    if (!amount || Number.isNaN(amount) || amount <= 0) {
+      showToast({ type: 'warning', message: 'أدخل مبلغ حسم صحيحاً أكبر من صفر' });
+      return;
+    }
+    const currencyCode = discountCurrency.trim().toUpperCase() || 'USD';
+    const rate = currencyCode === 'USD' ? 1 : Number(discountExchangeRate);
+    if (currencyCode !== 'USD' && (!Number.isFinite(rate) || rate <= 0)) {
+      showToast({ type: 'warning', message: 'أدخل سعر صرف صحيحاً' });
+      return;
+    }
+    const description = discountDescription.trim() || `حسم منحة — ${selectedCustomer?.name ?? 'عميل'}`;
+    setDiscountBusy(true);
+    try {
+      const created = await createCustomerDiscount({
+        customerId: selectedCustomerId,
+        discountDate,
+        amount,
+        currencyCode,
+        exchangeRateToUsd: rate,
+        description,
+        notes: discountNotes.trim() || null,
+      });
+      showToast({
+        type: 'success',
+        message: `تم تسجيل ${created.discount_no} وترحيله محاسبياً — سيظهر في كشف الحساب.`,
+      });
+      setVoucherRefreshTick((n) => n + 1);
+      closeDiscountModal();
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'تعذر تسجيل حسم العميل',
+      });
+    } finally {
+      setDiscountBusy(false);
+    }
+  };
+
+  const customerClosingBalance = accountStatement?.totals.closingBalance ?? null;
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <A4PreviewModal
@@ -941,6 +1027,15 @@ export const CustomerStatement = () => {
            >
              <ArrowUpCircle className="w-4 h-4" />
              <span>سند دفع</span>
+           </button>
+           <button
+             type="button"
+             onClick={() => setDiscountModalOpen(true)}
+             disabled={!selectedCustomerId}
+             className="bg-gradient-to-r from-violet-500/20 to-violet-500/0 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-violet-500/30 transition shadow-sm font-medium border border-violet-500/50 text-violet-700 disabled:opacity-40"
+           >
+             <Percent className="w-4 h-4" />
+             <span>حسم عميل</span>
            </button>
          </div>
        </div>
@@ -1128,7 +1223,7 @@ export const CustomerStatement = () => {
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-slate-800">كشف حساب (حركات مالية - الخادم)</h4>
-              <p className="text-[11px] text-slate-500 mt-1">فواتير + سندات + مرتجعات — مبني على قاعدة البيانات</p>
+              <p className="text-[11px] text-slate-500 mt-1">فواتير + سندات + مرتجعات + حسومات — مبني على قاعدة البيانات</p>
             </div>
             {accountStatementLoading && <span className="text-xs text-slate-400">جاري التحميل…</span>}
           </div>
@@ -1164,8 +1259,8 @@ export const CustomerStatement = () => {
                       <td className="px-4 py-3 text-black">{row.date}</td>
                       <td className="px-4 py-3 text-black">{row.typeLabel}</td>
                       <td className="px-4 py-3 font-mono text-xs text-black">{row.documentNo}</td>
-                      <td className="px-4 py-3 text-black max-w-xl truncate" title={row.fabric?.fabricName || row.typeLabel}>
-                        {row.fabric?.fabricName || row.typeLabel}
+                      <td className="px-4 py-3 text-black max-w-xl truncate" title={row.detailText || row.fabric?.fabricName || row.typeLabel}>
+                        {row.fabric?.fabricName || row.detailText || row.typeLabel}
                       </td>
                       <td className="px-4 py-3 font-mono text-black">
                         {row.fabric
@@ -1433,6 +1528,142 @@ export const CustomerStatement = () => {
           </div>
         </div>
       )}
+
+      {discountModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+          <div className="relative w-full max-w-lg rounded-2xl border border-violet-400/50 bg-gradient-to-br from-violet-500/20 via-white to-violet-400/[0.07] shadow-2xl ring-1 ring-violet-500/20">
+            <button
+              type="button"
+              onClick={closeDiscountModal}
+              disabled={discountBusy}
+              className="absolute left-4 top-4 rounded-lg p-1.5 text-slate-500 hover:bg-white/80 hover:text-slate-800 transition"
+              aria-label="إغلاق"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="border-b border-violet-500/20 px-6 pb-4 pt-6 pr-14">
+              <h3 className="text-xl font-bold text-violet-900 flex items-center gap-2">
+                <Percent className="w-6 h-6 text-violet-600" />
+                حسم عميل (سند حسم)
+              </h3>
+              <p className="text-sm mt-1 text-violet-800/80">
+                يُخفّض ذمة العميل ويُرحّل محاسبياً (حساب حسم ← ذمم مدينة) — يظهر كسطر في كشف الحساب.
+              </p>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <div className="rounded-xl bg-white/70 p-4 border border-violet-200/60 shadow-inner">
+                <p className="text-xs font-semibold text-slate-500 mb-1">العميل</p>
+                <p className="text-lg font-bold text-slate-900">{selectedCustomer?.name ?? '—'}</p>
+                {customerClosingBalance != null && (
+                  <p className="text-sm text-slate-600 mt-2">
+                    الرصيد الحالي:{' '}
+                    <span className="font-bold text-indigo-700">
+                      {customerClosingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">مبلغ الحسم</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 text-lg font-bold text-violet-700 shadow-sm focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">تاريخ الحسم</label>
+                  <input
+                    type="date"
+                    value={discountDate}
+                    onChange={(e) => setDiscountDate(e.target.value)}
+                    className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">العملة</label>
+                  <select
+                    value={discountCurrency}
+                    onChange={(e) => setDiscountCurrency(e.target.value)}
+                    className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
+                  >
+                    <option value="USD">USD — دولار</option>
+                    <option value="SYP">SYP — ليرة</option>
+                    <option value="TRY">TRY — ليرة تركية</option>
+                    <option value="SAR">SAR — ريال</option>
+                  </select>
+                </div>
+                {discountCurrency !== 'USD' ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">سعر الصرف (مقابل 1 USD)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.000001"
+                      value={discountExchangeRate}
+                      onChange={(e) => setDiscountExchangeRate(e.target.value)}
+                      className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 shadow-sm font-mono text-left focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
+                      dir="ltr"
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">سبب الحسم (يظهر في الكشف)</label>
+                <input
+                  type="text"
+                  value={discountDescription}
+                  onChange={(e) => setDiscountDescription(e.target.value)}
+                  placeholder="مثال: حسم تسوية، حسم ولاء، اتفاق إدارة..."
+                  className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">ملاحظات داخلية (اختياري)</label>
+                <input
+                  type="text"
+                  value={discountNotes}
+                  onChange={(e) => setDiscountNotes(e.target.value)}
+                  className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={discountBusy}
+                  onClick={() => void submitCustomerDiscount()}
+                  className="flex-1 min-w-[140px] rounded-xl px-4 py-3 font-semibold text-white shadow-lg transition bg-violet-600 shadow-violet-700/25 hover:bg-violet-700 disabled:opacity-60"
+                >
+                  {discountBusy ? 'جاري التسجيل...' : 'تسجيل الحسم وترحيله'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDiscountModal}
+                  disabled={discountBusy}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {batchExportOpen && (
         <BatchStatementExportModal
           type="customer"

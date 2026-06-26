@@ -73,12 +73,14 @@ export type AccountStatementSourceRow = {
   sourceType?: string;
   type?: string;
   sourceId?: string;
+  notes?: string | null;
 };
 
 export type AccountStatementDisplayRow = {
   date: string;
   documentNo: string;
   typeLabel: string;
+  detailText?: string;
   fabric: StatementFabricGroup | null;
   debit: number;
   credit: number;
@@ -151,7 +153,11 @@ export function flattenAccountStatementDisplayRows(args: {
     pending.push({
       date: row.date,
       documentNo: String(row.documentNo ?? ''),
-      typeLabel: row.typeLabel || row.description || '',
+      typeLabel:
+        row.type === 'CUSTOMER_DISCOUNT'
+          ? 'حسم عميل'
+          : row.typeLabel || row.description || '',
+      detailText: row.type === 'CUSTOMER_DISCOUNT' ? String(row.description || row.notes || '').trim() || undefined : undefined,
       fabric: null,
       debit: Number(row.debit || 0),
       credit: Number(row.credit || 0),

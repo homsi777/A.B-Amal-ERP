@@ -124,6 +124,17 @@ function customerRowsQuery(period: 'opening' | 'period', filters: PartyStatement
     ${dateCondition('r', 'return_date')}
 
     UNION ALL
+    SELECT cd.discount_date AS row_date, cd.created_at, 'CUSTOMER_DISCOUNT' AS type, 'حسم عميل' AS type_label,
+           cd.discount_no AS document_no, COALESCE(cd.description, 'حسم منحة على ذمة العميل') AS description,
+           0::numeric AS debit, cd.amount AS credit, cd.currency_code,
+           0::numeric AS debit_usd,
+           cd.amount_usd AS credit_usd,
+           'CUSTOMER_DISCOUNT' AS source_type, cd.id AS source_id, cd.status, cd.notes
+    FROM customer_discounts cd
+    WHERE cd.company_id=$1 AND cd.customer_id=$2 AND cd.status='CONFIRMED'
+    ${dateCondition('cd', 'discount_date')}
+
+    UNION ALL
     SELECT je.entry_date AS row_date, je.created_at, 'CUSTOMER_JOURNAL' AS type, 'قيد مالي' AS type_label,
            je.entry_no AS document_no, COALESCE(jl.description, je.description, 'قيد مالي على ذمة العميل') AS description,
            jl.debit AS debit, jl.credit AS credit, jl.currency_code,

@@ -14,7 +14,8 @@ type SequentialDocumentKind =
   | 'CUSTOMER_ORDER'
   | 'RECEIPT_VOUCHER'
   | 'PAYMENT_VOUCHER'
-  | 'ACCOUNT_STATEMENT';
+  | 'ACCOUNT_STATEMENT'
+  | 'CUSTOMER_DISCOUNT';
 
 const SEQUENTIAL_DOCUMENTS: Record<
   SequentialDocumentKind,
@@ -26,6 +27,7 @@ const SEQUENTIAL_DOCUMENTS: Record<
   RECEIPT_VOUCHER: { prefix: 'SQ', width: 6, table: 'vouchers', column: 'voucher_no', voucherType: 'RECEIPT' },
   PAYMENT_VOUCHER: { prefix: 'SD', width: 6, table: 'vouchers', column: 'voucher_no', voucherType: 'PAYMENT' },
   ACCOUNT_STATEMENT: { prefix: '', width: 10, table: 'journal_entries', column: 'entry_no', lockKey: 'ACCOUNT_STATEMENT' },
+  CUSTOMER_DISCOUNT: { prefix: 'CD', width: 6, table: 'customer_discounts', column: 'discount_no' },
 };
 
 /** أرقام طلبيات العملاء — أرقام فقط (1، 2، 3…) مع دعم التسلسل القديم CO0000001 */
