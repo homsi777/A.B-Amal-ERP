@@ -35,6 +35,11 @@ import { useToast } from '../../components/NonBlockingToast';
 import { InvoiceSaveActionsModal } from '../../components/invoices/InvoiceSaveActionsModal';
 import { SmartPartySearch } from '../../components/SmartPartySearch';
 import { listExchangeRates, type ExchangeRateDto } from '../../lib/api/exchangeRatesApi';
+import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
+import {
+  resolveWarehouseIdFromStored,
+  warehouseNameById,
+} from '../../lib/warehouseSelect';
 import { convertToUsd, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../../lib/currency';
 import {
   ParsedSupplierLabel,
@@ -183,12 +188,6 @@ const EDIT_INVOICE_ID_RE =
 
 /** قيمة `invoiceNo` في جسم POST عند الإنشاء — الخادم لا يستخدمها لتخزين الرقم (يُولَّد تسلسلياً). */
 const CREATE_INVOICE_API_NO_STUB = '-';
-
-function warehouseKeyFromLabel(label: unknown): 'main' | 'sub' {
-  const s = String(label ?? '').trim();
-  if (s.includes('الجملة')) return 'sub';
-  return 'main';
-}
 
 const numberValue = (value: string) => Number(value) || 0;
 const ROLL_PHYSICAL_EPS = 1e-6;
@@ -536,7 +535,9 @@ export const InvoiceForm = () => {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [invoiceNumber, setInvoiceNumber] = useState(INVOICE_NUMBER_PENDING_LABEL);
   const [partyId, setPartyId] = useState('');
-  const [warehouse, setWarehouse] = useState('main');
+  const [warehouse, setWarehouse] = useState('');
+  const [apiWarehouses, setApiWarehouses] = useState<ApiWarehouse[]>([]);
+  const [warehousesLoading, setWarehousesLoading] = useState(true);
   const [currency, setCurrency] = useState('USD');
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDto[]>([]);
   const [exchangeRateToUsd, setExchangeRateToUsd] = useState('1');
@@ -615,7 +616,16 @@ export const InvoiceForm = () => {
         setDate(String(h.invoice_date ?? '').slice(0, 10) || format(new Date(), 'yyyy-MM-dd'));
         setInvoiceNumber(normalizeStoredInvoiceNo(h.invoice_no) || INVOICE_NUMBER_MISSING_LABEL);
         setPartyId(isSales ? String(h.customer_id ?? '') : String(h.supplier_id ?? ''));
-        setWarehouse(warehouseKeyFromLabel(h.warehouse_label));
+        const whs =
+          apiWarehouses.length > 0 ? apiWarehouses : await listWarehouses({ status: 'active' });
+        if (!cancelled && apiWarehouses.length === 0) setApiWarehouses(whs);
+        setWarehouse(
+          resolveWarehouseIdFromStored(
+            h.warehouse_id != null ? String(h.warehouse_id) : null,
+            h.warehouse_label,
+            whs,
+          ),
+        );
         setCurrency(String(h.currency_code ?? 'USD'));
         const ccy = String(h.currency_code ?? 'USD').trim().toUpperCase();
         const rateNum = Number(h.exchange_rate_to_usd);
@@ -695,20 +705,27 @@ export const InvoiceForm = () => {
   useEffect(() => {
     let cancelled = false;
     setRollsLoading(true);
+    setWarehousesLoading(true);
     void (async () => {
       try {
-       const [cust, sup, stock, boxes, rates] = await Promise.all([
+       const [cust, sup, stock, boxes, rates, whs] = await Promise.all([
          listCustomers({ status: 'active', pageSize: 1000 }),
          listSuppliers({ status: 'active', pageSize: 1000 }),
          listFabricRolls({ onlyAvailable: true, pageSize: 10000 }), // متاح للبيع فقط (AVAILABLE + length_m > 0)
          listCashboxes({ active: true }),
          listExchangeRates(),
+         listWarehouses({ status: 'active' }),
        ]);
         if (cancelled) return;
         setApiCustomers(cust.data);
         setApiSuppliers(sup.data);
         setApiRolls(stock.data.filter((r) => (isSales ? isRollApplicableToSalesInvoice(r) : isRollAvailableForSale(r))));
         setExchangeRates(rates.data);
+        setApiWarehouses(whs);
+        setWarehouse((prev) => {
+          if (prev && whs.some((w) => w.id === prev)) return prev;
+          return whs[0]?.id ?? '';
+        });
         setCashboxOptions(
           (boxes.data ?? []).map((b) => ({ id: b.id, name: b.name, code: b.code })),
         );
@@ -719,8 +736,12 @@ export const InvoiceForm = () => {
         setApiRolls([]);
         setExchangeRates([]);
         setCashboxOptions([]);
+        setApiWarehouses([]);
       } finally {
-        if (!cancelled) setRollsLoading(false);
+        if (!cancelled) {
+          setRollsLoading(false);
+          setWarehousesLoading(false);
+        }
       }
     })();
     return () => {
@@ -1791,7 +1812,12 @@ export const InvoiceForm = () => {
         return;
       }
       if (!partyId) setPartyId(data.customerId);
-      if (data.warehouse) setWarehouse(data.warehouse === 'sub' ? 'sub' : 'main');
+      const whs =
+        apiWarehouses.length > 0 ? apiWarehouses : await listWarehouses({ status: 'active' });
+      if (apiWarehouses.length === 0) setApiWarehouses(whs);
+      if (data.warehouse) {
+        setWarehouse(resolveWarehouseIdFromStored(null, data.warehouse, whs));
+      }
       if (data.currency) setCurrency(data.currency);
       setCustomerOrderId(data.orderId);
       setLinkedOrderNumber(displayCustomerOrderNumber(data.orderNumber));
@@ -2322,7 +2348,12 @@ export const InvoiceForm = () => {
       (selectedParty as { company?: string })?.company ||
       'جهة';
 
-    const warehouseLabel = warehouse === 'main' ? 'المستودع الرئيسي' : 'مستودع الجملة';
+    const warehouseLabel = warehouseNameById(warehouse, apiWarehouses);
+
+    if (!warehouse || !apiWarehouses.some((w) => w.id === warehouse)) {
+      showToast({ type: 'warning', message: 'يرجى اختيار المستودع' });
+      return;
+    }
 
     const currencyCode = String(currency || 'USD').trim().toUpperCase();
     const rate = currencyCode === 'USD' ? 1 : normalizeExchangeRate(exchangeRateToUsd);
@@ -2390,7 +2421,7 @@ export const InvoiceForm = () => {
 
     const invoicePersistCommon = {
       invoiceDate: date.slice(0, 10),
-      warehouseId: null as string | null,
+      warehouseId: warehouse,
       warehouseLabel,
       currencyCode,
       exchangeRateToUsd: rate,
@@ -2906,10 +2937,21 @@ export const InvoiceForm = () => {
               value={warehouse}
               onChange={(e) => setWarehouse(e.target.value)}
               onKeyDown={focusNextFormControl}
-              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500"
+              disabled={warehousesLoading || apiWarehouses.length === 0}
+              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 disabled:bg-slate-50"
             >
-              <option value="main">المستودع الرئيسي</option>
-              <option value="sub">مستودع الجملة</option>
+              {warehousesLoading ? (
+                <option value="">جاري تحميل المستودعات...</option>
+              ) : apiWarehouses.length === 0 ? (
+                <option value="">لا مستودعات نشطة — أنشئ مستودعاً أولاً</option>
+              ) : (
+                apiWarehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                    {w.code ? ` (${w.code})` : ''}
+                  </option>
+                ))
+              )}
             </select>
           </div>
           <div className="space-y-1.5">

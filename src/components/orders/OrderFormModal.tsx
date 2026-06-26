@@ -27,6 +27,8 @@ import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
 import { compressOrderLineImage, compressOrderLineImageErrorMessage } from '../../lib/compressOrderLineImage';
 import { isValidPriceInput, normalizePriceInput } from '../../lib/orderPriceInput';
 import { lookupCartelaByScan } from '../../lib/api/cartelaApi';
+import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
+import { resolveOrderWarehouseLabel } from '../../lib/warehouseSelect';
 import { ApiRequestError } from '../../lib/api/client';
 import { useToast } from '../NonBlockingToast';
 
@@ -284,7 +286,9 @@ export function OrderFormModal({
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [orderNumber, setOrderNumber] = useState('');
   const [partyId, setPartyId] = useState('');
-  const [warehouse, setWarehouse] = useState('main');
+  const [warehouse, setWarehouse] = useState('');
+  const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
+  const [warehousesLoading, setWarehousesLoading] = useState(false);
   const [shippingMethod, setShippingMethod] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [notes, setNotes] = useState('');
@@ -314,11 +318,29 @@ export function OrderFormModal({
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    setWarehousesLoading(true);
+    void listWarehouses({ status: 'active' })
+      .then((rows) => {
+        if (!cancelled) setWarehouses(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setWarehouses([]);
+      })
+      .finally(() => {
+        if (!cancelled) setWarehousesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     if (editingOrder) {
       setDate(editingOrder.date);
       setOrderNumber(displayCustomerOrderNumber(editingOrder.orderNumber));
       setPartyId(editingOrder.customerId);
-      setWarehouse(editingOrder.warehouse || 'main');
       setShippingMethod(editingOrder.shippingMethod || '');
       setCurrency(editingOrder.currency);
       setNotes(editingOrder.notes || '');
@@ -331,7 +353,6 @@ export function OrderFormModal({
       setDate(format(new Date(), 'yyyy-MM-dd'));
       setOrderNumber('');
       setPartyId('');
-      setWarehouse('main');
       setShippingMethod('');
       setCurrency('USD');
       setNotes('');
@@ -342,6 +363,15 @@ export function OrderFormModal({
       setItems([emptyLine()]);
     }
   }, [open, editingOrder]);
+
+  useEffect(() => {
+    if (!open || !warehouses.length) return;
+    if (editingOrder) {
+      setWarehouse(resolveOrderWarehouseLabel(editingOrder.warehouse, warehouses));
+    } else {
+      setWarehouse(warehouses[0].name);
+    }
+  }, [open, editingOrder, warehouses]);
 
   const summaryItems = useMemo(() => items.filter(isSummaryLine), [items]);
   const savableItems = useMemo(() => items.filter(isSavableOrderLine), [items]);
@@ -837,10 +867,21 @@ export function OrderFormModal({
               <select
                 value={warehouse}
                 onChange={(e) => setWarehouse(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                disabled={warehousesLoading || warehouses.length === 0}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm disabled:bg-slate-50"
               >
-                <option value="main">المستودع الرئيسي</option>
-                <option value="sub">مستودع الجملة</option>
+                {warehousesLoading ? (
+                  <option value="">جاري تحميل المستودعات...</option>
+                ) : warehouses.length === 0 ? (
+                  <option value="">لا مستودعات نشطة</option>
+                ) : (
+                  warehouses.map((w) => (
+                    <option key={w.id} value={w.name}>
+                      {w.name}
+                      {w.code ? ` (${w.code})` : ''}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
             <div className="space-y-1.5">

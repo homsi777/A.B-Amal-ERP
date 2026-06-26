@@ -3,6 +3,7 @@ import type { Customer, CustomerOrder } from '../types';
 import { exportPrintHtmlToPdf } from './printing/documentPrint';
 import { BRAND } from '../branding';
 import { displayCustomerOrderNumber, orderLineColorLabel, orderLineDesignNo } from './orderDisplay';
+import { orderWarehouseDisplayLabel } from './warehouseSelect';
 import {
   renderReservationOrderA4Document,
   renderReservationOrderBodyHtml,
@@ -66,8 +67,7 @@ function renderOrderMetaGridHtml(
   customer: Customer,
   statusLabelAr: string,
 ): string {
-  const warehouseLabel =
-    order.warehouse === 'sub' ? 'مستودع الجملة' : 'المستودع الرئيسي';
+  const warehouseLabel = orderWarehouseDisplayLabel(order.warehouse);
   const expectedLabel = order.expectedDate ? formatPdfLocaleDate(order.expectedDate) : '—';
   const notesVal = order.notes?.trim() ? escapeHtml(order.notes) : '—';
 
@@ -423,7 +423,7 @@ export function exportCustomerOrderExcel(order: CustomerOrder, customer: Custome
     ['الجوال', customer.phone],
     ['العنوان', customer.address],
     ['العملة', order.currency],
-    ['المستودع', order.warehouse === 'sub' ? 'مستودع الجملة' : 'المستودع الرئيسي'],
+    ['المستودع', orderWarehouseDisplayLabel(order.warehouse)],
     ['متوقع التوريد', order.expectedDate || ''],
     ['ملاحظات', order.notes || ''],
     [],
