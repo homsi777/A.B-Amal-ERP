@@ -3,7 +3,7 @@ import {
   Plus, QrCode, Search, RefreshCw, Filter, ChevronDown,
   Eye, Pencil, MoveRight, ToggleLeft, Printer,
   Package, Ruler, Weight, FileSpreadsheet, Trash2,
-  ArrowUp, ArrowDown, Barcode, X, Loader2, FileText,
+  ArrowUp, ArrowDown, Barcode, X, Loader2, FileText, Layers,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -596,7 +596,7 @@ export const Inventory = () => {
 
   const fetchWarehouses = useCallback(async () => {
     try {
-      const whs = await listWarehouses();
+      const whs = await listWarehouses({ status: 'active' });
       setWarehouses(whs);
     } catch {
       // non-critical
@@ -845,7 +845,13 @@ return (
         <div>
           <h2 className="text-2xl font-bold text-slate-900">أتواب الأقمشة</h2>
           <p className="text-slate-500 mt-1">
-            العرض الافتراضي: <span className="font-bold text-slate-700">المتاح للبيع فقط</span> (حالة متاح + طول أكبر من صفر). استخدم «الكل / الأرشيف» لمراجعة المباع والصفرية.
+            العرض الافتراضي: <span className="font-bold text-slate-700">المتاح للبيع فقط</span> (حالة متاح + طول أكبر من صفر).
+            {filterWarehouseId ? (
+              <>
+                {' '}
+                — المستودع: <span className="font-bold text-indigo-700">{warehouseFilterLabel}</span>
+              </>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -942,6 +948,25 @@ return (
                 className="w-full pr-9 pl-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-1 min-w-[200px]">
+            <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5" />
+              المستودع
+            </label>
+            <select
+              value={filterWarehouseId}
+              onChange={(e) => setFilterWarehouseId(e.target.value)}
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 text-sm min-w-[200px]"
+            >
+              <option value="">كل المستودعات</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                  {w.code ? ` (${w.code})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-600">ترتيب:</span>
@@ -1054,16 +1079,6 @@ return (
               <option value="sold">{SCOPE_LABELS.sold}</option>
               <option value="inactive">{SCOPE_LABELS.inactive}</option>
               <option value="all">{SCOPE_LABELS.all}</option>
-            </select>
-            <select
-              value={filterWarehouseId}
-              onChange={e => setFilterWarehouseId(e.target.value)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 text-sm"
-            >
-              <option value="">كل المستودعات</option>
-              {warehouses.map(w => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
             </select>
           </div>
         )}

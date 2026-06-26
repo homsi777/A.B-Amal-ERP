@@ -23,17 +23,27 @@ const STATUS_CLASS: Record<string, string> = {
   CANCELLED: 'bg-slate-200 text-slate-700',
 };
 
-async function loadRollsForWarehouse(warehouseId: string): Promise<FabricRollDto[]> {
+async function loadRollsForWarehouse(warehouseId: string, locationId?: string): Promise<FabricRollDto[]> {
   const all: FabricRollDto[] = [];
   let page = 1;
   const pageSize = 200;
   while (page <= 30) {
-    const r = await listFabricRolls({ warehouseId, page, pageSize, onlyAvailable: true });
+    const r = await listFabricRolls({
+      warehouseId,
+      locationId: locationId || undefined,
+      page,
+      pageSize,
+      onlyAvailable: true,
+    });
     all.push(...r.data);
     if (all.length >= r.total || r.data.length === 0) break;
     page += 1;
   }
   return all;
+}
+
+function warehouseOptionLabel(w: ApiWarehouse): string {
+  return w.code ? `${w.name} (${w.code})` : w.name;
 }
 
 export const Transfers = () => {
@@ -51,6 +61,8 @@ export const Transfers = () => {
   const [rows, setRows] = useState<InventoryTransferRow[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [listFromWarehouseId, setListFromWarehouseId] = useState('');
+  const [listToWarehouseId, setListToWarehouseId] = useState('');
   const [bus, setBus] = useState({ list: false, create: false, act: null as string | null });
   const [err, setErr] = useState<string | null>(null);
 
@@ -60,6 +72,8 @@ export const Transfers = () => {
     try {
       const res = await listInventoryTransfers({
         search: search.trim() || undefined,
+        fromWarehouseId: listFromWarehouseId || undefined,
+        toWarehouseId: listToWarehouseId || undefined,
         page: 1,
         pageSize: 50,
       });
@@ -70,7 +84,7 @@ export const Transfers = () => {
     } finally {
       setBus((b) => ({ ...b, list: false }));
     }
-  }, [search]);
+  }, [search, listFromWarehouseId, listToWarehouseId]);
 
   useEffect(() => {
     void (async () => {
@@ -96,21 +110,39 @@ export const Transfers = () => {
       setPickRollId('');
       return;
     }
-    void (async () => {
-      try {
-        const locs = await listLocations(fromWarehouseId);
-        setFromLocations(locs);
-        setFromLocationId('');
-        const rolls = await loadRollsForWarehouse(fromWarehouseId);
-        setRollsPick(rolls);
-        setSelectedRollIds([]);
-        setPickRollId('');
-      } catch {
-        setFromLocations([]);
-        setRollsPick([]);
-      }
-    })();
+    let cancelled = false;
+    void listLocations(fromWarehouseId)
+      .then((locs) => {
+        if (!cancelled) {
+          setFromLocations(locs);
+          setFromLocationId('');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFromLocations([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [fromWarehouseId]);
+
+  useEffect(() => {
+    if (!fromWarehouseId) return;
+    let cancelled = false;
+    void loadRollsForWarehouse(fromWarehouseId, fromLocationId || undefined)
+      .then((rolls) => {
+        if (cancelled) return;
+        setRollsPick(rolls);
+        setSelectedRollIds((prev) => prev.filter((id) => rolls.some((r) => r.id === id)));
+        setPickRollId('');
+      })
+      .catch(() => {
+        if (!cancelled) setRollsPick([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromWarehouseId, fromLocationId]);
 
   useEffect(() => {
     if (!toWarehouseId) {
@@ -139,6 +171,16 @@ export const Transfers = () => {
   const removeRoll = (id: string) => {
     setSelectedRollIds((x) => x.filter((r) => r !== id));
   };
+
+  const destinationWarehouses = useMemo(
+    () => warehouses.filter((w) => w.id !== fromWarehouseId || fromLocations.length > 0),
+    [warehouses, fromWarehouseId, fromLocations.length],
+  );
+
+  const availableRollsCount = useMemo(
+    () => rollsPick.filter((r) => !selectedRollIds.includes(r.id)).length,
+    [rollsPick, selectedRollIds],
+  );
 
   const rollLabel = useMemo(() => {
     const m = new Map<string, FabricRollDto>(rollsPick.map((r) => [r.id, r]));
@@ -237,7 +279,7 @@ export const Transfers = () => {
                 <option value="">— اختر —</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.name}
+                    {warehouseOptionLabel(w)}
                   </option>
                 ))}
               </select>
@@ -275,12 +317,15 @@ export const Transfers = () => {
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">— اختر —</option>
-                {warehouses.map((w) => (
+                {destinationWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
-                    {w.name}
+                    {warehouseOptionLabel(w)}
                   </option>
                 ))}
               </select>
+              {fromWarehouseId && fromWarehouseId === toWarehouseId ? (
+                <p className="text-xs text-amber-700">نقل داخل نفس المستودع — اختر موقع وجهة مختلف عن موقع المصدر.</p>
+              ) : null}
             </div>
 
             {toWarehouseId ? (
@@ -302,7 +347,14 @@ export const Transfers = () => {
             ) : null}
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">إضافة أثواب من المصدر</label>
+              <label className="block text-sm font-medium text-slate-700">
+                إضافة أثواب من المصدر
+                {fromWarehouseId ? (
+                  <span className="text-xs font-normal text-slate-500 mr-2">
+                    ({availableRollsCount.toLocaleString()} متاح)
+                  </span>
+                ) : null}
+              </label>
               <div className="flex gap-2">
                 <select
                   value={pickRollId}
@@ -368,9 +420,33 @@ export const Transfers = () => {
         </div>
 
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 flex items-center gap-4 bg-slate-50 flex-wrap">
-            <h3 className="font-bold text-slate-900 ml-4">سجل المناقلات</h3>
+          <div className="p-4 border-b border-slate-200 flex items-center gap-3 bg-slate-50 flex-wrap">
+            <h3 className="font-bold text-slate-900">سجل المناقلات</h3>
             <span className="text-xs text-slate-500">({total})</span>
+            <select
+              value={listFromWarehouseId}
+              onChange={(e) => setListFromWarehouseId(e.target.value)}
+              className="text-sm px-2 py-2 bg-white border border-slate-200 rounded-lg min-w-[140px]"
+            >
+              <option value="">من: كل المستودعات</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {warehouseOptionLabel(w)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={listToWarehouseId}
+              onChange={(e) => setListToWarehouseId(e.target.value)}
+              className="text-sm px-2 py-2 bg-white border border-slate-200 rounded-lg min-w-[140px]"
+            >
+              <option value="">إلى: كل المستودعات</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {warehouseOptionLabel(w)}
+                </option>
+              ))}
+            </select>
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               <input
