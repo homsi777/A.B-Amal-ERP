@@ -234,6 +234,12 @@ function applyCartelaToLinePatch(cartela: {
   serial_no: string;
   width_value: string;
   weight_value: string;
+  color?: {
+    color_code: string;
+    barcode_code: string;
+    name_ar: string;
+    name_tr: string;
+  };
 }, scanFallback: string, inventory: FabricItem[]): Partial<FormLine> {
   const art = cartela.art_code.trim();
   const title = cartela.title.trim();
@@ -242,16 +248,19 @@ function applyCartelaToLinePatch(cartela: {
   const gsm = numericFromCartelaField(cartela.weight_value);
   const invHit = art ? inventory.find((i) => i.fabricCode.trim().toLowerCase() === art.toLowerCase()) : undefined;
   const materialName = title || art;
-  // كود الخامة في الجدول = DESIGN NO (مثل 7025)
   const fabricCode = design || art;
+  const color = cartela.color;
+  const colorName = color
+    ? [color.name_ar, color.name_tr].map((v) => v.trim()).filter(Boolean).join(' / ') || color.color_code
+    : '';
   return {
-    scanBarcode: cartela.serial_no.trim() || scanFallback,
+    scanBarcode: color?.barcode_code || cartela.serial_no.trim() || scanFallback,
     fabricCode,
     dsamNumber: art || design,
     materialName,
     rollNo: design,
-    colorCode: '',
-    colorName: '',
+    colorCode: color?.color_code || '',
+    colorName,
     ...(widthCm > 0 ? { widthCm: String(widthCm) } : {}),
     ...(gsm > 0 ? { gsm: String(gsm) } : {}),
     ...(invHit ? { price: String(invHit.sellingPrice) } : {}),
@@ -439,9 +448,13 @@ export function OrderFormModal({
       try {
         const cartela = await lookupCartelaByScan(scan);
         commitLine({ ...applyCartelaToLinePatch(cartela, scan, inventory), needsCartelaDraft: false });
+        const colorHint =
+          cartela.match_type === 'color' && cartela.color
+            ? ` · اللون ${cartela.color.color_code}${cartela.color.name_ar ? ` (${cartela.color.name_ar})` : ''}`
+            : ' — أكمل اللون والكمية';
         showToast({
           type: 'success',
-          message: `كارتيلا: ${cartela.title || cartela.art_code} · ${cartela.art_code}${cartela.design_no ? ` · ${cartela.design_no}` : ''} — أكمل اللون والكمية`,
+          message: `كارتيلا: ${cartela.title || cartela.art_code} · ${cartela.art_code}${cartela.design_no ? ` · ${cartela.design_no}` : ''}${colorHint}`,
         });
         return;
       } catch (e) {

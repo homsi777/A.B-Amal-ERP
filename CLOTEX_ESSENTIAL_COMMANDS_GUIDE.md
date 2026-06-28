@@ -313,3 +313,42 @@ npm test
 npm run electron:pack:log
 ```
 
+---
+
+## 9) كارتيلة الألوان (Code128) — نشر وتجربة
+
+> يحتاج migration **044** (`cartela_label_colors`). يُشغَّل تلقائياً مع `./scripts/deploy-clotex-vps.sh`.
+
+### نشر على VPS
+
+```bash
+cd ~/ab-amal-erp
+git pull origin clotex
+./scripts/deploy-clotex-vps.sh
+```
+
+### التحقق من الجدول (اختياري)
+
+```bash
+sudo -u postgres psql -d fabric_erp -c "\d cartela_label_colors"
+```
+
+### مسار التجربة في الواجهة
+
+1. **كارتيلa** (`/cartela`) → أنشئ كارتيلa واحفظها برقم **SERIAL** (مثل `0013`).
+2. من قسم **كارتيلة الألوان** → أضف `C-01`, `C-02`, `C-03` (باركود: `0013-C01`…).
+3. حدّد الألوان → **طباعة 3×1** → اضبط المقاس → **حفظ كافتراضي**.
+4. امسح `0013-C01` من «مسح باركود لون الكارتيلة» — يجب أن تظهر الخامة + اللون.
+
+### مسح من Zebra في الطلبات
+
+مسح باركود اللون في **طلب عميل** يملأ الخامة + **كود اللون واسمه** تلقائياً (Lookup من السيرفر).
+
+### إذا ظهر «جداول الكارتيله غير جاهزة»
+
+```bash
+cd ~/ab-amal-erp
+npm run server:migrate
+pm2 restart clotexerp-server --update-env
+```
+

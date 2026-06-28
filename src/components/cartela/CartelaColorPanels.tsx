@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layers, Loader2, Palette, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
 import {
   cartelaColorDisplayName,
@@ -42,6 +42,7 @@ type Props = {
 
 export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintColor }) => {
   const { showToast } = useToast();
+  const scanRef = useRef<HTMLInputElement>(null);
   const [scan, setScan] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CartelaColorLookupResult | null>(null);
@@ -65,6 +66,10 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       setLoading(false);
     }
   }, [scan]);
+
+  useEffect(() => {
+    scanRef.current?.focus();
+  }, []);
 
   const printColorSticker = async (color: CartelaColorSwatchDto, cartela: CartelaColorLookupResult) => {
     if (onPrintColor) {
@@ -103,11 +108,13 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       <div className="p-4 space-y-4">
         <div className="flex flex-col sm:flex-row gap-2">
           <input
+            ref={scanRef}
             value={scan}
             onChange={(e) => setScan(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void runLookup()}
             placeholder="0013-C01"
             dir="ltr"
+            autoComplete="off"
             className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
@@ -258,7 +265,10 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
         imageUrl: form.imageUrl.trim() || null,
       };
       if (editId) await updateCartelaColor(editId, payload);
-      else await createCartelaColor(cartelaId, payload);
+      else {
+        const created = await createCartelaColor(cartelaId, payload);
+        setSelectedIds((prev) => new Set(prev).add(created.id));
+      }
       setFormOpen(false);
       await load();
       onChanged?.();
@@ -337,7 +347,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
   };
 
   return (
-    <section className="bg-white rounded-xl border border-violet-200 shadow-sm overflow-hidden">
+    <section id="cartela-colors-panel" className="bg-white rounded-xl border border-violet-200 shadow-sm overflow-hidden scroll-mt-24">
       <div className="px-4 py-3 border-b border-violet-100 bg-violet-50/70 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Palette className="w-5 h-5 text-violet-600" />
@@ -370,7 +380,17 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
 
       {!serialReady && (
         <div className="px-4 py-3 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">
-          احفظ الكارتيلة برقم تسلسلي (SERIAL) قبل إضافة ألوان — الباركود يكون مثل {`{SERIAL}-C01`}.
+          احفظ الكارتيلة برقم تسلسلي (SERIAL) قبل إضافة ألوان — الباركود يكون مثل{' '}
+          <span className="font-mono font-bold" dir="ltr">
+            {serialNo.trim() ? `${serialNo.trim()}-C01` : '{SERIAL}-C01'}
+          </span>
+          .
+        </div>
+      )}
+
+      {serialReady && rows.length === 0 && !loading && (
+        <div className="px-4 py-3 text-sm text-violet-900 bg-violet-50 border-b border-violet-100">
+          الخطوة التالية: أضف ألواناً (C-01, C-02…) ثم حدّدها واضغط «طباعة باركود الألوان (3×1)».
         </div>
       )}
 

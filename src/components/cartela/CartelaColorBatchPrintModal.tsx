@@ -249,6 +249,9 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
               معاينة قبل الطباعة
             </div>
             <PreviewFrame html={previewHtml} />
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              أول مرة على Zebra: عدّل عرض/ارتفاع المربع حتى يطابق الستيكer الفعلي، ثم «حفظ كافتراضي» — الطباعة تستخدم Code128 فقط بدون QR.
+            </p>
             <ul className="text-xs text-slate-600 space-y-1 max-h-28 overflow-y-auto">
               {colors.map((color) => (
                 <li key={color.id} className="font-mono" dir="ltr">

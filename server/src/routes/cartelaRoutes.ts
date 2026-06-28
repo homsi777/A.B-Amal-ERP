@@ -200,19 +200,37 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     const q = req.query as Record<string, string>;
     const search = q.search?.trim() || '';
 
-    const conditions = ['company_id = $1'];
+    const conditions = ['cl.company_id = $1'];
     const params: unknown[] = [companyId];
     if (search) {
-      conditions.push(`(title ILIKE $2 OR art_code ILIKE $2 OR design_no ILIKE $2 OR serial_no ILIKE $2 OR composition ILIKE $2)`);
       params.push(`%${search}%`);
+      conditions.push(`(
+        cl.title ILIKE $2 OR cl.art_code ILIKE $2 OR cl.design_no ILIKE $2 OR cl.serial_no ILIKE $2 OR cl.composition ILIKE $2
+        OR EXISTS (
+          SELECT 1 FROM cartela_label_colors c2
+           WHERE c2.cartela_label_id = cl.id
+             AND c2.company_id = cl.company_id
+             AND (
+               c2.barcode_code ILIKE $2 OR c2.color_code ILIKE $2
+               OR c2.name_ar ILIKE $2 OR c2.name_tr ILIKE $2
+             )
+        )
+      )`);
     }
 
     try {
       const rows = await getPool().query(
-        `SELECT id, title, art_code, design_no, colour, serial_no, show_logo, created_at, updated_at
-           FROM cartela_labels
+        `SELECT cl.id, cl.title, cl.art_code, cl.design_no, cl.colour, cl.serial_no, cl.show_logo,
+                cl.created_at, cl.updated_at,
+                COALESCE(cc.cnt, 0)::int AS color_count
+           FROM cartela_labels cl
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*)::int AS cnt
+               FROM cartela_label_colors c
+              WHERE c.cartela_label_id = cl.id AND c.company_id = cl.company_id
+           ) cc ON true
           WHERE ${conditions.join(' AND ')}
-          ORDER BY updated_at DESC
+          ORDER BY cl.updated_at DESC
           LIMIT 200`,
         params,
       );

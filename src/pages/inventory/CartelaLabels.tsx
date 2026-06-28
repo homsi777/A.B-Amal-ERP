@@ -356,6 +356,12 @@ export const CartelaLabels: React.FC = () => {
     await printHtml(html, mode, `cartela-${payload.serialNo || 'label'}`);
   };
 
+  const scrollToColorsPanel = () => {
+    setTimeout(() => {
+      document.getElementById('cartela-colors-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 250);
+  };
+
   const loadOne = async (id: string, switchToForm = true) => {
     try {
       const row = await getCartelaLabel(id);
@@ -386,8 +392,9 @@ export const CartelaLabels: React.FC = () => {
       await loadList();
       showToast({
         type: 'success',
-        message: `تم توليد الكارتيلا${row.serial_no ? ` — رقم ${row.serial_no}` : ''}`,
+        message: `تم توليد الكارتيلا${row.serial_no ? ` — رقم ${row.serial_no}` : ''} — أضف الألوان من الأسفل`,
       });
+      scrollToColorsPanel();
     } catch (e) {
       showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر توليد الكارتيلا' });
     } finally {
@@ -411,7 +418,8 @@ export const CartelaLabels: React.FC = () => {
       const row = await updateCartelaLabel(selectedId, buildSavePayload());
       setForm(cartelaDtoToPayload(row));
       await loadList();
-      showToast({ type: 'success', message: 'تم حفظ التعديل على نفس الكارتيلا' });
+      showToast({ type: 'success', message: 'تم حفظ التعديل — يمكنك إدارة الألوان في الأسفل' });
+      scrollToColorsPanel();
     } catch (e) {
       showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر حفظ التعديل' });
     } finally {
@@ -555,7 +563,7 @@ export const CartelaLabels: React.FC = () => {
               كارتيله
             </h2>
             <p className="text-slate-500 mt-1 text-sm">
-              لصاقة مستقلة 80×50 مم — طباعة حرارية أبيض/أسود — بدون ربط بالمخزون.
+              لصاقة 80×50 مم + كارتيلة ألوان (Code128) — طباعة حرارية بدون QR.
             </p>
           </div>
         </div>
@@ -593,6 +601,16 @@ export const CartelaLabels: React.FC = () => {
             {form.showLogo ? 'إخفاء شعار CLOTEX' : 'إظهار شعار CLOTEX'}
           </button>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-violet-200 bg-gradient-to-l from-violet-50 to-white p-4 text-sm text-slate-700 space-y-2">
+        <p className="font-bold text-violet-900">مسار العمل — كارتيلة الألوان</p>
+        <ol className="list-decimal list-inside space-y-1 text-xs sm:text-sm">
+          <li>أنشئ/افتح كارتيلa واحفظها برقم <strong>SERIAL</strong> (مثل 0013).</li>
+          <li>من الأسفل: أضف ألواناً يدوياً — كل لون يأخذ باركود <span className="font-mono" dir="ltr">0013-C01</span>.</li>
+          <li>حدّد الألوان → «طباعة 3×1» → اضبط المقاس → احفظ الإعدادات كافتراضي.</li>
+          <li>امسح الباركود من الأعلى أو من Zebra — النظام يجلب الخامة + اللون من السيرفر.</li>
+        </ol>
       </div>
 
       <CartelaColorScanPanel
@@ -701,6 +719,7 @@ export const CartelaLabels: React.FC = () => {
                   <th className="p-3 text-right font-bold">ART CODE</th>
                   <th className="p-3 text-right font-bold">DESIGN NO</th>
                   <th className="p-3 text-right font-bold">COLOUR</th>
+                  <th className="p-3 text-right font-bold">ألوان</th>
                   <th className="p-3 text-right font-bold">آخر تحديث</th>
                   <th className="p-3 text-right font-bold w-52">إجراءات</th>
                 </tr>
@@ -708,14 +727,14 @@ export const CartelaLabels: React.FC = () => {
               <tbody>
                 {listLoading && (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-500">
+                    <td colSpan={8} className="p-6 text-center text-slate-500">
                       جاري التحميل...
                     </td>
                   </tr>
                 )}
                 {!listLoading && items.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-slate-500">
+                    <td colSpan={8} className="p-6 text-center text-slate-500">
                       لا توجد كارتيلات بعد — استخدم «توليد كارتيلا» لإضافة أول لصاقة.
                     </td>
                   </tr>
@@ -742,6 +761,17 @@ export const CartelaLabels: React.FC = () => {
                     <td className="p-3 text-slate-800">{item.art_code || '—'}</td>
                     <td className="p-3 text-slate-800">{item.design_no || '—'}</td>
                     <td className="p-3 text-slate-600">{item.colour || '—'}</td>
+                    <td className="p-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                          (item.color_count ?? 0) > 0
+                            ? 'bg-violet-100 text-violet-800'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {item.color_count ?? 0} لون
+                      </span>
+                    </td>
                     <td className="p-3 text-slate-500 text-xs">
                       {new Date(item.updated_at).toLocaleString('ar-SY')}
                     </td>

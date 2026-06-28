@@ -40,6 +40,7 @@ export interface CartelaLabelListItem {
   colour: string;
   serial_no: string;
   show_logo: boolean;
+  color_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -128,12 +129,43 @@ export type CartelaOrderLookup = {
   serial_no: string;
   width_value: string;
   weight_value: string;
+  match_type?: 'cartela' | 'color';
+  color?: {
+    id: string;
+    color_code: string;
+    barcode_code: string;
+    name_ar: string;
+    name_tr: string;
+    image_url: string | null;
+  };
 };
 
 export async function lookupCartelaByScan(scan: string): Promise<CartelaOrderLookup> {
   const qs = encodeURIComponent(scan.trim());
-  const res = await apiFetch<{ ok: boolean; data: CartelaOrderLookup }>(`/api/cartela/lookup?scan=${qs}`);
-  return res.data;
+  const res = await apiFetch<{ ok: boolean; data: CartelaOrderLookup & Record<string, unknown> }>(
+    `/api/cartela/lookup?scan=${qs}`,
+  );
+  const data = res.data;
+  return {
+    id: String(data.id),
+    title: String(data.title ?? ''),
+    art_code: String(data.art_code ?? ''),
+    design_no: String(data.design_no ?? ''),
+    serial_no: String(data.serial_no ?? ''),
+    width_value: String(data.width_value ?? ''),
+    weight_value: String(data.weight_value ?? ''),
+    match_type: data.match_type === 'color' ? 'color' : 'cartela',
+    color: data.color
+      ? {
+          id: String((data.color as { id: string }).id),
+          color_code: String((data.color as { color_code: string }).color_code ?? ''),
+          barcode_code: String((data.color as { barcode_code: string }).barcode_code ?? ''),
+          name_ar: String((data.color as { name_ar: string }).name_ar ?? ''),
+          name_tr: String((data.color as { name_tr: string }).name_tr ?? ''),
+          image_url: (data.color as { image_url: string | null }).image_url ?? null,
+        }
+      : undefined,
+  };
 }
 
 export type QuickCartelaDraftPayload = {
