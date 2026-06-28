@@ -39,6 +39,7 @@ import { customerOrderRoutes } from './routes/customerOrderRoutes.js';
 import { financialAuditRoutes } from './routes/financialAuditRoutes.js';
 import { documentPdfRoutes } from './routes/documentPdfRoutes.js';
 import { customerDiscountRoutes } from './routes/customerDiscountRoutes.js';
+import { operatingExpenseRoutes } from './routes/operatingExpenseRoutes.js';
 import { aiRoutes } from './routes/aiRoutes.js';
 
 export async function buildApp() {
@@ -150,6 +151,7 @@ export async function buildApp() {
   await app.register(financialAuditRoutes, { prefix: '/api/financial-audit' });
   await app.register(documentPdfRoutes, { prefix: '/api/documents' });
   await app.register(customerDiscountRoutes, { prefix: '/api/customer-discounts' });
+  await app.register(operatingExpenseRoutes, { prefix: '/api/expenses' });
   await app.register(aiRoutes, { prefix: '/api/ai' });
   await app.register(aiRoutes, { prefix: '/api/v1/ai' });
 

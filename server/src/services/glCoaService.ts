@@ -16,6 +16,11 @@ export const GL_KEYS = {
   COGS: 'GL_COGS',
   /** حسم/خصم منح للعملاء — يُستخدم عند تخفيض ذمة العميل دون قبض نقدي */
   SALES_DISCOUNT_ALLOWANCE: 'GL_SALES_DISCOUNT_ALLOWANCE',
+  OPERATING_EXPENSE_TRANSPORT: 'GL_OPERATING_EXPENSE_TRANSPORT',
+  OPERATING_EXPENSE_HOSPITALITY: 'GL_OPERATING_EXPENSE_HOSPITALITY',
+  OPERATING_EXPENSE_MAINTENANCE: 'GL_OPERATING_EXPENSE_MAINTENANCE',
+  OPERATING_EXPENSE_RENT: 'GL_OPERATING_EXPENSE_RENT',
+  OPERATING_EXPENSE_GENERAL: 'GL_OPERATING_EXPENSE_GENERAL',
 } as const;
 
 /**
@@ -162,6 +167,51 @@ export async function ensureCompanyGlCoa(client: PoolClient, companyId: string):
       system_key: GL_KEYS.PAYROLL_EXPENSE,
       sort_order: 140,
     },
+    {
+      code: '6201',
+      name: 'مصاريف نقل ومواصلات',
+      account_type: 'EXPENSE',
+      parent_code: '5',
+      is_posting: true,
+      system_key: GL_KEYS.OPERATING_EXPENSE_TRANSPORT,
+      sort_order: 150,
+    },
+    {
+      code: '6202',
+      name: 'مصاريف ضيافة',
+      account_type: 'EXPENSE',
+      parent_code: '5',
+      is_posting: true,
+      system_key: GL_KEYS.OPERATING_EXPENSE_HOSPITALITY,
+      sort_order: 151,
+    },
+    {
+      code: '6203',
+      name: 'مصاريف صيانة',
+      account_type: 'EXPENSE',
+      parent_code: '5',
+      is_posting: true,
+      system_key: GL_KEYS.OPERATING_EXPENSE_MAINTENANCE,
+      sort_order: 152,
+    },
+    {
+      code: '6204',
+      name: 'إيجار ومرافق',
+      account_type: 'EXPENSE',
+      parent_code: '5',
+      is_posting: true,
+      system_key: GL_KEYS.OPERATING_EXPENSE_RENT,
+      sort_order: 153,
+    },
+    {
+      code: '6205',
+      name: 'مصاريف إدارية عامة',
+      account_type: 'EXPENSE',
+      parent_code: '5',
+      is_posting: true,
+      system_key: GL_KEYS.OPERATING_EXPENSE_GENERAL,
+      sort_order: 154,
+    },
   ];
 
   for (const r of rows) {
@@ -220,4 +270,48 @@ export async function getGlAccountIdByKey(
     throw Object.assign(new Error(`حساب GL ناقص: ${systemKey}`), { code: 'GL_CONFIG' });
   }
   return r.rows[0].id;
+}
+
+const OPERATING_EXPENSE_GL_UPSERTS = [
+  { code: '6201', name: 'مصاريف نقل ومواصلات', system_key: GL_KEYS.OPERATING_EXPENSE_TRANSPORT, sort_order: 150 },
+  { code: '6202', name: 'مصاريف ضيافة', system_key: GL_KEYS.OPERATING_EXPENSE_HOSPITALITY, sort_order: 151 },
+  { code: '6203', name: 'مصاريف صيانة', system_key: GL_KEYS.OPERATING_EXPENSE_MAINTENANCE, sort_order: 152 },
+  { code: '6204', name: 'إيجار ومرافق', system_key: GL_KEYS.OPERATING_EXPENSE_RENT, sort_order: 153 },
+  { code: '6205', name: 'مصاريف إدارية عامة', system_key: GL_KEYS.OPERATING_EXPENSE_GENERAL, sort_order: 154 },
+] as const;
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  { code: 'TRANSPORT', name: 'نقل ومواصلات', glKey: GL_KEYS.OPERATING_EXPENSE_TRANSPORT, sort_order: 10 },
+  { code: 'HOSPITALITY', name: 'ضيافة', glKey: GL_KEYS.OPERATING_EXPENSE_HOSPITALITY, sort_order: 20 },
+  { code: 'MAINTENANCE', name: 'صيانة', glKey: GL_KEYS.OPERATING_EXPENSE_MAINTENANCE, sort_order: 30 },
+  { code: 'RENT', name: 'إيجار ومرافق', glKey: GL_KEYS.OPERATING_EXPENSE_RENT, sort_order: 40 },
+  { code: 'ADMIN', name: 'مصاريف إدارية عامة', glKey: GL_KEYS.OPERATING_EXPENSE_GENERAL, sort_order: 50 },
+] as const;
+
+/** Ensures operating expense GL accounts + default categories exist (idempotent). */
+export async function ensureCompanyOperatingExpenseCoa(client: PoolClient, companyId: string): Promise<void> {
+  await ensureCompanyGlCoa(client, companyId);
+
+  for (const u of OPERATING_EXPENSE_GL_UPSERTS) {
+    await client.query(
+      `INSERT INTO gl_accounts (company_id, code, name, account_type, parent_id, is_posting, system_key, sort_order)
+       SELECT $1, $2, $3, 'EXPENSE',
+         (SELECT id FROM gl_accounts p WHERE p.company_id = $1 AND p.code = '5' LIMIT 1),
+         true, $4, $5
+       WHERE NOT EXISTS (SELECT 1 FROM gl_accounts g WHERE g.company_id = $1 AND g.system_key = $4)`,
+      [companyId, u.code, u.name, u.system_key, u.sort_order],
+    );
+  }
+
+  for (const cat of DEFAULT_EXPENSE_CATEGORIES) {
+    const glAccountId = await getGlAccountIdByKey(client, companyId, cat.glKey);
+    await client.query(
+      `INSERT INTO expense_categories (company_id, code, name, gl_account_id, sort_order)
+       SELECT $1, $2, $3, $4, $5
+       WHERE NOT EXISTS (
+         SELECT 1 FROM expense_categories ec WHERE ec.company_id = $1 AND ec.code = $2
+       )`,
+      [companyId, cat.code, cat.name, glAccountId, cat.sort_order],
+    );
+  }
 }

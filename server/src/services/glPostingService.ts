@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { generateDocumentNo } from '../utils/documentNumbers.js';
-import { ensureCompanyGlCoa, ensureCompanyInvoiceGlAccounts, getGlAccountIdByKey, GL_KEYS } from './glCoaService.js';
+import { ensureCompanyGlCoa, ensureCompanyInvoiceGlAccounts, ensureCompanyOperatingExpenseCoa, getGlAccountIdByKey, GL_KEYS } from './glCoaService.js';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -916,6 +916,79 @@ export async function reverseCustomerDiscountGl(
     reversalSourceType: 'CUSTOMER_DISCOUNT_REVERSAL',
     reversalSourceId: input.discountId,
     description: `عكس حسم عميل ${input.discountNo}`,
+    userId: input.userId,
+  });
+}
+
+/** Operating expense: Dr expense (by category), Cr cash. */
+export async function postOperatingExpenseToGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    expenseId: string;
+    expenseNo: string;
+    expenseDate: string;
+    expenseGlAccountId: string;
+    amountUsd: number;
+    cashboxId: string;
+    description: string;
+    userId: string | null;
+  },
+): Promise<string> {
+  await ensureCompanyOperatingExpenseCoa(client, input.companyId);
+  const exist = await client.query(
+    `SELECT id FROM journal_entries WHERE company_id=$1 AND source_type='OPERATING_EXPENSE' AND source_id=$2`,
+    [input.companyId, input.expenseId],
+  );
+  if (exist.rows.length) return exist.rows[0].id as string;
+
+  const cashId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.CASH);
+  const amount = round2(input.amountUsd);
+  const desc = input.description.trim() || `مصروف تشغيلي ${input.expenseNo}`;
+
+  return insertBalancedJournal(client, {
+    companyId: input.companyId,
+    entryDate: input.expenseDate.slice(0, 10),
+    description: desc,
+    sourceType: 'OPERATING_EXPENSE',
+    sourceId: input.expenseId,
+    userId: input.userId,
+    lines: [
+      {
+        glAccountId: input.expenseGlAccountId,
+        debit: amount,
+        credit: 0,
+        currencyCode: 'USD',
+        description: desc,
+      },
+      {
+        glAccountId: cashId,
+        debit: 0,
+        credit: amount,
+        currencyCode: 'USD',
+        description: desc,
+        cashboxId: input.cashboxId,
+      },
+    ],
+  });
+}
+
+export async function reverseOperatingExpenseGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    expenseId: string;
+    expenseNo: string;
+    userId: string | null;
+  },
+): Promise<void> {
+  await reverseJournalBySource(client, {
+    companyId: input.companyId,
+    originalSourceType: 'OPERATING_EXPENSE',
+    originalSourceId: input.expenseId,
+    reversalSourceType: 'OPERATING_EXPENSE_REVERSAL',
+    reversalSourceId: input.expenseId,
+    description: `عكس مصروف ${input.expenseNo}`,
     userId: input.userId,
   });
 }
