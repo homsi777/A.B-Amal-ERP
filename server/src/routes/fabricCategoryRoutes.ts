@@ -4,6 +4,7 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
+import { syncCategoryUpdateToMasterData } from '../services/syncCategoryToMasterData.js';
 
 const categoryBody = z.object({
   name: z.string().optional(),
@@ -439,14 +440,43 @@ const ensureCategory = async (
     }
 
     try {
-      const row = await pool.query(
-        `UPDATE fabric_categories SET name=$3,code=$4,parent_id=$5,updated_at=now()
-         WHERE id=$1 AND company_id=$2
-         RETURNING id,parent_id,code,name,is_active,updated_at`,
-        [id, companyId, d.name ?? '', d.code ?? '', d.parent_id ?? null],
-      );
-      if (!row.rows.length) return sendError(reply, 404, 'التصنيف غير موجود', 'NOT_FOUND');
-      return reply.send({ ok: true, data: row.rows[0] });
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        const beforeRes = await client.query<{ id: string; parent_id: string | null; code: string; name: string }>(
+          `SELECT id, parent_id, code, name FROM fabric_categories WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+          [id, companyId],
+        );
+        if (!beforeRes.rows.length) {
+          await client.query('ROLLBACK');
+          return sendError(reply, 404, 'التصنيف غير موجود', 'NOT_FOUND');
+        }
+        const before = beforeRes.rows[0]!;
+
+        const row = await client.query(
+          `UPDATE fabric_categories SET name=$3,code=$4,parent_id=$5,updated_at=now()
+           WHERE id=$1 AND company_id=$2
+           RETURNING id,parent_id,code,name,is_active,updated_at`,
+          [id, companyId, d.name ?? '', d.code ?? '', d.parent_id ?? null],
+        );
+
+        const after = {
+          id: row.rows[0]!.id as string,
+          parent_id: row.rows[0]!.parent_id as string | null,
+          code: row.rows[0]!.code as string,
+          name: row.rows[0]!.name as string,
+        };
+
+        await syncCategoryUpdateToMasterData(client, companyId, before, after);
+        await client.query('COMMIT');
+        return reply.send({ ok: true, data: row.rows[0] });
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw e;
+      } finally {
+        client.release();
+      }
     } catch (e: unknown) {
       throw e;
     }
