@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Briefcase,
   BanknoteArrowDown,
   Download,
   FileSpreadsheet,
   Filter,
+  History,
   Loader2,
   Plus,
   Printer,
@@ -448,6 +450,13 @@ export const Salaries = () => {
           <p className="text-slate-500 mt-1">إدارة بيانات الموظفين وتسليم الرواتب من الخزينة مع طباعة وتصدير A4/Excel.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            to="/salaries/log"
+            className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50"
+          >
+            <History className="w-4 h-4" />
+            سجل الرواتب
+          </Link>
           <ExchangeRatePopupButton onRatesChange={setExchangeRates} />
           <button type="button" onClick={printEmployeesA4} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50">
             <Printer className="w-4 h-4" />

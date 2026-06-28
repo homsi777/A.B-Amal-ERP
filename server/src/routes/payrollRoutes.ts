@@ -458,6 +458,99 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get('/salary-log', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const q = req.query as Record<string, string>;
+    const search = q.search?.trim() || '';
+    const dateFrom = q.dateFrom?.trim()?.slice(0, 10) || '';
+    const dateTo = q.dateTo?.trim()?.slice(0, 10) || '';
+    const sortBy = q.sortBy?.trim() === 'name' ? 'name' : 'date';
+    const page = Math.max(1, parseInt(q.page || '1', 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(q.pageSize || '50', 10) || 50));
+    const offset = (page - 1) * pageSize;
+
+    const conds = ['l.company_id = $1', "pr.status = 'PAID'"];
+    const params: unknown[] = [companyId];
+    let p = 2;
+
+    if (search) {
+      conds.push(`(
+        e.full_name ILIKE $${p}
+        OR e.employee_code ILIKE $${p}
+        OR pr.payroll_no ILIKE $${p}
+      )`);
+      params.push(`%${search}%`);
+      p++;
+    }
+    if (dateFrom) {
+      conds.push(`COALESCE(pr.paid_at, pr.created_at::date) >= $${p}::date`);
+      params.push(dateFrom);
+      p++;
+    }
+    if (dateTo) {
+      conds.push(`COALESCE(pr.paid_at, pr.created_at::date) <= $${p}::date`);
+      params.push(dateTo);
+      p++;
+    }
+
+    const where = conds.join(' AND ');
+    const orderSql =
+      sortBy === 'name'
+        ? 'e.full_name ASC, payment_date DESC, pr.payroll_no DESC'
+        : 'payment_date DESC, e.full_name ASC, pr.payroll_no DESC';
+
+    const pool = getPool();
+    const baseFrom = `
+      FROM payroll_run_lines l
+      JOIN payroll_runs pr ON pr.id = l.payroll_run_id AND pr.company_id = l.company_id
+      JOIN payroll_employees e ON e.id = l.employee_id AND e.company_id = l.company_id
+      LEFT JOIN cashboxes cb ON cb.id = pr.paid_cashbox_id AND cb.company_id = l.company_id
+    `;
+
+    const [rows, countRow, totalsRows] = await Promise.all([
+      pool.query(
+        `SELECT l.id, l.payroll_run_id, pr.payroll_no,
+                COALESCE(pr.paid_at, pr.created_at::date) AS payment_date,
+                pr.period_month, pr.period_year,
+                e.id AS employee_id, e.employee_code, e.full_name,
+                l.base_salary, l.allowances, l.deductions, l.net_salary,
+                l.notes AS line_notes, pr.currency_code,
+                cb.name AS cashbox_name, pr.notes AS run_notes
+         ${baseFrom}
+         WHERE ${where}
+         ORDER BY ${orderSql}
+         LIMIT $${p} OFFSET $${p + 1}`,
+        [...params, pageSize, offset],
+      ),
+      pool.query<{ total: string }>(
+        `SELECT COUNT(*)::text AS total ${baseFrom} WHERE ${where}`,
+        params,
+      ),
+      pool.query<{ currency_code: string; total: string }>(
+        `SELECT pr.currency_code, COALESCE(SUM(l.net_salary), 0)::text AS total
+         ${baseFrom}
+         WHERE ${where}
+         GROUP BY pr.currency_code
+         ORDER BY pr.currency_code`,
+        params,
+      ),
+    ]);
+
+    const totalsByCurrency: Record<string, number> = {};
+    for (const row of totalsRows.rows) {
+      totalsByCurrency[row.currency_code] = Number(row.total);
+    }
+
+    return reply.send({
+      ok: true,
+      data: rows.rows,
+      total: Number(countRow.rows[0]?.total ?? 0),
+      page,
+      pageSize,
+      totalsByCurrency,
+    });
+  });
+
   app.get('/runs', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const pool = getPool();

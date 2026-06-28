@@ -158,7 +158,14 @@ const Topbar = () => {
       ],
     },
     { labelKey: 'expenses', to: '/expenses', icon: CreditCard },
-    { labelKey: 'salaries', to: '/salaries', icon: Briefcase },
+    {
+      labelKey: 'salaries',
+      icon: Briefcase,
+      subItems: [
+        { labelKey: 'salaries.employees', to: '/salaries' },
+        { labelKey: 'salaries.log', to: '/salaries/log' },
+      ],
+    },
     { labelKey: 'reports', to: '/reports', icon: PieChart },
     { labelKey: 'chartOfAccounts', to: '/chart-of-accounts', icon: Network },
     { labelKey: 'journal', to: '/journal', icon: BookOpen },

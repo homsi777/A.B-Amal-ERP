@@ -122,6 +122,52 @@ export async function listPayrollRuns() {
   return apiFetch<{ ok: boolean; data: PayrollRunDto[] }>('/api/payroll/runs');
 }
 
+export interface PayrollSalaryLogRow {
+  id: string;
+  payroll_run_id: string;
+  payroll_no: string;
+  payment_date: string;
+  period_month: number;
+  period_year: number;
+  employee_id: string;
+  employee_code: string;
+  full_name: string;
+  base_salary: string;
+  allowances: string;
+  deductions: string;
+  net_salary: string;
+  line_notes: string | null;
+  currency_code: string;
+  cashbox_name: string | null;
+  run_notes: string | null;
+}
+
+export async function listPayrollSalaryLog(params: {
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: 'name' | 'date';
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const q = new URLSearchParams();
+  if (params.search) q.set('search', params.search);
+  if (params.dateFrom) q.set('dateFrom', params.dateFrom);
+  if (params.dateTo) q.set('dateTo', params.dateTo);
+  if (params.sortBy) q.set('sortBy', params.sortBy);
+  if (params.page) q.set('page', String(params.page));
+  if (params.pageSize) q.set('pageSize', String(params.pageSize));
+  const qs = q.toString() ? `?${q}` : '';
+  return apiFetch<{
+    ok: boolean;
+    data: PayrollSalaryLogRow[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalsByCurrency: Record<string, number>;
+  }>(`/api/payroll/salary-log${qs}`);
+}
+
 export async function markPayrollRunPaid(
   runId: string,
   payload: { cashboxId: string; paymentDate?: string | null; exchangeRateToUsd?: number },
