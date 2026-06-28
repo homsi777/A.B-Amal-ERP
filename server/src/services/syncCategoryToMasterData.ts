@@ -1,4 +1,9 @@
 import type { PoolClient } from 'pg';
+import {
+  colorCodeFromCategoryOnly,
+  colorNameFromCategory,
+  materialCodeFromCategory,
+} from '../utils/categoryBusinessValues.js';
 
 type CatSnapshot = {
   id: string;
@@ -14,10 +19,6 @@ export type CategoryMasterSyncResult = {
 
 function norm(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function materialCodeFromCategory(cat: CatSnapshot): string {
-  return (cat.code.trim() || cat.name.trim());
 }
 
 async function loadCategoryPath(
@@ -108,8 +109,8 @@ export async function syncCategoryUpdateToMasterData(
   }
 
   if (depth === 2) {
-    const oldColorName = before.name.trim() || before.code.trim();
-    const newColorName = after.name.trim() || after.code.trim();
+    const oldColorName = colorNameFromCategory(before);
+    const newColorName = colorNameFromCategory(after);
     if (norm(oldColorName) !== norm(newColorName)) {
       const path = await loadCategoryPath(client, companyId, before.id);
       const materialName = path[0];
@@ -143,8 +144,8 @@ export async function syncCategoryUpdateToMasterData(
   }
 
   if (depth === 3) {
-    const oldColorCode = materialCodeFromCategory(before);
-    const newColorCode = materialCodeFromCategory(after);
+    const oldColorCode = colorCodeFromCategoryOnly(before);
+    const newColorCode = colorCodeFromCategoryOnly(after);
     if (norm(oldColorCode) !== norm(newColorCode)) {
     const path = await loadCategoryPath(client, companyId, before.id);
     const materialName = path[0];
@@ -171,7 +172,7 @@ export async function syncCategoryUpdateToMasterData(
           materialName.id,
           oldColorCode,
           newColorCode,
-          (colorName.name.trim() || colorName.code.trim()),
+          (colorNameFromCategory(colorName)),
           materialCodeFromCategory(materialCode),
         ],
       );

@@ -22,6 +22,7 @@ import {
   activeCategories,
   categoryDisplayLabel,
   categoryMatchesValue,
+  colorCodeMatchesCategory,
   isColorNameLevelCategory,
   isMaterialCodeLevelCategory,
 } from '../lib/fabricCategoryLevels';
@@ -395,7 +396,7 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
         const level4Rows = activeCategories(await listCategories({ parentId: level3.id }));
         if (cancelled) return;
         setL4Options(level4Rows);
-        const level4 = level4Rows.find((node) => categoryMatchesValue(node, roll.color_code)) ?? null;
+        const level4 = level4Rows.find((node) => colorCodeMatchesCategory(node, roll.color_code)) ?? null;
         setCatL4Id(level4?.id ?? '');
       } catch {
         if (!cancelled) setErr('تعذر تحميل تصنيفات الخامات.');

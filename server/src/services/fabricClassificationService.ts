@@ -5,6 +5,13 @@
 
 import type { PoolClient } from 'pg';
 import { getPool } from '../db/pool.js';
+import {
+  colorCodeFromCategories,
+  colorNameFromCategory,
+  materialCodeFromCategory,
+  materialCodeLookupValues,
+  materialNameFromCategory,
+} from '../utils/categoryBusinessValues.js';
 
 export type ResolveClassificationInput = {
   companyId: string;
@@ -113,14 +120,17 @@ export async function resolveFabricClassification(
     await client.query('BEGIN');
 
     const { c1, c2 } = await loadMaterialPair(client, companyId, level1CategoryId, level2CategoryId);
-    const materialCode = c2.code.trim() || c2.name.trim();
+    const materialCode = materialCodeFromCategory(c2);
+    const materialLookup = materialCodeLookupValues(c2);
 
     const itemRow = await client.query<{ id: string; internal_code: string }>(
       `SELECT id, internal_code FROM fabric_items
        WHERE company_id = $1
-         AND trim(lower(internal_code)) = trim(lower($2::text))
+         AND trim(lower(internal_code)) = ANY(
+           SELECT trim(lower(v)) FROM unnest($2::text[]) AS v
+         )
        ORDER BY created_at ASC LIMIT 1`,
-      [companyId, materialCode],
+      [companyId, materialLookup],
     );
 
     let itemId: string;
@@ -141,7 +151,7 @@ export async function resolveFabricClassification(
           c1.id,
           materialCode,
           '',
-          c1.name.trim(),
+          materialNameFromCategory(c1),
           '',
           'meter',
           'أُنشئ تلقائياً من تصنيف الأقمشة عند إنشاء ثوب يدوي',
@@ -157,7 +167,7 @@ export async function resolveFabricClassification(
         `UPDATE fabric_items
          SET category_id = $3, name = $4, internal_code = $5, updated_at = now()
          WHERE id = $1 AND company_id = $2`,
-        [itemId, companyId, c1.id, c1.name.trim(), materialCode],
+        [itemId, companyId, c1.id, materialNameFromCategory(c1), materialCode],
       );
     }
 
@@ -170,17 +180,29 @@ export async function resolveFabricClassification(
       const l3 = level3CategoryId!.trim();
       const l4 = (level4CategoryId?.trim() || l3);
       const { c3, c4 } = await loadColorPair(client, companyId, c2, l3, l4);
-      colorNameAr = c3.name.trim() || c3.code.trim();
-      colorCodeVal = c4.code.trim() || c4.name.trim() || colorNameAr;
+      colorNameAr = colorNameFromCategory(c3);
+      colorCodeVal = colorCodeFromCategories(c3, c4);
 
-      const colorRes = await client.query<{ id: string }>(
-        `SELECT id FROM fabric_colors
-         WHERE company_id = $1
-           AND trim(lower(color_code)) = trim(lower($2::text))
-           AND trim(lower(coalesce(name_ar, ''))) = trim(lower($3::text))
-         LIMIT 1`,
-        [companyId, colorCodeVal, colorNameAr],
-      );
+      const colorRes = colorCodeVal
+        ? await client.query<{ id: string }>(
+            `SELECT id FROM fabric_colors
+             WHERE company_id = $1
+               AND trim(lower(coalesce(name_ar, ''))) = trim(lower($2::text))
+               AND (
+                 trim(lower(coalesce(color_code, ''))) = trim(lower($3::text))
+                 OR trim(lower(coalesce(color_code, ''))) = trim(lower($4::text))
+               )
+             LIMIT 1`,
+            [companyId, colorNameAr, colorCodeVal, c4.code.trim()],
+          )
+        : await client.query<{ id: string }>(
+            `SELECT id FROM fabric_colors
+             WHERE company_id = $1
+               AND trim(lower(coalesce(name_ar, ''))) = trim(lower($2::text))
+               AND coalesce(nullif(trim(color_code), ''), '0') IN ('', '0')
+             LIMIT 1`,
+            [companyId, colorNameAr],
+          );
 
       if (!colorRes.rows.length) {
         const insC = await client.query<{ id: string }>(
@@ -226,7 +248,7 @@ export async function resolveFabricClassification(
       if (vFind.rows.length) {
         variantId = vFind.rows[0].id;
       } else {
-        const ic = designNr ?? c2.code.trim();
+        const ic = designNr ?? materialCode;
         let vcode = buildVariantCode(ic, colorCodeVal || 'NA', w, g);
         const tryInsert = async (code: string) => {
           return client.query<{ id: string }>(

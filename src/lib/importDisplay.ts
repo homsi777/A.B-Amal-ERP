@@ -16,7 +16,8 @@ export function displayInventoryMaterialCode(roll: {
   internal_code?: string | null;
   supplier_code_item?: string | null;
 }): string {
-  const internal = String(roll.internal_code ?? '').trim();
+  let internal = String(roll.internal_code ?? '').trim();
+  if (/^L2_/i.test(internal)) internal = internal.slice(3).trim() || internal;
   if (internal && !internal.startsWith(AUTO_INTERNAL_CODE_PREFIX)) return internal;
   return String(roll.supplier_code_item ?? '').trim();
 }
@@ -83,7 +84,8 @@ export function displayImportedColorName(name?: string | null): string {
 const PLACEHOLDER_COLOR_CODES = new Set(['#000000', '#000', '000000']);
 
 export function displayImportedColorCode(code?: string | null): string {
-  const trimmed = String(code ?? '').trim();
+  let trimmed = String(code ?? '').trim();
+  if (/^L3_/i.test(trimmed)) trimmed = '';
   if (!trimmed || PLACEHOLDER_COLOR_CODES.has(trimmed.toLowerCase())) {
     return EMPTY_INVENTORY_FIELD;
   }
