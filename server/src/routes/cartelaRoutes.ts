@@ -5,6 +5,14 @@ import { authenticateRequest } from '../middleware/auth.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { allocateCartelaSerialNo, resolveCartelaSerialNo, validateManualCartelaSerialNo } from '../services/cartelaSerialService.js';
+import {
+  allocateNextColorNo,
+  buildColorBarcodeCode,
+  mapCartelaColorRow,
+  normalizeColorCode,
+  syncColorBarcodesForCartela,
+  validateColorCode,
+} from '../services/cartelaColorService.js';
 
 const VALID_CARE_SYMBOLS = new Set([
   'wash_30', 'wash_40', 'wash_60',
@@ -41,6 +49,15 @@ const cartelaBody = z.object({
 
 const fiberTypeBody = z.object({
   nameEn: z.string().min(1).max(80),
+});
+
+const colorBody = z.object({
+  colorCode: z.string().min(1).max(20),
+  nameAr: z.string().optional().default(''),
+  nameTr: z.string().optional().default(''),
+  notes: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  colorNo: z.number().int().positive().optional(),
 });
 
 function formatCompositionText(lines: Array<{ percent: number; fiberName: string }>): string {
@@ -340,21 +357,41 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
   app.get('/lookup', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const scan = String((req.query as Record<string, string>).scan ?? '').trim();
-    if (!scan) return sendError(reply, 400, 'أدخل باركود أو QR الكارتيلا', 'VALIDATION');
-
-    let serial = scan;
-    let artCode = '';
-    let designNo = '';
-    if (/^CLOTEX\|/i.test(scan)) {
-      const parts = scan.split('|').map((p) => p.trim());
-      artCode = parts[1] ?? '';
-      designNo = parts[2] ?? '';
-      serial = parts[3] ?? '';
-    } else if (/^\d{1,10}$/.test(scan)) {
-      serial = scan;
-    }
+    if (!scan) return sendError(reply, 400, 'أدخل باركود الكارتيلا أو لون', 'VALIDATION');
 
     try {
+      const colorHit = await getPool().query(
+        `SELECT to_jsonb(cl.*) AS cartela, to_jsonb(c.*) AS color
+           FROM cartela_label_colors c
+           JOIN cartela_labels cl ON cl.id = c.cartela_label_id AND cl.company_id = c.company_id
+          WHERE c.company_id = $1 AND upper(c.barcode_code) = upper($2)
+          LIMIT 1`,
+        [companyId, scan],
+      );
+      if (colorHit.rows.length) {
+        const hit = colorHit.rows[0] as { cartela: Record<string, unknown>; color: Record<string, unknown> };
+        return reply.send({
+          ok: true,
+          data: {
+            match_type: 'color',
+            ...mapCartelaRow(hit.cartela),
+            color: mapCartelaColorRow(hit.color),
+          },
+        });
+      }
+
+      let serial = scan;
+      let artCode = '';
+      let designNo = '';
+      if (/^CLOTEX\|/i.test(scan)) {
+        const parts = scan.split('|').map((p) => p.trim());
+        artCode = parts[1] ?? '';
+        designNo = parts[2] ?? '';
+        serial = parts[3] ?? '';
+      } else if (/^\d{1,10}$/.test(scan)) {
+        serial = scan;
+      }
+
       const row = await getPool().query(
         `SELECT *
            FROM cartela_labels
@@ -371,8 +408,199 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           LIMIT 1`,
         [companyId, serial, artCode, designNo, scan],
       );
-      if (!row.rows.length) return sendError(reply, 404, 'كارتيلا غير موجودة بهذا الباركود', 'NOT_FOUND');
-      return reply.send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+      if (!row.rows.length) return sendError(reply, 404, 'كارتيلا أو لون غير موجود بهذا الباركود', 'NOT_FOUND');
+      return reply.send({
+        ok: true,
+        data: {
+          match_type: 'cartela',
+          ...mapCartelaRow(row.rows[0]),
+        },
+      });
+    } catch (err) {
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    }
+  });
+
+  app.get('/:cartelaId/colors', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { cartelaId } = req.params as { cartelaId: string };
+    try {
+      const parent = await getPool().query(
+        `SELECT id FROM cartela_labels WHERE id = $1 AND company_id = $2`,
+        [cartelaId, companyId],
+      );
+      if (!parent.rows.length) return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
+
+      const rows = await getPool().query(
+        `SELECT id, cartela_label_id, color_no, color_code, barcode_code, name_ar, name_tr, notes, image_url,
+                sort_order, created_at, updated_at
+           FROM cartela_label_colors
+          WHERE company_id = $1 AND cartela_label_id = $2
+          ORDER BY color_no ASC, sort_order ASC`,
+        [companyId, cartelaId],
+      );
+      return reply.send({ ok: true, data: rows.rows.map((row) => mapCartelaColorRow(row)) });
+    } catch (err) {
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    }
+  });
+
+  app.post('/:cartelaId/colors', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { cartelaId } = req.params as { cartelaId: string };
+    const parsed = colorBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const d = parsed.data;
+    const codeError = validateColorCode(d.colorCode);
+    if (codeError) return sendError(reply, 400, codeError, 'VALIDATION');
+
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const parent = await client.query<{ id: string; serial_no: string }>(
+        `SELECT id, serial_no FROM cartela_labels WHERE id = $1 AND company_id = $2 FOR UPDATE`,
+        [cartelaId, companyId],
+      );
+      if (!parent.rows.length) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
+      }
+      const serialNo = parent.rows[0].serial_no.trim();
+      if (!serialNo) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 400, 'احفظ الكارتيلا برقم تسلسلي قبل إضافة ألوان', 'VALIDATION');
+      }
+
+      const colorCode = normalizeColorCode(d.colorCode);
+      const colorNo = d.colorNo ?? (await allocateNextColorNo(client, cartelaId));
+      const barcodeCode = buildColorBarcodeCode(serialNo, colorCode);
+
+      const row = await client.query(
+        `INSERT INTO cartela_label_colors (
+           company_id, cartela_label_id, color_no, color_code, barcode_code,
+           name_ar, name_tr, notes, image_url, sort_order
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING *`,
+        [
+          companyId,
+          cartelaId,
+          colorNo,
+          colorCode,
+          barcodeCode,
+          d.nameAr.trim(),
+          d.nameTr.trim(),
+          d.notes ?? null,
+          d.imageUrl?.trim() || null,
+          colorNo,
+        ],
+      );
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: mapCartelaColorRow(row.rows[0]) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      const code = (err as { code?: string }).code;
+      if (code === 'VALIDATION') {
+        return sendError(reply, 400, err instanceof Error ? err.message : ArabicErrors.validation, 'VALIDATION');
+      }
+      if (code === '23505') {
+        return sendError(reply, 409, 'كود اللون أو الباركود مستخدم مسبقاً', 'DUPLICATE');
+      }
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
+  app.put('/color-swatches/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const parsed = colorBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const d = parsed.data;
+    const codeError = validateColorCode(d.colorCode);
+    if (codeError) return sendError(reply, 400, codeError, 'VALIDATION');
+
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const existing = await client.query<{ cartela_label_id: string; serial_no: string }>(
+        `SELECT c.cartela_label_id, cl.serial_no
+           FROM cartela_label_colors c
+           JOIN cartela_labels cl ON cl.id = c.cartela_label_id AND cl.company_id = c.company_id
+          WHERE c.id = $1 AND c.company_id = $2
+          FOR UPDATE OF c`,
+        [id, companyId],
+      );
+      if (!existing.rows.length) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 404, 'اللون غير موجود', 'NOT_FOUND');
+      }
+      const serialNo = existing.rows[0].serial_no.trim();
+      if (!serialNo) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 400, 'الكارتيلا تحتاج رقم تسلسلي', 'VALIDATION');
+      }
+
+      const colorCode = normalizeColorCode(d.colorCode);
+      const barcodeCode = buildColorBarcodeCode(serialNo, colorCode);
+      const colorNo = d.colorNo ?? undefined;
+
+      const row = await client.query(
+        `UPDATE cartela_label_colors
+            SET color_code = $3,
+                barcode_code = $4,
+                name_ar = $5,
+                name_tr = $6,
+                notes = $7,
+                image_url = $8,
+                color_no = COALESCE($9, color_no),
+                sort_order = COALESCE($9, sort_order),
+                updated_at = now()
+          WHERE id = $1 AND company_id = $2
+          RETURNING *`,
+        [
+          id,
+          companyId,
+          colorCode,
+          barcodeCode,
+          d.nameAr.trim(),
+          d.nameTr.trim(),
+          d.notes ?? null,
+          d.imageUrl?.trim() || null,
+          colorNo ?? null,
+        ],
+      );
+      await client.query('COMMIT');
+      return reply.send({ ok: true, data: mapCartelaColorRow(row.rows[0]) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      const code = (err as { code?: string }).code;
+      if (code === 'VALIDATION') {
+        return sendError(reply, 400, err instanceof Error ? err.message : ArabicErrors.validation, 'VALIDATION');
+      }
+      if (code === '23505') {
+        return sendError(reply, 409, 'كود اللون أو الباركود مستخدم مسبقاً', 'DUPLICATE');
+      }
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
+  app.delete('/color-swatches/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    try {
+      const row = await getPool().query(
+        `DELETE FROM cartela_label_colors WHERE id = $1 AND company_id = $2 RETURNING id`,
+        [id, companyId],
+      );
+      if (!row.rows.length) return sendError(reply, 404, 'اللون غير موجود', 'NOT_FOUND');
+      return reply.send({ ok: true });
     } catch (err) {
       if (mapCartelaDbError(reply, err)) return reply;
       throw err;
@@ -465,6 +693,14 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     }
     const d = payload.data!;
 
+    const prev = await getPool().query<{ serial_no: string }>(
+      `SELECT serial_no FROM cartela_labels WHERE id = $1 AND company_id = $2`,
+      [id, companyId],
+    );
+    if (!prev.rows.length) return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
+    const prevSerial = String(prev.rows[0].serial_no ?? '').trim();
+    const nextSerial = d.serialNo.trim();
+
     const row = await getPool().query(
       `UPDATE cartela_labels
           SET title = $3,
@@ -514,6 +750,22 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       ],
     );
     if (!row.rows.length) return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
+
+    if (nextSerial && nextSerial !== prevSerial) {
+      const client = await getPool().connect();
+      try {
+        await client.query('BEGIN');
+        await syncColorBarcodesForCartela(client, companyId, id, nextSerial);
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        if (mapCartelaDbError(reply, err)) return reply;
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
     return reply.send({ ok: true, data: mapCartelaRow(row.rows[0]) });
   });
 

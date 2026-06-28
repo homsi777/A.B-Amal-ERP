@@ -43,7 +43,7 @@ const CODE128_PATTERNS = [
   '114131','311141','411131','211412','211214','211232','2331112',
 ];
 
-function buildCode128Svg(value: string, height = 24): string {
+export function buildCode128Svg(value: string, height = 24): string {
   const clean = String(value ?? '').replace(/[^\x20-\x7e]/g, '').slice(0, 48) || '0';
   const codes = [104, ...clean.split('').map((c) => c.charCodeAt(0) - 32)];
   const checksum = codes.reduce((s, c, i) => s + c * (i === 0 ? 1 : i), 0) % 103;

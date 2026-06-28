@@ -65,6 +65,7 @@ import { ElectronPrintAdapter } from '../../lib/printing/electronPrintAdapter';
 import { canUseSilentLabelPrinting, getPrintAdapter, isElectronRenderer } from '../../lib/printing/printAdapters';
 import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import { useToast } from '../../components/NonBlockingToast';
+import { CartelaColorScanPanel, CartelaColorSwatchesPanel } from '../../components/cartela/CartelaColorPanels';
 
 function CartelaPreviewFrame({ html }: { html: string }) {
   return (
@@ -594,6 +595,13 @@ export const CartelaLabels: React.FC = () => {
         </div>
       </div>
 
+      <CartelaColorScanPanel
+        onOpenCartela={(id) => {
+          void loadOne(id);
+          setActiveTab('form');
+        }}
+      />
+
       {activeTab === 'registry' && (
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -771,6 +779,7 @@ export const CartelaLabels: React.FC = () => {
       )}
 
       {activeTab === 'form' && (
+      <>
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] gap-6 items-start">
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1167,6 +1176,11 @@ export const CartelaLabels: React.FC = () => {
           </div>
         </aside>
       </div>
+
+      {selectedId && (
+        <CartelaColorSwatchesPanel cartelaId={selectedId} serialNo={form.serialNo} />
+      )}
+      </>
       )}
     </div>
   );
