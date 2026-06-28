@@ -16,8 +16,15 @@ import {
 } from '../lib/api/fabricRollsApi';
 import { listWarehouses, type ApiWarehouse } from '../lib/api/warehousesApi';
 import { listFabricItems, updateFabricItem, type ApiFabricItem } from '../lib/api/fabricItemsApi';
-import { getCategoryTree, type ApiCategory } from '../lib/api/fabricCategoriesApi';
+import { listCategories, type ApiCategory } from '../lib/api/fabricCategoriesApi';
 import { resolveFabricClassification } from '../lib/api/fabricClassificationApi';
+import {
+  activeCategories,
+  categoryDisplayLabel,
+  categoryMatchesValue,
+  isColorNameLevelCategory,
+  isMaterialCodeLevelCategory,
+} from '../lib/fabricCategoryLevels';
 import { StockExcelImportModal } from './inventory/StockExcelImportModal';
 import { restoreAccidentalInteractionLocks } from '../components/NonBlockingToast';
 import {
@@ -224,15 +231,6 @@ const BulkDeactivateRollsModal = ({ count, saving, error, onClose, onConfirm }: 
   </div>
 );
 
-function findCategoryById(tree: ApiCategory[], id: string): ApiCategory | null {
-  for (const node of tree) {
-    if (node.id === id) return node;
-    const inner = node.children?.length ? findCategoryById(node.children, id) : null;
-    if (inner) return inner;
-  }
-  return null;
-}
-
 function uniqueById<T extends { id: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
   const unique: T[] = [];
@@ -242,30 +240,6 @@ function uniqueById<T extends { id: string }>(rows: T[]): T[] {
     unique.push(row);
   }
   return unique;
-}
-
-function uniqueCategoryTree(rows: ApiCategory[]): ApiCategory[] {
-  return uniqueById<ApiCategory>(rows).map((row) => ({
-    ...row,
-    children: row.children?.length ? uniqueCategoryTree(row.children) : [],
-  }));
-}
-
-function activeCategoryChildren(parent: ApiCategory | null): ApiCategory[] {
-  return uniqueById<ApiCategory>((parent?.children ?? []).filter((c) => c.is_active !== false));
-}
-
-function normalizeText(value: string | null | undefined): string {
-  return String(value ?? '').trim().toLowerCase();
-}
-
-function findMatchingChild(parent: ApiCategory | null, value: string | null | undefined): ApiCategory | null {
-  const q = normalizeText(value);
-  if (!parent || !q) return null;
-  return parent.children?.find((child) => (
-    child.is_active !== false
-    && (normalizeText(child.name) === q || normalizeText(child.code) === q)
-  )) ?? null;
 }
 
 const inventoryCollator = new Intl.Collator(['ar', 'en'], {
@@ -344,7 +318,10 @@ interface EditRollModalProps {
 }
 
 const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
-  const [categoryTree, setCategoryTree] = useState<ApiCategory[]>([]);
+  const [l1Options, setL1Options] = useState<ApiCategory[]>([]);
+  const [l2Options, setL2Options] = useState<ApiCategory[]>([]);
+  const [l3Options, setL3Options] = useState<ApiCategory[]>([]);
+  const [l4Options, setL4Options] = useState<ApiCategory[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [catL1Id, setCatL1Id] = useState('');
   const [catL2Id, setCatL2Id] = useState('');
@@ -365,36 +342,89 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
   useEffect(() => {
     let cancelled = false;
     setTreeLoading(true);
-    getCategoryTree()
-      .then((tree) => {
+    setErr('');
+    void (async () => {
+      try {
+        const roots = activeCategories(await listCategories({ parentId: null }));
         if (cancelled) return;
-        setCategoryTree(uniqueCategoryTree(tree));
-        const level1 = tree.find((node) => (
-          node.is_active !== false
-          && (normalizeText(node.name) === normalizeText(roll.item_name)
-            || normalizeText(node.code) === normalizeText(roll.item_name))
-        )) ?? null;
-        const level2 = findMatchingChild(level1, roll.internal_code ?? roll.supplier_code_item);
-        const level3 = findMatchingChild(level2, roll.color_name_ar ?? roll.color_name_tr);
-        const level4 = findMatchingChild(level3, roll.color_code);
+        setL1Options(roots);
+
+        const level1 = roots.find((node) => categoryMatchesValue(node, roll.item_name)) ?? null;
         setCatL1Id(level1?.id ?? '');
+
+        if (!level1) {
+          setL2Options([]);
+          setL3Options([]);
+          setL4Options([]);
+          return;
+        }
+
+        const level2Rows = activeCategories(await listCategories({ parentId: level1.id }))
+          .filter(isMaterialCodeLevelCategory);
+        if (cancelled) return;
+        setL2Options(level2Rows);
+
+        const level2 = level2Rows.find((node) => (
+          categoryMatchesValue(node, roll.internal_code)
+          || categoryMatchesValue(node, roll.supplier_code_item)
+        )) ?? null;
         setCatL2Id(level2?.id ?? '');
+
+        if (!level2) {
+          setL3Options([]);
+          setL4Options([]);
+          return;
+        }
+
+        const level3Rows = activeCategories(await listCategories({ parentId: level2.id }))
+          .filter(isColorNameLevelCategory);
+        if (cancelled) return;
+        setL3Options(level3Rows);
+
+        const level3 = level3Rows.find((node) => (
+          categoryMatchesValue(node, roll.color_name_ar)
+          || categoryMatchesValue(node, roll.color_name_tr)
+        )) ?? null;
         setCatL3Id(level3?.id ?? '');
+
+        if (!level3) {
+          setL4Options([]);
+          return;
+        }
+
+        const level4Rows = activeCategories(await listCategories({ parentId: level3.id }));
+        if (cancelled) return;
+        setL4Options(level4Rows);
+        const level4 = level4Rows.find((node) => categoryMatchesValue(node, roll.color_code)) ?? null;
         setCatL4Id(level4?.id ?? '');
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setErr('تعذر تحميل تصنيفات الخامات.');
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setTreeLoading(false);
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [roll]);
 
-  const level1Options = uniqueById<ApiCategory>(categoryTree.filter((c) => c.is_active !== false));
-  const level2Options = activeCategoryChildren(catL1Id ? findCategoryById(categoryTree, catL1Id) : null);
-  const level3Options = activeCategoryChildren(catL2Id ? findCategoryById(categoryTree, catL2Id) : null);
-  const level4Options = activeCategoryChildren(catL3Id ? findCategoryById(categoryTree, catL3Id) : null);
+  const loadLevel2 = async (parentId: string) => {
+    const rows = activeCategories(await listCategories({ parentId }))
+      .filter(isMaterialCodeLevelCategory);
+    setL2Options(rows);
+    return rows;
+  };
+
+  const loadLevel3 = async (parentId: string) => {
+    const rows = activeCategories(await listCategories({ parentId }))
+      .filter(isColorNameLevelCategory);
+    setL3Options(rows);
+    return rows;
+  };
+
+  const loadLevel4 = async (parentId: string) => {
+    const rows = activeCategories(await listCategories({ parentId }));
+    setL4Options(rows);
+    return rows;
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -410,22 +440,17 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
       let colorId: string | null = roll.color_id;
       let variantId: string | null = roll.variant_id;
 
-      if (catL1Id && catL2Id && catL3Id && catL4Id) {
-        const resolved = await resolveFabricClassification({
-          level1CategoryId: catL1Id,
-          level2CategoryId: catL2Id,
-          level3CategoryId: catL3Id,
-          level4CategoryId: catL4Id,
-          widthCm: widthCm ? Number(widthCm) : null,
-          gsm: gsm ? Number(gsm) : null,
-        });
-        itemId = resolved.itemId;
-        colorId = resolved.colorId;
-        variantId = resolved.variantId;
-      } else {
-        colorId = null;
-        variantId = null;
-      }
+      const resolved = await resolveFabricClassification({
+        level1CategoryId: catL1Id,
+        level2CategoryId: catL2Id,
+        level3CategoryId: catL3Id || undefined,
+        level4CategoryId: catL4Id || undefined,
+        widthCm: widthCm ? Number(widthCm) : null,
+        gsm: gsm ? Number(gsm) : null,
+      });
+      itemId = resolved.itemId;
+      colorId = resolved.colorId;
+      variantId = resolved.variantId;
 
       await updateFabricRoll(roll.id, {
         itemId,
@@ -467,30 +492,69 @@ const EditRollModal = ({ roll, onClose, onSaved }: EditRollModalProps) => {
             <div className="grid gap-4 md:grid-cols-4">
               <div>
                 <label className="mb-1 block text-sm font-bold text-slate-700">اسم الخامة</label>
-                <select value={catL1Id} disabled={treeLoading} onChange={(e) => { setCatL1Id(e.target.value); setCatL2Id(''); setCatL3Id(''); setCatL4Id(''); }} className={fieldCls}>
+                <select
+                  value={catL1Id}
+                  disabled={treeLoading}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setCatL1Id(id);
+                    setCatL2Id('');
+                    setCatL3Id('');
+                    setCatL4Id('');
+                    setL2Options([]);
+                    setL3Options([]);
+                    setL4Options([]);
+                    if (id) void loadLevel2(id);
+                  }}
+                  className={fieldCls}
+                >
                   <option value="">اختيار الخامة</option>
-                  {level1Options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {l1Options.map((c) => <option key={c.id} value={c.id}>{categoryDisplayLabel(c, 1)}</option>)}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-bold text-slate-700">كود الخامة</label>
-                <select value={catL2Id} disabled={!catL1Id} onChange={(e) => { setCatL2Id(e.target.value); setCatL3Id(''); setCatL4Id(''); }} className={fieldCls}>
+                <select
+                  value={catL2Id}
+                  disabled={!catL1Id || treeLoading}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setCatL2Id(id);
+                    setCatL3Id('');
+                    setCatL4Id('');
+                    setL3Options([]);
+                    setL4Options([]);
+                    if (id) void loadLevel3(id);
+                  }}
+                  className={fieldCls}
+                >
                   <option value="">اختيار كود الخامة</option>
-                  {level2Options.map((c) => <option key={c.id} value={c.id}>{c.code || c.name}</option>)}
+                  {l2Options.map((c) => <option key={c.id} value={c.id}>{categoryDisplayLabel(c, 2)}</option>)}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-bold text-slate-700">اللون <span className="text-slate-400 font-normal">(اختياري)</span></label>
-                <select value={catL3Id} disabled={!catL2Id} onChange={(e) => { setCatL3Id(e.target.value); setCatL4Id(''); }} className={fieldCls}>
+                <select
+                  value={catL3Id}
+                  disabled={!catL2Id || treeLoading}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setCatL3Id(id);
+                    setCatL4Id('');
+                    setL4Options([]);
+                    if (id) void loadLevel4(id);
+                  }}
+                  className={fieldCls}
+                >
                   <option value="">بدون لون</option>
-                  {level3Options.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {l3Options.map((c) => <option key={c.id} value={c.id}>{categoryDisplayLabel(c, 3)}</option>)}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-bold text-slate-700">كود اللون <span className="text-slate-400 font-normal">(اختياري)</span></label>
-                <select value={catL4Id} disabled={!catL2Id} onChange={(e) => setCatL4Id(e.target.value)} className={fieldCls}>
+                <select value={catL4Id} disabled={!catL3Id || treeLoading} onChange={(e) => setCatL4Id(e.target.value)} className={fieldCls}>
                   <option value="">بدون كود لون</option>
-                  {level4Options.map((c) => <option key={c.id} value={c.id}>{c.code || c.name}</option>)}
+                  {l4Options.map((c) => <option key={c.id} value={c.id}>{categoryDisplayLabel(c, 4)}</option>)}
                 </select>
               </div>
             </div>

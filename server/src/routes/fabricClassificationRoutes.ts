@@ -8,8 +8,8 @@ import { resolveFabricClassification } from '../services/fabricClassificationSer
 const resolveBody = z.object({
   level1CategoryId: z.string().uuid('معرّف اسم الخامة غير صالح'),
   level2CategoryId: z.string().uuid('معرّف كود الخامة غير صالح'),
-  level3CategoryId: z.string().uuid('معرّف لون الخامة غير صالح'),
-  level4CategoryId: z.string().uuid('معرّف كود اللون غير صالح'),
+  level3CategoryId: z.string().uuid('معرّف لون الخامة غير صالح').optional(),
+  level4CategoryId: z.string().uuid('معرّف كود اللون غير صالح').optional(),
   widthCm: z.number().positive().nullable().optional(),
   gsm: z.number().positive().nullable().optional(),
 });

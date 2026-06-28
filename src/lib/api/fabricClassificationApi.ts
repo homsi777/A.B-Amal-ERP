@@ -2,7 +2,7 @@ import { apiFetch } from './client';
 
 export interface ResolveClassificationResponse {
   itemId: string;
-  colorId: string;
+  colorId: string | null;
   variantId: string | null;
   articleCode: string;
   fabricColorName: string;
@@ -14,8 +14,8 @@ export interface ResolveClassificationResponse {
 export async function resolveFabricClassification(body: {
   level1CategoryId: string;
   level2CategoryId: string;
-  level3CategoryId: string;
-  level4CategoryId: string;
+  level3CategoryId?: string;
+  level4CategoryId?: string;
   widthCm?: number | null;
   gsm?: number | null;
 }): Promise<ResolveClassificationResponse> {
