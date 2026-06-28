@@ -78,7 +78,7 @@ const ALL_REPORT_CARDS: ReportCardDef[] = [
   { id: 'pur_batch', title: 'المشتريات حسب الدفعة/اللوط', desc: '', path: '/purchases/by-batch', tab: 'purchases' },
   { id: 'pur_cost', title: 'اتجاه التكلفة', desc: 'متوسط تكلفة وحدة', path: '/purchases/cost-trend', tab: 'purchases' },
 
-  { id: 'inventory_rolls', title: 'كشف أتواب المخزون', desc: 'المخزون النشط (متاح + محجوز بمسودة بيع) — المباع مخفي افتراضياً؛ استخدم فلتر الحالة لعرضه.', path: '/inventory/rolls', tab: 'inventory' },
+  { id: 'inventory_rolls', title: 'كشف أتواب المخزون', desc: 'المخزون التشغيلي — يستبعد المباع والتالف والصفرية؛ استخدم فلتر الحالة عند الحاجة.', path: '/inventory/rolls', tab: 'inventory' },
   { id: 'inventory_stock_audit_page', title: 'جرد مخزون المخزون', desc: 'التصميم التشغيلي السابق (صفحة كاملة)', path: '/inventory', tab: 'inventory' },
   { id: 'inventory_movements', title: 'حركة الأتواب', desc: '', path: '/inventory/movements', tab: 'inventory' },
   { id: 'inventory_by_wh', title: 'الأدواب حسب المستودع', desc: '', path: '/inventory/by-warehouse', tab: 'inventory' },
@@ -92,7 +92,8 @@ const ALL_REPORT_CARDS: ReportCardDef[] = [
   { id: 'tx1', title: 'المخزون على مستوى الطاقة', desc: 'تفاصيل ثوب', path: '/inventory/roll-level', tab: 'inventory' },
   { id: 'inv_batch_tr', title: 'تتبع الدفعات', desc: 'دفعات استيراد', path: '/inventory/batch-tracking', tab: 'inventory' },
   { id: 'inv_fabric_types', title: 'أنواع الأقمشة', desc: 'حسب فئة الكatalog', path: '/inventory/fabric-types', tab: 'inventory' },
-  { id: 'inv_waste', title: 'الهدر والأضرار', desc: 'سجلات الهدر + DAMAGE', path: '/inventory/waste-analysis', tab: 'inventory' },
+  { id: 'inv_waste', title: 'ملخص سجلات التوالف', desc: 'سجلات WST المؤكدة مجمّعة', path: '/inventory/waste-analysis', tab: 'inventory' },
+  { id: 'inv_damaged', title: 'كشف الهالك (أثواب تالفة)', desc: 'إهلاك كامل — خارج المخزون والجرد التشغيلي', path: '/inventory/damaged-stock', tab: 'inventory' },
   { id: 'inv_cut', title: 'كفاءة القص', desc: '', path: '/inventory/cutting-efficiency', tab: 'inventory' },
   { id: 'inv_rem_len', title: 'الأطوال المتبقية', desc: 'ثوب غير مباع', path: '/inventory/remaining-lengths', tab: 'inventory' },
 
@@ -121,6 +122,7 @@ const isPageNavigation = (cardId: string) => PAGE_NAVIGATION_CARDS.has(cardId);
 const WAREHOUSE_KEYS = new Set([
   'inventory_rolls',
   'inventory_movements',
+  'inv_damaged',
   'pur_det',
   'tx1',
 ]);

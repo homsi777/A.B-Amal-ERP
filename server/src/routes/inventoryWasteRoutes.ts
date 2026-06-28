@@ -425,7 +425,12 @@ export const inventoryWasteRoutes: FastifyPluginAsync = async (app) => {
 
         if (fullWaste) {
           await client.query(
-            `UPDATE fabric_rolls SET status='DAMAGED', updated_at=now()
+            `UPDATE fabric_rolls SET
+               status = 'DAMAGED',
+               length_m = 0,
+               calculated_weight_kg = 0,
+               actual_weight_kg = CASE WHEN actual_weight_kg IS NOT NULL THEN 0 ELSE NULL END,
+               updated_at = now()
              WHERE id=$1 AND company_id=$2`,
             [cur.id, companyId],
           );
@@ -435,15 +440,17 @@ export const inventoryWasteRoutes: FastifyPluginAsync = async (app) => {
                (company_id, roll_id, movement_type,
                 from_warehouse_id, to_warehouse_id,
                 old_status, new_status,
+                length_delta_m,
                 reference_type, reference_id, reference_no,
                 notes, created_by_user_id)
-             VALUES ($1,$2,'DAMAGE',$3,$3,$4,$5,$6,$7,$8,$9,$10)`,
+             VALUES ($1,$2,'DAMAGE',$3,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
             [
               companyId,
               cur.id,
               cur.warehouse_id,
               cur.status,
               'DAMAGED',
+              len > 0 ? -len : 0,
               'INVENTORY_WASTE',
               id,
               w.waste_no,
@@ -458,15 +465,17 @@ export const inventoryWasteRoutes: FastifyPluginAsync = async (app) => {
             cur.width_cm != null ? parseFloat(cur.width_cm) : null,
             cur.gsm != null ? parseFloat(cur.gsm) : null,
           );
+          const fullyDepleted = newLen <= 0;
 
           await client.query(
             `UPDATE fabric_rolls SET
                length_m = $3,
                calculated_weight_kg = $4,
-               status = CASE WHEN $3::numeric <= 0 THEN 'DAMAGED'::text ELSE status END,
+               actual_weight_kg = CASE WHEN $5 THEN CASE WHEN actual_weight_kg IS NOT NULL THEN 0 ELSE NULL END ELSE actual_weight_kg END,
+               status = CASE WHEN $5 THEN 'DAMAGED'::text ELSE status END,
                updated_at = now()
              WHERE id=$1 AND company_id=$2`,
-            [cur.id, companyId, newLen, calcWt],
+            [cur.id, companyId, newLen, calcWt, fullyDepleted],
           );
 
           const newStatus = newLen <= 0 ? 'DAMAGED' : cur.status;

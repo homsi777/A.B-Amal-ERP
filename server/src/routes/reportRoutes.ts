@@ -38,6 +38,7 @@ import {
   reportInventoryBatchTracking,
   reportInventoryByColor,
   reportInventoryCuttingEfficiency,
+  reportInventoryDamagedStock,
   reportInventoryFabricTypes,
   reportInventoryNegativeStock,
   reportInventoryRemainingLengths,
@@ -283,6 +284,10 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
   });
   app.get('/inventory/waste-analysis', { preHandler: authenticateRequest }, async (req, reply) => {
     const report = await reportInventoryWasteAnalysis(req.user!.companyId);
+    return reply.send({ ok: true, report });
+  });
+  app.get('/inventory/damaged-stock', { preHandler: authenticateRequest }, async (req, reply) => {
+    const report = await reportInventoryDamagedStock(req.user!.companyId, q(req));
     return reply.send({ ok: true, report });
   });
   app.get('/inventory/cutting-efficiency', { preHandler: authenticateRequest }, async (req, reply) => {

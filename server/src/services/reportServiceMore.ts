@@ -1396,6 +1396,8 @@ export async function reportInventoryValuation(companyId: string): Promise<Unifi
      FROM fabric_rolls fr
      JOIN fabric_items fi ON fi.id = fr.item_id AND fi.company_id = fr.company_id
      WHERE fr.company_id = $1
+       AND fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED')
+       AND fr.length_m > 0
      GROUP BY fi.name
      ORDER BY est_value DESC`,
     [companyId],
@@ -1429,6 +1431,8 @@ export async function reportInventoryByColor(companyId: string): Promise<Unified
      FROM fabric_rolls fr
      LEFT JOIN fabric_colors fc ON fc.id = fr.color_id
      WHERE fr.company_id = $1
+       AND fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED')
+       AND fr.length_m > 0
      GROUP BY fc.name_ar, fc.name_tr
      ORDER BY rolls DESC`,
     [companyId],
@@ -1461,6 +1465,8 @@ export async function reportInventoryAging(companyId: string): Promise<UnifiedRe
             COALESCE(SUM(fr.length_m),0)::numeric AS total_m
      FROM fabric_rolls fr
      WHERE fr.company_id = $1
+       AND fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED')
+       AND fr.length_m > 0
      GROUP BY 1 ORDER BY 1`,
     [companyId],
   );
@@ -1670,7 +1676,7 @@ export async function reportInventoryWasteAnalysis(companyId: string): Promise<U
             COALESCE(SUM(wl.waste_length_m), 0)::numeric AS waste_length_m
      FROM inventory_waste_records wr
      LEFT JOIN inventory_waste_lines wl ON wl.waste_id = wr.id AND wl.company_id = wr.company_id
-     WHERE wr.company_id = $1
+     WHERE wr.company_id = $1 AND wr.status = 'CONFIRMED'
      GROUP BY wr.id, wr.waste_no, wr.waste_date, wr.waste_type
      ORDER BY wr.waste_date DESC
      LIMIT 500`,
@@ -1683,7 +1689,8 @@ export async function reportInventoryWasteAnalysis(companyId: string): Promise<U
   );
   return buildReportPayload({
     key: 'inv_waste',
-    title: 'تحليل الهدر والأضرار',
+    title: 'ملخص سجلات التوالف',
+    subtitle: 'سجلات WST المؤكدة — للتفاصيل على مستوى الثوب استخدم «كشف الهالك»',
     generatedAt: nowIso(),
     filtersApplied: {},
     columns: [
@@ -1695,6 +1702,132 @@ export async function reportInventoryWasteAnalysis(companyId: string): Promise<U
     rows: data.rows as Record<string, unknown>[],
     summaryCards: [{ label: 'حركات DAMAGE', value: dmg.rows[0].n }],
     meta: { total: data.rows.length },
+  });
+}
+
+const WASTE_TYPE_LABELS: Record<string, string> = {
+  DAMAGE: 'تلف',
+  SHORTAGE: 'نقص',
+  CUTTING_WASTE: 'هدر قص',
+  QUALITY_REJECT: 'رفض جودة',
+  LOST: 'مفقود',
+  OTHER: 'أخرى',
+};
+
+/** كشف الهالك — أثواب إهلاك كامل (خارج المخزون التشغيلي) */
+export async function reportInventoryDamagedStock(
+  companyId: string,
+  q: Record<string, string | undefined>,
+): Promise<UnifiedReportPayload> {
+  const pool = getPool();
+  const search = q.search?.trim();
+  const warehouseId = q.warehouseId?.trim();
+  const dateFrom = q.dateFrom?.trim();
+  const dateTo = q.dateTo?.trim();
+
+  const conditions = [`fr.company_id = $1`, `fr.status = 'DAMAGED'`];
+  const params: unknown[] = [companyId];
+  let p = 2;
+
+  if (search) {
+    conditions.push(
+      `(fr.barcode ILIKE $${p} OR fi.name ILIKE $${p} OR COALESCE(wr.waste_no,'') ILIKE $${p} OR COALESCE(wr.reason,'') ILIKE $${p})`,
+    );
+    params.push(`%${search}%`);
+    p++;
+  }
+  if (warehouseId) {
+    conditions.push(`fr.warehouse_id = $${p}`);
+    params.push(warehouseId);
+    p++;
+  }
+  if (dateFrom) {
+    conditions.push(`wr.waste_date >= $${p}::date`);
+    params.push(dateFrom);
+    p++;
+  }
+  if (dateTo) {
+    conditions.push(`wr.waste_date <= $${p}::date`);
+    params.push(dateTo);
+    p++;
+  }
+
+  const where = conditions.join(' AND ');
+
+  const data = await pool.query(
+    `SELECT fr.barcode,
+            COALESCE(fr.roll_no, '') AS roll_no,
+            fi.name AS item_name,
+            COALESCE(fc.name_ar, fc.name_tr, '') AS color_name,
+            COALESCE(w.name, '') AS warehouse_name,
+            COALESCE(wr.waste_no, '') AS waste_no,
+            COALESCE(wr.waste_date::text, '') AS waste_date,
+            COALESCE(wr.waste_type, '') AS waste_type,
+            COALESCE(wr.reason, '') AS reason,
+            COALESCE(wl.waste_length_m, im_waste.wasted_m, 0)::numeric AS wasted_length_m,
+            COALESCE(wr.confirmed_at::text, fr.updated_at::text, '') AS confirmed_at
+     FROM fabric_rolls fr
+     JOIN fabric_items fi ON fi.id = fr.item_id AND fi.company_id = fr.company_id
+     LEFT JOIN fabric_colors fc ON fc.id = fr.color_id
+     LEFT JOIN warehouses w ON w.id = fr.warehouse_id AND w.company_id = fr.company_id
+     LEFT JOIN LATERAL (
+       SELECT wl2.waste_length_m, wl2.waste_id
+       FROM inventory_waste_lines wl2
+       JOIN inventory_waste_records wr2 ON wr2.id = wl2.waste_id AND wr2.company_id = wl2.company_id
+       WHERE wl2.fabric_roll_id = fr.id AND wl2.company_id = fr.company_id AND wr2.status = 'CONFIRMED'
+       ORDER BY wr2.confirmed_at DESC NULLS LAST, wr2.waste_date DESC
+       LIMIT 1
+     ) wl ON true
+     LEFT JOIN inventory_waste_records wr ON wr.id = wl.waste_id AND wr.company_id = fr.company_id
+     LEFT JOIN LATERAL (
+       SELECT ABS(COALESCE(SUM(im.length_delta_m), 0))::numeric AS wasted_m
+       FROM inventory_movements im
+       WHERE im.roll_id = fr.id AND im.company_id = fr.company_id
+         AND im.movement_type = 'DAMAGE'
+         AND im.reference_type = 'INVENTORY_WASTE'
+     ) im_waste ON true
+     WHERE ${where}
+     ORDER BY wr.confirmed_at DESC NULLS LAST, fr.updated_at DESC
+     LIMIT 2000`,
+    params,
+  );
+
+  const rows: Record<string, unknown>[] = (data.rows as Record<string, unknown>[]).map((row) => ({
+    ...row,
+    waste_type: WASTE_TYPE_LABELS[String(row.waste_type ?? '')] ?? row.waste_type,
+  }));
+
+  const totalWastedM = rows.reduce((sum, r) => sum + (parseFloat(String(r.wasted_length_m ?? 0)) || 0), 0);
+
+  return buildReportPayload({
+    key: 'inv_damaged',
+    title: 'كشف الهالك (أثواب تالفة)',
+    subtitle: 'أثواب إهلاك كامل — مستبعدة من المخزون التشغيلي والجرد',
+    generatedAt: nowIso(),
+    filtersApplied: {
+      search: search || null,
+      warehouseId: warehouseId || null,
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null,
+    },
+    columns: [
+      textCol('waste_no', 'رقم التوالف'),
+      textCol('waste_date', 'تاريخ'),
+      textCol('waste_type', 'نوع'),
+      textCol('barcode', 'الباركود'),
+      textCol('item_name', 'الخامة'),
+      textCol('color_name', 'اللون'),
+      textCol('warehouse_name', 'المستودع'),
+      moneyCol('wasted_length_m', 'أمتار مهلك'),
+      textCol('reason', 'السبب'),
+      textCol('confirmed_at', 'تاريخ التأكيد'),
+    ],
+    rows,
+    summaryCards: [
+      { label: 'عدد الأثواب التالفة', value: rows.length },
+      { label: 'إجمالي الأمتار المهلكة', value: totalWastedM.toFixed(2) },
+    ],
+    meta: { total: rows.length },
   });
 }
 
@@ -1719,7 +1852,7 @@ export async function reportInventoryRemainingLengths(companyId: string): Promis
        COALESCE(SUM(COALESCE(fr.actual_weight_kg, fr.calculated_weight_kg, 0)), 0)::numeric AS remaining_weight_kg
      FROM fabric_rolls fr
      JOIN fabric_items fi ON fi.id = fr.item_id AND fi.company_id = fr.company_id
-     WHERE fr.company_id = $1 AND fr.status NOT IN ('SOLD','INACTIVE')
+     WHERE fr.company_id = $1 AND fr.status NOT IN ('SOLD','INACTIVE','DAMAGED') AND fr.length_m > 0
      GROUP BY fi.id, fi.name, fi.internal_code
      ORDER BY remaining_m DESC, fi.name
      LIMIT 1000`,

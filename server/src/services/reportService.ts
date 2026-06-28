@@ -138,8 +138,8 @@ export async function reportInventoryRolls(
     params.push(status);
     p++;
   } else {
-    // افتراضي: مخزون نشط — يستبعد المباع والموقوف والصفرية (يمكن عرض المباع عبر فلتر الحالة)
-    conditions.push(`fr.status NOT IN ('SOLD', 'INACTIVE')`);
+    // افتراضي: مخزون تشغيلي — يستبعد المباع والموقوف والتالف والصفرية
+    conditions.push(`fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED')`);
     conditions.push(`fr.length_m > 0`);
   }
   if (dateFrom) {
@@ -488,9 +488,10 @@ export async function reportRollsByWarehouse(
   const sql = `
     SELECT w.code AS warehouse_code,
            w.name AS warehouse_name,
-           COUNT(fr.id)::int AS rolls_count,
-           COALESCE(SUM(fr.length_m), 0)::numeric AS total_length_m,
-           COALESCE(SUM(COALESCE(fr.actual_weight_kg, fr.calculated_weight_kg, 0)), 0)::numeric AS total_weight_kg,
+           COUNT(fr.id) FILTER (WHERE fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED') AND fr.length_m > 0)::int AS rolls_count,
+           COALESCE(SUM(fr.length_m) FILTER (WHERE fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED')), 0)::numeric AS total_length_m,
+           COALESCE(SUM(COALESCE(fr.actual_weight_kg, fr.calculated_weight_kg, 0))
+             FILTER (WHERE fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED')), 0)::numeric AS total_weight_kg,
            COUNT(fr.id) FILTER (WHERE fr.status IN ('AVAILABLE','RESERVED','TRANSFERRED'))::int AS active_count,
            COUNT(fr.id) FILTER (WHERE fr.status = 'DAMAGED')::int AS damaged_count
     FROM warehouses w
@@ -543,7 +544,11 @@ export async function reportRollsByItemColor(
   const search = q.search?.trim();
   const filtersApplied = { search: search || null };
 
-  const conditions = ['fr.company_id = $1'];
+  const conditions = [
+    'fr.company_id = $1',
+    `fr.status NOT IN ('SOLD', 'INACTIVE', 'DAMAGED')`,
+    'fr.length_m > 0',
+  ];
   const params: unknown[] = [companyId];
   let p = 2;
   if (search) {
