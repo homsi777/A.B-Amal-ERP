@@ -15,6 +15,7 @@ import {
   type RollStatus,
 } from '../utils/rollHelpers.js';
 import { DRAFT_SALE_LATERAL_JOIN } from '../utils/salesDraftRollLinkSql.js';
+import { sanitizeRollDtoRow, sanitizeRollDtoRows } from '../utils/inventoryDisplayValues.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
 
@@ -294,7 +295,7 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
       ),
     ]);
 
-    return reply.send({ ok: true, data: rows.rows, total: countRow.rows[0].total, page, pageSize });
+    return reply.send({ ok: true, data: sanitizeRollDtoRows(rows.rows), total: countRow.rows[0].total, page, pageSize });
   });
 
   // ── Recent purchase invoices (used by the bulk-pricing filter) ────────────
@@ -914,7 +915,10 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
       [id],
     );
 
-    return reply.send({ ok: true, data: { ...rollRow.rows[0], movements: movRows.rows } });
+    return reply.send({
+      ok: true,
+      data: sanitizeRollDtoRow({ ...rollRow.rows[0], movements: movRows.rows }),
+    });
   });
 
   // ── B2. Patch missing physical fields (invoice-safe completion) ───────────
@@ -1007,7 +1011,7 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
         ok: true,
         applied: true,
         message: 'تم تحديث بيانات الرول في المخزون',
-        data: fullRow.rows[0],
+        data: sanitizeRollDtoRow(fullRow.rows[0]),
       });
     } catch (e) {
       try {

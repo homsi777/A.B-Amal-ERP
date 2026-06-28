@@ -1,5 +1,12 @@
 const AUTO_INTERNAL_CODE_PREFIX = 'IMP-AUTO-';
 
+/** يزيل بادئة L1_/L2_/L3_/L4_ الداخلية — لا تُعرض للمستخدم أبداً. */
+export function stripImportLevelPrefix(value: string | null | undefined): string {
+  const trimmed = String(value ?? '').trim();
+  const match = /^L[1-4]_/i.exec(trimmed);
+  return match ? trimmed.slice(match[0].length).trim() : trimmed;
+}
+
 /** يُعرض في المخزون بدل الحقول الفارغة (اللون، كود اللون، …). */
 export const EMPTY_INVENTORY_FIELD = '0';
 
@@ -16,10 +23,9 @@ export function displayInventoryMaterialCode(roll: {
   internal_code?: string | null;
   supplier_code_item?: string | null;
 }): string {
-  let internal = String(roll.internal_code ?? '').trim();
-  if (/^L2_/i.test(internal)) internal = internal.slice(3).trim() || internal;
+  let internal = stripImportLevelPrefix(roll.internal_code);
   if (internal && !internal.startsWith(AUTO_INTERNAL_CODE_PREFIX)) return internal;
-  return String(roll.supplier_code_item ?? '').trim();
+  return stripImportLevelPrefix(roll.supplier_code_item);
 }
 
 /** كود الخامة على اللصاقة / DTO — نفس منطق المخزون (يتجنّب IMP-AUTO-*). */
@@ -73,7 +79,7 @@ export function displayImportedItemCode(roll: {
   if (supplier) return supplier;
   const internal = String(roll.internal_code ?? '').trim();
   if (!internal || internal.startsWith(AUTO_INTERNAL_CODE_PREFIX)) return '';
-  return internal;
+  return stripImportLevelPrefix(internal);
 }
 
 /** اللون — لا نعرض قيمة مكان الأخرى. */
@@ -84,10 +90,12 @@ export function displayImportedColorName(name?: string | null): string {
 const PLACEHOLDER_COLOR_CODES = new Set(['#000000', '#000', '000000']);
 
 export function displayImportedColorCode(code?: string | null): string {
-  let trimmed = String(code ?? '').trim();
-  if (/^L3_/i.test(trimmed)) trimmed = '';
-  if (!trimmed || PLACEHOLDER_COLOR_CODES.has(trimmed.toLowerCase())) {
+  const raw = String(code ?? '').trim();
+  if (!raw || PLACEHOLDER_COLOR_CODES.has(raw.toLowerCase())) {
     return EMPTY_INVENTORY_FIELD;
   }
+  if (/^L3_/i.test(raw)) return EMPTY_INVENTORY_FIELD;
+  const trimmed = stripImportLevelPrefix(raw);
+  if (!trimmed || trimmed === '0') return EMPTY_INVENTORY_FIELD;
   return trimmed;
 }
