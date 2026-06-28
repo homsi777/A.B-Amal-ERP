@@ -56,7 +56,6 @@ import {
   cartelaQrPayload,
   CARTELA_HEIGHT_MM,
   CARTELA_WIDTH_MM,
-  CARTELA_DEFAULT_FONT_SIZE_PT,
   CARTELA_MIN_FONT_SIZE_PT,
   CARTELA_MAX_FONT_SIZE_PT,
   type CartelaLabelData,
@@ -66,6 +65,10 @@ import { canUseSilentLabelPrinting, getPrintAdapter, isElectronRenderer } from '
 import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import { useToast } from '../../components/NonBlockingToast';
 import { CartelaColorScanPanel, CartelaColorSwatchesPanel } from '../../components/cartela/CartelaColorPanels';
+import {
+  loadDefaultCartelaFontSizePt,
+  saveDefaultCartelaFontSizePt,
+} from '../../lib/cartela/cartelaFontSettings';
 
 function CartelaPreviewFrame({ html }: { html: string }) {
   return (
@@ -109,7 +112,7 @@ const emptyPayload = (): CartelaLabelPayload => ({
   careSymbols: [],
   serialNo: '',
   showLogo: true,
-  fontSizePt: CARTELA_DEFAULT_FONT_SIZE_PT,
+  fontSizePt: loadDefaultCartelaFontSizePt(),
 });
 
 function activeCompositionLines(lines: CartelaCompositionLine[]): CartelaCompositionLine[] {
@@ -125,6 +128,7 @@ export const CartelaLabels: React.FC = () => {
     defaultLabelPrinterName: settings?.defaultLabelPrinterName,
   });
 
+  const [savedDefaultFontSizePt, setSavedDefaultFontSizePt] = useState(loadDefaultCartelaFontSizePt);
   const [items, setItems] = useState<CartelaLabelListItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -856,9 +860,24 @@ export const CartelaLabels: React.FC = () => {
             />
             <div className="flex justify-between text-[11px] font-bold text-slate-500" dir="ltr">
               <span>{CARTELA_MIN_FONT_SIZE_PT}</span>
-              <span>افتراضي {CARTELA_DEFAULT_FONT_SIZE_PT}</span>
+              <span>محفوظ {savedDefaultFontSizePt.toFixed(1)}</span>
               <span>{CARTELA_MAX_FONT_SIZE_PT}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                const saved = saveDefaultCartelaFontSizePt(form.fontSizePt);
+                setSavedDefaultFontSizePt(saved);
+                showToast({
+                  type: 'success',
+                  message: `تم حفظ قياس الخط الافتراضي: ${saved.toFixed(1)} pt — تُطبَّق على الكارتيلات الجديدة.`,
+                });
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50"
+            >
+              <Save size={14} />
+              حفظ قياس الخط كافتراضي
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
