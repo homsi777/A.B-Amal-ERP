@@ -32,18 +32,41 @@ export function isColorNameLevelCategory(cat: ApiCategory): boolean {
   return true;
 }
 
+export function isImportInternalSlug(value: string | null | undefined): boolean {
+  return /^L[1-4]_/i.test(String(value ?? '').trim());
+}
+
 export function categoryDisplayLabel(cat: ApiCategory, level: 1 | 2 | 3 | 4): string {
-  if (level === 2 || level === 4) {
-    const code = cat.code.trim();
-    if (code && !code.startsWith('L2_') && !code.startsWith('L3_') && !code.startsWith('L4_')) return code;
-    if (code.startsWith('L2_')) return cat.name.trim() || code.slice(3);
-    if (code.startsWith('L4_')) return cat.name.trim() || code.slice(3);
-    return cat.name.trim() || code;
+  const name = stripImportLevelPrefix(cat.name);
+  const code = stripImportLevelPrefix(cat.code);
+  if (level === 1) return name || code || cat.name.trim() || cat.code.trim();
+  if (level === 2) {
+    const rawCode = cat.code.trim();
+    if (rawCode && !isImportInternalSlug(rawCode)) return code || name;
+    return name || code || rawCode;
   }
-  if (level === 3 && cat.name.trim().startsWith('L3_')) {
-    return cat.name.trim().slice(3) || cat.name.trim();
+  if (level === 3) return name || code || cat.name.trim() || cat.code.trim();
+  if (level === 4) {
+    const rawCode = cat.code.trim();
+    if (rawCode && !isImportInternalSlug(rawCode)) return code || name;
+    return name || code || rawCode;
   }
-  return cat.name.trim() || cat.code.trim();
+  return name || code || cat.name.trim() || cat.code.trim();
+}
+
+/** العنوان في واجهة تصنيفات الأقمشة — بدون L1_/L2_/L3_/L4_. */
+export function categoryUiTitle(cat: ApiCategory, level: 1 | 2 | 3 | 4): string {
+  return categoryDisplayLabel(cat, level);
+}
+
+/** سطر ثانٍ — فقط عند وجود كود حقيقي يختلف عن الاسم (لا رموز استيراد). */
+export function categoryUiSubtitle(cat: ApiCategory, level: 1 | 2 | 3 | 4): string | null {
+  const rawCode = cat.code.trim();
+  if (!rawCode || isImportInternalSlug(rawCode)) return null;
+  const title = categoryUiTitle(cat, level);
+  if (normalizeCategoryText(rawCode) === normalizeCategoryText(title)) return null;
+  if (normalizeCategoryText(stripImportLevelPrefix(rawCode)) === normalizeCategoryText(title)) return null;
+  return rawCode;
 }
 
 export function categoryMatchesValue(cat: ApiCategory, value: string | null | undefined): boolean {

@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, Loader2, Pencil, Plus, RefreshCw, Search, X } from 'lucide-react';
 import {
+  categoryUiSubtitle,
+  categoryUiTitle,
+  isColorNameLevelCategory,
+  isMaterialCodeLevelCategory,
+  stripImportLevelPrefix,
+} from '../../lib/fabricCategoryLevels';
+import {
   type ApiCategory,
   type CategoryPayload,
   createCategory,
@@ -11,7 +18,15 @@ import {
   updateCategory,
 } from '../../lib/api/fabricCategoriesApi';
 
-/** أربع مستويات فقط: 1 اسم خامة → 2 كود خامة → 3 اللون → 4 كود اللون */
+function columnCategoryLevel(colLevel: number): 1 | 2 | 3 | 4 {
+  return Math.min(4, Math.max(1, colLevel + 1)) as 1 | 2 | 3 | 4;
+}
+
+function nodesForColumn(nodes: ApiCategory[], colLevel: number): ApiCategory[] {
+  if (colLevel === 1) return nodes.filter(isMaterialCodeLevelCategory);
+  if (colLevel === 2) return nodes.filter(isColorNameLevelCategory);
+  return nodes;
+}
 const MAX_COLUMNS = 4;
 const COLUMN_LABELS = ['اسم خامة', 'كود الخامة', 'اللون', 'كود اللون'] as const;
 const ROOT_KEY = 'root';
@@ -37,12 +52,17 @@ function depthFromRoot(id: string, flat: Map<string, ApiCategory>): number {
   return depth;
 }
 
-function filterNodes(nodes: ApiCategory[], filter: string): ApiCategory[] {
+function filterNodes(nodes: ApiCategory[], filter: string, colLevel?: number): ApiCategory[] {
+  const scoped = colLevel != null ? nodesForColumn(nodes, colLevel) : nodes;
   const q = filter.trim().toLowerCase();
-  if (!q) return nodes;
-  return nodes.filter(
-    (n) => n.name.toLowerCase().includes(q) || (n.code && n.code.toLowerCase().includes(q)),
-  );
+  if (!q) return scoped;
+  return scoped.filter((n) => {
+    const level = colLevel != null ? columnCategoryLevel(colLevel) : 1;
+    const title = categoryUiTitle(n, level).toLowerCase();
+    const code = stripImportLevelPrefix(n.code).toLowerCase();
+    const name = stripImportLevelPrefix(n.name).toLowerCase();
+    return title.includes(q) || code.includes(q) || name.includes(q) || n.code.toLowerCase().includes(q);
+  });
 }
 
 function sortCategories(list: ApiCategory[]): ApiCategory[] {
@@ -347,23 +367,23 @@ export const Categories = () => {
   if (selectedPath[0]) {
     columns.push({
       level: 1,
-      title: `${COLUMN_LABELS[1]} — ${selectedPath[0].name}`,
+      title: `${COLUMN_LABELS[1]} — ${categoryUiTitle(selectedPath[0], 1)}`,
       parentId: selectedPath[0].id,
-      nodes: childrenCache[cacheKey(selectedPath[0].id)] ?? [],
+      nodes: nodesForColumn(childrenCache[cacheKey(selectedPath[0].id)] ?? [], 1),
     });
   }
   if (selectedPath[1]) {
     columns.push({
       level: 2,
-      title: `${COLUMN_LABELS[2]} — ${selectedPath[1].name}`,
+      title: `${COLUMN_LABELS[2]} — ${categoryUiTitle(selectedPath[1], 2)}`,
       parentId: selectedPath[1].id,
-      nodes: childrenCache[cacheKey(selectedPath[1].id)] ?? [],
+      nodes: nodesForColumn(childrenCache[cacheKey(selectedPath[1].id)] ?? [], 2),
     });
   }
   if (selectedPath[2]) {
     columns.push({
       level: 3,
-      title: `${COLUMN_LABELS[3]} — ${selectedPath[2].name}`,
+      title: `${COLUMN_LABELS[3]} — ${categoryUiTitle(selectedPath[2], 3)}`,
       parentId: selectedPath[2].id,
       nodes: childrenCache[cacheKey(selectedPath[2].id)] ?? [],
     });
@@ -376,11 +396,13 @@ export const Categories = () => {
       .filter((c) => depthFromRoot(c.id, byIdMap) <= 2)
       .map((c) => ({
         id: c.id,
-        name: `${c.name} (${depthFromRoot(c.id, byIdMap) === 0 ? COLUMN_LABELS[0] : depthFromRoot(c.id, byIdMap) === 1 ? COLUMN_LABELS[1] : depthFromRoot(c.id, byIdMap) === 2 ? COLUMN_LABELS[2] : COLUMN_LABELS[3]})`,
+        name: `${categoryUiTitle(c, (depthFromRoot(c.id, byIdMap) + 1) as 1 | 2 | 3 | 4)} (${depthFromRoot(c.id, byIdMap) === 0 ? COLUMN_LABELS[0] : depthFromRoot(c.id, byIdMap) === 1 ? COLUMN_LABELS[1] : depthFromRoot(c.id, byIdMap) === 2 ? COLUMN_LABELS[2] : COLUMN_LABELS[3]})`,
       })),
   ];
 
-  const breadcrumb = selectedPath.map((c) => c.name).join(' › ');
+  const breadcrumb = selectedPath
+    .map((c, i) => categoryUiTitle(c, (i + 1) as 1 | 2 | 3 | 4))
+    .join(' › ');
 
   return (
     <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
@@ -460,7 +482,11 @@ export const Categories = () => {
             ) : searchResults.length === 0 ? (
               <p className="p-4 text-sm text-slate-500 text-center">لا توجد نتائج</p>
             ) : (
-              searchResults.slice(0, 40).map((r) => (
+              searchResults.slice(0, 40).map((r) => {
+                const depth = depthFromRoot(r.id, byIdMap);
+                const level = Math.min(4, depth + 1) as 1 | 2 | 3 | 4;
+                const subtitle = categoryUiSubtitle(r, level);
+                return (
                 <button
                   key={r.id}
                   type="button"
@@ -472,12 +498,12 @@ export const Categories = () => {
                   }}
                   className="w-full text-right px-4 py-2 hover:bg-white text-sm flex justify-between gap-2"
                 >
-                  <span className="font-medium text-slate-800">{r.name}</span>
-                  {r.code && r.code !== r.name ? (
-                    <span className="text-xs font-mono text-slate-400 shrink-0">{r.code}</span>
+                  <span className="font-medium text-slate-800">{categoryUiTitle(r, level)}</span>
+                  {subtitle ? (
+                    <span className="text-xs font-mono text-slate-400 shrink-0">{subtitle}</span>
                   ) : null}
                 </button>
-              ))
+              ); }),
             )}
           </div>
         </div>
@@ -493,7 +519,7 @@ export const Categories = () => {
             {columns.map((col) => {
               const colKey = cacheKey(col.parentId);
               const colFilter = columnFilters[colKey] ?? '';
-              const visibleNodes = filterNodes(col.nodes, colFilter);
+              const visibleNodes = filterNodes(col.nodes, colFilter, col.level);
               const colLoading = loadingParents.has(colKey);
 
               return (
@@ -531,6 +557,9 @@ export const Categories = () => {
                     ) : null}
                     {visibleNodes.map((node) => {
                       const isSelected = selectedPath[col.level]?.id === node.id;
+                      const catLevel = columnCategoryLevel(col.level);
+                      const title = categoryUiTitle(node, catLevel);
+                      const subtitle = categoryUiSubtitle(node, catLevel);
                       return (
                         <div
                           key={node.id}
@@ -544,12 +573,12 @@ export const Categories = () => {
                           }`}
                         >
                           <div>
-                            <p className="font-bold text-sm">{node.name}</p>
-                            {node.code && node.code !== node.name ? (
+                            <p className="font-bold text-sm">{title}</p>
+                            {subtitle ? (
                               <p
                                 className={`text-xs mt-0.5 font-mono ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}
                               >
-                                {node.code}
+                                {subtitle}
                               </p>
                             ) : null}
                           </div>
