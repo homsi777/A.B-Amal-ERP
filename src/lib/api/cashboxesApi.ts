@@ -28,6 +28,8 @@ export interface CashboxMovementRow {
   balance_after: string | null;
   source_type: string | null;
   source_no: string | null;
+  party_name: string | null;
+  party_type: string | null;
   description: string;
   movement_at: string;
   created_at: string;
@@ -42,10 +44,11 @@ export async function listCashboxes(params: { active?: boolean; search?: string;
   return apiFetch<{ ok: boolean; data: CashboxDto[] }>(`/api/cashboxes${qs}`);
 }
 
-export async function listAllCashboxMovements(params: { page?: number; pageSize?: number } = {}) {
+export async function listAllCashboxMovements(params: { page?: number; pageSize?: number; search?: string } = {}) {
   const q = new URLSearchParams();
   if (params.page) q.set('page', String(params.page));
   if (params.pageSize) q.set('pageSize', String(params.pageSize));
+  if (params.search) q.set('search', params.search);
   const qs = q.toString() ? `?${q}` : '';
   return apiFetch<{
     ok: boolean;

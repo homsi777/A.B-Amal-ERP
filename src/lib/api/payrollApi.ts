@@ -16,6 +16,9 @@ export interface PayrollEmployeeDto {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  total_salary_paid?: string;
+  total_advances?: string;
+  payment_count?: number;
 }
 
 export interface PayrollRunDto {
@@ -124,8 +127,10 @@ export async function listPayrollRuns() {
 
 export interface PayrollSalaryLogRow {
   id: string;
-  payroll_run_id: string;
-  payroll_no: string;
+  payment_type: 'SALARY' | 'ADVANCE';
+  payroll_run_id: string | null;
+  document_no: string;
+  payroll_no?: string;
   payment_date: string;
   period_month: number;
   period_year: number;
@@ -147,6 +152,7 @@ export async function listPayrollSalaryLog(params: {
   dateFrom?: string;
   dateTo?: string;
   sortBy?: 'name' | 'date';
+  paymentType?: 'ALL' | 'SALARY' | 'ADVANCE';
   page?: number;
   pageSize?: number;
 } = {}) {
@@ -155,6 +161,7 @@ export async function listPayrollSalaryLog(params: {
   if (params.dateFrom) q.set('dateFrom', params.dateFrom);
   if (params.dateTo) q.set('dateTo', params.dateTo);
   if (params.sortBy) q.set('sortBy', params.sortBy);
+  if (params.paymentType) q.set('paymentType', params.paymentType);
   if (params.page) q.set('page', String(params.page));
   if (params.pageSize) q.set('pageSize', String(params.pageSize));
   const qs = q.toString() ? `?${q}` : '';

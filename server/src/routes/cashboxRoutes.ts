@@ -5,6 +5,10 @@ import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { generateDocumentNo } from '../utils/documentNumbers.js';
+import {
+  CASHBOX_MOVEMENT_PARTY_JOINS,
+  CASHBOX_MOVEMENT_PARTY_SELECT,
+} from '../utils/cashboxMovementPartySql.js';
 
 const createBody = z.object({
   code: z.string().min(1),
@@ -70,23 +74,47 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
     const page = Math.max(1, parseInt(q.page) || 1);
     const pageSize = Math.min(200, Math.max(1, parseInt(q.pageSize) || 50));
     const offset = (page - 1) * pageSize;
+    const search = q.search?.trim() || '';
 
     const pool = getPool();
+    const params: unknown[] = [companyId];
+    let p = 2;
+    let outerSearch = '';
+    if (search) {
+      outerSearch = ` WHERE (
+        sub.movement_no ILIKE $${p}
+        OR sub.description ILIKE $${p}
+        OR COALESCE(sub.source_no, '') ILIKE $${p}
+        OR COALESCE(sub.cashbox_name, '') ILIKE $${p}
+        OR COALESCE(sub.party_name, '') ILIKE $${p}
+      )`;
+      params.push(`%${search}%`);
+      p++;
+    }
+
+    const innerQuery = `
+      SELECT m.id, m.movement_no, m.cashbox_id, c.name AS cashbox_name, m.movement_type, m.direction,
+             m.amount, m.currency_code, m.exchange_rate_to_usd, m.amount_usd, m.balance_after,
+             m.source_type, m.source_no, m.description, m.movement_at, m.created_at,
+             ${CASHBOX_MOVEMENT_PARTY_SELECT}
+      FROM cashbox_movements m
+      JOIN cashboxes c ON c.id = m.cashbox_id AND c.company_id = m.company_id
+      ${CASHBOX_MOVEMENT_PARTY_JOINS}
+      WHERE m.company_id = $1
+    `;
+
     const [rows, countRow] = await Promise.all([
       pool.query(
-        `SELECT m.id, m.movement_no, m.cashbox_id, c.name AS cashbox_name, m.movement_type, m.direction,
-                m.amount, m.currency_code, m.exchange_rate_to_usd, m.amount_usd, m.balance_after, m.source_type, m.source_no, m.description,
-                m.movement_at, m.created_at
-         FROM cashbox_movements m
-         JOIN cashboxes c ON c.id = m.cashbox_id AND c.company_id = m.company_id
-         WHERE m.company_id = $1
-         ORDER BY m.movement_at DESC, m.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [companyId, pageSize, offset],
+        `SELECT * FROM (${innerQuery}) sub
+         ${outerSearch}
+         ORDER BY sub.movement_at DESC, sub.created_at DESC
+         LIMIT $${p} OFFSET $${p + 1}`,
+        [...params, pageSize, offset],
       ),
-      pool.query<{ c: string }>(`SELECT COUNT(*)::int AS c FROM cashbox_movements WHERE company_id = $1`, [
-        companyId,
-      ]),
+      pool.query<{ c: string }>(
+        `SELECT COUNT(*)::int AS c FROM (${innerQuery}) sub ${outerSearch}`,
+        params,
+      ),
     ]);
 
     return reply.send({

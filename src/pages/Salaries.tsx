@@ -546,6 +546,8 @@ export const Salaries = () => {
                 <th className="px-5 py-4">العنوان</th>
                 <th className="px-5 py-4">رقم الهاتف</th>
                 <th className="px-5 py-4">الراتب</th>
+                <th className="px-5 py-4">رواتب مدفوعة</th>
+                <th className="px-5 py-4">سلف</th>
                 <th className="px-5 py-4">نوع الراتب</th>
                 <th className="px-5 py-4">الحالة</th>
                 <th className="px-5 py-4">إجراءات</th>
@@ -554,14 +556,14 @@ export const Salaries = () => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin inline ml-2" />
                     جاري التحميل...
                   </td>
                 </tr>
               ) : filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">لا توجد بيانات موظفين</td>
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-500">لا توجد بيانات موظفين</td>
                 </tr>
               ) : (
                 filteredEmployees.map((emp) => (
@@ -571,6 +573,15 @@ export const Salaries = () => {
                     <td className="px-5 py-4 text-slate-600">{emp.address || '-'}</td>
                     <td className="px-5 py-4 font-mono">{emp.phone || '-'}</td>
                     <td className="px-5 py-4 font-bold">{money(emp.base_salary, emp.currency_code)}</td>
+                    <td className="px-5 py-4">
+                      <div className="font-bold text-emerald-700">{money(emp.total_salary_paid || 0, emp.currency_code)}</div>
+                      {Number(emp.payment_count || 0) > 0 && (
+                        <Link to={`/salaries/log?search=${encodeURIComponent(emp.full_name)}`} className="text-xs text-indigo-600 hover:underline">
+                          {emp.payment_count} دفعة
+                        </Link>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 font-bold text-amber-700">{money(emp.total_advances || 0, emp.currency_code)}</td>
                     <td className="px-5 py-4">{salaryPeriodLabel(emp.salary_period)}</td>
                     <td className="px-5 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${emp.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
@@ -596,8 +607,8 @@ export const Salaries = () => {
             {!loading && filteredEmployees.length > 0 && (
               <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200">
                 <tr>
-                  <td colSpan={4} className="px-6 py-4 text-center">إجمالي الرواتب حسب العملة في الأعلى</td>
-                  <td colSpan={3} className="px-6 py-4 text-slate-700">{filteredEmployees.length} موظف</td>
+                  <td colSpan={7} className="px-6 py-4 text-center">إجمالي الرواتب حسب العملة في الأعلى</td>
+                  <td colSpan={2} className="px-6 py-4 text-slate-700">{filteredEmployees.length} موظف</td>
                   <td className="px-6 py-4"><UserCheck className="w-4 h-4 text-slate-300 inline" /></td>
                 </tr>
               </tfoot>

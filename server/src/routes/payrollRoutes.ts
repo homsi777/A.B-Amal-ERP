@@ -83,24 +83,40 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     const search = q.search?.trim() || '';
     const active = q.active;
 
-    const conditions: string[] = ['company_id = $1'];
+    const conditions: string[] = ['pe.company_id = $1'];
     const params: unknown[] = [companyId];
     let p = 2;
 
     if (search) {
-      conditions.push(`(full_name ILIKE $${p} OR employee_code ILIKE $${p})`);
+      conditions.push(`(pe.full_name ILIKE $${p} OR pe.employee_code ILIKE $${p})`);
       params.push(`%${search}%`);
       p++;
     }
-    if (active === 'true') conditions.push('is_active = true');
-    else if (active === 'false') conditions.push('is_active = false');
+    if (active === 'true') conditions.push('pe.is_active = true');
+    else if (active === 'false') conditions.push('pe.is_active = false');
 
     const where = conditions.join(' AND ');
     const pool = getPool();
     const rows = await pool.query(
-      `SELECT id, employee_code, full_name, address, job_title, department, phone, base_salary, currency_code,
-              salary_period, hire_date, is_active, notes, created_at, updated_at
-       FROM payroll_employees WHERE ${where} ORDER BY employee_code ASC`,
+      `SELECT pe.id, pe.employee_code, pe.full_name, pe.address, pe.job_title, pe.department, pe.phone,
+              pe.base_salary, pe.currency_code, pe.salary_period, pe.hire_date, pe.is_active, pe.notes,
+              pe.created_at, pe.updated_at,
+              COALESCE(sal.total_paid, 0)::text AS total_salary_paid,
+              COALESCE(adv.total_advances, 0)::text AS total_advances,
+              COALESCE(sal.payment_count, 0)::int + COALESCE(adv.advance_count, 0)::int AS payment_count
+       FROM payroll_employees pe
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(l.net_salary), 0) AS total_paid, COUNT(*)::int AS payment_count
+         FROM payroll_run_lines l
+         JOIN payroll_runs pr ON pr.id = l.payroll_run_id AND pr.company_id = l.company_id
+         WHERE l.employee_id = pe.id AND l.company_id = pe.company_id AND pr.status = 'PAID'
+       ) sal ON true
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(a.amount), 0) AS total_advances, COUNT(*)::int AS advance_count
+         FROM payroll_employee_advances a
+         WHERE a.employee_id = pe.id AND a.company_id = pe.company_id
+       ) adv ON true
+       WHERE ${where} ORDER BY pe.employee_code ASC`,
       params,
     );
     return reply.send({ ok: true, data: rows.rows });
@@ -464,74 +480,137 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     const search = q.search?.trim() || '';
     const dateFrom = q.dateFrom?.trim()?.slice(0, 10) || '';
     const dateTo = q.dateTo?.trim()?.slice(0, 10) || '';
+    const paymentType = q.paymentType?.trim().toUpperCase();
     const sortBy = q.sortBy?.trim() === 'name' ? 'name' : 'date';
     const page = Math.max(1, parseInt(q.page || '1', 10) || 1);
     const pageSize = Math.min(200, Math.max(1, parseInt(q.pageSize || '50', 10) || 50));
     const offset = (page - 1) * pageSize;
 
-    const conds = ['l.company_id = $1', "pr.status = 'PAID'"];
+    const salaryConds = ['l.company_id = $1', "pr.status = 'PAID'"];
+    const advanceConds = ['a.company_id = $1'];
     const params: unknown[] = [companyId];
     let p = 2;
 
     if (search) {
-      conds.push(`(
+      salaryConds.push(`(
         e.full_name ILIKE $${p}
         OR e.employee_code ILIKE $${p}
         OR pr.payroll_no ILIKE $${p}
+      )`);
+      advanceConds.push(`(
+        e.full_name ILIKE $${p}
+        OR e.employee_code ILIKE $${p}
+        OR a.advance_no ILIKE $${p}
       )`);
       params.push(`%${search}%`);
       p++;
     }
     if (dateFrom) {
-      conds.push(`COALESCE(pr.paid_at, pr.created_at::date) >= $${p}::date`);
+      salaryConds.push(`COALESCE(pr.paid_at, pr.created_at::date) >= $${p}::date`);
+      advanceConds.push(`a.advance_date >= $${p}::date`);
       params.push(dateFrom);
       p++;
     }
     if (dateTo) {
-      conds.push(`COALESCE(pr.paid_at, pr.created_at::date) <= $${p}::date`);
+      salaryConds.push(`COALESCE(pr.paid_at, pr.created_at::date) <= $${p}::date`);
+      advanceConds.push(`a.advance_date <= $${p}::date`);
       params.push(dateTo);
       p++;
     }
 
-    const where = conds.join(' AND ');
+    const includeSalary = !paymentType || paymentType === 'SALARY' || paymentType === 'ALL';
+    const includeAdvance = !paymentType || paymentType === 'ADVANCE' || paymentType === 'ALL';
+
+    const unionParts: string[] = [];
+    if (includeSalary) {
+      unionParts.push(`
+        SELECT l.id,
+               'SALARY'::text AS payment_type,
+               l.payroll_run_id,
+               pr.payroll_no AS document_no,
+               COALESCE(pr.paid_at, pr.created_at::date) AS payment_date,
+               pr.period_month,
+               pr.period_year,
+               e.id AS employee_id,
+               e.employee_code,
+               e.full_name,
+               l.base_salary,
+               l.allowances,
+               l.deductions,
+               l.net_salary,
+               l.notes AS line_notes,
+               pr.currency_code,
+               cb.name AS cashbox_name,
+               pr.notes AS run_notes
+        FROM payroll_run_lines l
+        JOIN payroll_runs pr ON pr.id = l.payroll_run_id AND pr.company_id = l.company_id
+        JOIN payroll_employees e ON e.id = l.employee_id AND e.company_id = l.company_id
+        LEFT JOIN cashboxes cb ON cb.id = pr.paid_cashbox_id AND cb.company_id = l.company_id
+        WHERE ${salaryConds.join(' AND ')}
+      `);
+    }
+    if (includeAdvance) {
+      unionParts.push(`
+        SELECT a.id,
+               'ADVANCE'::text AS payment_type,
+               NULL::uuid AS payroll_run_id,
+               a.advance_no AS document_no,
+               a.advance_date AS payment_date,
+               EXTRACT(MONTH FROM a.advance_date)::int AS period_month,
+               EXTRACT(YEAR FROM a.advance_date)::int AS period_year,
+               e.id AS employee_id,
+               e.employee_code,
+               e.full_name,
+               a.amount AS base_salary,
+               0::numeric AS allowances,
+               0::numeric AS deductions,
+               a.amount AS net_salary,
+               a.notes AS line_notes,
+               a.currency_code,
+               cb.name AS cashbox_name,
+               v.description AS run_notes
+        FROM payroll_employee_advances a
+        JOIN payroll_employees e ON e.id = a.employee_id AND e.company_id = a.company_id
+        LEFT JOIN cashboxes cb ON cb.id = a.cashbox_id AND cb.company_id = a.company_id
+        LEFT JOIN vouchers v ON v.id = a.voucher_id AND v.company_id = a.company_id
+        WHERE ${advanceConds.join(' AND ')}
+      `);
+    }
+
+    if (!unionParts.length) {
+      return reply.send({
+        ok: true,
+        data: [],
+        total: 0,
+        page,
+        pageSize,
+        totalsByCurrency: {},
+      });
+    }
+
+    const unionSql = unionParts.join(' UNION ALL ');
     const orderSql =
       sortBy === 'name'
-        ? 'e.full_name ASC, payment_date DESC, pr.payroll_no DESC'
-        : 'payment_date DESC, e.full_name ASC, pr.payroll_no DESC';
+        ? 'full_name ASC, payment_date DESC, document_no DESC'
+        : 'payment_date DESC, full_name ASC, document_no DESC';
 
     const pool = getPool();
-    const baseFrom = `
-      FROM payroll_run_lines l
-      JOIN payroll_runs pr ON pr.id = l.payroll_run_id AND pr.company_id = l.company_id
-      JOIN payroll_employees e ON e.id = l.employee_id AND e.company_id = l.company_id
-      LEFT JOIN cashboxes cb ON cb.id = pr.paid_cashbox_id AND cb.company_id = l.company_id
-    `;
-
     const [rows, countRow, totalsRows] = await Promise.all([
       pool.query(
-        `SELECT l.id, l.payroll_run_id, pr.payroll_no,
-                COALESCE(pr.paid_at, pr.created_at::date) AS payment_date,
-                pr.period_month, pr.period_year,
-                e.id AS employee_id, e.employee_code, e.full_name,
-                l.base_salary, l.allowances, l.deductions, l.net_salary,
-                l.notes AS line_notes, pr.currency_code,
-                cb.name AS cashbox_name, pr.notes AS run_notes
-         ${baseFrom}
-         WHERE ${where}
+        `SELECT * FROM (${unionSql}) payments
          ORDER BY ${orderSql}
          LIMIT $${p} OFFSET $${p + 1}`,
         [...params, pageSize, offset],
       ),
       pool.query<{ total: string }>(
-        `SELECT COUNT(*)::text AS total ${baseFrom} WHERE ${where}`,
+        `SELECT COUNT(*)::text AS total FROM (${unionSql}) payments`,
         params,
       ),
       pool.query<{ currency_code: string; total: string }>(
-        `SELECT pr.currency_code, COALESCE(SUM(l.net_salary), 0)::text AS total
-         ${baseFrom}
-         WHERE ${where}
-         GROUP BY pr.currency_code
-         ORDER BY pr.currency_code`,
+        `SELECT currency_code, COALESCE(SUM(net_salary), 0)::text AS total
+         FROM (${unionSql}) payments
+         GROUP BY currency_code
+         ORDER BY currency_code`,
         params,
       ),
     ]);
