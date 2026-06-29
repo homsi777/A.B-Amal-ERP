@@ -14,6 +14,7 @@ import {
   updatePurchaseInvoiceConfirmed,
   getPurchaseInvoiceEditEligibility,
   voidPurchaseInvoice,
+  repairStalePurchaseInvoiceRolls,
 } from '../services/purchaseInvoiceService.js';
 
 export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
@@ -31,6 +32,27 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       pageSize: q.pageSize ? parseInt(q.pageSize, 10) : undefined,
     });
     return reply.send({ ok: true, ...result });
+  });
+
+  app.post('/repair-stale-rolls', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const body = (req.body as Record<string, unknown>) || {};
+    const invoiceNos = Array.isArray(body.invoiceNos)
+      ? body.invoiceNos.filter((v): v is string => typeof v === 'string')
+      : undefined;
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await repairStalePurchaseInvoiceRolls(client, companyId, userId, { invoiceNos });
+      await client.query('COMMIT');
+      return reply.send({ ok: true, data: result });
+    } catch (e: unknown) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   });
 
   app.get('/:id', { preHandler: authenticateRequest }, async (req, reply) => {
@@ -123,13 +145,13 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.delete('/:id/purge', { preHandler: authenticateRequest }, async (req, reply) => {
-    const { companyId } = req.user!;
+    const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const pool = getPool();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const result = await purgeVoidedPurchaseInvoice(client, companyId, id);
+      const result = await purgeVoidedPurchaseInvoice(client, companyId, userId, id);
       await client.query('COMMIT');
       return reply.send({ ok: true, data: result });
     } catch (e: unknown) {

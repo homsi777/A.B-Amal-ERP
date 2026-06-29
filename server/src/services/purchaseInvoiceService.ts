@@ -696,8 +696,9 @@ export async function deletePurchaseInvoiceDraft(client: PoolClient, companyId: 
 export async function purgeVoidedPurchaseInvoice(
   client: PoolClient,
   companyId: string,
+  userId: string | null,
   invoiceId: string,
-): Promise<{ invoiceNo: string }> {
+): Promise<{ invoiceNo: string; rollsDeactivated: number }> {
   const cur = await client.query<{ document_status: string; invoice_no: string }>(
     `SELECT document_status, invoice_no FROM purchase_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE`,
     [invoiceId, companyId],
@@ -738,8 +739,112 @@ export async function purgeVoidedPurchaseInvoice(
     [companyId, invoiceId],
   );
 
+  const invoiceNo = String(cur.rows[0].invoice_no);
+  const rollIds = await collectPurchaseInvoiceRollIds(client, companyId, invoiceId, invoiceNo);
+  for (const rollId of rollIds) {
+    await deactivatePurchaseInvoiceRoll(
+      client,
+      companyId,
+      userId,
+      rollId,
+      invoiceId,
+      invoiceNo,
+      `حذف نهائي لفاتورة شراء ملغاة ${invoiceNo}`,
+    );
+  }
+
   await client.query(`DELETE FROM purchase_invoices WHERE id=$1 AND company_id=$2`, [invoiceId, companyId]);
-  return { invoiceNo: String(cur.rows[0].invoice_no) };
+  return { invoiceNo, rollsDeactivated: rollIds.length };
+}
+
+/** Deactivate rolls left active after void/purge of purchase invoices (inventory repair). */
+export async function repairStalePurchaseInvoiceRolls(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  opts: { invoiceNos?: string[] } = {},
+): Promise<{ deactivated: number; barcodes: string[]; skippedSold: number }> {
+  const invoiceNos = opts.invoiceNos?.map((s) => s.trim()).filter(Boolean) ?? [];
+  const params: unknown[] = [companyId];
+  let explicitNoFilter = '';
+  if (invoiceNos.length) {
+    params.push(invoiceNos);
+    explicitNoFilter = ` OR NULLIF(trim(fr.purchase_invoice_no), '') = ANY($${params.length}::text[])`;
+  }
+
+  const rows = await client.query<{ id: string; barcode: string; purchase_invoice_no: string | null }>(
+    `SELECT fr.id,
+            COALESCE(NULLIF(trim(fr.barcode), ''), fr.id::text) AS barcode,
+            fr.purchase_invoice_no
+     FROM fabric_rolls fr
+     WHERE fr.company_id = $1
+       AND fr.status NOT IN ('SOLD', 'INACTIVE')
+       AND (
+         EXISTS (
+           SELECT 1 FROM purchase_invoices pi
+           WHERE pi.company_id = fr.company_id
+             AND pi.document_status = 'VOIDED'
+             AND (
+               pi.id = fr.purchase_invoice_id
+               OR NULLIF(trim(pi.invoice_no), '') = NULLIF(trim(fr.purchase_invoice_no), '')
+             )
+         )
+         OR (
+           NULLIF(trim(fr.purchase_invoice_no), '') IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM purchase_invoices pi
+             WHERE pi.company_id = fr.company_id
+               AND pi.document_status IN ('DRAFT', 'CONFIRMED')
+               AND NULLIF(trim(pi.invoice_no), '') = NULLIF(trim(fr.purchase_invoice_no), '')
+           )
+           AND (
+             NOT EXISTS (
+               SELECT 1 FROM purchase_invoices pi
+               WHERE pi.company_id = fr.company_id
+                 AND (
+                   pi.id = fr.purchase_invoice_id
+                   OR NULLIF(trim(pi.invoice_no), '') = NULLIF(trim(fr.purchase_invoice_no), '')
+                 )
+             )
+             OR EXISTS (
+               SELECT 1 FROM purchase_invoices pi
+               WHERE pi.company_id = fr.company_id
+                 AND pi.document_status = 'VOIDED'
+                 AND NULLIF(trim(pi.invoice_no), '') = NULLIF(trim(fr.purchase_invoice_no), '')
+             )
+           )
+         )
+         ${explicitNoFilter}
+       )`,
+    params,
+  );
+
+  const barcodes: string[] = [];
+  let skippedSold = 0;
+  for (const row of rows.rows) {
+    const sold = await client.query(
+      `SELECT 1 FROM inventory_movements
+       WHERE company_id=$1 AND roll_id=$2 AND movement_type='SALE' LIMIT 1`,
+      [companyId, row.id],
+    );
+    if (sold.rows.length) {
+      skippedSold += 1;
+      continue;
+    }
+    const invNo = row.purchase_invoice_no?.trim() || '—';
+    await deactivatePurchaseInvoiceRoll(
+      client,
+      companyId,
+      userId,
+      row.id,
+      null,
+      invNo,
+      `إصلاح مخزون — فاتورة شراء ملغاة/محذوفة ${invNo}`,
+    );
+    barcodes.push(row.barcode);
+  }
+
+  return { deactivated: barcodes.length, barcodes, skippedSold };
 }
 
 export async function confirmPurchaseInvoice(
@@ -965,12 +1070,34 @@ export async function confirmPurchaseInvoice(
   );
 }
 
+async function collectPurchaseInvoiceRollIds(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+  invoiceNo: string,
+): Promise<string[]> {
+  const rows = await client.query<{ id: string }>(
+    `SELECT DISTINCT fr.id
+     FROM fabric_rolls fr
+     LEFT JOIN purchase_invoice_lines pil
+       ON pil.fabric_roll_id = fr.id AND pil.company_id = fr.company_id AND pil.invoice_id = $2
+     WHERE fr.company_id = $1
+       AND (
+         pil.invoice_id IS NOT NULL
+         OR fr.purchase_invoice_id = $2
+         OR NULLIF(trim(fr.purchase_invoice_no), '') = NULLIF(trim($3), '')
+       )`,
+    [companyId, invoiceId, invoiceNo],
+  );
+  return rows.rows.map((r) => r.id);
+}
+
 async function deactivatePurchaseInvoiceRoll(
   client: PoolClient,
   companyId: string,
   userId: string | null,
   rollId: string,
-  invoiceId: string,
+  invoiceId: string | null,
   invoiceNo: string,
   notesSuffix: string,
 ): Promise<void> {
@@ -981,6 +1108,7 @@ async function deactivatePurchaseInvoiceRoll(
   if (!r.rows.length) return;
   const prevLen = parseFloat(String(r.rows[0].length_m));
   const prevStatus = r.rows[0].status;
+  if (prevStatus === 'INACTIVE' && prevLen <= 0) return;
 
   await client.query(
     `UPDATE fabric_rolls SET
@@ -1615,18 +1743,13 @@ export async function voidPurchaseInvoice(
     });
   }
 
-  const rollRows = await client.query<{ fabric_roll_id: string }>(
-    `SELECT DISTINCT fabric_roll_id FROM purchase_invoice_lines
-     WHERE invoice_id=$1 AND company_id=$2 AND fabric_roll_id IS NOT NULL`,
-    [invoiceId, companyId],
-  );
-
-  for (const row of rollRows.rows) {
+  const rollIds = await collectPurchaseInvoiceRollIds(client, companyId, invoiceId, invoiceNo);
+  for (const rollId of rollIds) {
     await deactivatePurchaseInvoiceRoll(
       client,
       companyId,
       userId,
-      row.fabric_roll_id,
+      rollId,
       invoiceId,
       invoiceNo,
       `إلغاء فاتورة شراء ${invoiceNo}`,

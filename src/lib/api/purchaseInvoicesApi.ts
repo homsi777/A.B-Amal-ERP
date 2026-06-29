@@ -69,8 +69,23 @@ export async function deletePurchaseInvoice(id: string): Promise<{ ok: boolean }
   return apiFetch(`/api/purchase-invoices/${id}`, { method: 'DELETE' });
 }
 
-export async function purgeVoidedPurchaseInvoice(id: string): Promise<{ ok: boolean; data: { invoiceNo: string } }> {
+export async function purgeVoidedPurchaseInvoice(id: string): Promise<{
+  ok: boolean;
+  data: { invoiceNo: string; rollsDeactivated?: number };
+}> {
   return apiFetch(`/api/purchase-invoices/${id}/purge`, { method: 'DELETE' });
+}
+
+export async function repairStalePurchaseInvoiceRolls(body?: {
+  invoiceNos?: string[];
+}): Promise<{
+  ok: boolean;
+  data: { deactivated: number; barcodes: string[]; skippedSold: number };
+}> {
+  return apiFetch(`/api/purchase-invoices/repair-stale-rolls`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
 }
 
 export async function confirmPurchaseInvoice(
