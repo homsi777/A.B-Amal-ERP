@@ -157,7 +157,7 @@ export function buildInvoiceFormLineDraftsFromDbLines(lines: Record<string, unkn
     const printBarcode = stringFromMeta(meta, ['printBarcode']);
     const rollId = l.fabric_roll_id != null ? String(l.fabric_roll_id).trim() : '';
     const lengthM = lineQuantityToDisplayMeters(l);
-    const priceNum = numFromDb(l.unit_price);
+    const priceNum = numFromDb(l.unit_cost ?? l.unit_price);
     return {
       materialName,
       dsamNumber: stringFromMeta(meta, ['designCode', 'dsamNumber']),

@@ -82,3 +82,26 @@ export async function confirmPurchaseInvoice(
 export async function voidPurchaseInvoice(id: string): Promise<{ ok: boolean }> {
   return apiFetch(`/api/purchase-invoices/${id}/void`, { method: 'POST', body: JSON.stringify({}) });
 }
+
+export type PurchaseInvoiceEditEligibility = {
+  editable: boolean;
+  documentStatus: string;
+  blocks: Array<{ rollId: string; barcode: string; reason: string }>;
+};
+
+export async function getPurchaseInvoiceEditEligibility(id: string): Promise<{
+  ok: boolean;
+  data: PurchaseInvoiceEditEligibility;
+}> {
+  return apiFetch(`/api/purchase-invoices/${id}/edit-eligibility`);
+}
+
+export async function updatePurchaseInvoiceConfirmed(
+  id: string,
+  partial: Partial<PurchaseInvoiceCreatePayload>,
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/purchase-invoices/${id}/confirmed`, {
+    method: 'PUT',
+    body: JSON.stringify(partial),
+  });
+}

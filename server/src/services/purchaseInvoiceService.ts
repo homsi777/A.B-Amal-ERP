@@ -17,6 +17,12 @@ type DbQuery = Pick<PoolClient, 'query'>;
 
 const EPS = INVOICE_AMOUNT_EPS;
 
+export type PurchaseInvoiceStockBlock = {
+  rollId: string;
+  barcode: string;
+  reason: string;
+};
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -904,6 +910,630 @@ export async function confirmPurchaseInvoice(
   );
 }
 
+async function deactivatePurchaseInvoiceRoll(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  rollId: string,
+  invoiceId: string,
+  invoiceNo: string,
+  notesSuffix: string,
+): Promise<void> {
+  const r = await client.query<{ length_m: string; status: string; warehouse_id: string | null }>(
+    `SELECT length_m, status, warehouse_id FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [rollId, companyId],
+  );
+  if (!r.rows.length) return;
+  const prevLen = parseFloat(String(r.rows[0].length_m));
+  const prevStatus = r.rows[0].status;
+
+  await client.query(
+    `UPDATE fabric_rolls SET
+       status='INACTIVE',
+       length_m=0,
+       calculated_weight_kg=0,
+       actual_weight_kg=CASE WHEN actual_weight_kg IS NOT NULL THEN 0 ELSE NULL END,
+       purchase_invoice_id=NULL,
+       purchase_invoice_line_id=NULL,
+       purchase_invoice_no=NULL,
+       updated_at=now()
+     WHERE id=$1 AND company_id=$2`,
+    [rollId, companyId],
+  );
+
+  await client.query(
+    `INSERT INTO inventory_movements (
+       company_id, roll_id, movement_type,
+       from_warehouse_id, to_warehouse_id,
+       old_status, new_status,
+       length_delta_m,
+       reference_type, reference_id, reference_no,
+       notes, created_by_user_id
+     ) VALUES ($1,$2,'STATUS_CHANGE',$3,$3,$4,'INACTIVE',$5,'PURCHASE_INVOICE_VOID',$6,$7,$8,$9)`,
+    [
+      companyId,
+      rollId,
+      r.rows[0].warehouse_id,
+      prevStatus,
+      prevLen > 0 ? -prevLen : null,
+      invoiceId,
+      invoiceNo,
+      notesSuffix,
+      userId,
+    ],
+  );
+}
+
+async function cancelPurchaseInvoicePaymentVouchers(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceNo: string,
+  primaryVoucherId: string | null,
+): Promise<void> {
+  const ids = new Set<string>();
+  if (primaryVoucherId) ids.add(primaryVoucherId);
+  const linked = await client.query<{ id: string }>(
+    `SELECT id FROM vouchers
+     WHERE company_id=$1 AND status='CONFIRMED'
+       AND reference_document_type='PURCHASE_INVOICE'
+       AND reference_document_no=$2`,
+    [companyId, invoiceNo],
+  );
+  for (const row of linked.rows) ids.add(row.id);
+  for (const voucherId of ids) {
+    await cancelConfirmedVoucher(client, { companyId, voucherId, userId });
+  }
+}
+
+async function repostPurchaseInvoiceGl(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  inv: Record<string, unknown>,
+): Promise<void> {
+  const invoiceNo = String(inv.invoice_no);
+  await reversePurchaseInvoiceGl(client, {
+    companyId,
+    purchaseInvoiceId: invoiceId,
+    invoiceNo,
+    userId,
+  });
+  await client.query(
+    `DELETE FROM journal_entries
+     WHERE company_id = $1 AND source_id = $2 AND source_type = 'PURCHASE_INVOICE_REVERSAL'`,
+    [companyId, invoiceId],
+  );
+  await client.query(
+    `DELETE FROM journal_entries
+     WHERE company_id = $1 AND source_id = $2 AND source_type = 'PURCHASE_INVOICE'`,
+    [companyId, invoiceId],
+  );
+
+  const totalAmt = Number(inv.total_amount);
+  if (totalAmt <= 0) return;
+
+  const ccy = String(inv.currency_code || 'USD');
+  const rate =
+    Number(inv.exchange_rate_to_usd) > 0
+      ? Number(inv.exchange_rate_to_usd)
+      : ccy.trim().toUpperCase() === 'USD'
+        ? 1
+        : NaN;
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw Object.assign(new Error('لا يمكن تحديث القيود بدون سعر صرف'), { code: 'VALIDATION' });
+  }
+  const entryDate =
+    inv.invoice_date instanceof Date
+      ? inv.invoice_date.toISOString().slice(0, 10)
+      : String(inv.invoice_date).slice(0, 10);
+  const totalUsd = Number(inv.total_amount_usd ?? 0) || computeUsd(totalAmt, rate);
+
+  await postPurchaseInvoiceToGl(client, {
+    companyId,
+    purchaseInvoiceId: invoiceId,
+    invoiceNo,
+    invoiceDate: entryDate,
+    supplierId: String(inv.supplier_id),
+    totalAmountUsd: totalUsd,
+    currencyCode: ccy,
+    userId,
+  });
+}
+
+async function createRollFromPurchaseLine(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  invoiceNo: string,
+  inv: Record<string, unknown>,
+  ln: z.infer<typeof invoiceLineSchema>,
+  targetWarehouseId: string,
+): Promise<string> {
+  const meta = ((ln.metadata as Record<string, unknown> | null | undefined) ?? {}) as Record<string, unknown>;
+  const materialName = cleanText(meta.materialName ?? meta.fabricName ?? ln.description);
+  const designCode = cleanText(meta.designCode ?? meta.dsamNumber ?? meta.articleCode);
+  const colorName = cleanText(meta.colorName ?? meta.fabricColor);
+  const colorCode = cleanText(meta.colorCode);
+  const widthCm = cleanNum(meta.widthCm);
+  const gsm = cleanNum(meta.gsm);
+  const qty = Number(ln.quantity ?? 0);
+  const unit = (String(ln.unit || 'meter').toLowerCase() === 'yard' ? 'yard' : 'meter') as 'meter' | 'yard';
+  const lengthM = Math.max(0, quantityToMeters(Number.isFinite(qty) ? qty : 0, unit));
+  const actualWeight = cleanNum(meta.weightKg ?? meta.weight);
+  const calcWt = calcWeight(lengthM, widthCm, gsm);
+
+  const itemId = await findOrCreateFabricItem(client, companyId, materialName, designCode);
+  const colorId = await findOrCreateColor(client, companyId, colorName, colorCode);
+  await ensureFabricCategoryChain(client, companyId, materialName, designCode, colorName, colorCode);
+
+  let barcode = cleanText(meta.supplierBarcode ?? meta.barcode);
+  if (!barcode) barcode = await generateBarcode(client, companyId);
+
+  const rollIns = await client.query<{ id: string }>(
+    `INSERT INTO fabric_rolls
+       (company_id, roll_no, barcode, item_id, color_id, variant_id, supplier_id,
+        warehouse_id, location_id, length_m, width_cm, gsm,
+        calculated_weight_kg, actual_weight_kg, unit_cost, currency_code,
+        batch_no, container_no, purchase_invoice_no, purchase_invoice_id, supplier_roll_ref,
+        notes, created_by_user_id, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,'AVAILABLE')
+     RETURNING id`,
+    [
+      companyId,
+      cleanText(meta.rollNo ?? meta.rollNumber) || null,
+      barcode,
+      itemId,
+      colorId,
+      null,
+      inv.supplier_id ?? null,
+      targetWarehouseId,
+      null,
+      lengthM,
+      widthCm,
+      gsm,
+      calcWt,
+      actualWeight,
+      Number(ln.unitPrice ?? 0) || null,
+      String(inv.currency_code || 'USD'),
+      null,
+      null,
+      invoiceNo,
+      invoiceId,
+      cleanText(meta.supplierBarcode ?? meta.supplierRollRef) || null,
+      cleanText(meta.note ?? ln.description) || null,
+      userId,
+    ],
+  );
+  const rollId = rollIns.rows[0].id;
+
+  await client.query(
+    `INSERT INTO inventory_movements (
+       company_id, roll_id, movement_type, length_delta_m,
+       reference_type, reference_id, reference_no, notes, created_by_user_id
+     ) VALUES ($1,$2,'PURCHASE_RECEIPT', NULL, $3,$4,$5,$6,$7)`,
+    [
+      companyId,
+      rollId,
+      'PURCHASE_INVOICE',
+      invoiceId,
+      invoiceNo,
+      `استلام مرتبط بفاتورة شراء ${invoiceNo}`,
+      userId,
+    ],
+  );
+
+  return rollId;
+}
+
+async function syncExistingPurchaseRoll(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  invoiceNo: string,
+  inv: Record<string, unknown>,
+  rollId: string,
+  ln: z.infer<typeof invoiceLineSchema>,
+  targetWarehouseId: string,
+): Promise<void> {
+  const meta = ((ln.metadata as Record<string, unknown> | null | undefined) ?? {}) as Record<string, unknown>;
+  const materialName = cleanText(meta.materialName ?? meta.fabricName ?? ln.description);
+  const designCode = cleanText(meta.designCode ?? meta.dsamNumber ?? meta.articleCode);
+  const colorName = cleanText(meta.colorName ?? meta.fabricColor);
+  const colorCode = cleanText(meta.colorCode);
+  const widthCm = cleanNum(meta.widthCm);
+  const gsm = cleanNum(meta.gsm);
+  const qty = Number(ln.quantity ?? 0);
+  const unit = (String(ln.unit || 'meter').toLowerCase() === 'yard' ? 'yard' : 'meter') as 'meter' | 'yard';
+  const lengthM = Math.max(0, quantityToMeters(Number.isFinite(qty) ? qty : 0, unit));
+  const actualWeight = cleanNum(meta.weightKg ?? meta.weight);
+  const calcWt = calcWeight(lengthM, widthCm, gsm);
+
+  const itemId = await findOrCreateFabricItem(client, companyId, materialName, designCode);
+  const colorId = await findOrCreateColor(client, companyId, colorName, colorCode);
+  await ensureFabricCategoryChain(client, companyId, materialName, designCode, colorName, colorCode);
+
+  const cur = await client.query<{ length_m: string; status: string }>(
+    `SELECT length_m, status FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [rollId, companyId],
+  );
+  if (!cur.rows.length) {
+    throw Object.assign(new Error('ثوب مرتبط بالفاتورة غير موجود'), { code: 'NOT_FOUND' });
+  }
+  const prevLen = parseFloat(String(cur.rows[0].length_m));
+  const delta = round2(lengthM - prevLen);
+
+  await client.query(
+    `UPDATE fabric_rolls SET
+       item_id=$3,
+       color_id=$4,
+       warehouse_id=$5,
+       length_m=$6,
+       width_cm=$7,
+       gsm=$8,
+       calculated_weight_kg=$9,
+       actual_weight_kg=$10,
+       unit_cost=$11,
+       purchase_invoice_id=$12,
+       purchase_invoice_no=$13,
+       updated_at=now()
+     WHERE id=$1 AND company_id=$2`,
+    [
+      rollId,
+      companyId,
+      itemId,
+      colorId,
+      targetWarehouseId,
+      lengthM,
+      widthCm,
+      gsm,
+      calcWt,
+      actualWeight,
+      Number(ln.unitPrice ?? 0) || null,
+      invoiceId,
+      invoiceNo,
+    ],
+  );
+
+  if (Math.abs(delta) > EPS) {
+    await client.query(
+      `INSERT INTO inventory_movements (
+         company_id, roll_id, movement_type, length_delta_m,
+         reference_type, reference_id, reference_no, notes, created_by_user_id
+       ) VALUES ($1,$2,'ADJUSTMENT',$3,'PURCHASE_INVOICE',$4,$5,$6,$7)`,
+      [
+        companyId,
+        rollId,
+        delta,
+        invoiceId,
+        invoiceNo,
+        `تعديل فاتورة شراء ${invoiceNo}`,
+        userId,
+      ],
+    );
+  }
+}
+
+export async function getPurchaseInvoiceEditEligibility(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<{ editable: boolean; documentStatus: string; blocks: PurchaseInvoiceStockBlock[] }> {
+  const cur = await client.query<{ document_status: string }>(
+    `SELECT document_status FROM purchase_invoices WHERE id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  if (!cur.rows.length) {
+    throw Object.assign(new Error('الفاتورة غير موجودة'), { code: 'NOT_FOUND' });
+  }
+  const documentStatus = String(cur.rows[0].document_status);
+  if (documentStatus !== 'CONFIRMED') {
+    return {
+      editable: false,
+      documentStatus,
+      blocks: [{ rollId: '', barcode: '', reason: 'التعديل متاح للفواتير المؤكدة فقط' }],
+    };
+  }
+  const stock = await checkPurchaseInvoiceStockEditable(client, companyId, invoiceId);
+  return { editable: stock.ok, documentStatus, blocks: stock.blocks };
+}
+
+export async function updatePurchaseInvoiceConfirmed(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  raw: unknown,
+): Promise<void> {
+  const parsed = purchaseInvoiceUpdateDraftSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw Object.assign(new Error('بيانات فاتورة الشراء غير صالحة'), { code: 'VALIDATION', details: parsed.error.flatten() });
+  }
+  if (!parsed.data.lines?.length) {
+    throw Object.assign(new Error('يجب أن تحتوي الفاتورة على سطر واحد على الأقل'), { code: 'VALIDATION' });
+  }
+
+  const invRow = await client.query(
+    `SELECT * FROM purchase_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [invoiceId, companyId],
+  );
+  if (!invRow.rows.length) throw Object.assign(new Error('الفاتورة غير موجودة'), { code: 'NOT_FOUND' });
+  const inv = invRow.rows[0];
+  if (inv.document_status !== 'CONFIRMED') {
+    throw Object.assign(new Error('لا يمكن تعديل فاتورة غير مؤكدة من هذا المسار'), { code: 'INVALID_STATE' });
+  }
+
+  const eligibility = await checkPurchaseInvoiceStockEditable(client, companyId, invoiceId);
+  if (!eligibility.ok) {
+    const first = eligibility.blocks[0];
+    const detail = first?.barcode ? ` (${first.barcode}: ${first.reason})` : first?.reason ? ` (${first.reason})` : '';
+    throw Object.assign(new Error(`لا يمكن تعديل الفاتورة — خامات مرتبطة ببيع أو حركة${detail}`), {
+      code: 'INVALID_STOCK',
+    });
+  }
+
+  const d = parsed.data as Partial<PurchaseInvoiceCreateInput> & { lines: z.infer<typeof invoiceLineSchema>[] };
+  const currentPaid = Number(inv.paid_amount);
+  const nextPaid = d.paidAmount ?? currentPaid;
+  if (Math.abs(nextPaid - currentPaid) > EPS) {
+    throw Object.assign(new Error('لا يمكن تغيير الدفعة من شاشة التعديل — استخدم سندات الصرف'), { code: 'VALIDATION' });
+  }
+
+  if (d.supplierId) await assertSupplier(client, companyId, d.supplierId);
+
+  const nextCurrency = String(d.currencyCode ?? inv.currency_code ?? 'USD').trim().toUpperCase();
+  const nextSubtotal = d.subtotal ?? Number(inv.subtotal);
+  const nextDiscount = d.discountTotal ?? Number(inv.discount_total);
+  const nextTax = d.taxTotal ?? Number(inv.tax_total);
+  const nextTotal = d.totalAmount ?? Number(inv.total_amount);
+  const pay = paymentStatuses(nextTotal, currentPaid);
+
+  let nextRate = d.exchangeRateToUsd != null ? Number(d.exchangeRateToUsd) : Number(inv.exchange_rate_to_usd);
+  if (!Number.isFinite(nextRate) || nextRate <= 0) {
+    nextRate = nextCurrency === 'USD' ? 1 : (await getExchangeRateToUsdTx(client, companyId, nextCurrency)) ?? NaN;
+  }
+  if (!Number.isFinite(nextRate) || nextRate <= 0) {
+    throw Object.assign(new Error('لا يمكن تنفيذ العملية بدون سعر صرف'), { code: 'VALIDATION' });
+  }
+  if (nextCurrency === 'USD') nextRate = 1;
+
+  const targetWarehouseId = await resolveWarehouseForPurchaseInvoice(
+    client,
+    companyId,
+    (d.warehouseId ?? inv.warehouse_id) as string | null,
+  );
+  const invoiceNo = String(inv.invoice_no);
+
+  const oldLines = await client.query<{ fabric_roll_id: string | null }>(
+    `SELECT fabric_roll_id FROM purchase_invoice_lines WHERE invoice_id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  const oldRollIds = new Set(
+    oldLines.rows.map((r) => r.fabric_roll_id).filter((x): x is string => x != null && x.length > 0),
+  );
+
+  const linesToSave = preparePurchaseInvoiceLines(d.lines, nextDiscount, nextSubtotal, nextTax, nextTotal);
+  const newRollIds = new Set(
+    linesToSave
+      .map((ln) => ln.fabricRollId)
+      .filter((x): x is string => x != null && x.length > 0),
+  );
+
+  for (const rollId of oldRollIds) {
+    if (!newRollIds.has(rollId)) {
+      await deactivatePurchaseInvoiceRoll(
+        client,
+        companyId,
+        userId,
+        rollId,
+        invoiceId,
+        invoiceNo,
+        `إزالة ثوب من فاتورة شراء ${invoiceNo} (تعديل)`,
+      );
+    }
+  }
+
+  const rollIdsForLines: string[] = [];
+  for (const ln of linesToSave) {
+    const existingRollId = ln.fabricRollId ?? null;
+    if (existingRollId && oldRollIds.has(existingRollId)) {
+      await syncExistingPurchaseRoll(client, companyId, userId, invoiceId, invoiceNo, inv, existingRollId, ln, targetWarehouseId);
+      rollIdsForLines.push(existingRollId);
+    } else {
+      const created = await createRollFromPurchaseLine(
+        client,
+        companyId,
+        userId,
+        invoiceId,
+        invoiceNo,
+        inv,
+        ln,
+        targetWarehouseId,
+      );
+      rollIdsForLines.push(created);
+    }
+  }
+
+  const subtotalUsd = computeUsd(nextSubtotal, nextRate);
+  const discountUsd = computeUsd(nextDiscount, nextRate);
+  const taxUsd = computeUsd(nextTax, nextRate);
+  const totalUsd = computeUsd(nextTotal, nextRate);
+  const paidUsd = computeUsd(currentPaid, nextRate);
+  const remainingUsd = computeUsd(pay.remaining, nextRate);
+
+  await client.query(
+    `UPDATE purchase_invoices SET
+       invoice_date = COALESCE($3::date, invoice_date),
+       supplier_id = COALESCE($4, supplier_id),
+       warehouse_id = COALESCE($5, warehouse_id),
+       warehouse_label = COALESCE($6, warehouse_label),
+       supplier_invoice_no = COALESCE($7, supplier_invoice_no),
+       currency_code = $8,
+       exchange_rate_to_usd = $9,
+       notes = COALESCE($10, notes),
+       subtotal = $11,
+       discount_total = $12,
+       tax_total = $13,
+       total_amount = $14,
+       remaining_amount = $15,
+       payment_status = $16,
+       subtotal_usd = $17,
+       discount_total_usd = $18,
+       tax_total_usd = $19,
+       total_amount_usd = $20,
+       paid_amount_usd = $21,
+       remaining_amount_usd = $22,
+       updated_by_user_id = $23,
+       updated_at = now()
+     WHERE id=$1 AND company_id=$2`,
+    [
+      invoiceId,
+      companyId,
+      d.invoiceDate?.slice(0, 10) ?? null,
+      d.supplierId ?? null,
+      d.warehouseId ?? null,
+      d.warehouseLabel?.trim() ?? null,
+      d.supplierInvoiceNo?.trim() ?? null,
+      nextCurrency,
+      nextRate,
+      d.notes?.trim() ?? null,
+      nextSubtotal,
+      nextDiscount,
+      nextTax,
+      nextTotal,
+      pay.remaining,
+      pay.paymentStatus,
+      subtotalUsd,
+      discountUsd,
+      taxUsd,
+      totalUsd,
+      paidUsd,
+      remainingUsd,
+      userId,
+    ],
+  );
+
+  await client.query(`DELETE FROM purchase_invoice_lines WHERE invoice_id=$1 AND company_id=$2`, [invoiceId, companyId]);
+
+  let i = 0;
+  for (const ln of linesToSave) {
+    i++;
+    const rollId = rollIdsForLines[i - 1];
+    const unitCostUsd = (ln as { unitPriceUsd?: number }).unitPriceUsd ?? computeUsd4(ln.unitPrice, nextRate);
+    const lineDiscountUsd = (ln as { lineDiscountUsd?: number }).lineDiscountUsd ?? computeUsd(ln.lineDiscount, nextRate);
+    const lineTaxUsd = (ln as { lineTaxUsd?: number }).lineTaxUsd ?? computeUsd(ln.lineTax, nextRate);
+    const lineTotalUsd = (ln as { lineTotalUsd?: number }).lineTotalUsd ?? computeUsd(ln.lineTotal, nextRate);
+    await client.query(
+      `INSERT INTO purchase_invoice_lines (
+         company_id, invoice_id, line_no, fabric_roll_id, fabric_item_id, variant_id, warehouse_id,
+         description, quantity, unit, unit_cost, line_discount, line_tax, line_total,
+         unit_cost_usd, line_discount_usd, line_tax_usd, line_total_usd, metadata
+       ) VALUES ($1,$2,$3,$4,(SELECT item_id FROM fabric_rolls WHERE id=$4 AND company_id=$1),NULL,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      [
+        companyId,
+        invoiceId,
+        i,
+        rollId,
+        targetWarehouseId,
+        ln.description ?? '',
+        ln.quantity,
+        ln.unit ?? 'meter',
+        ln.unitPrice,
+        ln.lineDiscount ?? 0,
+        ln.lineTax ?? 0,
+        ln.lineTotal,
+        unitCostUsd,
+        lineDiscountUsd,
+        lineTaxUsd,
+        lineTotalUsd,
+        JSON.stringify((ln as { metadata?: unknown }).metadata ?? {}),
+      ],
+    );
+    await client.query(
+      `UPDATE fabric_rolls SET purchase_invoice_line_id=(
+         SELECT id FROM purchase_invoice_lines WHERE invoice_id=$3 AND company_id=$1 AND line_no=$4 LIMIT 1
+       ), updated_at=now()
+       WHERE id=$2 AND company_id=$1`,
+      [companyId, rollId, invoiceId, i],
+    );
+  }
+
+  const refreshed = await client.query(`SELECT * FROM purchase_invoices WHERE id=$1 AND company_id=$2`, [invoiceId, companyId]);
+  await repostPurchaseInvoiceGl(client, companyId, userId, invoiceId, refreshed.rows[0]);
+}
+
+export async function checkPurchaseInvoiceStockEditable(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<{ ok: boolean; blocks: PurchaseInvoiceStockBlock[] }> {
+  const blocks: PurchaseInvoiceStockBlock[] = [];
+
+  const returns = await client.query(
+    `SELECT id FROM return_invoices
+     WHERE company_id=$1 AND original_purchase_invoice_id=$2 AND status='CONFIRMED'
+     LIMIT 1`,
+    [companyId, invoiceId],
+  );
+  if (returns.rows.length) {
+    blocks.push({
+      rollId: '',
+      barcode: '',
+      reason: 'توجد مرتجعات شراء مؤكدة مرتبطة بهذه الفاتورة',
+    });
+    return { ok: false, blocks };
+  }
+
+  const rows = await client.query<{
+    roll_id: string;
+    barcode: string;
+    status: string;
+    has_confirmed_sale: boolean;
+    has_sale_movement: boolean;
+    has_post_receipt_movement: boolean;
+  }>(
+    `SELECT fr.id AS roll_id,
+            COALESCE(NULLIF(trim(fr.barcode), ''), NULLIF(trim(fr.roll_no), ''), fr.id::text) AS barcode,
+            fr.status,
+            EXISTS (
+              SELECT 1 FROM sales_invoice_lines sil
+              JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+              WHERE sil.fabric_roll_id = fr.id AND sil.company_id = fr.company_id
+                AND si.document_status = 'CONFIRMED'
+            ) AS has_confirmed_sale,
+            EXISTS (
+              SELECT 1 FROM inventory_movements im
+              WHERE im.roll_id = fr.id AND im.company_id = fr.company_id
+                AND im.movement_type = 'SALE'
+            ) AS has_sale_movement,
+            EXISTS (
+              SELECT 1 FROM inventory_movements im
+              WHERE im.roll_id = fr.id AND im.company_id = fr.company_id
+                AND im.movement_type IN ('TRANSFER_OUT', 'DAMAGE', 'SALE')
+                AND NOT (im.reference_type = 'PURCHASE_INVOICE' AND im.reference_id = $3::uuid)
+            ) AS has_post_receipt_movement
+     FROM purchase_invoice_lines pil
+     JOIN fabric_rolls fr ON fr.id = pil.fabric_roll_id AND fr.company_id = pil.company_id
+     WHERE pil.invoice_id = $1 AND pil.company_id = $2 AND pil.fabric_roll_id IS NOT NULL`,
+    [invoiceId, companyId, invoiceId],
+  );
+
+  for (const r of rows.rows) {
+    if (r.status === 'SOLD' || r.has_confirmed_sale || r.has_sale_movement) {
+      blocks.push({ rollId: r.roll_id, barcode: r.barcode, reason: 'تم بيع خامات من هذه الفاتورة' });
+    } else if (r.status === 'TRANSFERRED' || r.has_post_receipt_movement) {
+      blocks.push({ rollId: r.roll_id, barcode: r.barcode, reason: 'يوجد نقل أو تلف أو حركة بعد الاستلام' });
+    } else if (r.status === 'RESERVED') {
+      blocks.push({ rollId: r.roll_id, barcode: r.barcode, reason: 'ثوب محجوز للبيع' });
+    }
+  }
+
+  return { ok: blocks.length === 0, blocks };
+}
+
 export async function voidPurchaseInvoice(
   client: PoolClient,
   companyId: string,
@@ -920,21 +1550,56 @@ export async function voidPurchaseInvoice(
     throw Object.assign(new Error('يمكن إلغاء الفواتير المؤكدة فقط'), { code: 'INVALID_STATE' });
   }
 
+  const invoiceNo = String(inv.invoice_no);
+  const stock = await checkPurchaseInvoiceStockEditable(client, companyId, invoiceId);
+  if (!stock.ok) {
+    const first = stock.blocks[0];
+    const detail = first?.barcode ? ` (${first.barcode}: ${first.reason})` : first?.reason ? ` (${first.reason})` : '';
+    throw Object.assign(new Error(`لا يمكن إلغاء الفاتورة — خامات مرتبطة ببيع أو حركة${detail}`), {
+      code: 'INVALID_STOCK',
+    });
+  }
+
+  const rollRows = await client.query<{ fabric_roll_id: string }>(
+    `SELECT DISTINCT fabric_roll_id FROM purchase_invoice_lines
+     WHERE invoice_id=$1 AND company_id=$2 AND fabric_roll_id IS NOT NULL`,
+    [invoiceId, companyId],
+  );
+
+  for (const row of rollRows.rows) {
+    await deactivatePurchaseInvoiceRoll(
+      client,
+      companyId,
+      userId,
+      row.fabric_roll_id,
+      invoiceId,
+      invoiceNo,
+      `إلغاء فاتورة شراء ${invoiceNo}`,
+    );
+  }
+
+  await client.query(
+    `UPDATE purchase_import_rows SET created_purchase_invoice_line_id=NULL, updated_at=now()
+     WHERE company_id=$1 AND created_purchase_invoice_line_id IN (
+       SELECT id FROM purchase_invoice_lines WHERE invoice_id=$2 AND company_id=$1
+     )`,
+    [companyId, invoiceId],
+  );
+
   await reversePurchaseInvoiceGl(client, {
     companyId,
     purchaseInvoiceId: invoiceId,
-    invoiceNo: String(inv.invoice_no),
+    invoiceNo,
     userId,
   });
 
-  const paymentVoucherId = inv.payment_voucher_id as string | null;
-  if (paymentVoucherId) {
-    await cancelConfirmedVoucher(client, {
-      companyId,
-      voucherId: paymentVoucherId,
-      userId,
-    });
-  }
+  await cancelPurchaseInvoicePaymentVouchers(
+    client,
+    companyId,
+    userId,
+    invoiceNo,
+    inv.payment_voucher_id as string | null,
+  );
 
   await client.query(
     `UPDATE purchase_invoices SET document_status='VOIDED', voided_at=now(), updated_by_user_id=$3, updated_at=now()

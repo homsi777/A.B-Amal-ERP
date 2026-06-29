@@ -25,7 +25,9 @@ import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
 import {
   createPurchaseInvoice as postPurchaseInvoice,
   getPurchaseInvoice,
+  getPurchaseInvoiceEditEligibility,
   updatePurchaseInvoice,
+  updatePurchaseInvoiceConfirmed,
   confirmPurchaseInvoice,
 } from '../../lib/api/purchaseInvoicesApi';
 import type { PurchaseInvoiceCreatePayload } from '../../lib/api/purchaseInvoicesApi';
@@ -572,6 +574,8 @@ export const InvoiceForm = () => {
   const [importOrderBusy, setImportOrderBusy] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
   const [editBlocked, setEditBlocked] = useState(false);
+  const [purchaseConfirmedEdit, setPurchaseConfirmedEdit] = useState(false);
+  const [purchaseEditBlockReason, setPurchaseEditBlockReason] = useState<string | null>(null);
   const [savedInvoiceActions, setSavedInvoiceActions] = useState<{ invoice: Invoice; partyName: string } | null>(null);
   const [partyStatementBalance, setPartyStatementBalance] = useState<number | null>(null);
   const [partyStatementBalanceLoading, setPartyStatementBalanceLoading] = useState(false);
@@ -603,14 +607,30 @@ export const InvoiceForm = () => {
     let cancelled = false;
     setDraftLoading(true);
     setEditBlocked(false);
+    setPurchaseConfirmedEdit(false);
+    setPurchaseEditBlockReason(null);
     void (async () => {
       try {
         const res = isSales ? await getSalesInvoice(editInvoiceId) : await getPurchaseInvoice(editInvoiceId);
         if (cancelled) return;
         const doc = String(res.data.header.document_status ?? '').toUpperCase();
         if (doc !== 'DRAFT') {
-          setEditBlocked(true);
-          return;
+          if (!isSales && doc === 'CONFIRMED') {
+            const elig = await getPurchaseInvoiceEditEligibility(editInvoiceId);
+            if (!elig.data.editable) {
+              setEditBlocked(true);
+              const blockText = elig.data.blocks
+                .filter((b) => b.reason.trim())
+                .map((b) => (b.barcode ? `${b.barcode}: ${b.reason}` : b.reason))
+                .join(' · ');
+              setPurchaseEditBlockReason(blockText || 'خامات مرتبطة ببيع أو حركة مخزون');
+              return;
+            }
+            setPurchaseConfirmedEdit(true);
+          } else {
+            setEditBlocked(true);
+            return;
+          }
         }
         const h = res.data.header;
         setDate(String(h.invoice_date ?? '').slice(0, 10) || format(new Date(), 'yyyy-MM-dd'));
@@ -2471,7 +2491,10 @@ export const InvoiceForm = () => {
     };
 
     if (editInvoiceId && status === 'final') {
-      if (!window.confirm('سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟')) return;
+      const msg = purchaseConfirmedEdit
+        ? 'سيتم حفظ تعديلات فاتورة الشراء المؤكدة وتحديث المخزون والقيود. هل أنت متأكد؟'
+        : 'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟';
+      if (!window.confirm(msg)) return;
     }
 
     let invoiceForTelegram: Invoice | null = null;
@@ -2631,6 +2654,13 @@ export const InvoiceForm = () => {
             message: `تم تأكيد الفاتورة رقم: ${confirmedNo}`,
           });
         }
+      } else if (purchaseConfirmedEdit && editInvoiceId) {
+        await updatePurchaseInvoiceConfirmed(editInvoiceId, purchasePersistBodyUpdate);
+        showToast({
+          type: 'success',
+          message: `تم حفظ تعديلات فاتورة الشراء ${trimmedInvoiceNo || ''}`.trim(),
+        });
+        navigate('/invoices/purchases');
       } else {
         await updatePurchaseInvoice(editInvoiceId, purchasePersistBodyUpdate);
         const noAfterSave =
@@ -2738,8 +2768,13 @@ export const InvoiceForm = () => {
       ) : null}
       {editInvoiceId && editBlocked && !draftLoading ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 space-y-3">
-          <p className="font-black">لا يمكن تعديل فاتورة مؤكدة أو ملغاة</p>
-          <p className="text-sm">لا يمكن تعديل فاتورة مؤكدة. يجب إلغاؤها أو إصدار مستند تصحيحي.</p>
+          <p className="font-black">لا يمكن تعديل هذه الفاتورة</p>
+          <p className="text-sm">
+            {purchaseEditBlockReason ||
+              (isSales
+                ? 'لا يمكن تعديل فاتورة مؤكدة. يجب إلغاؤها أو إصدار مستند تصحيحي.'
+                : 'لا يمكن تعديل فاتورة مؤكدة أو ملغاة من هذه الشاشة.')}
+          </p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -2811,7 +2846,9 @@ export const InvoiceForm = () => {
               {editInvoiceId
                 ? isSales
                   ? 'تعديل مسودة فاتورة مبيعات'
-                  : 'تعديل مسودة فاتورة مشتريات'
+                  : purchaseConfirmedEdit
+                    ? 'تعديل فاتورة شراء مؤكدة'
+                    : 'تعديل مسودة فاتورة مشتريات'
                 : isSales
                   ? 'فاتورة مبيعات جديدة'
                   : 'فاتورة مشتريات جديدة'}
@@ -2831,7 +2868,7 @@ export const InvoiceForm = () => {
           </button>
           <button onClick={() => handleSave('final')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
             <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">حفظ نهائي</span>
+            <span className="hidden sm:inline">{purchaseConfirmedEdit ? 'حفظ التعديلات' : 'حفظ نهائي'}</span>
           </button>
         </div>
       </div>

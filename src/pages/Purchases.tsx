@@ -102,7 +102,7 @@ export const Purchases = () => {
   const handleVoidPurchase = async (id: string) => {
     if (
       !window.confirm(
-        'سيتم إلغاء الفاتورة المؤكدة وعكس أثرها على المخزون والقيود المحاسبية قدر الإمكان. هل أنت متأكد؟',
+        'سيتم إلغاء الفاتورة المؤكدة وعكس المخزون والذمم والقيود. لا يمكن الإلغاء إذا بُيعت خامات منها. هل أنت متأكد؟',
       )
     ) {
       return;
@@ -523,6 +523,12 @@ export const Purchases = () => {
                         ) : null}
                         {doc === 'CONFIRMED' ? (
                           <>
+                            <Link
+                              to={`/invoices/purchases/${invoice.id}/edit`}
+                              className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
+                            >
+                              تعديل
+                            </Link>
                             <TelegramSendButton
                               size="compact"
                               label="تيليغرام"

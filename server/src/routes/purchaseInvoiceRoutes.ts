@@ -10,6 +10,8 @@ import {
   getPurchaseInvoiceById,
   listPurchaseInvoices,
   updatePurchaseInvoiceDraft,
+  updatePurchaseInvoiceConfirmed,
+  getPurchaseInvoiceEditEligibility,
   voidPurchaseInvoice,
 } from '../services/purchaseInvoiceService.js';
 
@@ -55,6 +57,42 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'VALIDATION') return sendError(reply, 400, err.message || ArabicErrors.validation, 'VALIDATION');
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
       if (err.code === 'INVALID_STOCK') return sendError(reply, 400, err.message || 'مخزون', 'INVALID_STOCK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  app.get('/:id/edit-eligibility', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      const data = await getPurchaseInvoiceEditEligibility(client, companyId, id);
+      return reply.send({ ok: true, data });
+    } finally {
+      client.release();
+    }
+  });
+
+  app.put('/:id/confirmed', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await updatePurchaseInvoiceConfirmed(client, companyId, userId, id, req.body);
+      await client.query('COMMIT');
+      return reply.send({ ok: true });
+    } catch (e: unknown) {
+      await client.query('ROLLBACK');
+      const err = e as { code?: string; message?: string };
+      if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
+      if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
+      if (err.code === 'VALIDATION') return sendError(reply, 400, err.message || '', 'VALIDATION');
+      if (err.code === 'INVALID_STOCK') return sendError(reply, 400, err.message || '', 'INVALID_STOCK');
       throw e;
     } finally {
       client.release();
@@ -146,6 +184,7 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       const err = e as { code?: string; message?: string };
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || '', 'NOT_FOUND');
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
+      if (err.code === 'INVALID_STOCK') return sendError(reply, 400, err.message || '', 'INVALID_STOCK');
       throw e;
     } finally {
       client.release();
