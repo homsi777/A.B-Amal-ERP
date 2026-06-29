@@ -7,6 +7,7 @@ import {
   confirmPurchaseInvoice,
   createPurchaseInvoice,
   deletePurchaseInvoiceDraft,
+  purgeVoidedPurchaseInvoice,
   getPurchaseInvoiceById,
   listPurchaseInvoices,
   updatePurchaseInvoiceDraft,
@@ -115,6 +116,27 @@ export const purchaseInvoiceRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
       if (err.code === 'DUPLICATE') return sendError(reply, 409, err.message || '', 'DUPLICATE');
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  app.delete('/:id/purge', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await purgeVoidedPurchaseInvoice(client, companyId, id);
+      await client.query('COMMIT');
+      return reply.send({ ok: true, data: result });
+    } catch (e: unknown) {
+      await client.query('ROLLBACK');
+      const err = e as { code?: string; message?: string };
+      if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || '', 'NOT_FOUND');
+      if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
       throw e;
     } finally {
       client.release();

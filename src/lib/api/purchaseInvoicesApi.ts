@@ -69,6 +69,10 @@ export async function deletePurchaseInvoice(id: string): Promise<{ ok: boolean }
   return apiFetch(`/api/purchase-invoices/${id}`, { method: 'DELETE' });
 }
 
+export async function purgeVoidedPurchaseInvoice(id: string): Promise<{ ok: boolean; data: { invoiceNo: string } }> {
+  return apiFetch(`/api/purchase-invoices/${id}/purge`, { method: 'DELETE' });
+}
+
 export async function confirmPurchaseInvoice(
   id: string,
   body?: { cashboxId?: string | null; partyNameForVoucher?: string | null },

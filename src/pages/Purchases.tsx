@@ -17,6 +17,7 @@ import {
   listPurchaseInvoices,
   confirmPurchaseInvoice,
   deletePurchaseInvoice,
+  purgeVoidedPurchaseInvoice,
   voidPurchaseInvoice,
 } from '../lib/api/purchaseInvoicesApi';
 import { displayStoredInvoiceNo, mapPurchaseListRowToInvoice, type ListedPurchaseInvoice } from '../lib/invoiceDbMappers';
@@ -31,7 +32,7 @@ const SCAN_DEBOUNCE_MS = 300;
 const MIN_BARCODE_AUTO_LEN = 4;
 
 type ScanFeedback = { tone: 'success' | 'warn' | 'error'; text: string } | null;
-type DocFilter = '' | 'DRAFT' | 'CONFIRMED' | 'VOIDED';
+type DocFilter = '' | 'DRAFT' | 'CONFIRMED' | 'VOIDED' | 'ALL';
 
 export const Purchases = () => {
   const { showToast } = useToast();
@@ -95,6 +96,29 @@ export const Purchases = () => {
       showToast({
         type: 'error',
         message: e instanceof ApiRequestError ? e.message : 'تعذر حذف المسودة',
+      });
+    }
+  };
+
+  const handlePurgeVoided = async (id: string, invoiceNo: string) => {
+    if (
+      !window.confirm(
+        `حذف نهائي للفاتورة ${invoiceNo}؟\n\nلن تظهر في القائمة أو التقارير. للفواتير الملغaة (تجارب) فقط.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await purgeVoidedPurchaseInvoice(id);
+      showToast({
+        type: 'success',
+        message: `تم حذف الفاتورة ${res.data.invoiceNo} نهائياً`,
+      });
+      void refreshPurchaseList();
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'تعذر الحذف النهائي',
       });
     }
   };
@@ -415,10 +439,11 @@ export const Purchases = () => {
               onChange={(e) => setDocumentStatus(e.target.value as DocFilter)}
               className="text-sm font-medium text-slate-800 bg-transparent border-none outline-none cursor-pointer"
             >
-              <option value="">الكل</option>
+              <option value="">بدون ملغاة</option>
+              <option value="ALL">الكل (يشمل الملغاة)</option>
               <option value="DRAFT">مسودة</option>
               <option value="CONFIRMED">مؤكدة</option>
-              <option value="VOIDED">ملغاة</option>
+              <option value="VOIDED">ملغاة فقط</option>
             </select>
           </div>
         </div>
@@ -513,7 +538,24 @@ export const Purchases = () => {
                             </button>
                           </>
                         ) : null}
-                        {doc === 'CONFIRMED' || doc === 'VOIDED' ? (
+                        {doc === 'VOIDED' ? (
+                          <>
+                            <Link
+                              to={`/invoices/statement/${invoice.id}`}
+                              className="text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition text-xs"
+                            >
+                              كشف الفاتورة
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => void handlePurgeVoided(invoice.id, displayStoredInvoiceNo(invoice.invoiceNumber))}
+                              className="text-rose-800 font-medium bg-rose-50 px-2 py-1 rounded-lg hover:bg-rose-100 transition text-xs"
+                            >
+                              حذف نهائي
+                            </button>
+                          </>
+                        ) : null}
+                        {doc === 'CONFIRMED' ? (
                           <Link
                             to={`/invoices/statement/${invoice.id}`}
                             className="text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition text-xs"

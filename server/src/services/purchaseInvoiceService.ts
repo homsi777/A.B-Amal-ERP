@@ -390,10 +390,15 @@ export async function listPurchaseInvoices(
     params.push(opts.supplierId);
     p++;
   }
-  if (opts.documentStatus && ['DRAFT', 'CONFIRMED', 'VOIDED'].includes(opts.documentStatus)) {
+  if (opts.documentStatus === 'ALL') {
+    /* include voided and every status */
+  } else if (opts.documentStatus && ['DRAFT', 'CONFIRMED', 'VOIDED'].includes(opts.documentStatus)) {
     conds.push(`pi.document_status = $${p}`);
     params.push(opts.documentStatus);
     p++;
+  } else {
+    // Default list: hide cancelled test invoices from daily operations
+    conds.push(`pi.document_status <> 'VOIDED'`);
   }
 
   const where = conds.join(' AND ');
@@ -685,6 +690,56 @@ export async function deletePurchaseInvoiceDraft(client: PoolClient, companyId: 
     throw Object.assign(new Error('لا يمكن حذف فاتورة مؤكدة.'), { code: 'INVALID_STATE' });
   }
   await client.query(`DELETE FROM purchase_invoices WHERE id=$1 AND company_id=$2`, [invoiceId, companyId]);
+}
+
+/** Permanent removal of a VOIDED purchase invoice (test cleanup). */
+export async function purgeVoidedPurchaseInvoice(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<{ invoiceNo: string }> {
+  const cur = await client.query<{ document_status: string; invoice_no: string }>(
+    `SELECT document_status, invoice_no FROM purchase_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [invoiceId, companyId],
+  );
+  if (!cur.rows.length) throw Object.assign(new Error('الفاتورة غير موجودة'), { code: 'NOT_FOUND' });
+  if (cur.rows[0].document_status !== 'VOIDED') {
+    throw Object.assign(new Error('يمكن الحذف النهائي للفواتير الملغاة فقط (تنظيف تجارب)'), { code: 'INVALID_STATE' });
+  }
+
+  const returns = await client.query(
+    `SELECT id FROM return_invoices
+     WHERE company_id=$1 AND original_purchase_invoice_id=$2
+     LIMIT 1`,
+    [companyId, invoiceId],
+  );
+  if (returns.rows.length) {
+    throw Object.assign(new Error('لا يمكن حذف فاتورة مرتبطة بمرتجعات شراء'), { code: 'INVALID_STATE' });
+  }
+
+  await client.query(
+    `DELETE FROM journal_entries
+     WHERE company_id=$1 AND source_id=$2
+       AND source_type IN ('PURCHASE_INVOICE', 'PURCHASE_INVOICE_REVERSAL')`,
+    [companyId, invoiceId],
+  );
+
+  await client.query(
+    `UPDATE purchase_import_batches SET created_purchase_invoice_id=NULL, updated_at=now()
+     WHERE company_id=$1 AND created_purchase_invoice_id=$2`,
+    [companyId, invoiceId],
+  );
+
+  await client.query(
+    `UPDATE purchase_import_rows SET created_purchase_invoice_line_id=NULL, updated_at=now()
+     WHERE company_id=$1 AND created_purchase_invoice_line_id IN (
+       SELECT id FROM purchase_invoice_lines WHERE invoice_id=$2 AND company_id=$1
+     )`,
+    [companyId, invoiceId],
+  );
+
+  await client.query(`DELETE FROM purchase_invoices WHERE id=$1 AND company_id=$2`, [invoiceId, companyId]);
+  return { invoiceNo: String(cur.rows[0].invoice_no) };
 }
 
 export async function confirmPurchaseInvoice(
