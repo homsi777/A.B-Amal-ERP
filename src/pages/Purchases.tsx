@@ -18,9 +18,9 @@ import {
   confirmPurchaseInvoice,
   deletePurchaseInvoice,
   purgeVoidedPurchaseInvoice,
-  repairStalePurchaseInvoiceRolls,
   voidPurchaseInvoice,
 } from '../lib/api/purchaseInvoicesApi';
+import { RepairVoidedPurchaseRollsButton } from '../components/purchases/RepairVoidedPurchaseRollsButton';
 import { displayStoredInvoiceNo, mapPurchaseListRowToInvoice, type ListedPurchaseInvoice } from '../lib/invoiceDbMappers';
 import { arInvoicePaymentStatusTable, arDocumentStatus } from '../lib/i18n/arTerminology';
 import { useToast } from '../components/NonBlockingToast';
@@ -52,7 +52,6 @@ export const Purchases = () => {
   const [scanFeedback, setScanFeedback] = useState<ScanFeedback>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [telegramBusyId, setTelegramBusyId] = useState<string | null>(null);
-  const [repairBusy, setRepairBusy] = useState(false);
   
   const refreshPurchaseList = useCallback(async () => {
     setPiLoading(true);
@@ -122,43 +121,6 @@ export const Purchases = () => {
         type: 'error',
         message: e instanceof ApiRequestError ? e.message : 'تعذر الحذف النهائي',
       });
-    }
-  };
-
-  const handleRepairStaleRolls = async () => {
-    if (
-      !window.confirm(
-        'إصلاح مخزون فواتير الشراء الملغاة/المحذوفة؟\n\nسيتم إلغاء تفعيل الأثواب المتبقية في المخزون المرتبطة بتلك الفواتير (مثل FS0000002 و FS0000003).',
-      )
-    ) {
-      return;
-    }
-    setRepairBusy(true);
-    try {
-      const res = await repairStalePurchaseInvoiceRolls({ invoiceNos: ['FS0000002', 'FS0000003'] });
-      const { deactivated, barcodes, skippedSold } = res.data;
-      if (deactivated === 0) {
-        showToast({
-          type: 'success',
-          message: skippedSold
-            ? 'لا توجد أثواب للإصلاح (قد تكون مباعة أو مُعالجة مسبقاً)'
-            : 'لا توجد أثواب يتيمة — المخزون نظيف',
-        });
-      } else {
-        const sample = barcodes.slice(0, 5).join('، ');
-        const more = barcodes.length > 5 ? ` … (+${barcodes.length - 5})` : '';
-        showToast({
-          type: 'success',
-          message: `تم إصلاح ${deactivated} ثوب${skippedSold ? ` (تُرك ${skippedSold} مباع)` : ''}: ${sample}${more}`,
-        });
-      }
-    } catch (e) {
-      showToast({
-        type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر إصلاح المخزون',
-      });
-    } finally {
-      setRepairBusy(false);
     }
   };
 
@@ -434,6 +396,7 @@ export const Purchases = () => {
           <p className="text-slate-500 mt-1">إدارة فواتير المشتريات من الموردين</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <RepairVoidedPurchaseRollsButton />
           <Link
             to="/purchases/import-batches"
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"
@@ -485,16 +448,6 @@ export const Purchases = () => {
               <option value="VOIDED">ملغاة فقط</option>
             </select>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleRepairStaleRolls()}
-            disabled={repairBusy}
-            className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-lg text-sm font-medium hover:bg-amber-100 disabled:opacity-60"
-            title="إزالة أثواب فواتير شراء ملغاة ما زالت تظهر في المخزون"
-          >
-            <AlertTriangle className="w-4 h-4" />
-            {repairBusy ? 'جاري الإصلاح…' : 'إصلاح مخزون ملغaة'}
-          </button>
         </div>
         <div className="overflow-x-auto">
           {piError && (

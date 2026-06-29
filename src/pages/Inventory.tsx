@@ -37,6 +37,7 @@ import { rollColorSwatch } from '../lib/colorDisplay';
 import { getRollLengthMeters, isRollInDraftSalesInvoice } from '../lib/inventory/rollAvailability';
 import { renderInventoryRollsAuditA4Html } from '../lib/printing/renderInventoryRollsAuditA4';
 import { openDocumentPrintWindow } from '../lib/printing/documentPrint';
+import { RepairVoidedPurchaseRollsButton } from '../components/purchases/RepairVoidedPurchaseRollsButton';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -920,6 +921,7 @@ return (
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <RepairVoidedPurchaseRollsButton onRepaired={() => void fetchRolls()} />
           <Link
             to="/inventory/labels"
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"
