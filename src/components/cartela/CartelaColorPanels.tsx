@@ -48,12 +48,13 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
   const [result, setResult] = useState<CartelaColorLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const runLookup = useCallback(async () => {
-    const value = scan.trim();
+  const runLookup = useCallback(async (raw?: string) => {
+    const value = (raw ?? scan).trim();
     if (!value) {
       setError('أدخل باركود اللون');
       return;
     }
+    setScan(value);
     setLoading(true);
     setError(null);
     try {
@@ -70,6 +71,15 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
   useEffect(() => {
     scanRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    const value = scan.trim();
+    if (value.length < 3 && !value.includes('-')) return;
+    const t = window.setTimeout(() => {
+      void runLookup(value);
+    }, 280);
+    return () => window.clearTimeout(t);
+  }, [scan, runLookup]);
 
   const printColorSticker = async (color: CartelaColorSwatchDto, cartela: CartelaColorLookupResult) => {
     if (onPrintColor) {

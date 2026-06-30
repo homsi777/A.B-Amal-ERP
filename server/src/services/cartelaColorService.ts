@@ -80,3 +80,95 @@ export function mapCartelaColorRow(row: Record<string, unknown>) {
     updated_at: row.updated_at,
   };
 }
+
+/** Normalize scanner / manual input for cartela + color barcode lookup. */
+export function normalizeCartelaScanInput(raw: string): string {
+  return String(raw ?? '')
+    .trim()
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .toUpperCase()
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+    .replace(/\s+/g, '');
+}
+
+type CartelaColorLookupRow = {
+  cartela: Record<string, unknown>;
+  color: Record<string, unknown>;
+};
+
+export async function lookupCartelaColorByScan(
+  db: { query: PoolClient['query'] },
+  companyId: string,
+  rawScan: string,
+): Promise<CartelaColorLookupRow | null> {
+  const scan = normalizeCartelaScanInput(rawScan);
+  if (!scan) return null;
+
+  const fetchHit = async (sql: string, params: unknown[]) => {
+    const res = await db.query<{ cartela: Record<string, unknown>; color: Record<string, unknown> }>(sql, params);
+    return res.rows[0] ?? null;
+  };
+
+  const baseSql = `SELECT to_jsonb(cl.*) AS cartela, to_jsonb(c.*) AS color
+     FROM cartela_label_colors c
+     JOIN cartela_labels cl ON cl.id = c.cartela_label_id AND cl.company_id = c.company_id
+    WHERE c.company_id = $1`;
+
+  let hit = await fetchHit(`${baseSql} AND upper(c.barcode_code) = $2 LIMIT 1`, [companyId, scan]);
+  if (hit) return hit;
+
+  hit = await fetchHit(
+    `${baseSql} AND upper(replace(c.barcode_code, ' ', '')) = $2 LIMIT 1`,
+    [companyId, scan],
+  );
+  if (hit) return hit;
+
+  hit = await fetchHit(
+    `${baseSql} AND upper(trim(cl.serial_no) || '-' || trim(c.color_code)) = $2 LIMIT 1`,
+    [companyId, scan],
+  );
+  if (hit) {
+    const color = hit.color as { id: string; color_code: string };
+    const cartela = hit.cartela as { serial_no: string };
+    const serial = String(cartela.serial_no ?? '').trim();
+    if (serial && color.color_code) {
+      try {
+        const expected = buildColorBarcodeCode(serial, color.color_code);
+        if (expected !== String((hit.color as { barcode_code?: string }).barcode_code ?? '')) {
+          await db.query(
+            `UPDATE cartela_label_colors SET barcode_code = $3, updated_at = now() WHERE id = $1 AND company_id = $2`,
+            [color.id, companyId, expected],
+          );
+          (hit.color as { barcode_code: string }).barcode_code = expected;
+        }
+      } catch {
+        // keep hit
+      }
+    }
+    return hit;
+  }
+
+  const dashIdx = scan.indexOf('-');
+  if (dashIdx > 0) {
+    const serial = scan.slice(0, dashIdx);
+    const colorPart = scan.slice(dashIdx + 1);
+    hit = await fetchHit(
+      `${baseSql} AND trim(cl.serial_no) = $2 AND upper(trim(c.color_code)) = $3 LIMIT 1`,
+      [companyId, serial, colorPart],
+    );
+    if (hit) return hit;
+  }
+
+  const byColorOnly = await db.query<{ cartela: Record<string, unknown>; color: Record<string, unknown> }>(
+    `${baseSql} AND upper(trim(c.color_code)) = $2 ORDER BY c.updated_at DESC LIMIT 2`,
+    [companyId, scan],
+  );
+  if (byColorOnly.rows.length === 1) return byColorOnly.rows[0];
+
+  hit = await fetchHit(
+    `${baseSql} AND upper(c.barcode_code) LIKE '%' || $2 LIMIT 1`,
+    [companyId, `-${scan}`],
+  );
+  return hit;
+}

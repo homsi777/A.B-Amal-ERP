@@ -468,9 +468,9 @@ const ensureCategory = async (
           name: row.rows[0]!.name as string,
         };
 
-        await syncCategoryUpdateToMasterData(client, companyId, before, after);
+        const syncResult = await syncCategoryUpdateToMasterData(client, companyId, before, after);
         await client.query('COMMIT');
-        return reply.send({ ok: true, data: row.rows[0] });
+        return reply.send({ ok: true, data: { ...row.rows[0], sync: syncResult } });
       } catch (e) {
         await client.query('ROLLBACK').catch(() => undefined);
         throw e;

@@ -1,5 +1,9 @@
 import type { PoolClient } from 'pg';
 import {
+  buildColorBarcodeCode,
+  normalizeColorCode,
+} from './cartelaColorService.js';
+import {
   colorCodeFromCategoryOnly,
   colorNameFromCategory,
   materialCodeFromCategory,
@@ -15,6 +19,7 @@ type CatSnapshot = {
 export type CategoryMasterSyncResult = {
   itemsUpdated: number;
   colorsUpdated: number;
+  cartelaColorsUpdated: number;
 };
 
 function norm(value: string): string {
@@ -71,6 +76,7 @@ export async function syncCategoryUpdateToMasterData(
   const depth = await categoryDepth(client, companyId, before.id);
   let itemsUpdated = 0;
   let colorsUpdated = 0;
+  let cartelaColorsUpdated = 0;
 
   if (depth === 0 && norm(before.name) !== norm(after.name)) {
     const materialNameCatId = after.id;
@@ -101,8 +107,13 @@ export async function syncCategoryUpdateToMasterData(
       `UPDATE fabric_items fi
        SET internal_code = $4, updated_at = now()
        WHERE fi.company_id = $1
-         AND fi.category_id = $2
-         AND trim(lower(fi.internal_code)) = trim(lower($3::text))`,
+         AND trim(lower(fi.internal_code)) = trim(lower($3::text))
+         AND (
+           fi.category_id = $2
+           OR EXISTS (
+             SELECT 1 FROM fabric_rolls fr WHERE fr.company_id = $1 AND fr.item_id = fi.id
+           )
+         )`,
       [companyId, before.parent_id, oldCode, newCode],
     );
     itemsUpdated = res.rowCount ?? 0;
@@ -127,8 +138,13 @@ export async function syncCategoryUpdateToMasterData(
                INNER JOIN fabric_items fi ON fi.id = fr.item_id AND fi.company_id = fr.company_id
                WHERE fr.company_id = $1
                  AND fr.color_id IS NOT NULL
-                 AND fi.category_id = $2
                  AND trim(lower(fi.internal_code)) = trim(lower($5::text))
+                 AND (
+                   fi.category_id = $2
+                   OR fi.category_id IN (
+                     SELECT id FROM fabric_categories WHERE company_id = $1 AND parent_id IS NULL
+                   )
+                 )
              )`,
           [
             companyId,
@@ -164,7 +180,6 @@ export async function syncCategoryUpdateToMasterData(
              INNER JOIN fabric_items fi ON fi.id = fr.item_id AND fi.company_id = fr.company_id
              WHERE fr.company_id = $1
                AND fr.color_id IS NOT NULL
-               AND fi.category_id = $2
                AND trim(lower(fi.internal_code)) = trim(lower($6::text))
            )`,
         [
@@ -172,16 +187,38 @@ export async function syncCategoryUpdateToMasterData(
           materialName.id,
           oldColorCode,
           newColorCode,
-          (colorNameFromCategory(colorName)),
+          colorNameFromCategory(colorName),
           materialCodeFromCategory(materialCode),
         ],
       );
       colorsUpdated = res.rowCount ?? 0;
+
+      const cartelaRows = await client.query<{ id: string; cartela_label_id: string; serial_no: string }>(
+        `SELECT c.id, c.cartela_label_id, cl.serial_no
+         FROM cartela_label_colors c
+         JOIN cartela_labels cl ON cl.id = c.cartela_label_id AND cl.company_id = c.company_id
+         WHERE c.company_id = $1
+           AND trim(lower(c.color_code)) = trim(lower($2::text))`,
+        [companyId, oldColorCode],
+      );
+      for (const row of cartelaRows.rows) {
+        const serial = row.serial_no?.trim();
+        if (!serial) continue;
+        const nextCode = normalizeColorCode(newColorCode);
+        const barcodeCode = buildColorBarcodeCode(serial, nextCode);
+        await client.query(
+          `UPDATE cartela_label_colors
+           SET color_code = $3, barcode_code = $4, updated_at = now()
+           WHERE id = $1 AND company_id = $2`,
+          [row.id, companyId, nextCode, barcodeCode],
+        );
+        cartelaColorsUpdated += 1;
+      }
     }
     }
   }
 
-  return { itemsUpdated, colorsUpdated };
+  return { itemsUpdated, colorsUpdated, cartelaColorsUpdated };
 }
 
 export type { CatSnapshot };

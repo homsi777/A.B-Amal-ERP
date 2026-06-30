@@ -76,13 +76,8 @@ export const Categories = () => {
   const [loadingParents, setLoadingParents] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [searchDebounced, setSearchDebounced] = useState('');
-  const [searchResults, setSearchResults] = useState<ApiCategory[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
   const [selectedPath, setSelectedPath] = useState<ApiCategory[]>([]);
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ApiCategory | null>(null);
   const [form, setForm] = useState<CategoryPayload>(emptyForm());
@@ -141,8 +136,9 @@ export const Categories = () => {
     setError(null);
     if (!force) setInitialLoading(true);
     try {
-      const roots = await listCategories({ parentId: null });
+      const [roots, all] = await Promise.all([listCategories({ parentId: null }), listCategories({})]);
       setChildrenCache((prev) => ({ ...prev, [ROOT_KEY]: roots }));
+      setAllCategoriesFlat(all);
       roots.forEach(mergeFlat);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'خطأ في تحميل التصنيفات');
@@ -201,35 +197,28 @@ export const Categories = () => {
     void loadRoots();
   }, [loadRoots]);
 
-  useEffect(() => {
-    const t = window.setTimeout(() => setSearchDebounced(search.trim()), 300);
-    return () => window.clearTimeout(t);
-  }, [search]);
+  const byIdMap = useMemo(
+    () => new Map(allCategoriesFlat.map((c) => [c.id, c])),
+    [allCategoriesFlat],
+  );
+
+  const searchResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return allCategoriesFlat
+      .filter((n) => {
+        const depth = depthFromRoot(n.id, byIdMap);
+        const level = Math.min(4, depth + 1) as 1 | 2 | 3 | 4;
+        const title = categoryUiTitle(n, level).toLowerCase();
+        const code = stripImportLevelPrefix(n.code).toLowerCase();
+        const name = stripImportLevelPrefix(n.name).toLowerCase();
+        return title.includes(q) || code.includes(q) || name.includes(q) || n.code.toLowerCase().includes(q);
+      })
+      .slice(0, 40);
+  }, [allCategoriesFlat, byIdMap, search]);
 
   useEffect(() => {
-    if (searchDebounced.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    let cancelled = false;
-    setSearchLoading(true);
-    void listCategories({ search: searchDebounced })
-      .then((data) => {
-        if (!cancelled) setSearchResults(data);
-      })
-      .catch(() => {
-        if (!cancelled) setSearchResults([]);
-      })
-      .finally(() => {
-        if (!cancelled) setSearchLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [searchDebounced]);
-
-  useEffect(() => {
-    if (initialLoading || searchDebounced || autoSyncing || autoSyncTried) return;
+    if (initialLoading || search.trim() || autoSyncing || autoSyncTried) return;
     const roots = childrenCache[ROOT_KEY] ?? [];
     if (roots.length > 0) return;
     void (async () => {
@@ -241,7 +230,7 @@ export const Categories = () => {
     autoSyncing,
     childrenCache,
     initialLoading,
-    searchDebounced,
+    search.trim(),
     syncCategoriesFromImportedItems,
   ]);
 
@@ -253,11 +242,6 @@ export const Categories = () => {
       document.getElementById(`cat-node-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
   }, [childrenCache, selectedPath]);
-
-  const byIdMap = useMemo(
-    () => new Map(allCategoriesFlat.map((c) => [c.id, c])),
-    [allCategoriesFlat],
-  );
 
   const quickKey = (level: number, parentId: string | null) => `${level}:${parentId ?? 'root'}`;
 
@@ -330,6 +314,12 @@ export const Categories = () => {
         patchCache(parentId, (list) => list.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
         mergeFlat(updated);
         setSelectedPath((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+        const sync = updated.sync;
+        if (sync && (sync.itemsUpdated > 0 || sync.colorsUpdated > 0 || (sync.cartelaColorsUpdated ?? 0) > 0)) {
+          setSyncSummary(
+            `تم تطبيق التعديل على المخزون والستيكر: ${sync.itemsUpdated} خامة، ${sync.colorsUpdated} لون، ${sync.cartelaColorsUpdated ?? 0} لون كارتيلة.`,
+          );
+        }
       } else {
         const created = await createCategory(form);
         const parentId = form.parent_id ?? null;
@@ -466,23 +456,17 @@ export const Categories = () => {
         </div>
       )}
 
-      {searchDebounced.length >= 2 ? (
+      {search.trim() ? (
         <div className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50/50 overflow-hidden">
           <div className="px-4 py-2 border-b border-indigo-100 flex justify-between items-center text-sm">
             <span className="font-medium text-indigo-900">نتائج البحث للانتقال — الأعمدة تبقى ظاهرة</span>
-            <span className="text-indigo-600 text-xs">
-              {searchLoading ? 'جاري البحث...' : `${searchResults.length.toLocaleString()} نتيجة`}
-            </span>
+            <span className="text-indigo-600 text-xs">{searchResults.length.toLocaleString()} نتيجة</span>
           </div>
           <div className="max-h-36 overflow-y-auto divide-y divide-indigo-100">
-            {searchLoading ? (
-              <div className="p-4 text-center text-slate-500">
-                <Loader2 className="w-5 h-5 animate-spin inline text-indigo-500" />
-              </div>
-            ) : searchResults.length === 0 ? (
+            {searchResults.length === 0 ? (
               <p className="p-4 text-sm text-slate-500 text-center">لا توجد نتائج</p>
             ) : (
-              searchResults.slice(0, 40).map((r) => {
+              searchResults.map((r) => {
                 const depth = depthFromRoot(r.id, byIdMap);
                 const level = Math.min(4, depth + 1) as 1 | 2 | 3 | 4;
                 const subtitle = categoryUiSubtitle(r, level);
@@ -493,8 +477,6 @@ export const Categories = () => {
                   onClick={() => {
                     void expandToCategory(r.id);
                     setSearch('');
-                    setSearchDebounced('');
-                    setSearchResults([]);
                   }}
                   className="w-full text-right px-4 py-2 hover:bg-white text-sm flex justify-between gap-2"
                 >
@@ -534,20 +516,18 @@ export const Categories = () => {
                         {col.nodes.length}
                       </span>
                     </div>
-                    {col.nodes.length > 8 ? (
-                      <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2" />
-                        <input
-                          type="text"
-                          value={colFilter}
-                          onChange={(e) =>
-                            setColumnFilters((prev) => ({ ...prev, [colKey]: e.target.value }))
-                          }
-                          placeholder={`تصفية ${COLUMN_LABELS[col.level]}...`}
-                          className="w-full pr-7 pl-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                    ) : null}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2" />
+                      <input
+                        type="text"
+                        value={colFilter}
+                        onChange={(e) =>
+                          setColumnFilters((prev) => ({ ...prev, [colKey]: e.target.value }))
+                        }
+                        placeholder={`تصفية ${COLUMN_LABELS[col.level]}...`}
+                        className="w-full pr-7 pl-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/50 min-h-[200px] max-h-[520px]">
                     {colLoading && col.nodes.length === 0 ? (

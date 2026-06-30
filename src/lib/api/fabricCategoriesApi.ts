@@ -7,6 +7,11 @@ export interface ApiCategory {
   name: string;
   is_active: boolean;
   children?: ApiCategory[];
+  sync?: {
+    itemsUpdated: number;
+    colorsUpdated: number;
+    cartelaColorsUpdated?: number;
+  };
 }
 
 export interface CategoryPayload {

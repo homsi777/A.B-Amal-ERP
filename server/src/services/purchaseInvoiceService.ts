@@ -1799,10 +1799,23 @@ export async function voidPurchaseInvoice(
   }
 
   await client.query(
+    `UPDATE purchase_import_batches SET created_purchase_invoice_id=NULL, updated_at=now()
+     WHERE company_id=$1 AND created_purchase_invoice_id=$2`,
+    [companyId, invoiceId],
+  );
+
+  await client.query(
     `UPDATE purchase_import_rows SET created_purchase_invoice_line_id=NULL, updated_at=now()
      WHERE company_id=$1 AND created_purchase_invoice_line_id IN (
        SELECT id FROM purchase_invoice_lines WHERE invoice_id=$2 AND company_id=$1
      )`,
+    [companyId, invoiceId],
+  );
+
+  await client.query(
+    `UPDATE purchase_invoice_lines
+     SET fabric_roll_id=NULL
+     WHERE company_id=$1 AND invoice_id=$2`,
     [companyId, invoiceId],
   );
 

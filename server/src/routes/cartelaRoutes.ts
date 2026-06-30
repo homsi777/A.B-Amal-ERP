@@ -11,6 +11,8 @@ import {
   mapCartelaColorRow,
   normalizeColorCode,
   syncColorBarcodesForCartela,
+  lookupCartelaColorByScan,
+  normalizeCartelaScanInput,
   validateColorCode,
 } from '../services/cartelaColorService.js';
 
@@ -378,36 +380,29 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     if (!scan) return sendError(reply, 400, 'أدخل باركود الكارتيلا أو لون', 'VALIDATION');
 
     try {
-      const colorHit = await getPool().query(
-        `SELECT to_jsonb(cl.*) AS cartela, to_jsonb(c.*) AS color
-           FROM cartela_label_colors c
-           JOIN cartela_labels cl ON cl.id = c.cartela_label_id AND cl.company_id = c.company_id
-          WHERE c.company_id = $1 AND upper(c.barcode_code) = upper($2)
-          LIMIT 1`,
-        [companyId, scan],
-      );
-      if (colorHit.rows.length) {
-        const hit = colorHit.rows[0] as { cartela: Record<string, unknown>; color: Record<string, unknown> };
+      const colorHit = await lookupCartelaColorByScan(getPool(), companyId, scan);
+      if (colorHit) {
         return reply.send({
           ok: true,
           data: {
             match_type: 'color',
-            ...mapCartelaRow(hit.cartela),
-            color: mapCartelaColorRow(hit.color),
+            ...mapCartelaRow(colorHit.cartela),
+            color: mapCartelaColorRow(colorHit.color),
           },
         });
       }
 
-      let serial = scan;
+      const normalized = normalizeCartelaScanInput(scan);
+      let serial = normalized;
       let artCode = '';
       let designNo = '';
-      if (/^CLOTEX\|/i.test(scan)) {
-        const parts = scan.split('|').map((p) => p.trim());
+      if (/^CLOTEX\|/i.test(normalized)) {
+        const parts = normalized.split('|').map((p) => p.trim());
         artCode = parts[1] ?? '';
         designNo = parts[2] ?? '';
         serial = parts[3] ?? '';
-      } else if (/^\d{1,10}$/.test(scan)) {
-        serial = scan;
+      } else if (/^\d{1,10}$/.test(normalized)) {
+        serial = normalized;
       }
 
       const row = await getPool().query(
@@ -424,7 +419,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
             CASE WHEN $2 <> '' AND serial_no = $2 THEN 0 ELSE 1 END,
             updated_at DESC
           LIMIT 1`,
-        [companyId, serial, artCode, designNo, scan],
+        [companyId, serial, artCode, designNo, normalized],
       );
       if (!row.rows.length) return sendError(reply, 404, 'كارتيلا أو لون غير موجود بهذا الباركود', 'NOT_FOUND');
       return reply.send({
