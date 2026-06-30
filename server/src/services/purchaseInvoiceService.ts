@@ -4,7 +4,7 @@ import { postPurchaseInvoiceToGl, reversePurchaseInvoiceGl } from './glPostingSe
 import { applyVoucherConfirmation, cancelConfirmedVoucher, insertDraftVoucher } from './voucherCashboxService.js';
 import { invoiceLineSchema, paymentStatuses, quantityToMeters } from './salesInvoiceService.js';
 import { getExchangeRateToUsdTx } from './exchangeRateService.js';
-import { calcWeight, generateBarcode } from '../utils/rollHelpers.js';
+import { calcWeight, generateBarcode, archiveFabricRollBarcode } from '../utils/rollHelpers.js';
 import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
 import {
   allocateHeaderDiscountToLines,
@@ -763,7 +763,7 @@ export async function repairStalePurchaseInvoiceRolls(
   companyId: string,
   userId: string | null,
   opts: { invoiceNos?: string[] } = {},
-): Promise<{ deactivated: number; barcodes: string[]; skippedSold: number }> {
+): Promise<{ deactivated: number; barcodes: string[]; skippedSold: number; barcodesReleased: string[] }> {
   const invoiceNos = opts.invoiceNos?.map((s) => s.trim()).filter(Boolean) ?? [];
   const params: unknown[] = [companyId];
   let explicitNoFilter = '';
@@ -844,7 +844,39 @@ export async function repairStalePurchaseInvoiceRolls(
     barcodes.push(row.barcode);
   }
 
-  return { deactivated: barcodes.length, barcodes, skippedSold };
+  const released: string[] = [];
+  const inactiveParams: unknown[] = [companyId];
+  let inactiveInvoiceFilter = '';
+  if (invoiceNos.length) {
+    inactiveParams.push(invoiceNos);
+    inactiveInvoiceFilter = ` AND NULLIF(trim(im.reference_no), '') = ANY($${inactiveParams.length}::text[])`;
+  }
+
+  const inactiveRows = await client.query<{ id: string; barcode: string }>(
+    `SELECT fr.id, fr.barcode
+     FROM fabric_rolls fr
+     WHERE fr.company_id = $1
+       AND fr.status = 'INACTIVE'
+       AND COALESCE(fr.length_m, 0) <= 0
+       AND position('~VOID~' in fr.barcode) = 0
+       AND EXISTS (
+         SELECT 1 FROM inventory_movements im
+         WHERE im.company_id = fr.company_id
+           AND im.roll_id = fr.id
+           AND im.reference_type = 'PURCHASE_INVOICE_VOID'
+           ${inactiveInvoiceFilter}
+       )`,
+    inactiveParams,
+  );
+
+  for (const row of inactiveRows.rows) {
+    const original = row.barcode.trim();
+    if (!original) continue;
+    await archiveFabricRollBarcode(client, companyId, row.id, original);
+    released.push(original);
+  }
+
+  return { deactivated: barcodes.length, barcodes, skippedSold, barcodesReleased: released };
 }
 
 export async function confirmPurchaseInvoice(
@@ -1101,14 +1133,20 @@ async function deactivatePurchaseInvoiceRoll(
   invoiceNo: string,
   notesSuffix: string,
 ): Promise<void> {
-  const r = await client.query<{ length_m: string; status: string; warehouse_id: string | null }>(
-    `SELECT length_m, status, warehouse_id FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+  const r = await client.query<{ length_m: string; status: string; warehouse_id: string | null; barcode: string }>(
+    `SELECT length_m, status, warehouse_id, barcode FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
     [rollId, companyId],
   );
   if (!r.rows.length) return;
   const prevLen = parseFloat(String(r.rows[0].length_m));
   const prevStatus = r.rows[0].status;
-  if (prevStatus === 'INACTIVE' && prevLen <= 0) return;
+  const prevBarcode = String(r.rows[0].barcode ?? '').trim();
+  if (prevStatus === 'INACTIVE' && prevLen <= 0) {
+    if (prevBarcode && !prevBarcode.includes('~VOID~')) {
+      await archiveFabricRollBarcode(client, companyId, rollId, prevBarcode);
+    }
+    return;
+  }
 
   await client.query(
     `UPDATE fabric_rolls SET
@@ -1123,6 +1161,10 @@ async function deactivatePurchaseInvoiceRoll(
      WHERE id=$1 AND company_id=$2`,
     [rollId, companyId],
   );
+
+  if (prevBarcode && !prevBarcode.includes('~VOID~')) {
+    await archiveFabricRollBarcode(client, companyId, rollId, prevBarcode);
+  }
 
   await client.query(
     `INSERT INTO inventory_movements (

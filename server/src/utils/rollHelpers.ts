@@ -57,6 +57,48 @@ export async function generateBarcode(db: DbQuery, companyId: string): Promise<s
   throw new Error('Unable to generate a unique 7-digit barcode');
 }
 
+const VOID_BARCODE_MARKER = '~VOID~';
+
+/** True when an existing roll may be replaced/re-imported under the same barcode. */
+export function isReusableInactiveRoll(
+  status: string,
+  lengthM: number | string | null | undefined,
+): boolean {
+  if (status !== 'INACTIVE') return false;
+  const len = typeof lengthM === 'string' ? parseFloat(lengthM) : Number(lengthM ?? 0);
+  return !Number.isFinite(len) || len <= 1e-6;
+}
+
+/** Archive barcode on voided/inactive roll so the original sticker barcode can be reused. */
+export async function archiveFabricRollBarcode(
+  db: DbQuery,
+  companyId: string,
+  rollId: string,
+  currentBarcode: string,
+): Promise<string> {
+  const trimmed = currentBarcode.trim();
+  if (!trimmed || trimmed.includes(VOID_BARCODE_MARKER)) return trimmed;
+
+  const suffix = rollId.replace(/-/g, '').slice(0, 8);
+  let candidate = `${trimmed}${VOID_BARCODE_MARKER}${suffix}`;
+  let n = 0;
+  for (;;) {
+    const dup = await db.query<{ id: string }>(
+      'SELECT id FROM fabric_rolls WHERE company_id=$1 AND barcode=$2 AND id<>$3 LIMIT 1',
+      [companyId, candidate, rollId],
+    );
+    if (!dup.rows.length) break;
+    n += 1;
+    candidate = `${trimmed}${VOID_BARCODE_MARKER}${suffix}~${n}`;
+  }
+
+  await db.query(
+    'UPDATE fabric_rolls SET barcode=$3, updated_at=now() WHERE id=$1 AND company_id=$2',
+    [rollId, companyId, candidate],
+  );
+  return candidate;
+}
+
 export type RollStatus =
   | 'AVAILABLE'
   | 'RESERVED'

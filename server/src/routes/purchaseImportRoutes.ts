@@ -4,7 +4,7 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
-import { calcWeight, generateBarcode } from '../utils/rollHelpers.js';
+import { calcWeight, generateBarcode, isReusableInactiveRoll } from '../utils/rollHelpers.js';
 import { generateDocumentNo } from '../utils/documentNumbers.js';
 import {
   cleanNumber,
@@ -427,13 +427,18 @@ async function validateAndMatchRow(
       errors.push(`باركود مكرر داخل الملف: ${barcode}`);
     } else {
       barcodesInFile.add(barcode);
-      // Check duplicate in DB
-      const dbCheck = await pool.query<{ id: string }>(
-        'SELECT id FROM fabric_rolls WHERE company_id=$1 AND barcode=$2',
+      // Check duplicate in DB (inactive voided rolls may be re-imported with same barcode)
+      const dbCheck = await pool.query<{ id: string; status: string; length_m: string }>(
+        'SELECT id, status, length_m FROM fabric_rolls WHERE company_id=$1 AND barcode=$2',
         [companyId, barcode],
       );
       if (dbCheck.rows.length) {
-        errors.push(`باركود موجود مسبقاً في قاعدة البيانات: ${barcode}`);
+        const existing = dbCheck.rows[0];
+        if (isReusableInactiveRoll(existing.status, existing.length_m)) {
+          warnings.push(`باركود ${barcode} مسجّل لثوب ملغى — سيُعاد تفعيله عند التأكيد.`);
+        } else {
+          errors.push(`باركود موجود مسبقاً في قاعدة البيانات: ${barcode}`);
+        }
       }
     }
   }
@@ -1072,6 +1077,53 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         const calcWt = calcWeight(lengthM, widthCm, gsm);
         const unitCost = cleanNumber(nd.unitCost);
 
+        const reusableRoll = barcode
+          ? await client.query<{ id: string }>(
+              `SELECT id FROM fabric_rolls
+               WHERE company_id=$1 AND barcode=$2 AND status='INACTIVE' AND COALESCE(length_m, 0) <= 0
+               FOR UPDATE`,
+              [companyId, barcode],
+            )
+          : { rows: [] as { id: string }[] };
+
+        let rollId: string;
+        if (reusableRoll.rows.length) {
+          const existingRollId = reusableRoll.rows[0].id;
+          await client.query(
+            `UPDATE fabric_rolls SET
+               roll_no=$3, item_id=$4, color_id=$5, variant_id=$6, supplier_id=$7,
+               warehouse_id=$8, location_id=$9, length_m=$10, width_cm=$11, gsm=$12,
+               calculated_weight_kg=$13, actual_weight_kg=$14, unit_cost=$15, currency_code=$16,
+               batch_no=$17, container_no=$18, purchase_invoice_no=$19, supplier_roll_ref=$20,
+               notes=$21, import_batch_id=$22, status='AVAILABLE', updated_at=now()
+             WHERE id=$1 AND company_id=$2`,
+            [
+              existingRollId,
+              companyId,
+              cleanString(nd.rollNo) || null,
+              itemId,
+              colorId,
+              variantId,
+              supplierIdFinal,
+              batch.warehouse_id,
+              batch.default_location_id,
+              lengthM,
+              widthCm,
+              gsm,
+              calcWt,
+              actualWt,
+              unitCost,
+              ccy,
+              cleanString(nd.batchNo) || null,
+              cleanString(nd.containerNo) || null,
+              invoiceNoFinal,
+              cleanString(nd.supplierRollRef) || null,
+              cleanString(nd.notes) || null,
+              id,
+            ],
+          );
+          rollId = existingRollId;
+        } else {
         // Create fabric_roll
         const rollRow = await client.query(
           `INSERT INTO fabric_rolls
@@ -1108,7 +1160,8 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
             userId,
           ],
         );
-        const rollId = rollRow.rows[0].id;
+        rollId = rollRow.rows[0].id;
+        }
 
         // Create movement
         const movementRow = await client.query<{ id: string }>(

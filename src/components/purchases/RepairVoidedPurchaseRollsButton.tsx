@@ -24,8 +24,8 @@ export const RepairVoidedPurchaseRollsButton = ({ onRepaired, className = '' }: 
     setBusy(true);
     try {
       const res = await repairStalePurchaseInvoiceRolls({ invoiceNos: ['FS0000002', 'FS0000003'] });
-      const { deactivated, barcodes, skippedSold } = res.data;
-      if (deactivated === 0) {
+      const { deactivated, barcodes, skippedSold, barcodesReleased = [] } = res.data;
+      if (deactivated === 0 && barcodesReleased.length === 0) {
         showToast({
           type: 'success',
           message: skippedSold
@@ -33,11 +33,20 @@ export const RepairVoidedPurchaseRollsButton = ({ onRepaired, className = '' }: 
             : 'لا توجد أثواب يتيمة — المخزون نظيف',
         });
       } else {
-        const sample = barcodes.slice(0, 5).join('، ');
-        const more = barcodes.length > 5 ? ` … (+${barcodes.length - 5})` : '';
+        const parts: string[] = [];
+        if (deactivated > 0) {
+          const sample = barcodes.slice(0, 5).join('، ');
+          const more = barcodes.length > 5 ? ` … (+${barcodes.length - 5})` : '';
+          parts.push(`أُلغي تفعيل ${deactivated} ثوب: ${sample}${more}`);
+        }
+        if (barcodesReleased.length > 0) {
+          const sample = barcodesReleased.slice(0, 5).join('، ');
+          const more = barcodesReleased.length > 5 ? ` … (+${barcodesReleased.length - 5})` : '';
+          parts.push(`تُحرّر ${barcodesReleased.length} باركود للاستيراد: ${sample}${more}`);
+        }
         showToast({
           type: 'success',
-          message: `تم إصلاح ${deactivated} ثوب${skippedSold ? ` (تُرك ${skippedSold} مباع)` : ''}: ${sample}${more}`,
+          message: `${parts.join(' · ')}${skippedSold ? ` (تُرك ${skippedSold} مباع)` : ''}`,
         });
         onRepaired?.();
       }

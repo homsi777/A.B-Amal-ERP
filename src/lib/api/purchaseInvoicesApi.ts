@@ -80,7 +80,7 @@ export async function repairStalePurchaseInvoiceRolls(body?: {
   invoiceNos?: string[];
 }): Promise<{
   ok: boolean;
-  data: { deactivated: number; barcodes: string[]; skippedSold: number };
+  data: { deactivated: number; barcodes: string[]; skippedSold: number; barcodesReleased?: string[] };
 }> {
   return apiFetch(`/api/purchase-invoices/repair-stale-rolls`, {
     method: 'POST',
