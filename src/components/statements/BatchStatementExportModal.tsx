@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CheckSquare, Download, Loader2, Plus, Send, Trash2, X } from 'lucide-react';
 import type { Customer, Invoice, Supplier } from '../../types';
 import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
@@ -37,6 +37,17 @@ interface BatchStatementExportModalProps {
 const todayToken = () => new Date().toISOString().slice(0, 10);
 
 const makeRowId = () => `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (id: string) => UUID_RE.test(id);
+
+interface RowApiPreview {
+  rowCount: number;
+  balance: number;
+  loading: boolean;
+}
 
 const emptyTotals: StatementTotals = {
   itemCount: 0,
@@ -125,6 +136,57 @@ export function BatchStatementExportModal({
   ]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  const [apiPreviews, setApiPreviews] = useState<Record<string, RowApiPreview>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const apiRows = rows.filter((row) => row.partyId && isUuid(row.partyId));
+    if (!apiRows.length) {
+      setApiPreviews({});
+      return;
+    }
+
+    setApiPreviews((current) => {
+      const next = { ...current };
+      for (const row of apiRows) {
+        next[row.id] = { rowCount: 0, balance: 0, loading: true };
+      }
+      return next;
+    });
+
+    void (async () => {
+      await Promise.all(
+        apiRows.map(async (row) => {
+          try {
+            const statementRes =
+              type === 'customer'
+                ? await getCustomerStatement(row.partyId, { fromDate: row.fromDate, toDate: row.toDate })
+                : await getSupplierStatement(row.partyId, { fromDate: row.fromDate, toDate: row.toDate });
+            if (cancelled) return;
+            const statement = statementRes.data;
+            setApiPreviews((current) => ({
+              ...current,
+              [row.id]: {
+                rowCount: statement.rows.length,
+                balance: Math.abs(statement.totals.closingBalance),
+                loading: false,
+              },
+            }));
+          } catch {
+            if (cancelled) return;
+            setApiPreviews((current) => ({
+              ...current,
+              [row.id]: { rowCount: 0, balance: 0, loading: false },
+            }));
+          }
+        }),
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rows, type]);
 
   const title = type === 'customer' ? 'تصدير كشوفات عملاء جماعية' : 'تصدير كشوفات موردين جماعية';
   const partyLabel = type === 'customer' ? 'العميل' : 'المورد';
@@ -211,8 +273,29 @@ export function BatchStatementExportModal({
     return { partyName, fileName, pdfHtml, balanceType };
   };
 
+  const isRowExportable = (item: (typeof prepared)[number]) => {
+    if (!item.party) return false;
+    if (isUuid(item.party.id)) return true;
+    return item.fabricItems.length > 0;
+  };
+
+  const getRowPreview = (item: (typeof prepared)[number]) => {
+    if (item.party && isUuid(item.party.id)) {
+      const preview = apiPreviews[item.id];
+      if (preview) {
+        return { rowCount: preview.rowCount, balance: preview.balance, loading: preview.loading };
+      }
+      return { rowCount: 0, balance: 0, loading: true };
+    }
+    return {
+      rowCount: item.totals.itemCount,
+      balance: Math.abs(item.totals.totalRemaining),
+      loading: false,
+    };
+  };
+
   const exportBatch = async (sendTelegram: boolean) => {
-    const validRows = prepared.filter((item) => item.party && item.fabricItems.length > 0);
+    const validRows = prepared.filter(isRowExportable);
     if (!validRows.length) {
       showToast({ type: 'warning', message: 'لا توجد كشوفات قابلة للتصدير ضمن الصفوف المحددة' });
       return;
@@ -223,11 +306,7 @@ export function BatchStatementExportModal({
       for (let index = 0; index < validRows.length; index += 1) {
         const item = validRows[index];
         if (!item.party) continue;
-        const uuidRe =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        const isUuid = uuidRe.test(item.party.id);
-
-        if (isUuid) {
+        if (isUuid(item.party.id)) {
           setStatus(`${index + 1} / ${validRows.length} - ${type === 'customer' ? (item.party as Customer).name : (item.party as Supplier).company}`);
 
           const statementRes =
@@ -355,7 +434,9 @@ export function BatchStatementExportModal({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {prepared.map((item, index) => (
+              {prepared.map((item, index) => {
+                const preview = getRowPreview(item);
+                return (
                 <tr key={item.id} className="bg-white">
                   <td className="px-4 py-3 font-semibold text-slate-500">{index + 1}</td>
                   <td className="px-4 py-3">
@@ -387,8 +468,12 @@ export function BatchStatementExportModal({
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </td>
-                  <td className="px-4 py-3 font-semibold text-indigo-700">{item.totals.itemCount}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-800">{Math.abs(item.totals.totalRemaining).toLocaleString('ar')}</td>
+                  <td className="px-4 py-3 font-semibold text-indigo-700">
+                    {preview.loading ? <Loader2 className="inline h-4 w-4 animate-spin text-slate-400" /> : preview.rowCount.toLocaleString('ar')}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-slate-800">
+                    {preview.loading ? <Loader2 className="inline h-4 w-4 animate-spin text-slate-400" /> : preview.balance.toLocaleString('ar')}
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       type="button"
@@ -401,7 +486,8 @@ export function BatchStatementExportModal({
                     </button>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
 

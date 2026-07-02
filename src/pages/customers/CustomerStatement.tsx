@@ -56,6 +56,7 @@ export const CustomerStatement = () => {
   const [hideFinancialColumns, setHideFinancialColumns] = useState(false);
   const [batchExportOpen, setBatchExportOpen] = useState(false);
   const [customerDuesExporting, setCustomerDuesExporting] = useState(false);
+  const [customerDuesExportChoiceOpen, setCustomerDuesExportChoiceOpen] = useState(false);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -566,7 +567,8 @@ export const CustomerStatement = () => {
   `;
   };
 
-  const handleExportCustomerDuesPDF = async () => {
+  const handleExportCustomerDuesPDF = async (mode: 'all' | 'non-zero') => {
+    setCustomerDuesExportChoiceOpen(false);
     setCustomerDuesExporting(true);
     try {
       const res = await listCustomers({ status: 'active', page: 1, pageSize: 1000 });
@@ -610,8 +612,27 @@ export const CustomerStatement = () => {
           }
         }),
       );
-      await exportPdfFromHtmlString(renderCustomerDuesPdfHtml(rows), `ذمم_العملاء_${toDate}`, { orientation: 'portrait' });
-      showToast({ type: 'success', message: 'تم تصدير ذمم العملاء PDF بنجاح.' });
+      const exportRows =
+        mode === 'non-zero'
+          ? rows.filter((row) => Math.abs(row.balance) >= 0.005)
+          : rows;
+      if (!exportRows.length) {
+        showToast({ type: 'warning', message: 'لا توجد ذمم غير صفرية للتصدير ضمن العملاء النشطين.' });
+        return;
+      }
+      const fileSuffix = mode === 'non-zero' ? 'ذمم_فقط' : 'شامل';
+      await exportPdfFromHtmlString(
+        renderCustomerDuesPdfHtml(exportRows),
+        `ذمم_العملاء_${fileSuffix}_${toDate}`,
+        { orientation: 'portrait' },
+      );
+      showToast({
+        type: 'success',
+        message:
+          mode === 'non-zero'
+            ? `تم تصدير ${exportRows.length.toLocaleString('ar')} عميل بذمم غير صفرية.`
+            : 'تم تصدير ذمم العملاء PDF بنجاح.',
+      });
     } catch (error) {
       showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر تصدير ذمم العملاء PDF.' });
     } finally {
@@ -974,7 +995,7 @@ export const CustomerStatement = () => {
              type="button"
              disabled={customerDuesExporting}
              className="bg-white border border-slate-200 text-slate-800 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm font-medium disabled:opacity-60"
-             onClick={() => void handleExportCustomerDuesPDF()}
+             onClick={() => setCustomerDuesExportChoiceOpen(true)}
            >
              {customerDuesExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
              <span>تصدير ذمم عملاء PDF</span>
@@ -1668,6 +1689,52 @@ export const CustomerStatement = () => {
                   إلغاء
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {customerDuesExportChoiceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <h3 className="text-lg font-bold text-slate-900">تصدير ذمم العملاء</h3>
+              <button
+                type="button"
+                onClick={() => setCustomerDuesExportChoiceOpen(false)}
+                disabled={customerDuesExporting}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                aria-label="إغلاق"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-3 p-6">
+              <p className="text-sm text-slate-600">اختر نوع التصدير المطلوب:</p>
+              <button
+                type="button"
+                disabled={customerDuesExporting}
+                onClick={() => void handleExportCustomerDuesPDF('all')}
+                className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-right hover:bg-slate-50 disabled:opacity-60"
+              >
+                <Download className="h-5 w-5 shrink-0 text-slate-500" />
+                <div>
+                  <div className="font-bold text-slate-900">تصدير شامل</div>
+                  <div className="text-sm text-slate-500">يشمل جميع العملاء النشطين حتى من رصيدهم صفر</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                disabled={customerDuesExporting}
+                onClick={() => void handleExportCustomerDuesPDF('non-zero')}
+                className="flex w-full items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-right hover:bg-indigo-100 disabled:opacity-60"
+              >
+                <Download className="h-5 w-5 shrink-0 text-indigo-600" />
+                <div>
+                  <div className="font-bold text-indigo-900">تصدير فقط ذمم</div>
+                  <div className="text-sm text-indigo-700">يستبعد العملاء الذين ليس عليهم أي ذمة (رصيد صفر)</div>
+                </div>
+              </button>
             </div>
           </div>
         </div>
