@@ -48,7 +48,7 @@ async function main() {
   console.log('');
   console.log(`[repair-sales-rolls] مسودات: ${report.draftInvoicesScanned} فاتورة — أسطر مربوطة: ${report.draftLinesLinked} — حجز: ${report.draftRollsReserved}`);
   console.log(
-    `[repair-sales-rolls] مؤكدة: ${report.confirmedInvoicesScanned} فاتورة — مخزون مُصلَح: ${report.confirmedStockFixed} — تخطي: ${report.confirmedStockSkipped}`,
+    `[repair-sales-rolls] مؤكدة: ${report.confirmedInvoicesScanned} فاتورة — مخزون مُصلَح: ${report.confirmedStockFixed} — حالات محجوزة مُصلَحة: ${report.confirmedStatusFixed} — تخطي: ${report.confirmedStockSkipped}`,
   );
 
   for (const line of report.details.slice(0, 200)) {

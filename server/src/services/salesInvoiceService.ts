@@ -1228,7 +1228,7 @@ export async function confirmSalesInvoice(
       );
     } else {
       await client.query(
-        `UPDATE fabric_rolls SET length_m=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
+        `UPDATE fabric_rolls SET length_m=$3, status='AVAILABLE', updated_at=now() WHERE id=$1 AND company_id=$2`,
         [rollId, companyId, newLen],
       );
       await client.query(

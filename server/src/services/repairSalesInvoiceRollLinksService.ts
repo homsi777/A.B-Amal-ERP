@@ -17,6 +17,7 @@ export type RepairSalesInvoiceRollLinksReport = {
   confirmedLinesLinked: number;
   confirmedStockFixed: number;
   confirmedStockSkipped: number;
+  confirmedStatusFixed: number;
   details: string[];
 };
 
@@ -148,7 +149,7 @@ async function repairConfirmedInvoiceStock(
       );
     } else {
       await client.query(
-        `UPDATE fabric_rolls SET length_m=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
+        `UPDATE fabric_rolls SET length_m=$3, status='AVAILABLE', updated_at=now() WHERE id=$1 AND company_id=$2`,
         [rollId, companyId, newLen],
       );
       await client.query(
@@ -183,6 +184,57 @@ async function repairConfirmedInvoiceStock(
   return { fixed, skipped, details };
 }
 
+/** أتواب بيع جزئي مؤكّد: الطول خُصم لكن الحالة بقيت RESERVED بدل AVAILABLE. */
+async function repairStuckReservedAfterPartialSale(
+  client: PoolClient,
+  companyId: string,
+  dryRun: boolean,
+): Promise<{ fixed: number; details: string[] }> {
+  const rows = await client.query<{ id: string; length_m: string; barcode: string | null }>(
+    `SELECT fr.id, fr.length_m, fr.barcode
+     FROM fabric_rolls fr
+     WHERE fr.company_id = $1
+       AND fr.status = 'RESERVED'
+       AND fr.length_m > $2
+       AND EXISTS (
+         SELECT 1
+         FROM sales_invoice_lines sil
+         INNER JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+         INNER JOIN inventory_movements im
+           ON im.company_id = fr.company_id
+          AND im.roll_id = fr.id
+          AND im.reference_type = 'SALES_INVOICE'
+          AND im.reference_id = si.id
+          AND im.movement_type = 'SALE'
+         WHERE sil.fabric_roll_id = fr.id
+           AND sil.company_id = fr.company_id
+           AND si.document_status = 'CONFIRMED'
+       )`,
+    [companyId, EPS],
+  );
+
+  let fixed = 0;
+  const details: string[] = [];
+
+  for (const row of rows.rows) {
+    const label = row.barcode?.trim() || row.id;
+    if (dryRun) {
+      fixed += 1;
+      details.push(`DRY status roll=${label}: RESERVED→AVAILABLE (len=${row.length_m})`);
+      continue;
+    }
+
+    await client.query(
+      `UPDATE fabric_rolls SET status='AVAILABLE', updated_at=now() WHERE id=$1 AND company_id=$2`,
+      [row.id, companyId],
+    );
+    fixed += 1;
+    details.push(`FIX status roll=${label}: RESERVED→AVAILABLE (len=${row.length_m})`);
+  }
+
+  return { fixed, details };
+}
+
 export async function repairSalesInvoiceRollLinks(
   pool: Pool,
   opts: { companyId: string; dryRun: boolean; invoiceId?: string | null },
@@ -196,6 +248,7 @@ export async function repairSalesInvoiceRollLinks(
     confirmedLinesLinked: 0,
     confirmedStockFixed: 0,
     confirmedStockSkipped: 0,
+    confirmedStatusFixed: 0,
     details: [],
   };
 
@@ -250,6 +303,10 @@ export async function repairSalesInvoiceRollLinks(
       report.confirmedStockSkipped += stock.skipped;
       report.details.push(...stock.details);
     }
+
+    const statusRepair = await repairStuckReservedAfterPartialSale(client, opts.companyId, opts.dryRun);
+    report.confirmedStatusFixed = statusRepair.fixed;
+    report.details.push(...statusRepair.details);
 
     if (!opts.dryRun) await client.query('COMMIT');
   } catch (err) {
