@@ -19,7 +19,8 @@ export const DUES_REPORT_TABLE_HEAD_CSS = `
   thead th {
     background: #e2e8f0 !important;
     color: #0f172a !important;
-    font-weight: 800;
+    font-size: 14px;
+    font-weight: 700;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

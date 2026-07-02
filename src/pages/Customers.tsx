@@ -240,13 +240,13 @@ export const Customers = () => {
           <title>كشف ذمم العملاء</title>
           <style>
             @page { size: A4; margin: 10mm; }
-            body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 12px; }
+            body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 14px; }
             .head { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #1e293b; padding-bottom:8px; margin-bottom:10px; }
             .brand { font-weight:900; font-size:18px; color:#1e293b; }
             .title { text-align:center; margin: 8px 0; font-weight:900; font-size:20px; }
-            .meta { display:flex; justify-content:space-between; margin-bottom:8px; color:#334155; font-size:11px; }
+            .meta { display:flex; justify-content:space-between; margin-bottom:8px; color:#334155; font-size:12px; }
             table { width:100%; border-collapse:collapse; }
-            th, td { border:1px solid #cbd5e1; padding:6px; text-align:right; }
+            th, td { border:1px solid #cbd5e1; padding:6px; text-align:right; font-size:14px; font-weight:700; }
             ${DUES_REPORT_TABLE_HEAD_CSS}
             tbody tr:nth-child(even) { background:#f8fafc; }
           </style>

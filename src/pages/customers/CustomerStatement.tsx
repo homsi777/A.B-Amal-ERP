@@ -468,17 +468,17 @@ export const CustomerStatement = () => {
         <title>كشف ذمم العملاء</title>
         <style>
           @page { size: A4; margin: 10mm; }
-          body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 12px; }
+          body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 14px; }
           .head { text-align:center; border-bottom:2px solid #1e293b; padding-bottom:8px; margin-bottom:10px; }
           .logo { height:78px; width:auto; object-fit:contain; display:block; margin:0 auto 4px; }
           .brand { font-weight:900; font-size:18px; color:#1e293b; }
           .title { text-align:center; margin: 22px 0 20px; font-weight:900; font-size:20px; }
-          .meta { display:flex; justify-content:space-between; margin-bottom:8px; color:#334155; font-size:11px; }
+          .meta { display:flex; justify-content:space-between; margin-bottom:8px; color:#334155; font-size:12px; }
           .summary { margin: 0 0 12px; border:1px solid #94a3b8; }
           .summary th { background:#e2e8f0; color:#0f172a; }
-          .summary td, .summary th { padding:8px 6px; font-weight:800; }
+          .summary td, .summary th { padding:8px 6px; font-size:14px; font-weight:700; }
           table { width:100%; border-collapse:collapse; }
-          th, td { border:1px solid #cbd5e1; padding:7px 6px; text-align:right; }
+          th, td { border:1px solid #cbd5e1; padding:7px 6px; text-align:right; font-size:14px; font-weight:700; }
           ${DUES_REPORT_TABLE_HEAD_CSS}
           tbody tr:nth-child(even) { background:#f8fafc; }
           .num { direction:ltr; text-align:right; white-space:nowrap; }
