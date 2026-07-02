@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Search, Filter, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react';
-import { listAllCashboxMovements, type CashboxMovementRow } from '../../lib/api/cashboxesApi';
+import {
+  listAllCashboxMovements,
+  type CashboxMovementFilter,
+  type CashboxMovementRow,
+} from '../../lib/api/cashboxesApi';
 import { ApiRequestError } from '../../lib/api/client';
 
 const MOVEMENT_TYPE_LABELS: Record<string, string> = {
@@ -28,12 +32,24 @@ function partyTypeLabel(type: string | null | undefined): string {
   return PARTY_TYPE_LABELS[type] ?? type;
 }
 
+const MOVEMENT_FILTERS: Array<{ id: CashboxMovementFilter; label: string }> = [
+  { id: 'all', label: 'الكل' },
+  { id: 'in', label: 'حركات وارد' },
+  { id: 'out', label: 'حركات صادر' },
+  { id: 'expenses', label: 'مصاريف' },
+];
+
+function isExpenseMovement(sourceType: string | null | undefined): boolean {
+  return sourceType === 'OPERATING_EXPENSE' || sourceType === 'OPERATING_EXPENSE_REVERSAL';
+}
+
 export const TreasuryLog = () => {
   const [logs, setLogs] = useState<CashboxMovementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
+  const [movementFilter, setMovementFilter] = useState<CashboxMovementFilter>('all');
 
   useEffect(() => {
     const t = window.setTimeout(() => setSearchDebounced(search.trim()), 300);
@@ -47,6 +63,7 @@ export const TreasuryLog = () => {
       const res = await listAllCashboxMovements({
         pageSize: 200,
         search: searchDebounced || undefined,
+        filter: movementFilter,
       });
       setLogs(res.data);
     } catch (e) {
@@ -54,7 +71,7 @@ export const TreasuryLog = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchDebounced]);
+  }, [searchDebounced, movementFilter]);
 
   useEffect(() => {
     void load();
@@ -74,25 +91,52 @@ export const TreasuryLog = () => {
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">{error}</div>}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex flex-wrap gap-4 items-center justify-between bg-slate-50">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث باسم الجهة أو رقم الحركة أو البيان..."
-              className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+        <div className="p-4 border-b border-slate-200 space-y-4 bg-slate-50">
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="relative flex-1 min-w-[220px] max-w-md">
+              <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="بحث باسم الجهة أو رقم الحركة أو البيان..."
+                className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg hover:bg-slate-50 text-sm"
+            >
+              <Filter className="w-4 h-4" />
+              <span>تحديث</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg hover:bg-slate-50 text-sm"
-          >
-            <Filter className="w-4 h-4" />
-            <span>تحديث</span>
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {MOVEMENT_FILTERS.map((item) => {
+              const active = movementFilter === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setMovementFilter(item.id)}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                    active
+                      ? item.id === 'in'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : item.id === 'out'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : item.id === 'expenses'
+                            ? 'bg-amber-600 text-white shadow-sm'
+                            : 'bg-slate-800 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
@@ -138,7 +182,12 @@ export const TreasuryLog = () => {
                       ) : null}
                     </td>
                     <td className="px-5 py-4 text-slate-900 font-semibold">{log.cashbox_name || '—'}</td>
-                    <td className="px-5 py-4 text-slate-600">{movementTypeLabel(log.movement_type)}</td>
+                    <td className="px-5 py-4 text-slate-600">
+                      <div>{isExpenseMovement(log.source_type) ? 'مصروف' : movementTypeLabel(log.movement_type)}</div>
+                      {isExpenseMovement(log.source_type) ? (
+                        <div className="text-xs text-amber-700 mt-0.5">من المصاريف</div>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-4">
                       <span
                         className={`flex items-center gap-1 w-max px-2 py-1 rounded text-xs font-bold ${

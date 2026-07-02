@@ -75,6 +75,15 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
     const pageSize = Math.min(200, Math.max(1, parseInt(q.pageSize) || 50));
     const offset = (page - 1) * pageSize;
     const search = q.search?.trim() || '';
+    const filter = (q.filter?.trim().toLowerCase() || 'all') as 'all' | 'in' | 'out' | 'expenses';
+    let movementFilterSql = '';
+    if (filter === 'in') {
+      movementFilterSql = ` AND m.direction = 'IN'`;
+    } else if (filter === 'out') {
+      movementFilterSql = ` AND m.direction = 'OUT'`;
+    } else if (filter === 'expenses') {
+      movementFilterSql = ` AND m.source_type IN ('OPERATING_EXPENSE', 'OPERATING_EXPENSE_REVERSAL')`;
+    }
 
     const pool = getPool();
     const params: unknown[] = [companyId];
@@ -100,7 +109,7 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
       FROM cashbox_movements m
       JOIN cashboxes c ON c.id = m.cashbox_id AND c.company_id = m.company_id
       ${CASHBOX_MOVEMENT_PARTY_JOINS}
-      WHERE m.company_id = $1
+      WHERE m.company_id = $1${movementFilterSql}
     `;
 
     const [rows, countRow] = await Promise.all([

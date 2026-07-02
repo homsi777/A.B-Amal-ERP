@@ -44,11 +44,16 @@ export async function listCashboxes(params: { active?: boolean; search?: string;
   return apiFetch<{ ok: boolean; data: CashboxDto[] }>(`/api/cashboxes${qs}`);
 }
 
-export async function listAllCashboxMovements(params: { page?: number; pageSize?: number; search?: string } = {}) {
+export type CashboxMovementFilter = 'all' | 'in' | 'out' | 'expenses';
+
+export async function listAllCashboxMovements(
+  params: { page?: number; pageSize?: number; search?: string; filter?: CashboxMovementFilter } = {},
+) {
   const q = new URLSearchParams();
   if (params.page) q.set('page', String(params.page));
   if (params.pageSize) q.set('pageSize', String(params.pageSize));
   if (params.search) q.set('search', params.search);
+  if (params.filter && params.filter !== 'all') q.set('filter', params.filter);
   const qs = q.toString() ? `?${q}` : '';
   return apiFetch<{
     ok: boolean;
