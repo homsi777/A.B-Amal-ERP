@@ -220,7 +220,7 @@ export const Customers = () => {
         return `
           <tr>
             <td>${escapeHtml(customer.code)}</td>
-            <td>${escapeHtml(customer.name)}</td>
+            <td class="customer-name">${escapeHtml(customer.name)}</td>
             <td>${formatMoney(s.total)}</td>
             <td>${formatMoney(s.credit)}</td>
             <td>${formatMoney(s.debit)}</td>
@@ -247,6 +247,7 @@ export const Customers = () => {
             .meta { display:flex; justify-content:space-between; margin-bottom:8px; color:#334155; font-size:12px; }
             table { width:100%; border-collapse:collapse; }
             th, td { border:1px solid #cbd5e1; padding:6px; text-align:right; font-size:14px; font-weight:700; }
+            .customer-name { font-size:20px; font-weight:700; }
             ${DUES_REPORT_TABLE_HEAD_CSS}
             tbody tr:nth-child(even) { background:#f8fafc; }
           </style>
@@ -265,7 +266,7 @@ export const Customers = () => {
             <thead>
               <tr>
                 <th>الكود</th>
-                <th>اسم العميل</th>
+                <th class="customer-name">اسم العميل</th>
                 <th>مجموع</th>
                 <th>دائن</th>
                 <th>مدين</th>

@@ -479,6 +479,7 @@ export const CustomerStatement = () => {
           .summary td, .summary th { padding:8px 6px; font-size:14px; font-weight:700; }
           table { width:100%; border-collapse:collapse; }
           th, td { border:1px solid #cbd5e1; padding:7px 6px; text-align:right; font-size:14px; font-weight:700; }
+          .customer-name { font-size:20px; font-weight:700; }
           ${DUES_REPORT_TABLE_HEAD_CSS}
           tbody tr:nth-child(even) { background:#f8fafc; }
           .num { direction:ltr; text-align:right; white-space:nowrap; }
@@ -528,7 +529,7 @@ export const CustomerStatement = () => {
           <thead>
             <tr>
               <th>الكود</th>
-              <th>اسم العميل</th>
+              <th class="customer-name">اسم العميل</th>
               <th>مجموع</th>
               <th>دائن</th>
               <th>مدين</th>
@@ -546,7 +547,7 @@ export const CustomerStatement = () => {
                   (row) => `
                     <tr>
                       <td>${escapeDuesHtml(row.code)}</td>
-                      <td>${escapeDuesHtml(row.name)}</td>
+                      <td class="customer-name">${escapeDuesHtml(row.name)}</td>
                       <td class="num">${formatDuesMoney(row.total)}</td>
                       <td class="num">${formatDuesMoney(row.credit)}</td>
                       <td class="num">${formatDuesMoney(row.debit)}</td>
