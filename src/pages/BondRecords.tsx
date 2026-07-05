@@ -19,6 +19,11 @@ function statusLabel(s: string) {
   return s;
 }
 
+function formatVoucherDate(value: string) {
+  if (!value) return '—';
+  return String(value).split('T')[0];
+}
+
 export const BondRecords = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -27,19 +32,21 @@ export const BondRecords = () => {
   const [error, setError] = useState<string | null>(null);
   const [telegramBusyId, setTelegramBusyId] = useState<string | null>(null);
   const [printVoucher, setPrintVoucher] = useState<VoucherRow | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await listVouchers({ pageSize: 100 });
+      const search = searchTerm.trim();
+      const res = await listVouchers({ pageSize: 100, search: search || undefined });
       setBonds(res.data);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل السندات');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchTerm]);
 
   useEffect(() => {
     void load();
@@ -78,8 +85,9 @@ export const BondRecords = () => {
             <input
               type="text"
               placeholder="بحث برقم السند..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm"
-              disabled
             />
           </div>
           <div className="flex gap-2">
@@ -144,7 +152,7 @@ export const BondRecords = () => {
                         {typeLabel(bond.voucher_type)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-medium text-slate-600">{bond.voucher_date}</td>
+                    <td className="px-6 py-4 font-medium text-slate-600">{formatVoucherDate(bond.voucher_date)}</td>
                     <td
                       className={`px-6 py-4 font-bold ${
                         bond.voucher_type === 'RECEIPT' ? 'text-emerald-600' : 'text-rose-600'
