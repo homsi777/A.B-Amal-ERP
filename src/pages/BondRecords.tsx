@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, Filter, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react';
+import { Search, Filter, ArrowUpRight, ArrowDownRight, Loader2, Printer } from 'lucide-react';
 import { listVouchers, type VoucherRow } from '../lib/api/vouchersApi';
 import { ApiRequestError } from '../lib/api/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/NonBlockingToast';
 import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
 import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
+import { VoucherPrintModal } from '../components/VoucherPrintModal';
 
 function typeLabel(t: string) {
   return t === 'RECEIPT' ? 'قبض' : 'صرف';
@@ -25,6 +26,7 @@ export const BondRecords = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [telegramBusyId, setTelegramBusyId] = useState<string | null>(null);
+  const [printVoucher, setPrintVoucher] = useState<VoucherRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,16 +161,25 @@ export const BondRecords = () => {
                       <span className="px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-700">{statusLabel(bond.status)}</span>
                     </td>
                     <td className="px-6 py-4">
-                      {bond.status === 'CONFIRMED' ? (
-                        <TelegramSendButton
-                          size="compact"
-                          label="تيليغرام"
-                          busy={telegramBusyId === bond.id}
-                          onClick={() => void handleSendTelegram(bond)}
-                        />
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPrintVoucher(bond)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+                          title="طباعة السند"
+                        >
+                          <Printer className="w-4 h-4" />
+                          <span>طباعة</span>
+                        </button>
+                        {bond.status === 'CONFIRMED' ? (
+                          <TelegramSendButton
+                            size="compact"
+                            label="تيليغرام"
+                            busy={telegramBusyId === bond.id}
+                            onClick={() => void handleSendTelegram(bond)}
+                          />
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -177,6 +188,11 @@ export const BondRecords = () => {
           </table>
         </div>
       </div>
+      <VoucherPrintModal
+        isOpen={Boolean(printVoucher)}
+        voucher={printVoucher}
+        onClose={() => setPrintVoucher(null)}
+      />
     </div>
   );
 };
