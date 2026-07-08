@@ -15,9 +15,15 @@ import {
   validateSaleInvoiceReceiptVoucher,
 } from '../services/salesInvoiceService.js';
 import { getExchangeRateToUsdTx } from '../services/exchangeRateService.js';
+import {
+  VOUCHER_PURPOSES,
+  mergeVoucherDescription,
+  type VoucherPurpose,
+} from '../utils/voucherPurpose.js';
 
 const partyTypeSchema = z.enum(['CUSTOMER', 'SUPPLIER', 'EMPLOYEE', 'OTHER']).optional().nullable();
 const paymentMethodSchema = z.enum(['CASH', 'BANK', 'TRANSFER', 'OTHER']);
+const purposeSchema = z.enum(VOUCHER_PURPOSES).default('INVOICE_PAYMENT');
 
 const createBody = z.object({
   voucherType: z.enum(['RECEIPT', 'PAYMENT']),
@@ -31,6 +37,7 @@ const createBody = z.object({
   exchangeRateToUsd: z.coerce.number().optional(),
   amountUsd: z.coerce.number().optional(),
   paymentMethod: paymentMethodSchema.default('CASH'),
+  purpose: purposeSchema,
   description: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   referenceDocumentType: z.string().optional().nullable(),
@@ -115,7 +122,8 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
     const [rows, countRow] = await Promise.all([
       pool.query(
         `SELECT v.id, v.voucher_no, v.voucher_type, v.voucher_date, v.cashbox_id, v.party_type, v.party_id,
-                v.party_name, v.amount, v.currency_code, v.payment_method, v.status, v.description,
+                v.party_name, v.amount, v.currency_code, v.payment_method, v.status,
+                v.purpose, v.description,
                 v.reference_document_type, v.reference_document_no,
                 v.confirmed_at, v.cancelled_at, v.created_at,
                 c.code AS cashbox_code, c.name AS cashbox_name
@@ -180,15 +188,17 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
       if (currencyCode === 'USD') exchangeRateToUsd = 1;
 
       const amountUsd = computeUsd(d.amount, exchangeRateToUsd);
+      const purpose: VoucherPurpose = d.purpose ?? 'INVOICE_PAYMENT';
+      const description = mergeVoucherDescription(purpose, d.description);
       const ins = await client.query(
         `INSERT INTO vouchers (
            company_id, voucher_no, voucher_type, voucher_date, cashbox_id, party_type, party_id, party_name,
            amount, currency_code, exchange_rate_to_usd, amount_usd,
-           payment_method, status, description, notes,
+           payment_method, status, purpose, description, notes,
            reference_document_type, reference_document_no,
            created_by_user_id
-         ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,'DRAFT',$14,$15,$16,$17,$18)
-         RETURNING id, voucher_no, status, voucher_date, created_at`,
+         ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,'DRAFT',$14,$15,$16,$17,$18,$19)
+         RETURNING id, voucher_no, status, voucher_date, purpose, created_at`,
         [
           companyId,
           voucherNo,
@@ -203,7 +213,8 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
           exchangeRateToUsd,
           amountUsd,
           d.paymentMethod,
-          d.description ?? null,
+          purpose,
+          description,
           d.notes ?? null,
           d.referenceDocumentType?.trim() || null,
           d.referenceDocumentNo?.trim() || null,
@@ -260,16 +271,18 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
       }
       if (currencyCode === 'USD') exchangeRateToUsd = 1;
       const amountUsd = computeUsd(d.amount, exchangeRateToUsd);
+      const purpose: VoucherPurpose = d.purpose ?? 'INVOICE_PAYMENT';
+      const description = mergeVoucherDescription(purpose, d.description);
 
       const row = await client.query(
         `UPDATE vouchers SET
            voucher_type=$3, voucher_date=$4::date, cashbox_id=$5, party_type=$6, party_id=$7, party_name=$8,
            amount=$9, currency_code=$10, exchange_rate_to_usd=$11, amount_usd=$12,
-           payment_method=$13, description=$14, notes=$15,
-           reference_document_type=$16, reference_document_no=$17,
-           updated_at=now(), created_by_user_id=$18
+           payment_method=$13, purpose=$14, description=$15, notes=$16,
+           reference_document_type=$17, reference_document_no=$18,
+           updated_at=now(), created_by_user_id=$19
          WHERE id=$1 AND company_id=$2
-         RETURNING id, voucher_no, status, updated_at`,
+         RETURNING id, voucher_no, status, purpose, updated_at`,
         [
           id,
           companyId,
@@ -284,7 +297,8 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
           exchangeRateToUsd,
           amountUsd,
           d.paymentMethod,
-          d.description ?? null,
+          purpose,
+          description,
           d.notes ?? null,
           d.referenceDocumentType?.trim() || null,
           d.referenceDocumentNo?.trim() || null,

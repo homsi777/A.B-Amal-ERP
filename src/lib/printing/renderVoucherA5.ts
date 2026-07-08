@@ -5,6 +5,7 @@ import {
   buildVoucherNarrativeParts,
   type VoucherNarrativeInput,
 } from './voucherNarrative';
+import { voucherPurposeAr } from '../voucherPurpose';
 
 const NAVY = '#2C405A';
 const GOLD = '#C4A962';
@@ -30,6 +31,7 @@ export type VoucherPrintData = {
   cashboxName?: string;
   paymentMethod?: string | null;
   referenceDocumentNo?: string | null;
+  purpose?: string | null;
   description?: string | null;
   representative?: string | null;
 };
@@ -134,6 +136,7 @@ function narrativeInput(data: VoucherPrintData): VoucherNarrativeInput {
     paymentMethod: data.paymentMethod,
     cashboxName: data.cashboxName,
     referenceDocumentNo: data.referenceDocumentNo,
+    purpose: data.purpose,
     description: data.description,
   };
 }
@@ -590,6 +593,7 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
   const partyName = displayField(data.partyName);
   const cashboxName = displayField(data.cashboxName);
   const invoiceNo = displayField(data.referenceDocumentNo);
+  const purposeLabel = displayField(voucherPurposeAr(data.purpose));
   const metaStatement = displayField(buildVoucherMetaStatement(narrativeInput(data)));
   const representative = displayField(data.representative);
   const amountDisplay = esc(formatAmountDisplay(data.amount, data.currencyCode));
@@ -619,6 +623,7 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
                 <table class="meta-table">
                   ${metaRow(iconSvg('user'), 'اسم الجهة', partyName)}
                   ${metaRow(iconSvg('receipt'), 'رقم الفاتورة', invoiceNo)}
+                  ${metaRow(iconSvg('doc'), 'غرض العملية', purposeLabel)}
                   ${metaRow(iconSvg('doc'), 'البيان', metaStatement)}
                   ${metaRow(iconSvg('user'), 'المندوب', representative)}
                 </table>
@@ -696,6 +701,7 @@ export function voucherRowToPrintData(voucher: {
   amount_usd?: string | null;
   cashbox_name?: string | null;
   payment_method?: string | null;
+  purpose?: string | null;
   description?: string | null;
   reference_document_no?: string | null;
 }): VoucherPrintData {
@@ -711,6 +717,7 @@ export function voucherRowToPrintData(voucher: {
     amountUsd: voucher.amount_usd ?? undefined,
     cashboxName: voucher.cashbox_name ?? undefined,
     paymentMethod: voucher.payment_method,
+    purpose: voucher.purpose ?? undefined,
     description: voucher.description,
     referenceDocumentNo: voucher.reference_document_no ?? undefined,
   };

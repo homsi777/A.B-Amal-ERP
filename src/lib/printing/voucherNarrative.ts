@@ -6,6 +6,7 @@ export type VoucherNarrativeInput = {
   paymentMethod?: string | null;
   cashboxName?: string | null;
   referenceDocumentNo?: string | null;
+  purpose?: string | null;
   description?: string | null;
 };
 
@@ -36,16 +37,32 @@ export function buildVoucherMetaStatement(input: VoucherNarrativeInput): string 
   const desc = String(input.description ?? '').trim();
   if (desc) return desc;
 
+  const purpose = String(input.purpose ?? '').trim().toUpperCase();
+  const purposeAr =
+    purpose === 'ADVANCE'
+      ? 'عربون'
+      : purpose === 'ADVANCE_REFUND'
+        ? 'رد عربون'
+        : purpose === 'COMPENSATION'
+          ? 'تعويض / عطل وضرر'
+          : purpose === 'OTHER'
+            ? 'أخرى'
+            : purpose === 'INVOICE_PAYMENT'
+              ? 'دفعة / تسوية فاتورة'
+              : '';
+
   const ref = String(input.referenceDocumentNo ?? '').trim();
   if (input.voucherType === 'RECEIPT' && ref) {
-    return `قبض مقابل كشف فاتورة ${ref}`;
+    return purposeAr ? `${purposeAr} مقابل كشف فاتورة ${ref}` : `قبض مقابل كشف فاتورة ${ref}`;
   }
   if (input.voucherType === 'RECEIPT') {
     const party = input.partyName.trim();
-    return party ? `قبض من ${party}` : 'قبض نقدي';
+    if (purposeAr && party) return `${purposeAr} — قبض من ${party}`;
+    return party ? `قبض من ${party}` : purposeAr || 'قبض نقدي';
   }
   const party = input.partyName.trim();
-  return party ? `صرف إلى ${party}` : 'صرف نقدي';
+  if (purposeAr && party) return `${purposeAr} — صرف إلى ${party}`;
+  return party ? `صرف إلى ${party}` : purposeAr || 'صرف نقدي';
 }
 
 /**

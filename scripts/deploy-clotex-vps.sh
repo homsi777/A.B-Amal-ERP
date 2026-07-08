@@ -119,4 +119,4 @@ fi
 echo ""
 echo "✓ تم نشر CLOTEX"
 echo "  تحقق: curl -sI http://127.0.0.1/ | head -1"
-echo "  عنوان الصفحة يجب أن يحتوي CLOTEX وليس ALamal-AB"
+

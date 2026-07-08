@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { VoucherPurpose } from '../voucherPurpose';
 
 export type VoucherType = 'RECEIPT' | 'PAYMENT';
 export type VoucherStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
@@ -20,7 +21,9 @@ export interface VoucherRow {
   amount_usd?: string;
   payment_method: string;
   status: VoucherStatus;
+  purpose?: VoucherPurpose | string | null;
   description: string | null;
+  notes?: string | null;
   reference_document_type?: string | null;
   reference_document_no?: string | null;
   confirmed_at: string | null;
@@ -73,6 +76,7 @@ export async function createVoucher(payload: {
   exchangeRateToUsd?: number;
   amountUsd?: number;
   paymentMethod?: 'CASH' | 'BANK' | 'TRANSFER' | 'OTHER';
+  purpose?: VoucherPurpose;
   description?: string | null;
   notes?: string | null;
   referenceDocumentType?: string | null;
@@ -92,6 +96,7 @@ export async function createVoucher(payload: {
       exchangeRateToUsd: payload.exchangeRateToUsd,
       amountUsd: payload.amountUsd,
       paymentMethod: payload.paymentMethod ?? 'CASH',
+      purpose: payload.purpose ?? 'INVOICE_PAYMENT',
       description: payload.description ?? null,
       notes: payload.notes ?? null,
       referenceDocumentType: payload.referenceDocumentType ?? null,

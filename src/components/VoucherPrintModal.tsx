@@ -43,6 +43,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
       paymentMethod: printData.paymentMethod,
       cashboxName: printData.cashboxName,
       referenceDocumentNo: printData.referenceDocumentNo,
+      purpose: printData.purpose,
       description: printData.description,
     });
   }, [printData]);

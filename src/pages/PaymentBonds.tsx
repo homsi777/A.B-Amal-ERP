@@ -1,20 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Printer, FileText, Search, CreditCard, Loader2 } from 'lucide-react';
 import { createVoucher, confirmVoucher, type VoucherRow } from '../lib/api/vouchersApi';
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
-import { listSuppliers } from '../lib/api/suppliersApi';
+import { listCustomers, type ApiCustomer } from '../lib/api/customersApi';
+import { listSuppliers, type ApiSupplier } from '../lib/api/suppliersApi';
 import { ApiRequestError } from '../lib/api/client';
-import type { ApiSupplier } from '../lib/api/suppliersApi';
 import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
 import { focusNextFormControl } from '../lib/forms/enterNavigation';
 import { listExchangeRates, type ExchangeRateDto } from '../lib/api/exchangeRatesApi';
 import { convertToUsd, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../lib/currency';
 import { useToast } from '../components/NonBlockingToast';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
+import {
+  PAYMENT_PURPOSE_OPTIONS,
+  type VoucherPurpose,
+} from '../lib/voucherPurpose';
+
+type PartyKind = 'CUSTOMER' | 'SUPPLIER' | 'OTHER';
 
 export const PaymentBonds = () => {
   const { showToast } = useToast();
   const [cashboxes, setCashboxes] = useState<CashboxDto[]>([]);
+  const [customers, setCustomers] = useState<ApiCustomer[]>([]);
   const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -27,28 +34,46 @@ export const PaymentBonds = () => {
   const [amount, setAmount] = useState('');
   const [voucherDate, setVoucherDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [cashboxId, setCashboxId] = useState('');
-  const [supplierId, setSupplierId] = useState('');
+  const [partyKind, setPartyKind] = useState<PartyKind>('SUPPLIER');
+  const [partyId, setPartyId] = useState('');
   const [partyName, setPartyName] = useState('');
+  const [purpose, setPurpose] = useState<VoucherPurpose>('INVOICE_PAYMENT');
   const [description, setDescription] = useState('');
   const [currencyCode, setCurrencyCode] = useState<'USD' | 'SYP' | 'TRY' | 'EGP'>('USD');
   const [exchangeRateToUsd, setExchangeRateToUsd] = useState('1');
+
+  const purposeHint = useMemo(
+    () => PAYMENT_PURPOSE_OPTIONS.find((o) => o.value === purpose)?.hint ?? '',
+    [purpose],
+  );
 
   useEffect(() => {
     void (async () => {
       setLoadingMeta(true);
       try {
-        const [c, s, r] = await Promise.all([listCashboxes({ active: true }), listSuppliers({ pageSize: 500 }), listExchangeRates()]);
+        const [c, s, cust, r] = await Promise.all([
+          listCashboxes({ active: true }),
+          listSuppliers({ pageSize: 500 }),
+          listCustomers({ pageSize: 500 }),
+          listExchangeRates(),
+        ]);
         setCashboxes(c.data);
         setSuppliers(s.data);
+        setCustomers(cust.data);
         setExchangeRates(r.data);
         if (c.data.length && !cashboxId) setCashboxId(c.data[0].id);
       } catch {
-        showToast({ type: 'error', message: 'تعذر تحميل الصناديق أو الموردين' });
+        showToast({ type: 'error', message: 'تعذر تحميل الصناديق أو الأطراف' });
       } finally {
         setLoadingMeta(false);
       }
     })();
   }, []);
+
+  useEffect(() => {
+    setPartyId('');
+    setPartyName('');
+  }, [partyKind]);
 
   useEffect(() => {
     const box = cashboxes.find((c) => c.id === cashboxId);
@@ -70,6 +95,38 @@ export const PaymentBonds = () => {
     setExchangeRateToUsd(String(rateRow?.exchange_rate_to_usd ?? exchangeRateToUsd));
   }, [currencyCode, exchangeRates]);
 
+  const resolveParty = () => {
+    if (partyKind === 'CUSTOMER') {
+      const cust = customers.find((x) => x.id === partyId);
+      return {
+        partyType: partyId ? ('CUSTOMER' as const) : ('OTHER' as const),
+        partyId: partyId || null,
+        partyName: cust?.name || partyName.trim() || 'مستفيد',
+      };
+    }
+    if (partyKind === 'SUPPLIER') {
+      const sup = suppliers.find((x) => x.id === partyId);
+      return {
+        partyType: partyId ? ('SUPPLIER' as const) : ('OTHER' as const),
+        partyId: partyId || null,
+        partyName: sup?.name || partyName.trim() || 'مستفيد',
+      };
+    }
+    return {
+      partyType: 'OTHER' as const,
+      partyId: null,
+      partyName: partyName.trim() || 'مستفيد',
+    };
+  };
+
+  const buildPayload = () => {
+    const party = resolveParty();
+    const rate = currencyCode === 'USD' ? 1 : normalizeExchangeRate(exchangeRateToUsd);
+    const amountOriginal = Number(amount) || 0;
+    const amountUsd = round2(convertToUsd(amountOriginal, rate || 1));
+    return { party, rate, amountOriginal, amountUsd };
+  };
+
   const saveDraft = async () => {
     setSaving(true);
     setErr(null);
@@ -79,29 +136,27 @@ export const PaymentBonds = () => {
         setErr('عملة السند يجب أن تطابق عملة الصندوق المحدد');
         return;
       }
-      const sup = suppliers.find((x) => x.id === supplierId);
-      const name = sup?.name || partyName.trim() || 'مستفيد';
-      const rate = currencyCode === 'USD' ? 1 : normalizeExchangeRate(exchangeRateToUsd);
+      const { party, rate, amountOriginal, amountUsd } = buildPayload();
       if (!rate) {
         setErr('يرجى إدخال سعر صرف صحيح');
         return;
       }
-      const amountOriginal = Number(amount) || 0;
-      const amountUsd = round2(convertToUsd(amountOriginal, rate));
       const res = await createVoucher({
         voucherType: 'PAYMENT',
         voucherDate,
         cashboxId: cashboxId || null,
-        partyType: supplierId ? 'SUPPLIER' : 'OTHER',
-        partyId: supplierId || null,
-        partyName: name,
+        partyType: party.partyType,
+        partyId: party.partyId,
+        partyName: party.partyName,
         amount: amountOriginal,
         currencyCode,
         exchangeRateToUsd: rate,
         amountUsd,
+        purpose,
         description: description || null,
       });
       setVoucherNo(res.data.voucher_no);
+      showToast({ type: 'success', message: `تم حفظ المسودة #${res.data.voucher_no}` });
     } catch (e) {
       setErr(e instanceof ApiRequestError ? e.message : 'فشل الحفظ');
     } finally {
@@ -122,66 +177,59 @@ export const PaymentBonds = () => {
         showToast({ type: 'error', message: 'عملة السند يجب أن تطابق عملة الصندوق المحدد' });
         return;
       }
-      const sup = suppliers.find((x) => x.id === supplierId);
-      const name = sup?.name || partyName.trim() || 'مستفيد';
-      const rate = currencyCode === 'USD' ? 1 : normalizeExchangeRate(exchangeRateToUsd);
+      const { party, rate, amountOriginal, amountUsd } = buildPayload();
       if (!rate) {
         showToast({ type: 'error', message: 'يرجى إدخال سعر صرف صحيح' });
         return;
       }
-      const amountOriginal = Number(amount) || 0;
-      const amountUsd = round2(convertToUsd(amountOriginal, rate));
       const created = await createVoucher({
         voucherType: 'PAYMENT',
         voucherDate,
         cashboxId,
-        partyType: supplierId ? 'SUPPLIER' : 'OTHER',
-        partyId: supplierId || null,
-        partyName: name,
+        partyType: party.partyType,
+        partyId: party.partyId,
+        partyName: party.partyName,
         amount: amountOriginal,
         currencyCode,
         exchangeRateToUsd: rate,
         amountUsd,
+        purpose,
         description: description || null,
       });
       setVoucherNo(created.data.voucher_no);
       await confirmVoucher(created.data.id);
-      setCurrentVoucher({
+      const voucherSnapshot: VoucherRow = {
         ...created.data,
         voucher_type: created.data.voucher_type || 'PAYMENT',
         voucher_date: created.data.voucher_date || voucherDate,
-        party_name: created.data.party_name || name,
+        party_name: created.data.party_name || party.partyName,
+        party_type: created.data.party_type || party.partyType,
         amount: created.data.amount || String(amountOriginal),
         currency_code: created.data.currency_code || currencyCode,
         cashbox_name: created.data.cashbox_name || cashboxes.find((cashbox) => cashbox.id === cashboxId)?.name || null,
+        purpose: created.data.purpose || purpose,
         description: created.data.description ?? description ?? null,
-      });
+      };
+      setCurrentVoucher(voucherSnapshot);
       setPrintModalOpen(true);
       showToast({ type: 'success', message: `تم تسجيل السند #${created.data.voucher_no} بنجاح في الصندوق` });
-      
-      // Reset form
+
       setAmount('');
       setDescription('');
-      setSupplierId('');
+      setPartyId('');
       setPartyName('');
+      setPurpose('INVOICE_PAYMENT');
 
       try {
-        await sendTelegramVoucherFromRow({
-          ...created.data,
-          voucher_type: created.data.voucher_type || 'PAYMENT',
-          voucher_date: created.data.voucher_date || voucherDate,
-          party_name: created.data.party_name || name,
-          amount: created.data.amount || String(amountOriginal),
-          currency_code: created.data.currency_code || currencyCode,
-          cashbox_name: created.data.cashbox_name || cashboxes.find((cashbox) => cashbox.id === cashboxId)?.name || null,
-          description: created.data.description ?? description ?? null,
-        });
+        await sendTelegramVoucherFromRow(voucherSnapshot);
       } catch (error) {
         console.warn('Telegram payment voucher failed', error);
       }
     } catch (e) {
-      const errorMsg = e instanceof ApiRequestError ? e.message : 'فشل التسجيل في الصندوق';
-      showToast({ type: 'error', message: errorMsg });
+      showToast({
+        type: 'error',
+        message: e instanceof ApiRequestError ? e.message : 'فشل التسجيل في الصندوق',
+      });
       setErr(null);
     } finally {
       setSaving(false);
@@ -193,7 +241,9 @@ export const PaymentBonds = () => {
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">سند صرف</h2>
-          <p className="text-slate-500 mt-1">إصدار سند صرف — تسجيل فعلي في الصندوق عند التأكيد</p>
+          <p className="text-slate-500 mt-1">
+            صرف لمورد أو عميل — رد عربون، دفعة، تعويض… يسجَّل في الصندوق والذمم عند التأكيد
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -220,6 +270,9 @@ export const PaymentBonds = () => {
         </div>
 
         <div className="p-6 space-y-6" data-enter-scope>
+          {err ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-800 px-3 py-2 text-sm">{err}</div>
+          ) : null}
           {loadingMeta ? (
             <div className="flex text-slate-500 items-center">
               <Loader2 className="w-5 h-5 animate-spin ml-2" />
@@ -308,13 +361,45 @@ export const PaymentBonds = () => {
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">تفاصيل المستفيد</h4>
-                <div className="grid grid-cols-1 gap-6">
+                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">المستفيد وغرض العملية</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">مورد مسجّل أو اسم يدوي</label>
+                    <label className="block text-sm font-medium text-slate-700">نوع الطرف</label>
                     <select
-                      value={supplierId}
-                      onChange={(e) => setSupplierId(e.target.value)}
+                      value={partyKind}
+                      onChange={(e) => setPartyKind(e.target.value as PartyKind)}
+                      onKeyDown={focusNextFormControl}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
+                    >
+                      <option value="SUPPLIER">مورد</option>
+                      <option value="CUSTOMER">عميل</option>
+                      <option value="OTHER">أخرى</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">غرض العملية</label>
+                    <select
+                      value={purpose}
+                      onChange={(e) => setPurpose(e.target.value as VoucherPurpose)}
+                      onKeyDown={focusNextFormControl}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
+                    >
+                      {PAYMENT_PURPOSE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    {purposeHint ? <p className="text-xs text-slate-500">{purposeHint}</p> : null}
+                  </div>
+                </div>
+
+                {partyKind === 'SUPPLIER' ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">مورد مسجّل</label>
+                    <select
+                      value={partyId}
+                      onChange={(e) => setPartyId(e.target.value)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                     >
@@ -326,26 +411,58 @@ export const PaymentBonds = () => {
                       ))}
                     </select>
                   </div>
+                ) : null}
+
+                {partyKind === 'CUSTOMER' ? (
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">اسم المستفيد (إذا لم يُختر مورد)</label>
-                    <input
-                      value={partyName}
-                      onChange={(e) => setPartyName(e.target.value)}
+                    <label className="block text-sm font-medium text-slate-700">عميل مسجّل</label>
+                    <select
+                      value={partyId}
+                      onChange={(e) => setPartyId(e.target.value)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
-                    />
+                    >
+                      <option value="">— بدون اختيار —</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">البيان</label>
-                    <input
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      onKeyDown={focusNextFormControl}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
-                      placeholder="شرح السند"
-                    />
-                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    {partyKind === 'OTHER' ? 'اسم المستفيد' : 'اسم المستفيد (إذا لم يُختر من القائمة)'}
+                  </label>
+                  <input
+                    value={partyName}
+                    onChange={(e) => setPartyName(e.target.value)}
+                    onKeyDown={focusNextFormControl}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
+                  />
                 </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">البيان</label>
+                  <input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    onKeyDown={focusNextFormControl}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
+                    placeholder="شرح السند (اختياري — يُدمج مع الغرض تلقائياً)"
+                  />
+                </div>
+                {purpose === 'ADVANCE_REFUND' ? (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    رد العربون يقلّل الرصيد الدائن للطرف في كشف الحساب (عميل أو مورد حسب الاختيار).
+                  </p>
+                ) : null}
+                {partyKind === 'CUSTOMER' && purpose === 'COMPENSATION' ? (
+                  <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    صرف تعويض للعميل يزيد مديونيته / يقلّل رصيده الدائن على ذمم العملاء.
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex flex-wrap gap-2 justify-end pt-4 border-t border-slate-100">
@@ -372,7 +489,6 @@ export const PaymentBonds = () => {
         </div>
       </div>
 
-      {/* Print Modal */}
       <VoucherPrintModal
         isOpen={printModalOpen}
         voucher={currentVoucher}

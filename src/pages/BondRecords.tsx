@@ -7,6 +7,7 @@ import { useToast } from '../components/NonBlockingToast';
 import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
 import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
+import { voucherPurposeAr } from '../lib/voucherPurpose';
 
 function typeLabel(t: string) {
   return t === 'RECEIPT' ? 'قبض' : 'صرف';
@@ -109,6 +110,7 @@ export const BondRecords = () => {
                 <th className="px-6 py-4">التاريخ</th>
                 <th className="px-6 py-4">المبلغ</th>
                 <th className="px-6 py-4">الجهة</th>
+                <th className="px-6 py-4">الغرض</th>
                 <th className="px-6 py-4">الصندوق</th>
                 <th className="px-6 py-4">البيان</th>
                 <th className="px-6 py-4">الحالة</th>
@@ -118,14 +120,14 @@ export const BondRecords = () => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
                     جاري التحميل...
                   </td>
                 </tr>
               ) : bonds.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                     لا توجد سندات بعد
                   </td>
                 </tr>
@@ -161,6 +163,9 @@ export const BondRecords = () => {
                       {Number(bond.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {bond.currency_code}
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-900">{bond.party_name}</td>
+                    <td className="px-6 py-4 text-slate-600 truncate max-w-[120px]" title={voucherPurposeAr(bond.purpose)}>
+                      {voucherPurposeAr(bond.purpose)}
+                    </td>
                     <td className="px-6 py-4 text-slate-600 truncate max-w-[120px]">{bond.cashbox_name || '—'}</td>
                     <td className="px-6 py-4 text-slate-600 truncate max-w-[200px]" title={bond.description || ''}>
                       {bond.description || '—'}

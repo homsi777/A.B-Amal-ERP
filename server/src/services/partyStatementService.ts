@@ -90,7 +90,14 @@ function customerRowsQuery(period: 'opening' | 'period', filters: PartyStatement
     ${dateCondition('si', 'invoice_date')}
 
     UNION ALL
-    SELECT v.voucher_date AS row_date, v.created_at, 'RECEIPT_VOUCHER' AS type, 'سند قبض' AS type_label,
+    SELECT v.voucher_date AS row_date, v.created_at, 'RECEIPT_VOUCHER' AS type,
+           ('سند قبض — ' || CASE COALESCE(v.purpose, 'INVOICE_PAYMENT')
+              WHEN 'ADVANCE' THEN 'عربون'
+              WHEN 'ADVANCE_REFUND' THEN 'رد عربون'
+              WHEN 'COMPENSATION' THEN 'تعويض / عطل وضرر'
+              WHEN 'OTHER' THEN 'أخرى'
+              ELSE 'دفعة / تسوية فاتورة'
+            END) AS type_label,
            v.voucher_no AS document_no, COALESCE(v.description, 'سند قبض مؤكد') AS description,
            0::numeric AS debit, v.amount AS credit, v.currency_code,
            0::numeric AS debit_usd,
@@ -101,7 +108,14 @@ function customerRowsQuery(period: 'opening' | 'period', filters: PartyStatement
     ${dateCondition('v', 'voucher_date')}
 
     UNION ALL
-    SELECT v.voucher_date AS row_date, v.created_at, 'PAYMENT_VOUCHER' AS type, 'سند دفع للعميل' AS type_label,
+    SELECT v.voucher_date AS row_date, v.created_at, 'PAYMENT_VOUCHER' AS type,
+           ('سند دفع للعميل — ' || CASE COALESCE(v.purpose, 'INVOICE_PAYMENT')
+              WHEN 'ADVANCE' THEN 'عربون'
+              WHEN 'ADVANCE_REFUND' THEN 'رد عربون'
+              WHEN 'COMPENSATION' THEN 'تعويض / عطل وضرر'
+              WHEN 'OTHER' THEN 'أخرى'
+              ELSE 'دفعة / تسوية فاتورة'
+            END) AS type_label,
            v.voucher_no AS document_no, COALESCE(v.description, 'سند دفع مؤكد') AS description,
            v.amount AS debit, 0::numeric AS credit, v.currency_code,
            COALESCE(v.amount_usd, CASE WHEN v.currency_code='USD' THEN v.amount ELSE v.amount / NULLIF(v.exchange_rate_to_usd, 0) END) AS debit_usd,
@@ -191,7 +205,14 @@ function supplierRowsQuery(period: 'opening' | 'period', filters: PartyStatement
     ${dateCondition('pi', 'invoice_date')}
 
     UNION ALL
-    SELECT v.voucher_date AS row_date, v.created_at, 'PAYMENT_VOUCHER' AS type, 'سند دفع' AS type_label,
+    SELECT v.voucher_date AS row_date, v.created_at, 'PAYMENT_VOUCHER' AS type,
+           ('سند دفع — ' || CASE COALESCE(v.purpose, 'INVOICE_PAYMENT')
+              WHEN 'ADVANCE' THEN 'عربون'
+              WHEN 'ADVANCE_REFUND' THEN 'رد عربون'
+              WHEN 'COMPENSATION' THEN 'تعويض / عطل وضرر'
+              WHEN 'OTHER' THEN 'أخرى'
+              ELSE 'دفعة / تسوية فاتورة'
+            END) AS type_label,
            v.voucher_no AS document_no, COALESCE(v.description, 'سند دفع مؤكد') AS description,
            v.amount AS debit, 0::numeric AS credit, v.currency_code,
            COALESCE(v.amount_usd, CASE WHEN v.currency_code='USD' THEN v.amount ELSE v.amount / NULLIF(v.exchange_rate_to_usd, 0) END) AS debit_usd,
@@ -202,7 +223,14 @@ function supplierRowsQuery(period: 'opening' | 'period', filters: PartyStatement
     ${dateCondition('v', 'voucher_date')}
 
     UNION ALL
-    SELECT v.voucher_date AS row_date, v.created_at, 'RECEIPT_VOUCHER' AS type, 'سند قبض من المورد' AS type_label,
+    SELECT v.voucher_date AS row_date, v.created_at, 'RECEIPT_VOUCHER' AS type,
+           ('سند قبض من المورد — ' || CASE COALESCE(v.purpose, 'INVOICE_PAYMENT')
+              WHEN 'ADVANCE' THEN 'عربون'
+              WHEN 'ADVANCE_REFUND' THEN 'رد عربون'
+              WHEN 'COMPENSATION' THEN 'تعويض / عطل وضرر'
+              WHEN 'OTHER' THEN 'أخرى'
+              ELSE 'دفعة / تسوية فاتورة'
+            END) AS type_label,
            v.voucher_no AS document_no, COALESCE(v.description, 'سند قبض مؤكد') AS description,
            0::numeric AS debit, v.amount AS credit, v.currency_code,
            0::numeric AS debit_usd,

@@ -7,9 +7,18 @@ import { useToast } from '../components/NonBlockingToast';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
 import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
 import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
+import { voucherPurposeAr } from '../lib/voucherPurpose';
 
 function typeLabel(t: string) {
   return t === 'RECEIPT' ? 'قبض' : 'صرف';
+}
+
+function partyTypeAr(t: string | null | undefined) {
+  if (t === 'CUSTOMER') return 'عميل';
+  if (t === 'SUPPLIER') return 'مورد';
+  if (t === 'EMPLOYEE') return 'موظف';
+  if (t === 'OTHER') return 'أخرى';
+  return t || '—';
 }
 
 function statusLabel(s: string) {
@@ -226,7 +235,11 @@ export const BondDetails = () => {
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">نوع الجهة</span>
-                  <span className="font-semibold text-slate-900">{bond.party_type || '—'}</span>
+                  <span className="font-semibold text-slate-900">{partyTypeAr(bond.party_type)}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-500">غرض العملية</span>
+                  <span className="font-semibold text-slate-900">{voucherPurposeAr(bond.purpose)}</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-500">الصندوق</span>
