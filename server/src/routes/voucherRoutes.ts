@@ -100,6 +100,12 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
       params.push(partyIdFilter);
       p++;
     }
+    const purposeFilter = q.purpose?.trim();
+    if (purposeFilter && (VOUCHER_PURPOSES as readonly string[]).includes(purposeFilter)) {
+      conditions.push(`v.purpose = $${p}`);
+      params.push(purposeFilter);
+      p++;
+    }
     if (search) {
       conditions.push(`(v.voucher_no ILIKE $${p} OR v.party_name ILIKE $${p} OR COALESCE(v.description,'') ILIKE $${p})`);
       params.push(`%${search}%`);

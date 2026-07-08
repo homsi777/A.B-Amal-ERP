@@ -37,6 +37,7 @@ export async function listVouchers(params: {
   cashboxId?: string;
   partyType?: string;
   partyId?: string;
+  purpose?: VoucherPurpose | string;
   search?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -49,6 +50,7 @@ export async function listVouchers(params: {
   if (params.cashboxId) q.set('cashboxId', params.cashboxId);
   if (params.partyType) q.set('partyType', params.partyType);
   if (params.partyId) q.set('partyId', params.partyId);
+  if (params.purpose) q.set('purpose', params.purpose);
   if (params.search) q.set('search', params.search);
   if (params.dateFrom) q.set('dateFrom', params.dateFrom);
   if (params.dateTo) q.set('dateTo', params.dateTo);

@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, Filter, ArrowUpRight, ArrowDownRight, Loader2, Printer } from 'lucide-react';
-import { listVouchers, type VoucherRow } from '../lib/api/vouchersApi';
+import { Search, Filter, ArrowUpRight, ArrowDownRight, Loader2, Printer, X } from 'lucide-react';
+import { listVouchers, type VoucherRow, type VoucherStatus, type VoucherType } from '../lib/api/vouchersApi';
 import { ApiRequestError } from '../lib/api/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/NonBlockingToast';
 import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
 import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
-import { voucherPurposeAr } from '../lib/voucherPurpose';
+import { voucherPurposeAr, VOUCHER_PURPOSES, type VoucherPurpose } from '../lib/voucherPurpose';
+
+type TypeFilter = '' | VoucherType;
+type StatusFilter = '' | VoucherStatus;
+type PurposeFilter = '' | VoucherPurpose;
+type PartyFilter = '' | 'CUSTOMER' | 'SUPPLIER' | 'OTHER';
 
 function typeLabel(t: string) {
   return t === 'RECEIPT' ? 'قبض' : 'صرف';
@@ -34,24 +39,56 @@ export const BondRecords = () => {
   const [telegramBusyId, setTelegramBusyId] = useState<string | null>(null);
   const [printVoucher, setPrintVoucher] = useState<VoucherRow | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
+
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
+  const [purposeFilter, setPurposeFilter] = useState<PurposeFilter>('');
+  const [partyFilter, setPartyFilter] = useState<PartyFilter>('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setSearchDebounced(searchTerm.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [searchTerm]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const search = searchTerm.trim();
-      const res = await listVouchers({ pageSize: 100, search: search || undefined });
+      const res = await listVouchers({
+        pageSize: 200,
+        search: searchDebounced || undefined,
+        type: typeFilter || undefined,
+        status: statusFilter || undefined,
+        partyType: partyFilter || undefined,
+        purpose: purposeFilter || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
       setBonds(res.data);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل السندات');
     } finally {
       setLoading(false);
     }
-  }, [searchTerm]);
+  }, [searchDebounced, typeFilter, statusFilter, purposeFilter, partyFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const clearAdvanced = () => {
+    setStatusFilter('');
+    setPurposeFilter('');
+    setPartyFilter('');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const activeAdvancedCount = [statusFilter, purposeFilter, partyFilter, dateFrom, dateTo].filter(Boolean).length;
 
   const handleSendTelegram = async (bond: VoucherRow) => {
     setTelegramBusyId(bond.id);
@@ -85,22 +122,116 @@ export const BondRecords = () => {
             <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
             <input
               type="text"
-              placeholder="بحث برقم السند..."
+              placeholder="بحث برقم السند أو الجهة أو البيان..."
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm"
+              className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-          <div className="flex gap-2">
-            <select className="bg-white border px-4 py-2 rounded-lg opacity-60 cursor-not-allowed" disabled>
-              <option>جميع السندات</option>
+          <div className="flex flex-wrap gap-2 items-center">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+              className="bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              title="تصفية حسب نوع السند"
+            >
+              <option value="">جميع السندات</option>
+              <option value="RECEIPT">سندات القبض فقط</option>
+              <option value="PAYMENT">سندات الصرف فقط</option>
             </select>
-            <button type="button" className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-lg opacity-60 cursor-not-allowed" disabled>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition border ${
+                showAdvanced || activeAdvancedCount > 0
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-indigo-50 text-indigo-800 border-indigo-100 hover:bg-indigo-100'
+              }`}
+            >
               <Filter className="w-4 h-4" />
               <span>تصفية متقدمة</span>
+              {activeAdvancedCount > 0 ? (
+                <span className="bg-white/20 text-xs rounded-full px-1.5 py-0.5 font-bold">{activeAdvancedCount}</span>
+              ) : null}
             </button>
           </div>
         </div>
+
+        {showAdvanced ? (
+          <div className="px-4 py-3 border-b border-slate-200 bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-600">الحالة</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
+              >
+                <option value="">الكل</option>
+                <option value="CONFIRMED">مُرحل</option>
+                <option value="DRAFT">مسودة</option>
+                <option value="CANCELLED">ملغى</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-600">الغرض</label>
+              <select
+                value={purposeFilter}
+                onChange={(e) => setPurposeFilter(e.target.value as PurposeFilter)}
+                className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
+              >
+                <option value="">الكل</option>
+                {VOUCHER_PURPOSES.map((p) => (
+                  <option key={p} value={p}>
+                    {voucherPurposeAr(p)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-600">نوع الجهة</label>
+              <select
+                value={partyFilter}
+                onChange={(e) => setPartyFilter(e.target.value as PartyFilter)}
+                className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
+              >
+                <option value="">الكل</option>
+                <option value="CUSTOMER">عميل</option>
+                <option value="SUPPLIER">مورد</option>
+                <option value="OTHER">أخرى</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-600">من تاريخ</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-600">إلى تاريخ</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-5 flex justify-end">
+              <button
+                type="button"
+                onClick={clearAdvanced}
+                disabled={activeAdvancedCount === 0}
+                className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-rose-700 disabled:opacity-40 px-2 py-1"
+              >
+                <X className="w-4 h-4" />
+                مسح التصفية المتقدمة
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
@@ -128,7 +259,7 @@ export const BondRecords = () => {
               ) : bonds.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
-                    لا توجد سندات بعد
+                    لا توجد سندات مطابقة للتصفية
                   </td>
                 </tr>
               ) : (
