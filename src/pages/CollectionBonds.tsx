@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Printer, FileText, Search, CreditCard, Loader2 } from 'lucide-react';
-import { createVoucher, confirmVoucher, type VoucherRow } from '../lib/api/vouchersApi';
+import { createVoucher, confirmVoucher, getVoucher, type VoucherRow } from '../lib/api/vouchersApi';
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
 import { listCustomers, type ApiCustomer } from '../lib/api/customersApi';
 import { listSuppliers, type ApiSupplier } from '../lib/api/suppliersApi';
@@ -8,7 +8,7 @@ import { ApiRequestError } from '../lib/api/client';
 import { sendTelegramVoucherFromRow } from '../lib/telegramVoucher';
 import { focusNextFormControl } from '../lib/forms/enterNavigation';
 import { listExchangeRates, type ExchangeRateDto } from '../lib/api/exchangeRatesApi';
-import { convertToUsd, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../lib/currency';
+import { convertToUsd, getCurrencyLabel, normalizeExchangeRate, round2 } from '../lib/currency';
 import { useToast } from '../components/NonBlockingToast';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
 import {
@@ -40,6 +40,11 @@ export const CollectionBonds = () => {
   const [description, setDescription] = useState('');
   const [currencyCode, setCurrencyCode] = useState<'USD' | 'SYP' | 'TRY' | 'EGP'>('USD');
   const [exchangeRateToUsd, setExchangeRateToUsd] = useState('1');
+
+  const selectedCashbox = useMemo(
+    () => cashboxes.find((c) => c.id === cashboxId) ?? null,
+    [cashboxes, cashboxId],
+  );
 
   const purposeHint = useMemo(
     () => RECEIPT_PURPOSE_OPTIONS.find((o) => o.value === purpose)?.hint ?? '',
@@ -154,17 +159,11 @@ export const CollectionBonds = () => {
       });
       setVoucherNo(created.data.voucher_no);
       await confirmVoucher(created.data.id);
+      const saved = await getVoucher(created.data.id);
       const voucherSnapshot: VoucherRow = {
-        ...created.data,
-        voucher_type: created.data.voucher_type || 'RECEIPT',
-        voucher_date: created.data.voucher_date || voucherDate,
-        party_name: created.data.party_name || party.partyName,
-        party_type: created.data.party_type || party.partyType,
-        amount: created.data.amount || String(amountOriginal),
-        currency_code: created.data.currency_code || currencyCode,
-        cashbox_name: created.data.cashbox_name || cashboxes.find((cashbox) => cashbox.id === cashboxId)?.name || null,
-        purpose: created.data.purpose || purpose,
-        description: created.data.description ?? description ?? null,
+        ...saved.data,
+        cashbox_name:
+          saved.data.cashbox_name || selectedCashbox?.name || cashboxes.find((cashbox) => cashbox.id === cashboxId)?.name || null,
       };
       setCurrentVoucher(voucherSnapshot);
       setPrintModalOpen(true);
@@ -239,19 +238,13 @@ export const CollectionBonds = () => {
                   <span className="absolute right-3 top-9 text-slate-400 text-sm">{currencyCode}</span>
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="block text-xs font-medium text-slate-600">العملة</label>
-                      <select
-                        value={currencyCode}
-                        onChange={(e) => setCurrencyCode(e.target.value as any)}
-                        onKeyDown={focusNextFormControl}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
-                      >
-                        {SUPPORTED_CURRENCIES.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.nameAr} ({c.code})
-                          </option>
-                        ))}
-                      </select>
+                      <label className="block text-xs font-medium text-slate-600">العملة (حسب الصندوق)</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={getCurrencyLabel(currencyCode)}
+                        className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700"
+                      />
                     </div>
                     <div className="space-y-1">
                       <label className="block text-xs font-medium text-slate-600">سعر الصرف مقابل الدولار</label>
@@ -295,7 +288,7 @@ export const CollectionBonds = () => {
                       <option value="">— اختر —</option>
                       {cashboxes.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name}
+                          {c.name} ({String(c.currency_code || 'USD').toUpperCase()})
                         </option>
                       ))}
                     </select>

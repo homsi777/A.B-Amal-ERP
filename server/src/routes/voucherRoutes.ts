@@ -204,7 +204,9 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
            reference_document_type, reference_document_no,
            created_by_user_id
          ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,'DRAFT',$14,$15,$16,$17,$18,$19)
-         RETURNING id, voucher_no, status, voucher_date, purpose, created_at`,
+         RETURNING id, voucher_no, voucher_type, voucher_date, cashbox_id, party_type, party_id, party_name,
+                   amount, currency_code, exchange_rate_to_usd, amount_usd, payment_method, status, purpose,
+                   description, notes, reference_document_type, reference_document_no, created_at`,
         [
           companyId,
           voucherNo,

@@ -117,6 +117,18 @@ function currencyUnit(currencyCode: string, amount: number): string {
     if (whole === 1) return 'ليرة تركية';
     return 'ليرة تركية';
   }
+  if (code === 'SYP') {
+    if (dual) return 'ليرتان سوريتان';
+    if (plural) return 'ليرات سورية';
+    if (whole === 1) return 'ليرة سورية';
+    return 'ليرة سورية';
+  }
+  if (code === 'EGP') {
+    if (dual) return 'جنيهان مصريان';
+    if (plural) return 'جنيهات مصرية';
+    if (whole === 1) return 'جنيه مصري';
+    return 'جنيه مصري';
+  }
   return code;
 }
 

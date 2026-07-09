@@ -545,8 +545,8 @@ export const SupplierStatement = () => {
               total: debit + credit,
               credit,
               debit,
-              remaining: Math.abs(Number(statement.totals.closingBalance || 0)),
-              balance: Number(statement.totals.closingBalance || 0),
+              remaining: credit - debit,
+              balance: credit - debit,
               currency: String(statement.rows[0]?.currency || 'USD'),
               notes: supplier.notes,
             };
