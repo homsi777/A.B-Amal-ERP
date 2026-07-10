@@ -412,6 +412,10 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
         colorCode = colorName;
         colorName = '';
       }
+      if (itemCode && !colorCode && looksLikeColorCode(itemCode) && !/^(nw|kl|clo|v|t)/i.test(itemCode)) {
+        colorCode = itemCode;
+        itemCode = '';
+      }
       if (unit && !isKnownUnit(unit)) {
         colorName = colorName && colorName !== unit ? `${unit} - ${colorName}` : unit;
         unit = '';

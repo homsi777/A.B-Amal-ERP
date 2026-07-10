@@ -1,7 +1,10 @@
 import type { PoolClient } from 'pg';
 import { stripImportLevelPrefix } from './categoryBusinessValues.js';
 import { cleanString, type NormalizedField } from './importColumnDetector.js';
-import { looksLikeUniqueDesignSku } from './stockImportItemCodes.js';
+import {
+  looksLikeUniqueDesignSku,
+  reconcileImportMaterialAndColorCodes,
+} from './importMaterialCodeResolver.js';
 
 type NormalizedRowData = Partial<Record<NormalizedField, string | number | null>>;
 
@@ -77,11 +80,12 @@ async function ensureCategoryNode(
 
 /** Build design / material code from normalized import row. */
 export function resolveImportMaterialCode(nd: NormalizedRowData): string {
-  return (
-    cleanString(nd.internalMaterialCode) ||
-    cleanString(nd.supplierMaterialCode) ||
-    ''
-  );
+  const reconciled = reconcileImportMaterialAndColorCodes({
+    internalMaterialCode: cleanString(nd.internalMaterialCode),
+    supplierMaterialCode: cleanString(nd.supplierMaterialCode),
+    colorCode: cleanString(nd.colorCode),
+  });
+  return reconciled.materialCode;
 }
 
 /**
@@ -95,8 +99,23 @@ export async function applyPurchaseImportMaterialCodes(
   nd: NormalizedRowData,
 ): Promise<void> {
   const matName = cleanString(nd.materialName);
-  const intCode = cleanString(nd.internalMaterialCode);
-  const supCode = cleanString(nd.supplierMaterialCode);
+  const reconciled = reconcileImportMaterialAndColorCodes({
+    internalMaterialCode: cleanString(nd.internalMaterialCode),
+    supplierMaterialCode: cleanString(nd.supplierMaterialCode),
+    colorCode: cleanString(nd.colorCode),
+  });
+  const intRaw = cleanString(nd.internalMaterialCode);
+  const supRaw = cleanString(nd.supplierMaterialCode);
+  const materialCode = reconciled.materialCode;
+  let intCode = '';
+  let supCode = '';
+  if (materialCode) {
+    if (intRaw === materialCode) intCode = materialCode;
+    if (supRaw === materialCode) supCode = materialCode;
+    if (!intCode && !supCode && looksLikeUniqueDesignSku(materialCode)) {
+      supCode = materialCode;
+    }
+  }
   if (!matName && !intCode && !supCode) return;
 
   const cur = await client.query<{ internal_code: string; supplier_code: string | null; name: string }>(

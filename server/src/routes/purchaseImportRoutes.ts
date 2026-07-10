@@ -13,8 +13,14 @@ import {
   detectColumnMap,
   normalizeRow,
   normalizeDigitsToLatin,
+  refineColumnMapFromSampleData,
   type NormalizedField,
 } from '../utils/importColumnDetector.js';
+import {
+  looksLikeLikelyColorCode,
+  looksLikeUniqueDesignSku,
+  sanitizeNormalizedImportRow,
+} from '../utils/importMaterialCodeResolver.js';
 import { getExchangeRateToUsdTx } from '../services/exchangeRateService.js';
 import { confirmPurchaseInvoice, createPurchaseInvoice } from '../services/purchaseInvoiceService.js';
 import {
@@ -221,7 +227,20 @@ function inferColumnMapFromData(
   const codeIdx = colStats
     .filter(s => s.idx !== barcodeIdx && s.idx !== lengthIdx && s.idx !== matIdx)
     .sort((a, b) => b.codeLikeRatio - a.codeLikeRatio)[0];
-  ensure(codeIdx?.codeLikeRatio >= 0.4 ? codeIdx.idx : null, 'supplierMaterialCode');
+
+  const codeCandidateIdx = codeIdx?.codeLikeRatio >= 0.4 ? codeIdx.idx : null;
+  if (codeCandidateIdx != null) {
+    const vals = sample
+      .map(r => cleanString((r as unknown[])[codeCandidateIdx]))
+      .filter(Boolean);
+    const colorish = vals.filter(v => looksLikeLikelyColorCode(v) && !looksLikeUniqueDesignSku(v)).length;
+    const colorishRatio = vals.length ? colorish / vals.length : 0;
+    if (colorishRatio >= 0.55) {
+      ensure(codeCandidateIdx, 'colorCode');
+    } else {
+      ensure(codeCandidateIdx, 'supplierMaterialCode');
+    }
+  }
 
   const colorIdx = colStats
     .filter(s => s.idx !== barcodeIdx && s.idx !== lengthIdx && s.idx !== matIdx && s.idx !== codeIdx?.idx)
@@ -241,6 +260,7 @@ async function validateAndMatchRow(
   barcodesInFile: Set<string>,
   pool: import('pg').Pool,
 ): Promise<RowValidationResult> {
+  sanitizeNormalizedImportRow(nd);
   const errors: string[] = [];
   const warnings: string[] = [];
   let matchedItemId: string | null = null;
@@ -530,6 +550,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     // Detect columns
     let colMap = detectColumnMap(headers);
     colMap = inferColumnMapFromData(headers, rows, colMap);
+    colMap = refineColumnMapFromSampleData(rows, colMap);
     const lengthUnit = detectLengthUnit(headers, colMap);
 
     // Validate and collect rows
@@ -552,6 +573,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
 
       const nd = normalizeRow(rawRow, colMap);
       coerceNormalizedRowNumbers(nd);
+      const { swappedColorFromMaterial } = sanitizeNormalizedImportRow(nd);
       if (!cleanString((nd as any).barcode)) {
         const v0 = rawRow[0];
         const b0 = cleanString(v0);
@@ -565,6 +587,10 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         nd, companyId, warehouseId, defaultLocationId ?? null,
         supplierId ?? null, importMode, barcodesInFile, pool,
       );
+      if (swappedColorFromMaterial) {
+        result.warnings.push('تم تصحيح عمود مُفسَّر خطأً: قيمة كود اللون نُقلت من حقل كود الخامة.');
+        if (result.status === 'VALID') result.status = 'WARNING';
+      }
       rowResults.push({ rowNo: i + 2, rawData, nd, result });  // +2 because row 1 is header
     }
 
@@ -971,6 +997,7 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
 
       for (const row of rowsToImport.rows) {
         const nd = row.normalized_data as NormalizedRowData;
+        sanitizeNormalizedImportRow(nd);
         let itemId = row.matched_item_id;
         let variantId = row.matched_variant_id;
 

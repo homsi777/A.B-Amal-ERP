@@ -1,4 +1,8 @@
 import { buildAutoInternalCode } from './importItemCodes.js';
+import {
+  looksLikeUniqueDesignSku,
+  reconcileImportMaterialAndColorCodes,
+} from './importMaterialCodeResolver.js';
 
 export type StockImportLayout =
   | 'aleppo_incoming_minimal'
@@ -7,13 +11,7 @@ export type StockImportLayout =
   | 'supplier_invoice'
   | 'unknown';
 
-/** True when Excel code looks like a specific design/SKU (nw-48142, kl-33, v-12), not a weave label (Jakar, Düz). */
-export function looksLikeUniqueDesignSku(code: string): boolean {
-  const s = code.trim();
-  if (!s) return false;
-  if (/\d/.test(s)) return true;
-  return /^(nw|kl|clo|v|t)[-\s]?[\da-z]+$/i.test(s);
-}
+export { looksLikeUniqueDesignSku };
 
 export interface ResolvedStockItemCodes {
   /** Safe DB lookup by internal/supplier code — empty for shared weave-type labels. */
@@ -35,7 +33,10 @@ export function resolveStockImportItemCodes(
   _importLayout: StockImportLayout | string = 'unknown',
 ): ResolvedStockItemCodes {
   const name = materialName.trim();
-  const code = rawItemCode.trim();
+  const reconciled = reconcileImportMaterialAndColorCodes({
+    supplierMaterialCode: rawItemCode.trim(),
+  });
+  const code = reconciled.materialCode;
 
   if (!code) {
     return {

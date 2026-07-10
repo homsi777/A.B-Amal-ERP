@@ -3,6 +3,11 @@
  * Supports Arabic, Turkish, and English headers.
  */
 
+import {
+  looksLikeLikelyColorCode,
+  looksLikeUniqueDesignSku,
+} from './importMaterialCodeResolver.js';
+
 export type NormalizedField =
   | 'materialName'
   | 'supplierMaterialCode'
@@ -297,6 +302,41 @@ export function detectColumnMap(
     }
   }
   return result;
+}
+
+/**
+ * When headers are ambiguous (e.g. «Kod» = color in Turkish packing lists),
+ * prefer explicit color-code columns and avoid mapping short numeric columns as material code.
+ */
+export function refineColumnMapFromSampleData(
+  rows: unknown[][],
+  colMap: Map<number, NormalizedField>,
+): Map<number, NormalizedField> {
+  const out = new Map(colMap);
+  const sample = rows.slice(0, 120).filter((r) => Array.isArray(r));
+
+  const columnLikelyColorRatio = (idx: number): number => {
+    const vals = sample
+      .map((r) => cleanString((r as unknown[])[idx]))
+      .filter(Boolean);
+    if (!vals.length) return 0;
+    const colorish = vals.filter((v) => looksLikeLikelyColorCode(v) && !looksLikeUniqueDesignSku(v)).length;
+    return colorish / vals.length;
+  };
+
+  let materialIdx: number | null = null;
+  let colorIdx: number | null = null;
+  for (const [idx, field] of out.entries()) {
+    if (field === 'supplierMaterialCode' || field === 'internalMaterialCode') materialIdx = idx;
+    if (field === 'colorCode' || field === 'supplierColorCode') colorIdx = idx;
+  }
+
+  if (materialIdx != null && colorIdx == null && columnLikelyColorRatio(materialIdx) >= 0.55) {
+    out.delete(materialIdx);
+    out.set(materialIdx, 'colorCode');
+  }
+
+  return out;
 }
 
 /**

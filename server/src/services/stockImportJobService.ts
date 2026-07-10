@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import { getPool } from '../db/pool.js';
 import { resolveFabricColorForImport } from '../utils/importColorResolver.js';
 import { cleanString } from '../utils/importColumnDetector.js';
+import { sanitizeStockImportRow } from '../utils/importMaterialCodeResolver.js';
 import {
   applyPurchaseImportMaterialCodes,
   ensureFabricCategoryChainFromImport,
@@ -308,10 +309,16 @@ function prepareRow(row: StockImportJobRow, rowNo: number, importLayout: StockIm
   const safeActualWeightKg = clamp(Number(row.actualWeightKg ?? 0), MAX_WEIGHT_KG);
   const safeCalculatedWeightKg = clamp(calcWeight(safeLengthM, safeWidthCm, safeGsm) ?? 0, MAX_WEIGHT_KG);
 
-  const itemCodes = resolveStockImportItemCodes(materialName, String(row.itemCode || ''), importLayout);
+  const rowForCodes = {
+    itemCode: String(row.itemCode || '').trim(),
+    colorCode: String(row.colorCode || '').trim(),
+  };
+  sanitizeStockImportRow(rowForCodes);
+
+  const itemCodes = resolveStockImportItemCodes(materialName, rowForCodes.itemCode, importLayout);
   let colorName = String(row.colorName || '').trim();
   const colorNameTr = String(row.colorNameTr || '').trim();
-  const colorCode = String(row.colorCode || '').trim();
+  const colorCode = rowForCodes.colorCode;
   if (!colorName && !colorNameTr && !colorCode) {
     colorName = 'غير محدد';
   }
