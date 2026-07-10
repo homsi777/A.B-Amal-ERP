@@ -734,4 +734,90 @@ export async function diagnoseImportMaterialCodes(
       `  row=${row.row_no} barcode=${row.barcode ?? '—'} excel="${row.material_name}" sup="${row.sup_code}" itemCode="${row.item_code}" color="${row.color_code}" dbInternal="${row.roll_internal}" dbSupplier="${row.roll_supplier ?? ''}"`,
     );
   }
+
+  const rollSample = await pool.query<{
+    barcode: string | null;
+    item_name: string;
+    internal_code: string;
+    supplier_code: string | null;
+    color_name: string | null;
+    color_code: string | null;
+    status: string;
+  }>(
+    `SELECT fr.barcode, fi.name AS item_name, fi.internal_code, fi.supplier_code,
+            fc.name_ar AS color_name, fc.color_code, fr.status
+     FROM fabric_rolls fr
+     JOIN fabric_items fi ON fi.id = fr.item_id
+     LEFT JOIN fabric_colors fc ON fc.id = fr.color_id
+     WHERE fr.company_id = $1
+       AND lower(fi.name) LIKE $2
+       AND fr.status = 'AVAILABLE'
+     ORDER BY fi.name, fr.barcode
+     LIMIT 15`,
+    [companyId, like],
+  );
+
+  console.log(`[diagnose] sample AVAILABLE rolls (what inventory UI shows):`);
+  if (!rollSample.rows.length) console.log('  (none)');
+  for (const row of rollSample.rows) {
+    const internal = String(row.internal_code ?? '').trim();
+    const supplier = String(row.supplier_code ?? '').trim();
+    const shownMaterial =
+      internal && !internal.startsWith('IMP-AUTO-')
+        ? internal
+        : supplier || '(فارغ — يظهر —)';
+    console.log(
+      `  barcode=${row.barcode ?? '—'} item="${row.item_name}" كود_خامة_معروض="${shownMaterial}" internal="${internal}" supplier="${supplier}" color="${row.color_name ?? ''}" colorCode="${row.color_code ?? ''}"`,
+    );
+  }
+
+  const codeEight = await pool.query<{
+    name: string;
+    internal_code: string;
+    supplier_code: string | null;
+    roll_count: string;
+  }>(
+    `SELECT fi.name, fi.internal_code, fi.supplier_code, COUNT(fr.id)::text AS roll_count
+     FROM fabric_items fi
+     JOIN fabric_rolls fr ON fr.item_id = fi.id AND fr.company_id = fi.company_id
+     WHERE fi.company_id = $1
+       AND (
+         regexp_replace(btrim(fi.internal_code), '^L[1-4]_', '', 'i') = '8'
+         OR btrim(coalesce(fi.supplier_code, '')) = '8'
+       )
+     GROUP BY fi.id, fi.name, fi.internal_code, fi.supplier_code
+     ORDER BY COUNT(fr.id) DESC
+     LIMIT 20`,
+    [companyId],
+  );
+
+  console.log(`[diagnose] fabric_items where material code is exactly "8":`);
+  if (!codeEight.rows.length) console.log('  (none — لا يوجد كود خامة = 8 في قاعدة البيانات)');
+  for (const row of codeEight.rows) {
+    console.log(
+      `  name="${row.name}" internal="${row.internal_code}" supplier="${row.supplier_code ?? ''}" rolls=${row.roll_count}`,
+    );
+  }
+
+  const colorEight = await pool.query<{
+    item_name: string;
+    roll_count: string;
+  }>(
+    `SELECT fi.name AS item_name, COUNT(fr.id)::text AS roll_count
+     FROM fabric_rolls fr
+     JOIN fabric_items fi ON fi.id = fr.item_id
+     JOIN fabric_colors fc ON fc.id = fr.color_id
+     WHERE fr.company_id = $1
+       AND btrim(fc.color_code) = '8'
+     GROUP BY fi.name
+     ORDER BY COUNT(fr.id) DESC
+     LIMIT 15`,
+    [companyId],
+  );
+
+  console.log(`[diagnose] rolls with color_code = "8" (كود اللون — ليس كود الخامة):`);
+  if (!colorEight.rows.length) console.log('  (none)');
+  for (const row of colorEight.rows) {
+    console.log(`  item="${row.item_name}" rolls=${row.roll_count}`);
+  }
 }
