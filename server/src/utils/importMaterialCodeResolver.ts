@@ -154,3 +154,48 @@ export function internalCodeLooksLikeImportedColorMistake(
   if (code.trim().toLowerCase() === name.trim().toLowerCase()) return false;
   return looksLikeLikelyColorCode(code) && !looksLikeUniqueDesignSku(code);
 }
+
+const AUTO_INTERNAL_PREFIX = 'IMP-AUTO-';
+
+/** Same rule as inventory UI: what the user sees in «كود خامة». */
+export function resolveDisplayedMaterialCode(
+  internalCode: string | null | undefined,
+  supplierCode: string | null | undefined,
+): string {
+  const internal = cleanString(internalCode);
+  if (internal && !internal.startsWith(AUTO_INTERNAL_PREFIX)) return internal;
+  return cleanString(supplierCode);
+}
+
+export function materialCodeFieldsLookLikeColorMistake(input: {
+  internalCode?: string | null;
+  supplierCode?: string | null;
+  itemName: string;
+}): { needsFix: boolean; displayedCode: string; colorCodeCandidate: string } {
+  const name = cleanString(input.itemName);
+  const internal = cleanString(input.internalCode);
+  const supplier = cleanString(input.supplierCode);
+  const displayed = resolveDisplayedMaterialCode(internal, supplier);
+
+  const internalBad = internalCodeLooksLikeImportedColorMistake(internal, name);
+  const supplierBad =
+    !!supplier
+    && looksLikeLikelyColorCode(supplier)
+    && !looksLikeUniqueDesignSku(supplier);
+  const displayedBad =
+    !!displayed
+    && looksLikeLikelyColorCode(displayed)
+    && !looksLikeUniqueDesignSku(displayed)
+    && displayed.toLowerCase() !== name.toLowerCase();
+
+  const needsFix = internalBad || supplierBad || displayedBad;
+  const colorCodeCandidate = supplierBad
+    ? supplier
+    : internalBad
+      ? internal
+      : displayedBad
+        ? displayed
+        : '';
+
+  return { needsFix, displayedCode: displayed, colorCodeCandidate };
+}

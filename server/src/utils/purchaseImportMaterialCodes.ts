@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { stripImportLevelPrefix } from './categoryBusinessValues.js';
 import { cleanString, type NormalizedField } from './importColumnDetector.js';
 import {
+  looksLikeLikelyColorCode,
   looksLikeUniqueDesignSku,
   reconcileImportMaterialAndColorCodes,
 } from './importMaterialCodeResolver.js';
@@ -148,6 +149,14 @@ export async function applyPurchaseImportMaterialCodes(
     if (dup.rows.length) {
       nextInternal = null;
     }
+  }
+
+  if (
+    supCode
+    && looksLikeLikelyColorCode(supCode)
+    && !looksLikeUniqueDesignSku(supCode)
+  ) {
+    supCode = '';
   }
 
   await client.query(

@@ -3,11 +3,14 @@ import { cleanString } from '../utils/importColumnDetector.js';
 import { resolveFabricColorForImport } from '../utils/importColorResolver.js';
 import {
   internalCodeLooksLikeImportedColorMistake,
+  materialCodeFieldsLookLikeColorMistake,
   readImportRowMaterialAndColor,
   reconcileImportMaterialAndColorCodes,
+  resolveDisplayedMaterialCode,
   sanitizeNormalizedImportRow,
   sanitizeStockImportRow,
 } from '../utils/importMaterialCodeResolver.js';
+import { buildAutoInternalCode } from '../utils/importItemCodes.js';
 import {
   applyPurchaseImportMaterialCodes,
   ensureFabricCategoryChainFromImport,
@@ -65,6 +68,8 @@ export interface RepairImportMaterialCodesOptions {
   materialNameContains?: string | null;
   dryRun?: boolean;
   fixColors?: boolean;
+  /** Also scan fabric_items/rolls directly (not only import rows). Default true. */
+  scanInventory?: boolean;
 }
 
 function parseImportPayload(payload: unknown): Record<string, unknown> {
@@ -175,6 +180,147 @@ async function ensureTargetItem(
     ],
   );
   return { id: inserted.rows[0].id, internalCode: inserted.rows[0].internal_code, created: true };
+}
+
+async function fixFabricItemColorMistake(
+  client: PoolClient,
+  companyId: string,
+  itemId: string,
+  itemName: string,
+  internalCode: string,
+  supplierCode: string | null,
+  dryRun: boolean,
+): Promise<{ corrected: boolean; nextInternalCode: string; colorCodeCandidate: string }> {
+  const check = materialCodeFieldsLookLikeColorMistake({
+    internalCode,
+    supplierCode,
+    itemName,
+  });
+  if (!check.needsFix) {
+    return { corrected: false, nextInternalCode: internalCode, colorCodeCandidate: '' };
+  }
+
+  const nextInternal = internalCodeLooksLikeImportedColorMistake(internalCode, itemName)
+    ? buildAutoInternalCode(itemName)
+    : internalCode;
+
+  if (!dryRun) {
+    await client.query(
+      `UPDATE fabric_items
+       SET internal_code = $3,
+           supplier_code = NULL,
+           updated_at = now()
+       WHERE id = $1 AND company_id = $2`,
+      [itemId, companyId, nextInternal],
+    );
+  }
+
+  return {
+    corrected: true,
+    nextInternalCode: nextInternal,
+    colorCodeCandidate: check.colorCodeCandidate,
+  };
+}
+
+async function repairInventoryItemsDirect(
+  client: PoolClient,
+  options: RepairImportMaterialCodesOptions,
+  report: RepairImportMaterialCodesReport,
+  dryRun: boolean,
+): Promise<void> {
+  const materialFilter = cleanString(options.materialNameContains)?.toLowerCase() ?? '';
+  const nameClause = materialFilter ? `AND lower(fi.name) LIKE '%' || $2 || '%'` : '';
+  const params: string[] = [options.companyId];
+  if (materialFilter) params.push(materialFilter);
+
+  const items = await client.query<{
+    id: string;
+    name: string;
+    internal_code: string;
+    supplier_code: string | null;
+    roll_count: string;
+  }>(
+    `SELECT fi.id, fi.name, fi.internal_code, fi.supplier_code,
+            COUNT(fr.id)::text AS roll_count
+     FROM fabric_items fi
+     JOIN fabric_rolls fr ON fr.item_id = fi.id AND fr.company_id = fi.company_id
+     WHERE fi.company_id = $1
+       AND fi.is_active = true
+       ${nameClause}
+     GROUP BY fi.id, fi.name, fi.internal_code, fi.supplier_code`,
+    params,
+  );
+
+  for (const item of items.rows) {
+    const check = materialCodeFieldsLookLikeColorMistake({
+      internalCode: item.internal_code,
+      supplierCode: item.supplier_code,
+      itemName: item.name,
+    });
+    if (!check.needsFix) continue;
+
+    report.scannedRows += 1;
+    const fixed = await fixFabricItemColorMistake(
+      client,
+      options.companyId,
+      item.id,
+      item.name,
+      item.internal_code,
+      item.supplier_code,
+      dryRun,
+    );
+    if (!fixed.corrected) continue;
+
+    report.itemsCorrected += 1;
+    report.fixedRows += Number(item.roll_count) || 0;
+
+    if (!dryRun && options.fixColors && fixed.colorCodeCandidate) {
+      const rolls = await client.query<{ id: string; color_id: string | null }>(
+        `SELECT id, color_id FROM fabric_rolls WHERE company_id = $1 AND item_id = $2`,
+        [options.companyId, item.id],
+      );
+      for (const roll of rolls.rows) {
+        const color = await resolveFabricColorForImport(
+          client,
+          options.companyId,
+          {
+            colorCode: fixed.colorCodeCandidate,
+            colorName: fixed.colorCodeCandidate,
+          },
+          { createIfMissing: true },
+        );
+        if (color.id && color.id !== roll.color_id) {
+          await client.query(
+            `UPDATE fabric_rolls SET color_id = $3, updated_at = now()
+             WHERE id = $1 AND company_id = $2`,
+            [roll.id, options.companyId, color.id],
+          );
+          report.colorsFixed += 1;
+        }
+      }
+
+      await ensureFabricCategoryChainFromImport(client, options.companyId, {
+        materialName: item.name,
+        colorCode: fixed.colorCodeCandidate,
+      });
+    }
+
+    report.rows.push({
+      rowNo: 0,
+      rollId: '',
+      barcode: null,
+      materialName: item.name,
+      wrongMaterialCode: check.displayedCode,
+      correctedMaterialCode: fixed.nextInternalCode,
+      correctedColorCode: fixed.colorCodeCandidate,
+      fromItemId: item.id,
+      fromItemCode: check.displayedCode,
+      toItemId: item.id,
+      toItemCode: fixed.nextInternalCode,
+      action: 'fixed',
+      note: `إصلاح مباشر على fabric_items (${item.roll_count} ثوب)`,
+    });
+  }
 }
 
 export async function listMaterialCodeRepairBatches(
@@ -322,10 +468,11 @@ export async function repairImportMaterialCodes(
           item_id: string;
           color_id: string | null;
           internal_code: string;
+          supplier_code: string | null;
           item_name: string;
         }>(
           `SELECT fr.id, fr.barcode, fr.item_id, fr.color_id,
-                  fi.internal_code, fi.name AS item_name
+                  fi.internal_code, fi.supplier_code, fi.name AS item_name
            FROM fabric_rolls fr
            JOIN fabric_items fi ON fi.id = fr.item_id
            WHERE fr.id = $1 AND fr.company_id = $2`,
@@ -337,10 +484,18 @@ export async function repairImportMaterialCodes(
         }
         const roll = rollQ.rows[0];
 
-        const wrongCode = roll.internal_code;
+        const itemName = roll.item_name || corrected.materialName;
+        const itemCheck = materialCodeFieldsLookLikeColorMistake({
+          internalCode: roll.internal_code,
+          supplierCode: roll.supplier_code,
+          itemName,
+        });
+        const wrongCode = resolveDisplayedMaterialCode(roll.internal_code, roll.supplier_code);
+        const effectiveColorCode = corrected.colorCode || itemCheck.colorCodeCandidate;
         const needsFix =
           corrected.swapped
-          || internalCodeLooksLikeImportedColorMistake(wrongCode, corrected.materialName);
+          || itemCheck.needsFix
+          || internalCodeLooksLikeImportedColorMistake(roll.internal_code, itemName);
 
         if (!needsFix) {
           report.alreadyOk += 1;
@@ -351,7 +506,7 @@ export async function repairImportMaterialCodes(
             materialName: corrected.materialName,
             wrongMaterialCode: wrongCode,
             correctedMaterialCode: corrected.materialCode,
-            correctedColorCode: corrected.colorCode,
+            correctedColorCode: effectiveColorCode,
             fromItemId: roll.item_id,
             fromItemCode: wrongCode,
             toItemId: roll.item_id,
@@ -374,6 +529,16 @@ export async function repairImportMaterialCodes(
         else if (target.internalCode !== wrongCode) report.itemsCorrected += 1;
 
         if (!dryRun && !target.id.startsWith('dry-run')) {
+          await fixFabricItemColorMistake(
+            client,
+            options.companyId,
+            target.id,
+            itemName,
+            roll.internal_code,
+            roll.supplier_code,
+            false,
+          );
+
           if (roll.item_id !== target.id) {
             await client.query(
               `UPDATE fabric_rolls SET item_id = $3, updated_at = now()
@@ -385,8 +550,8 @@ export async function repairImportMaterialCodes(
           const importNd = {
             materialName: corrected.materialName,
             supplierMaterialCode: corrected.materialCode || null,
-            colorCode: corrected.colorCode || null,
-            colorName: corrected.colorName || null,
+            colorCode: effectiveColorCode || null,
+            colorName: corrected.colorName || effectiveColorCode || null,
             colorNameTr: corrected.colorNameTr || null,
           };
           await applyPurchaseImportMaterialCodes(client, options.companyId, target.id, importNd);
@@ -395,7 +560,7 @@ export async function repairImportMaterialCodes(
           const patched = { ...parseImportPayload(rowRec.normalized_data) };
           sanitizeNormalizedImportRow(patched);
           sanitizeStockImportRow(patched);
-          if (corrected.colorCode) patched.colorCode = corrected.colorCode;
+          if (effectiveColorCode) patched.colorCode = effectiveColorCode;
           if (!corrected.materialCode) {
             patched.supplierMaterialCode = null;
             patched.itemCode = '';
@@ -436,7 +601,7 @@ export async function repairImportMaterialCodes(
           materialName: corrected.materialName,
           wrongMaterialCode: wrongCode,
           correctedMaterialCode: target.internalCode,
-          correctedColorCode: corrected.colorCode,
+          correctedColorCode: effectiveColorCode,
           fromItemId: roll.item_id,
           fromItemCode: wrongCode,
           toItemId: target.id,
@@ -444,6 +609,10 @@ export async function repairImportMaterialCodes(
           action: 'fixed',
         });
       }
+    }
+
+    if (options.scanInventory !== false) {
+      await repairInventoryItemsDirect(client, options, report, dryRun);
     }
 
     if (!dryRun) await client.query('COMMIT');

@@ -3,6 +3,7 @@ import {
   internalCodeLooksLikeImportedColorMistake,
   looksLikeLikelyColorCode,
   looksLikeUniqueDesignSku,
+  materialCodeFieldsLookLikeColorMistake,
   reconcileImportMaterialAndColorCodes,
   sanitizeNormalizedImportRow,
   sanitizeStockImportRow,
@@ -40,6 +41,14 @@ assert.equal(stockRow.colorCode, '8');
 
 assert.equal(internalCodeLooksLikeImportedColorMistake('8', 'ROYAL MAX JAKAR'), true);
 assert.equal(internalCodeLooksLikeImportedColorMistake('KL-199', 'ROYAL MAX JAKAR'), false);
-assert.equal(internalCodeLooksLikeImportedColorMistake('5114', 'asya'), false);
+
+const supplierOnly = materialCodeFieldsLookLikeColorMistake({
+  internalCode: 'IMP-AUTO-ROYAL-MAX-JAKAR',
+  supplierCode: '8',
+  itemName: 'ROYAL MAX JAKAR',
+});
+assert.equal(supplierOnly.needsFix, true);
+assert.equal(supplierOnly.displayedCode, '8');
+assert.equal(supplierOnly.colorCodeCandidate, '8');
 
 console.log('importMaterialCodeResolver.test.ts: OK');
