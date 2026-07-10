@@ -200,9 +200,13 @@ async function fixFabricItemColorMistake(
     return { corrected: false, nextInternalCode: internalCode, colorCodeCandidate: '' };
   }
 
-  const nextInternal = internalCodeLooksLikeImportedColorMistake(internalCode, itemName)
-    ? buildAutoInternalCode(itemName)
-    : internalCode;
+  const internalBad = internalCodeLooksLikeImportedColorMistake(internalCode, itemName);
+  const nextInternal =
+    internalBad || check.displayedBad
+      ? buildAutoInternalCode(itemName)
+      : internalCode.startsWith('IMP-AUTO-') || internalCode.startsWith('AUTO-')
+        ? internalCode
+        : buildAutoInternalCode(itemName);
 
   if (!dryRun) {
     await client.query(
@@ -229,9 +233,29 @@ async function repairInventoryItemsDirect(
   dryRun: boolean,
 ): Promise<void> {
   const materialFilter = cleanString(options.materialNameContains)?.toLowerCase() ?? '';
-  const nameClause = materialFilter ? `AND lower(fi.name) LIKE '%' || $2 || '%'` : '';
   const params: string[] = [options.companyId];
-  if (materialFilter) params.push(materialFilter);
+  let materialClause = '';
+  if (materialFilter) {
+    params.push(`%${materialFilter}%`);
+    const p = `$${params.length}`;
+    materialClause = `AND (
+      lower(fi.name) LIKE ${p}
+      OR lower(coalesce(fi.supplier_code, '')) LIKE ${p}
+      OR lower(regexp_replace(fi.internal_code, '^L[1-4]_', '', 'i')) LIKE ${p}
+      OR EXISTS (
+        SELECT 1 FROM purchase_import_rows pir
+        JOIN fabric_rolls fr2 ON fr2.id = pir.created_roll_id AND fr2.company_id = pir.company_id
+        WHERE pir.company_id = fi.company_id
+          AND fr2.item_id = fi.id
+          AND (
+            coalesce(pir.normalized_data->>'materialName', '') ILIKE ${p}
+            OR coalesce(pir.normalized_data->>'itemName', '') ILIKE ${p}
+            OR coalesce(pir.raw_data->>'materialName', '') ILIKE ${p}
+            OR coalesce(pir.raw_data->>'itemName', '') ILIKE ${p}
+          )
+      )
+    )`;
+  }
 
   const items = await client.query<{
     id: string;
@@ -245,13 +269,17 @@ async function repairInventoryItemsDirect(
      FROM fabric_items fi
      JOIN fabric_rolls fr ON fr.item_id = fi.id AND fr.company_id = fi.company_id
      WHERE fi.company_id = $1
-       AND fi.is_active = true
-       ${nameClause}
+       ${materialClause}
      GROUP BY fi.id, fi.name, fi.internal_code, fi.supplier_code`,
     params,
   );
 
+  const seenItemIds = new Set<string>();
+
   for (const item of items.rows) {
+    if (seenItemIds.has(item.id)) continue;
+    seenItemIds.add(item.id);
+
     const check = materialCodeFieldsLookLikeColorMistake({
       internalCode: item.internal_code,
       supplierCode: item.supplier_code,
@@ -624,4 +652,86 @@ export async function repairImportMaterialCodes(
   }
 
   return report;
+}
+
+/** Print candidate rows/items for debugging zero-fix repair runs. */
+export async function diagnoseImportMaterialCodes(
+  pool: Pool,
+  companyId: string,
+  materialNameContains?: string | null,
+): Promise<void> {
+  const materialFilter = cleanString(materialNameContains)?.toLowerCase() ?? '';
+  const like = materialFilter ? `%${materialFilter}%` : '%';
+
+  const items = await pool.query<{
+    name: string;
+    internal_code: string;
+    supplier_code: string | null;
+    roll_count: string;
+    displayed: string;
+    needs_fix: boolean;
+  }>(
+    `SELECT fi.name, fi.internal_code, fi.supplier_code,
+            COUNT(fr.id)::text AS roll_count,
+            regexp_replace(btrim(fi.internal_code), '^L[1-4]_', '', 'i') AS displayed,
+            (
+              regexp_replace(btrim(fi.internal_code), '^L[1-4]_', '', 'i') ~ '^\\d{1,3}$'
+              OR btrim(coalesce(fi.supplier_code, '')) ~ '^\\d{1,3}$'
+            ) AS needs_fix
+     FROM fabric_items fi
+     JOIN fabric_rolls fr ON fr.item_id = fi.id AND fr.company_id = fi.company_id
+     WHERE fi.company_id = $1
+       AND lower(fi.name) LIKE $2
+     GROUP BY fi.id, fi.name, fi.internal_code, fi.supplier_code
+     ORDER BY COUNT(fr.id) DESC
+     LIMIT 30`,
+    [companyId, like],
+  );
+
+  console.log(`[diagnose] fabric_items matching name LIKE ${like}:`);
+  if (!items.rows.length) console.log('  (none)');
+  for (const row of items.rows) {
+    console.log(
+      `  name="${row.name}" internal="${row.internal_code}" supplier="${row.supplier_code ?? ''}" rolls=${row.roll_count} displayed~="${row.displayed}" numericLike=${row.needs_fix}`,
+    );
+  }
+
+  const importRows = await pool.query<{
+    row_no: number;
+    material_name: string;
+    sup_code: string;
+    item_code: string;
+    color_code: string;
+    roll_internal: string;
+    roll_supplier: string | null;
+    barcode: string | null;
+  }>(
+    `SELECT pir.row_no,
+            coalesce(pir.normalized_data->>'materialName', pir.normalized_data->>'itemName', '') AS material_name,
+            coalesce(pir.normalized_data->>'supplierMaterialCode', '') AS sup_code,
+            coalesce(pir.normalized_data->>'itemCode', '') AS item_code,
+            coalesce(pir.normalized_data->>'colorCode', '') AS color_code,
+            fi.internal_code AS roll_internal,
+            fi.supplier_code AS roll_supplier,
+            fr.barcode
+     FROM purchase_import_rows pir
+     JOIN fabric_rolls fr ON fr.id = pir.created_roll_id AND fr.company_id = pir.company_id
+     JOIN fabric_items fi ON fi.id = fr.item_id
+     WHERE pir.company_id = $1
+       AND (
+         coalesce(pir.normalized_data->>'materialName', '') ILIKE $2
+         OR coalesce(pir.normalized_data->>'itemName', '') ILIKE $2
+       )
+     ORDER BY pir.row_no
+     LIMIT 20`,
+    [companyId, like],
+  );
+
+  console.log(`[diagnose] sample import rows:`);
+  if (!importRows.rows.length) console.log('  (none)');
+  for (const row of importRows.rows) {
+    console.log(
+      `  row=${row.row_no} barcode=${row.barcode ?? '—'} excel="${row.material_name}" sup="${row.sup_code}" itemCode="${row.item_code}" color="${row.color_code}" dbInternal="${row.roll_internal}" dbSupplier="${row.roll_supplier ?? ''}"`,
+    );
+  }
 }

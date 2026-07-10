@@ -10,6 +10,7 @@
 import 'dotenv/config';
 import { getPool } from '../db/pool.js';
 import {
+  diagnoseImportMaterialCodes,
   listMaterialCodeRepairBatches,
   repairImportMaterialCodes,
 } from '../services/repairImportMaterialCodesService.js';
@@ -42,6 +43,12 @@ async function main() {
   const batchId = readArg('--batch-id');
   const fileName = readArg('--file-name');
   const material = readArg('--material');
+  const diagnose = process.argv.includes('--diagnose');
+
+  if (diagnose) {
+    await diagnoseImportMaterialCodes(pool, companyId, material ?? null);
+    return;
+  }
 
   if (listOnly) {
     const batches = await listMaterialCodeRepairBatches(pool, companyId, fileName);

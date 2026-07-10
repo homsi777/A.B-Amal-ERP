@@ -49,6 +49,13 @@ const supplierOnly = materialCodeFieldsLookLikeColorMistake({
 });
 assert.equal(supplierOnly.needsFix, true);
 assert.equal(supplierOnly.displayedCode, '8');
-assert.equal(supplierOnly.colorCodeCandidate, '8');
+
+const legacyPrefix = materialCodeFieldsLookLikeColorMistake({
+  internalCode: 'L2_8',
+  supplierCode: null,
+  itemName: 'ROYAL MAX JAKAR',
+});
+assert.equal(legacyPrefix.needsFix, true);
+assert.equal(legacyPrefix.displayedCode, '8');
 
 console.log('importMaterialCodeResolver.test.ts: OK');

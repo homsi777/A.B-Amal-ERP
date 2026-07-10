@@ -1,4 +1,7 @@
 import { cleanString, type NormalizedField } from './importColumnDetector.js';
+import { stripImportLevelPrefix } from './categoryBusinessValues.js';
+
+const AUTO_INTERNAL_PREFIX = 'IMP-AUTO-';
 
 export type ImportRowFields = Partial<Record<NormalizedField, string | number | null>> & {
   itemName?: string | null;
@@ -77,8 +80,9 @@ export function reconcileImportMaterialAndColorCodes(input: {
   supplierMaterialCode?: string;
   colorCode?: string;
 }): SanitizedImportMaterialFields {
-  let materialCode =
-    cleanString(input.internalMaterialCode) || cleanString(input.supplierMaterialCode);
+  let materialCode = normalizedCodeForColorHeuristic(
+    cleanString(input.internalMaterialCode) || cleanString(input.supplierMaterialCode),
+  );
   let colorCode = cleanString(input.colorCode);
   let swappedColorFromMaterial = false;
 
@@ -143,28 +147,30 @@ export function sanitizeStockImportRow(row: {
   return { swappedColorFromMaterial: reconciled.swappedColorFromMaterial };
 }
 
-/** True when a stored fabric item internal_code was likely imported as a color code by mistake. */
-export function internalCodeLooksLikeImportedColorMistake(
-  internalCode: string,
-  itemName: string,
-): boolean {
-  const code = cleanString(internalCode);
-  const name = cleanString(itemName);
-  if (!code || !name) return false;
-  if (code.trim().toLowerCase() === name.trim().toLowerCase()) return false;
-  return looksLikeLikelyColorCode(code) && !looksLikeUniqueDesignSku(code);
-}
-
-const AUTO_INTERNAL_PREFIX = 'IMP-AUTO-';
-
 /** Same rule as inventory UI: what the user sees in «كود خامة». */
 export function resolveDisplayedMaterialCode(
   internalCode: string | null | undefined,
   supplierCode: string | null | undefined,
 ): string {
-  const internal = cleanString(internalCode);
+  const internal = stripImportLevelPrefix(cleanString(internalCode));
   if (internal && !internal.startsWith(AUTO_INTERNAL_PREFIX)) return internal;
-  return cleanString(supplierCode);
+  return stripImportLevelPrefix(cleanString(supplierCode));
+}
+
+function normalizedCodeForColorHeuristic(code: string): string {
+  return stripImportLevelPrefix(cleanString(code));
+}
+
+/** True when a stored fabric item internal_code was likely imported as a color code by mistake. */
+export function internalCodeLooksLikeImportedColorMistake(
+  internalCode: string,
+  itemName: string,
+): boolean {
+  const code = normalizedCodeForColorHeuristic(internalCode);
+  const name = cleanString(itemName);
+  if (!code || !name) return false;
+  if (code.trim().toLowerCase() === name.trim().toLowerCase()) return false;
+  return looksLikeLikelyColorCode(code) && !looksLikeUniqueDesignSku(code);
 }
 
 export function materialCodeFieldsLookLikeColorMistake(input: {
@@ -173,11 +179,14 @@ export function materialCodeFieldsLookLikeColorMistake(input: {
   itemName: string;
 }): { needsFix: boolean; displayedCode: string; colorCodeCandidate: string } {
   const name = cleanString(input.itemName);
-  const internal = cleanString(input.internalCode);
-  const supplier = cleanString(input.supplierCode);
-  const displayed = resolveDisplayedMaterialCode(internal, supplier);
+  const internal = normalizedCodeForColorHeuristic(String(input.internalCode ?? ''));
+  const supplier = normalizedCodeForColorHeuristic(String(input.supplierCode ?? ''));
+  const rawInternal = cleanString(input.internalCode);
+  const rawSupplier = cleanString(input.supplierCode);
+  const displayed = resolveDisplayedMaterialCode(rawInternal, rawSupplier);
 
-  const internalBad = internalCodeLooksLikeImportedColorMistake(internal, name);
+  const internalBad = internalCodeLooksLikeImportedColorMistake(rawInternal, name)
+    || internalCodeLooksLikeImportedColorMistake(internal, name);
   const supplierBad =
     !!supplier
     && looksLikeLikelyColorCode(supplier)
@@ -190,9 +199,9 @@ export function materialCodeFieldsLookLikeColorMistake(input: {
 
   const needsFix = internalBad || supplierBad || displayedBad;
   const colorCodeCandidate = supplierBad
-    ? supplier
+    ? supplier || rawSupplier
     : internalBad
-      ? internal
+      ? internal || rawInternal
       : displayedBad
         ? displayed
         : '';
