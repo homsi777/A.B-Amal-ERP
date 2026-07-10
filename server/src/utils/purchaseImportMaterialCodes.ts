@@ -1,47 +1,74 @@
 import type { PoolClient } from 'pg';
+import { stripImportLevelPrefix } from './categoryBusinessValues.js';
 import { cleanString, type NormalizedField } from './importColumnDetector.js';
 import { looksLikeUniqueDesignSku } from './stockImportItemCodes.js';
 
 type NormalizedRowData = Partial<Record<NormalizedField, string | number | null>>;
 
-function slugCode(s: string): string {
-  const v = s.trim().toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/gi, '-').replace(/^-+|-+$/g, '');
-  return v || 'item';
-}
-
+/**
+ * Find or create a category node under the same parent.
+ * Match order: exact name → exact code → legacy L1_/L2_/… code/name (stripped).
+ * New rows store code = name exactly as written (no L1_/L2_ prefixes).
+ */
 async function ensureCategoryNode(
   client: PoolClient,
   companyId: string,
   parentId: string | null,
-  code: string,
-  name: string,
-  _level: number,
+  label: string,
 ): Promise<{ id: string; created: boolean }> {
-  const byCode = await client.query<{ id: string }>(
+  const name = label.trim();
+  if (!name) {
+    throw new Error('category label is required');
+  }
+
+  const existing = await client.query<{ id: string }>(
     `SELECT id FROM fabric_categories
-     WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
-       AND parent_id IS NOT DISTINCT FROM $3
+     WHERE company_id=$1
+       AND parent_id IS NOT DISTINCT FROM $2
+       AND (
+         lower(trim(name)) = lower(trim($3))
+         OR lower(trim(code)) = lower(trim($3))
+         OR lower(trim(regexp_replace(code, '^L[1-4]_', '', 'i'))) = lower(trim($3))
+         OR lower(trim(regexp_replace(name, '^L[1-4]_', '', 'i'))) = lower(trim($3))
+       )
+     ORDER BY
+       CASE
+         WHEN lower(trim(name)) = lower(trim($3)) THEN 0
+         WHEN lower(trim(code)) = lower(trim($3)) THEN 1
+         ELSE 2
+       END,
+       created_at ASC
      LIMIT 1`,
-    [companyId, code, parentId],
+    [companyId, parentId, name],
   );
-  if (byCode.rows.length) return { id: byCode.rows[0].id, created: false };
+  if (existing.rows.length) return { id: existing.rows[0].id, created: false };
+
+  // Prefer plain business label; never persist L1_/L2_/… prefixes on new rows.
+  const storeLabel = stripImportLevelPrefix(name) || name;
 
   try {
     const ins = await client.query<{ id: string }>(
       `INSERT INTO fabric_categories (company_id, parent_id, code, name, is_active)
-       VALUES ($1,$2,$3,$4,true)
+       VALUES ($1,$2,$3,$3,true)
        RETURNING id`,
-      [companyId, parentId, code, name],
+      [companyId, parentId, storeLabel],
     );
     return { id: ins.rows[0].id, created: true };
   } catch (e: unknown) {
     if ((e as { code?: string }).code !== '23505') throw e;
     const again = await client.query<{ id: string }>(
       `SELECT id FROM fabric_categories
-       WHERE company_id=$1 AND lower(trim(code))=lower(trim($2))
-         AND parent_id IS NOT DISTINCT FROM $3
+       WHERE company_id=$1
+         AND parent_id IS NOT DISTINCT FROM $2
+         AND (
+           lower(trim(name)) = lower(trim($3))
+           OR lower(trim(code)) = lower(trim($3))
+           OR lower(trim(regexp_replace(code, '^L[1-4]_', '', 'i'))) = lower(trim($3))
+           OR lower(trim(regexp_replace(name, '^L[1-4]_', '', 'i'))) = lower(trim($3))
+         )
+       ORDER BY created_at ASC
        LIMIT 1`,
-      [companyId, code, parentId],
+      [companyId, parentId, storeLabel],
     );
     if (!again.rows.length) throw e;
     return { id: again.rows[0].id, created: false };
@@ -115,7 +142,7 @@ export async function applyPurchaseImportMaterialCodes(
   );
 }
 
-/** Keep category tree level-2 (كود الخامة) in sync with import row. */
+/** Keep category tree in sync with import row — reuse existing nodes by name; create only if missing. */
 export async function ensureFabricCategoryChainFromImport(
   client: PoolClient,
   companyId: string,
@@ -131,21 +158,21 @@ export async function ensureFabricCategoryChainFromImport(
 
   let created = 0;
   const l1Label = materialName || designCode;
-  const l1 = await ensureCategoryNode(client, companyId, null, `L1_${slugCode(l1Label)}`, l1Label, 1);
+  const l1 = await ensureCategoryNode(client, companyId, null, l1Label);
   if (l1.created) created += 1;
 
   let parentId = l1.id;
   if (designCode) {
-    const l2 = await ensureCategoryNode(client, companyId, l1.id, `L2_${slugCode(designCode)}`, designCode, 2);
+    const l2 = await ensureCategoryNode(client, companyId, l1.id, designCode);
     if (l2.created) created += 1;
     parentId = l2.id;
   }
 
   if (colorName) {
-    const l3 = await ensureCategoryNode(client, companyId, parentId, `L3_${slugCode(colorName)}`, colorName, 3);
+    const l3 = await ensureCategoryNode(client, companyId, parentId, colorName);
     if (l3.created) created += 1;
     if (colorCode) {
-      const l4 = await ensureCategoryNode(client, companyId, l3.id, `L4_${slugCode(colorCode)}`, colorCode, 4);
+      const l4 = await ensureCategoryNode(client, companyId, l3.id, colorCode);
       if (l4.created) created += 1;
     }
   }
