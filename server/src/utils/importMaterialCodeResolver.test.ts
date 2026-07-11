@@ -11,14 +11,24 @@ import {
 
 assert.equal(looksLikeLikelyColorCode('8'), true);
 assert.equal(looksLikeLikelyColorCode('12'), true);
+assert.equal(looksLikeLikelyColorCode('V-1'), true);
 assert.equal(looksLikeLikelyColorCode('5114'), false);
 assert.equal(looksLikeLikelyColorCode('KL-199'), false);
 
 assert.equal(looksLikeUniqueDesignSku('8'), false);
+assert.equal(looksLikeUniqueDesignSku('V-1'), false);
 assert.equal(looksLikeUniqueDesignSku('5114'), true);
 assert.equal(looksLikeUniqueDesignSku('KL-199'), true);
 assert.equal(looksLikeUniqueDesignSku('CLO-1'), true);
 assert.equal(looksLikeUniqueDesignSku('Jakar'), false);
+
+const swappedV = reconcileImportMaterialAndColorCodes({
+  supplierMaterialCode: 'V-1',
+  colorCode: '',
+});
+assert.equal(swappedV.materialCode, '');
+assert.equal(swappedV.colorCode, 'V-1');
+assert.equal(swappedV.swappedColorFromMaterial, true);
 
 const swapped = reconcileImportMaterialAndColorCodes({
   supplierMaterialCode: '8',

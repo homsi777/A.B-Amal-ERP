@@ -31,6 +31,7 @@ import {
   applyPurchaseImportMaterialCodes,
   buildPurchaseLineMetadataFromImport,
   ensureFabricCategoryChainFromImport,
+  resolveImportMaterialCode,
 } from '../utils/purchaseImportMaterialCodes.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
@@ -1004,11 +1005,12 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         // Create missing item (fabric_items has UNIQUE (company_id, internal_code))
         if (!itemId && batch.import_mode === 'CREATE_MISSING_MASTER_DATA') {
           const matName = cleanString(nd.materialName) || `ITEM-IMPORT`;
-          const supCode = cleanString(nd.supplierMaterialCode) || null;
-          const intCodeRaw = cleanString(nd.internalMaterialCode) || cleanString(nd.supplierMaterialCode) || cleanString(nd.materialName);
+          const materialCode = resolveImportMaterialCode(nd);
+          const supCode = materialCode || null;
+          const intCodeRaw = materialCode || matName;
           const intCode = intCodeRaw || generateImportCode('IMP');
 
-          if (!cleanString(nd.internalMaterialCode) && supCode) {
+          if (materialCode) {
             const byIntCode = await client.query<{ id: string }>(
               `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(internal_code))=lower(trim($2)) AND is_active=true LIMIT 1`,
               [companyId, supCode],

@@ -16,6 +16,8 @@ export function looksLikeLikelyColorCode(code: string): boolean {
   if (!s) return false;
   if (/^#[0-9a-f]{3,8}$/i.test(s)) return true;
   if (/^\d{1,2}$/.test(s)) return true;
+  // Turkish packing lists: varyant / renk ref (V-1, T-2) — not a design SKU
+  if (/^[A-Za-z]-\d{1,3}$/.test(s)) return true;
   if (/[a-z]/i.test(s)) return false;
   if (/^\d{3}$/.test(s)) return true;
   return false;
@@ -32,7 +34,7 @@ export function looksLikeUniqueDesignSku(code: string): boolean {
   if (/[a-z]/i.test(s) && /\d/.test(s)) return true;
   if (/[-_]/.test(s)) return true;
   if (/^\d{4,}$/.test(s)) return true;
-  return /^(nw|kl|clo|v|t)[-\s]?[\da-z]+$/i.test(s);
+  return /^(nw|kl|clo)[-\s]?[\da-z]+$/i.test(s);
 }
 
 export interface SanitizedImportMaterialFields {
