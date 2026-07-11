@@ -6,9 +6,6 @@ const AUTO_INTERNAL_PREFIX = 'IMP-AUTO-';
 export type ImportRowFields = Partial<Record<NormalizedField, string | number | null>> & {
   itemName?: string | null;
   itemCode?: string | null;
-  colorName?: string | null;
-  colorNameTr?: string | null;
-  colorCode?: string | null;
 };
 
 /**
@@ -177,7 +174,7 @@ export function materialCodeFieldsLookLikeColorMistake(input: {
   internalCode?: string | null;
   supplierCode?: string | null;
   itemName: string;
-}): { needsFix: boolean; displayedCode: string; colorCodeCandidate: string } {
+}): { needsFix: boolean; displayedCode: string; colorCodeCandidate: string; displayedBad: boolean } {
   const name = cleanString(input.itemName);
   const internal = normalizedCodeForColorHeuristic(String(input.internalCode ?? ''));
   const supplier = normalizedCodeForColorHeuristic(String(input.supplierCode ?? ''));
@@ -206,5 +203,5 @@ export function materialCodeFieldsLookLikeColorMistake(input: {
         ? displayed
         : '';
 
-  return { needsFix, displayedCode: displayed, colorCodeCandidate };
+  return { needsFix, displayedCode: displayed, colorCodeCandidate, displayedBad };
 }
