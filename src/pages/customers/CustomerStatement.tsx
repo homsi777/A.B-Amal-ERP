@@ -450,7 +450,9 @@ export const CustomerStatement = () => {
         const cur = acc[currency] ?? { debit: 0, credit: 0, remaining: 0, balance: 0, count: 0 };
         cur.debit += row.debit;
         cur.credit += row.credit;
-        cur.remaining += row.remaining;
+        // إجمالي المتبقي = الذمم المستحقة للتحصيل فقط (متبقي > 0)
+        cur.remaining += row.remaining > 0 ? row.remaining : 0;
+        // الرصيد الصافي = مجموع كل المتبقيات موجباً وسالباً
         cur.balance += row.balance;
         cur.count += 1;
         acc[currency] = cur;
