@@ -32,6 +32,13 @@ import {
   buildPurchaseLineMetadataFromImport,
   ensureFabricCategoryChainFromImport,
 } from '../utils/purchaseImportMaterialCodes.js';
+import {
+  allocateRollLandedCost,
+  computeLandedCostSummary,
+  formatLandedCostInvoiceNotes,
+  landedCostBreakdownMetadata,
+  type LandedCostSummary,
+} from '../services/purchaseImportLandedCostService.js';
 
 // ─── Zod schemas ────────────────────────────────────────────────────────────
 
@@ -64,6 +71,15 @@ const confirmSchema = z.object({
 
 const scanVerifySchema = z.object({
   barcode: z.string().min(1),
+});
+
+const landedCostPatchSchema = z.object({
+  goodsValue: z.coerce.number().positive('قيمة البضاعة يجب أن تكون أكبر من صفر'),
+  shippingCost: z.coerce.number().min(0).default(0),
+  customsCost: z.coerce.number().min(0).default(0),
+  otherCost1: z.coerce.number().min(0).default(0),
+  otherCost2: z.coerce.number().min(0).default(0),
+  shipmentWeightKg: z.coerce.number().positive('وزن الشحنة يجب أن يكون أكبر من صفر'),
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -819,7 +835,97 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true, data: rows.rows, total: cnt.rows[0].total, page, pageSize });
   });
 
-  // ── D. Scan verify (optional) ──────────────────────────────────────────────
+  // ── D. Landed cost (التكلفة المستلمة) ───────────────────────────────────
+  app.patch('/:id/landed-cost', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const parsed = landedCostPatchSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? ArabicErrors.validation;
+      return sendError(reply, 400, msg, 'VALIDATION');
+    }
+
+    const pool = getPool();
+    const batchRow = await pool.query<{
+      id: string;
+      status: string;
+      total_length_m: string;
+      currency_code: string | null;
+      extracted_metadata: Record<string, unknown> | null;
+    }>(
+      `SELECT id, status, total_length_m, currency_code, extracted_metadata
+       FROM purchase_import_batches WHERE id=$1 AND company_id=$2`,
+      [id, companyId],
+    );
+    if (!batchRow.rows.length) return sendError(reply, 404, 'الدفعة غير موجودة', 'NOT_FOUND');
+    const batch = batchRow.rows[0];
+    if (batch.status === 'CONFIRMED') return sendError(reply, 409, 'الدفعة مؤكَّدة مسبقاً.', 'ALREADY_CONFIRMED');
+    if (batch.status === 'CANCELLED') return sendError(reply, 400, 'الدفعة ملغاة.', 'CANCELLED');
+
+    const totalLengthM = Number(batch.total_length_m ?? 0);
+    let summary: LandedCostSummary;
+    try {
+      summary = computeLandedCostSummary({
+        goodsValue: parsed.data.goodsValue,
+        shippingCost: parsed.data.shippingCost,
+        customsCost: parsed.data.customsCost,
+        otherCost1: parsed.data.otherCost1,
+        otherCost2: parsed.data.otherCost2,
+        shipmentWeightKg: parsed.data.shipmentWeightKg,
+        totalLengthM,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'بيانات التكلفة المستلمة غير صالحة';
+      return sendError(reply, 400, msg, 'VALIDATION');
+    }
+
+    const ccy = String(batch.currency_code || 'USD').trim().toUpperCase();
+    const metadata = {
+      ...(batch.extracted_metadata ?? {}),
+      landedCost: landedCostBreakdownMetadata(summary),
+    };
+
+    await pool.query(
+      `UPDATE purchase_import_batches SET
+         goods_value=$3,
+         shipping_cost=$4,
+         customs_cost=$5,
+         other_cost_1=$6,
+         other_cost_2=$7,
+         shipment_weight_kg=$8,
+         total_landed_cost=$9,
+         landed_cost_per_meter=$10,
+         landed_cost_configured_at=now(),
+         extracted_metadata=$11,
+         updated_at=now()
+       WHERE id=$1 AND company_id=$2`,
+      [
+        id,
+        companyId,
+        summary.goodsValue,
+        summary.shippingCost,
+        summary.customsCost,
+        summary.otherCost1,
+        summary.otherCost2,
+        summary.shipmentWeightKg,
+        summary.totalLandedCost,
+        summary.landedCostPerMeter,
+        JSON.stringify(metadata),
+      ],
+    );
+
+    return reply.send({
+      ok: true,
+      data: {
+        ...summary,
+        currencyCode: ccy,
+        invoiceNotesPreview: formatLandedCostInvoiceNotes(summary, ccy),
+        configured: true,
+      },
+    });
+  });
+
+  // ── E. Scan verify (optional) ──────────────────────────────────────────────
   app.post('/:id/scan-verify', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
@@ -934,6 +1040,25 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 400, 'يوجد صفوف بها تحذيرات. أرسل allowWarnings=true للمتابعة.', 'HAS_WARNINGS');
     }
 
+    const batchLanded = batch as typeof batch & {
+      goods_value?: string | number | null;
+      shipping_cost?: string | number | null;
+      customs_cost?: string | number | null;
+      other_cost_1?: string | number | null;
+      other_cost_2?: string | number | null;
+      shipment_weight_kg?: string | number | null;
+      landed_cost_configured_at?: string | null;
+      total_length_m?: string | number | null;
+    };
+    if (!batchLanded.landed_cost_configured_at) {
+      return sendError(
+        reply,
+        400,
+        'يرجى إدخال التكلفة المستلمة (قيمة البضاعة، الوزن، والمصاريف) قبل تأكيد الاستيراد.',
+        'VALIDATION',
+      );
+    }
+
     const rowsToImport = await pool.query<{
       id: string; row_no: number;
       normalized_data: NormalizedRowData;
@@ -945,6 +1070,28 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       [id],
     );
     if (!rowsToImport.rows.length) return sendError(reply, 400, 'لا توجد أسطر صالحة للاستيراد', 'NO_VALID_ROWS');
+
+    const importTotalLengthM = rowsToImport.rows.reduce((sum, row) => {
+      const nd = row.normalized_data as NormalizedRowData;
+      return sum + (cleanNumber(nd.lengthM) ?? 0);
+    }, 0);
+
+    let landedSummary: LandedCostSummary;
+    try {
+      landedSummary = computeLandedCostSummary({
+        goodsValue: Number(batchLanded.goods_value ?? 0),
+        shippingCost: Number(batchLanded.shipping_cost ?? 0),
+        customsCost: Number(batchLanded.customs_cost ?? 0),
+        otherCost1: Number(batchLanded.other_cost_1 ?? 0),
+        otherCost2: Number(batchLanded.other_cost_2 ?? 0),
+        shipmentWeightKg:
+          batchLanded.shipment_weight_kg != null ? Number(batchLanded.shipment_weight_kg) : null,
+        totalLengthM: importTotalLengthM,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'بيانات التكلفة المستلمة غير صالحة';
+      return sendError(reply, 400, msg, 'VALIDATION');
+    }
 
     const supplierIdFinal = batch.supplier_id;
     if (!supplierIdFinal) return sendError(reply, 400, 'يرجى اختيار المورد', 'VALIDATION');
@@ -972,7 +1119,8 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 400, 'لا يمكن تنفيذ العملية بدون سعر صرف', 'VALIDATION');
     }
 
-    const invoiceNotes = cleanString(batch.notes) || null;
+    const invoiceNotesParts = [cleanString(batch.notes), formatLandedCostInvoiceNotes(landedSummary, ccy)].filter(Boolean);
+    const invoiceNotes = invoiceNotesParts.join('\n\n');
 
     const client = await pool.connect();
     try {
@@ -1100,9 +1248,16 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         const lengthM = cleanNumber(nd.lengthM) ?? 0;
         const widthCm = cleanNumber(nd.widthCm);
         const gsm = cleanNumber(nd.gsm);
-        const actualWt = cleanNumber(nd.actualWeightKg);
+        const rollLanded = allocateRollLandedCost({
+          lengthM,
+          totalLengthM: importTotalLengthM,
+          landedCostPerMeter: landedSummary.landedCostPerMeter,
+          shipmentWeightKg: landedSummary.shipmentWeightKg,
+          excelActualWeightKg: cleanNumber(nd.actualWeightKg),
+        });
+        const unitCost = rollLanded.unitCostPerMeter;
+        const actualWt = rollLanded.estimatedWeightKg;
         const calcWt = calcWeight(lengthM, widthCm, gsm);
-        const unitCost = cleanNumber(nd.unitCost);
 
         const reusableRoll = barcode
           ? await client.query<{ id: string }>(
@@ -1239,7 +1394,12 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           lineDiscount: 0,
           lineTax: 0,
           lineTotal,
-          metadata: buildPurchaseLineMetadataFromImport(id, row, nd, barcode),
+          metadata: {
+            ...buildPurchaseLineMetadataFromImport(id, row, nd, barcode),
+            landedCostPerMeter: unitCost,
+            rollLandedValue: rollLanded.rollLandedValue,
+            estimatedWeightKg: actualWt,
+          },
         });
 
         createdRolls++;
@@ -1304,6 +1464,8 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
            total_length_m=$6, total_actual_weight_kg=$7, total_calculated_weight_kg=$8,
            invoice_no=$10, invoice_date=$11::date, currency_code=$12, exchange_rate_to_usd=$13,
            supplier_invoice_no=$10,
+           total_landed_cost=$15,
+           landed_cost_per_meter=$16,
            imported_count=$2, failed_count=0,
            created_purchase_invoice_id=$14,
            confirmed_by_user_id=$9, confirmed_at=now(), updated_at=now()
@@ -1317,6 +1479,8 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           ccy,
           exchangeRateToUsd,
           createdPurchaseInvoiceId,
+          landedSummary.totalLandedCost,
+          landedSummary.landedCostPerMeter,
         ],
       );
 
@@ -1332,6 +1496,11 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
           totalCalculatedWeightKg: parseFloat(totalCalcWt.toFixed(3)),
           createdPurchaseInvoiceId,
           purchaseInvoiceNo: invoiceNoFinal,
+          totalLandedCost: landedSummary.totalLandedCost,
+          landedCostPerMeter: landedSummary.landedCostPerMeter,
+          landedCostPerKg: landedSummary.landedCostPerKg,
+          goodsValue: landedSummary.goodsValue,
+          additionalCostsTotal: landedSummary.additionalCostsTotal,
         },
       });
     } catch (e: unknown) {

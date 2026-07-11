@@ -54,6 +54,15 @@ export interface PurchaseImportBatchDto {
   detected_columns?: { col: string; field: string }[] | null;
   import_mode: ImportMode;
   notes: string | null;
+  goods_value?: string | null;
+  shipping_cost?: string | null;
+  customs_cost?: string | null;
+  other_cost_1?: string | null;
+  other_cost_2?: string | null;
+  shipment_weight_kg?: string | null;
+  total_landed_cost?: string | null;
+  landed_cost_per_meter?: string | null;
+  landed_cost_configured_at?: string | null;
   created_at: string;
   confirmed_at: string | null;
   updated_at: string;
@@ -126,6 +135,31 @@ export interface ImportConfirmResult {
   totalCalculatedWeightKg: number;
   createdPurchaseInvoiceId?: string | null;
   purchaseInvoiceNo?: string | null;
+  totalLandedCost?: number;
+  landedCostPerMeter?: number;
+  landedCostPerKg?: number | null;
+  goodsValue?: number;
+  additionalCostsTotal?: number;
+}
+
+export interface LandedCostInput {
+  goodsValue: number;
+  shippingCost: number;
+  customsCost: number;
+  otherCost1: number;
+  otherCost2: number;
+  shipmentWeightKg: number;
+}
+
+export interface LandedCostPreview extends LandedCostInput {
+  additionalCostsTotal: number;
+  totalLandedCost: number;
+  landedCostPerMeter: number;
+  landedCostPerKg: number | null;
+  totalLengthM: number;
+  currencyCode: string;
+  invoiceNotesPreview: string;
+  configured: boolean;
 }
 
 export interface PreviewOptions {
@@ -332,6 +366,27 @@ export async function listImportRows(
     `/api/purchases/import/${batchId}/rows${qs}`,
   );
   return { data: res.data, total: res.total };
+}
+
+export async function updateImportBatchLandedCost(
+  batchId: string,
+  input: LandedCostInput,
+): Promise<LandedCostPreview> {
+  const res = await apiFetch<{ ok: boolean; data: LandedCostPreview }>(
+    `/api/purchases/import/${batchId}/landed-cost`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        goodsValue: input.goodsValue,
+        shippingCost: input.shippingCost,
+        customsCost: input.customsCost,
+        otherCost1: input.otherCost1,
+        otherCost2: input.otherCost2,
+        shipmentWeightKg: input.shipmentWeightKg,
+      }),
+    },
+  );
+  return res.data;
 }
 
 export async function confirmImportBatch(
