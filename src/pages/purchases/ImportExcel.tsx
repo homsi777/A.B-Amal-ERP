@@ -6,9 +6,9 @@ import {
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   previewPurchaseExcelImport, listImportRows, confirmImportBatch, cancelImportBatch,
-  scanVerifyImportBatch, getImportBatch, updateImportBatchLandedCost,
+  scanVerifyImportBatch, getImportBatch,
   type ImportPreviewSummary, type PurchaseImportRowDto, type ImportMode, type RowStatus,
-  type PurchaseImportBatchDto, type LandedCostPreview, type ImportConfirmResult,
+  type PurchaseImportBatchDto, type ImportConfirmResult,
 } from '../../lib/api/purchaseImportApi';
 import { formatImportNumber } from '../../lib/importNumberParse';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
@@ -97,46 +97,6 @@ const toNumber = (value: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-function computeLocalLandedPreview(input: {
-  goodsValue: string;
-  shippingCost: string;
-  customsCost: string;
-  otherCost1: string;
-  otherCost2: string;
-  shipmentWeightKg: string;
-  totalLengthM: number;
-  currencyCode?: string;
-}): LandedCostPreview | null {
-  const goodsValue = toNumber(input.goodsValue);
-  const shippingCost = toNumber(input.shippingCost);
-  const customsCost = toNumber(input.customsCost);
-  const otherCost1 = toNumber(input.otherCost1);
-  const otherCost2 = toNumber(input.otherCost2);
-  const shipmentWeightKg = toNumber(input.shipmentWeightKg);
-  const totalLengthM = input.totalLengthM;
-  if (goodsValue <= 0 || shipmentWeightKg <= 0 || totalLengthM <= 0) return null;
-  const additionalCostsTotal = Math.round((shippingCost + customsCost + otherCost1 + otherCost2) * 100) / 100;
-  const totalLandedCost = Math.round((goodsValue + additionalCostsTotal) * 100) / 100;
-  const landedCostPerMeter = Math.round((totalLandedCost / totalLengthM) * 1_000_000) / 1_000_000;
-  const landedCostPerKg = Math.round((totalLandedCost / shipmentWeightKg) * 1_000_000) / 1_000_000;
-  return {
-    goodsValue,
-    shippingCost,
-    customsCost,
-    otherCost1,
-    otherCost2,
-    shipmentWeightKg,
-    totalLengthM,
-    additionalCostsTotal,
-    totalLandedCost,
-    landedCostPerMeter,
-    landedCostPerKg,
-    currencyCode: (input.currencyCode || 'USD').toUpperCase(),
-    invoiceNotesPreview: '',
-    configured: false,
-  };
-}
-
 const batchToPreviewSummary = (batch: PurchaseImportBatchDto): ImportPreviewSummary => {
   const extractedMetadata = batch.extracted_metadata ?? null;
   const metadataWarnings = Array.isArray(extractedMetadata?.warnings)
@@ -209,17 +169,6 @@ export const ImportExcel = () => {
   const [allowWarnings, setAllowWarnings] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  // Landed cost (التكلفة المستلمة) — before confirm
-  const [goodsValue, setGoodsValue] = useState('');
-  const [shippingCost, setShippingCost] = useState('');
-  const [customsCost, setCustomsCost] = useState('');
-  const [otherCost1, setOtherCost1] = useState('');
-  const [otherCost2, setOtherCost2] = useState('');
-  const [shipmentWeightKg, setShipmentWeightKg] = useState('');
-  const [landedCostPreview, setLandedCostPreview] = useState<LandedCostPreview | null>(null);
-  const [landedCostConfigured, setLandedCostConfigured] = useState(false);
-  const [savingLandedCost, setSavingLandedCost] = useState(false);
-
   // Optional verification (scan barcodes before confirm)
   const [verificationMode, setVerificationMode] = useState<'NONE' | 'SCAN'>('NONE');
   const [verificationTotal, setVerificationTotal] = useState(0);
@@ -270,93 +219,6 @@ export const ImportExcel = () => {
     }
   }, []);
 
-  const applyLandedCostFromBatch = useCallback((batch: PurchaseImportBatchDto) => {
-    setGoodsValue(batch.goods_value ? String(batch.goods_value) : '');
-    setShippingCost(batch.shipping_cost ? String(batch.shipping_cost) : '');
-    setCustomsCost(batch.customs_cost ? String(batch.customs_cost) : '');
-    setOtherCost1(batch.other_cost_1 ? String(batch.other_cost_1) : '');
-    setOtherCost2(batch.other_cost_2 ? String(batch.other_cost_2) : '');
-    setShipmentWeightKg(batch.shipment_weight_kg ? String(batch.shipment_weight_kg) : '');
-    const configured = !!batch.landed_cost_configured_at;
-    setLandedCostConfigured(configured);
-    if (configured && batch.total_landed_cost && batch.landed_cost_per_meter) {
-      setLandedCostPreview({
-        goodsValue: toNumber(batch.goods_value),
-        shippingCost: toNumber(batch.shipping_cost),
-        customsCost: toNumber(batch.customs_cost),
-        otherCost1: toNumber(batch.other_cost_1),
-        otherCost2: toNumber(batch.other_cost_2),
-        shipmentWeightKg: toNumber(batch.shipment_weight_kg),
-        totalLengthM: toNumber(batch.total_length_m),
-        additionalCostsTotal: Math.round((
-          toNumber(batch.shipping_cost) + toNumber(batch.customs_cost)
-          + toNumber(batch.other_cost_1) + toNumber(batch.other_cost_2)
-        ) * 100) / 100,
-        totalLandedCost: toNumber(batch.total_landed_cost),
-        landedCostPerMeter: toNumber(batch.landed_cost_per_meter),
-        landedCostPerKg: batch.shipment_weight_kg && toNumber(batch.total_landed_cost) > 0
-          ? toNumber(batch.total_landed_cost) / toNumber(batch.shipment_weight_kg)
-          : null,
-        currencyCode: (batch.currency_code || 'USD').toUpperCase(),
-        invoiceNotesPreview: '',
-        configured: true,
-      });
-    } else {
-      setLandedCostPreview(null);
-    }
-  }, []);
-
-  const localLandedPreview = preview
-    ? computeLocalLandedPreview({
-      goodsValue,
-      shippingCost,
-      customsCost,
-      otherCost1,
-      otherCost2,
-      shipmentWeightKg,
-      totalLengthM: preview.totalLengthM,
-      currencyCode: preview.currencyCode,
-    })
-    : null;
-
-  const handleSaveLandedCost = async () => {
-    if (!preview) return;
-    const goods = toNumber(goodsValue);
-    const weight = toNumber(shipmentWeightKg);
-    if (goods <= 0) return showToast({ type: 'error', message: 'يرجى إدخال قيمة البضاعة' });
-    if (weight <= 0) return showToast({ type: 'error', message: 'يرجى إدخال وزن الشحنة الإجمالي' });
-    setSavingLandedCost(true);
-    try {
-      const saved = await updateImportBatchLandedCost(preview.batchId, {
-        goodsValue: goods,
-        shippingCost: toNumber(shippingCost),
-        customsCost: toNumber(customsCost),
-        otherCost1: toNumber(otherCost1),
-        otherCost2: toNumber(otherCost2),
-        shipmentWeightKg: weight,
-      });
-      setLandedCostPreview(saved);
-      setLandedCostConfigured(true);
-      showToast({ type: 'success', message: 'تم حفظ التكلفة المستلمة' });
-    } catch (e: unknown) {
-      showToast({ type: 'error', message: (e as { message?: string }).message ?? 'تعذر حفظ التكلفة المستلمة' });
-    } finally {
-      setSavingLandedCost(false);
-    }
-  };
-
-  useEffect(() => {
-    if (landedCostConfigured) return;
-    setLandedCostPreview(localLandedPreview);
-  }, [localLandedPreview, landedCostConfigured]);
-
-  useEffect(() => {
-    if (!landedCostConfigured) return;
-    setLandedCostConfigured(false);
-    setLandedCostPreview(localLandedPreview);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- reset saved flag when cost inputs change
-  }, [goodsValue, shippingCost, customsCost, otherCost1, otherCost2, shipmentWeightKg]);
-
   useEffect(() => {
     if (!resumeBatchId) return;
     let cancelled = false;
@@ -388,7 +250,6 @@ export const ImportExcel = () => {
         setNotes(batch.notes ?? '');
         setExchangeRateToUsd(batch.exchange_rate_to_usd ? String(batch.exchange_rate_to_usd) : '');
         setImportMode(batch.import_mode);
-        applyLandedCostFromBatch(batch);
         setSelectedFile(null);
         setPreview(summary);
         setVerificationMode((summary.verificationTotal ?? 0) > 0 ? 'SCAN' : 'NONE');
@@ -416,7 +277,7 @@ export const ImportExcel = () => {
 
     void loadExistingBatch();
     return () => { cancelled = true; };
-  }, [resumeBatchId, loadRows, navigate, showToast, applyLandedCostFromBatch]);
+  }, [resumeBatchId, loadRows, navigate, showToast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -451,14 +312,6 @@ export const ImportExcel = () => {
         importMode,
       });
       setPreview(result);
-      setGoodsValue('');
-      setShippingCost('');
-      setCustomsCost('');
-      setOtherCost1('');
-      setOtherCost2('');
-      setShipmentWeightKg('');
-      setLandedCostPreview(null);
-      setLandedCostConfigured(false);
       setVerificationMode('NONE');
       setVerificationTotal(result.verificationTotal ?? 0);
       setVerificationVerified(result.verificationVerified ?? 0);
@@ -492,32 +345,6 @@ export const ImportExcel = () => {
 
   const handleConfirm = async () => {
     if (!preview) return;
-    if (!landedCostConfigured) {
-      const goods = toNumber(goodsValue);
-      const weight = toNumber(shipmentWeightKg);
-      if (goods <= 0 || weight <= 0) {
-        showToast({ type: 'error', message: 'يرجى إدخال وحفظ التكلفة المستلمة قبل التأكيد' });
-        return;
-      }
-      setConfirming(true);
-      setImportMessage('جارٍ حفظ التكلفة المستلمة...');
-      try {
-        await updateImportBatchLandedCost(preview.batchId, {
-          goodsValue: goods,
-          shippingCost: toNumber(shippingCost),
-          customsCost: toNumber(customsCost),
-          otherCost1: toNumber(otherCost1),
-          otherCost2: toNumber(otherCost2),
-          shipmentWeightKg: weight,
-        });
-        setLandedCostConfigured(true);
-      } catch (e: unknown) {
-        showToast({ type: 'error', message: (e as { message?: string }).message ?? 'تعذر حفظ التكلفة المستلمة' });
-        setConfirming(false);
-        setImportMessage('');
-        return;
-      }
-    }
     setConfirming(true);
     setImportMessage('جارٍ تأكيد الاستيراد وإنشاء الأتواب في المخزون...');
     try {
@@ -1027,96 +854,6 @@ export const ImportExcel = () => {
               </label>
             )}
 
-            <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50/40 overflow-hidden">
-              <div className="px-5 py-4 border-b border-indigo-100 bg-white/70">
-                <h4 className="font-bold text-slate-900">التكلفة المستلمة (Landed Cost)</h4>
-                <p className="text-xs text-slate-500 mt-1">
-                  أدخل قيمة البضاعة والمصاريف والوزن — تُوزَّع على الأتواب حسب الأمتار وتنعكس في المخزون والفاتورة والمحاسبة
-                </p>
-              </div>
-              <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700">قيمة البضاعة <span className="text-rose-500">*</span></label>
-                  <input type="number" min="0" step="0.01" value={goodsValue} onChange={e => setGoodsValue(e.target.value)} className={inputCls} dir="ltr" placeholder="من فاتورة المورد" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700">أجور شحن</label>
-                  <input type="number" min="0" step="0.01" value={shippingCost} onChange={e => setShippingCost(e.target.value)} className={inputCls} dir="ltr" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700">جمارك</label>
-                  <input type="number" min="0" step="0.01" value={customsCost} onChange={e => setCustomsCost(e.target.value)} className={inputCls} dir="ltr" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700">أخرى 1</label>
-                  <input type="number" min="0" step="0.01" value={otherCost1} onChange={e => setOtherCost1(e.target.value)} className={inputCls} dir="ltr" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700">أخرى 2</label>
-                  <input type="number" min="0" step="0.01" value={otherCost2} onChange={e => setOtherCost2(e.target.value)} className={inputCls} dir="ltr" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-slate-700">وزن الشحنة (كغ) <span className="text-rose-500">*</span></label>
-                  <input type="number" min="0" step="0.001" value={shipmentWeightKg} onChange={e => setShipmentWeightKg(e.target.value)} className={inputCls} dir="ltr" placeholder="إدخال يدوي" />
-                </div>
-              </div>
-
-              {(landedCostPreview || localLandedPreview) && (
-                <div className="px-5 pb-5">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <SummaryCard
-                      label="إجمالي التكلفة"
-                      value={`${(landedCostPreview ?? localLandedPreview)!.totalLandedCost.toFixed(2)} ${(landedCostPreview ?? localLandedPreview)!.currencyCode}`}
-                      color="indigo"
-                    />
-                    <SummaryCard
-                      label="تكلفة المتر"
-                      value={`${(landedCostPreview ?? localLandedPreview)!.landedCostPerMeter.toFixed(4)} ${(landedCostPreview ?? localLandedPreview)!.currencyCode}/م`}
-                      color="emerald"
-                    />
-                    <SummaryCard
-                      label="مصاريف إضافية"
-                      value={`${(landedCostPreview ?? localLandedPreview)!.additionalCostsTotal.toFixed(2)} ${(landedCostPreview ?? localLandedPreview)!.currencyCode}`}
-                      color="amber"
-                    />
-                    <SummaryCard
-                      label="تكلفة الكيلو"
-                      value={
-                        (landedCostPreview ?? localLandedPreview)!.landedCostPerKg != null
-                          ? `${(landedCostPreview ?? localLandedPreview)!.landedCostPerKg!.toFixed(4)} ${(landedCostPreview ?? localLandedPreview)!.currencyCode}/كغ`
-                          : '—'
-                      }
-                      color="slate"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-3">
-                    التوزيع: حسب الأمتار ({preview.totalLengthM.toFixed(2)} م) — نفس التكلفة/متر لكل ثوب في هذا النوع من الفواتير
-                  </p>
-                </div>
-              )}
-
-              <div className="px-5 pb-5 flex items-center gap-3 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => void handleSaveLandedCost()}
-                  disabled={savingLandedCost || !localLandedPreview}
-                  className="px-5 py-2.5 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 text-sm flex items-center gap-2"
-                >
-                  {savingLandedCost ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  {landedCostConfigured ? 'تحديث التكلفة المستلمة' : 'حفظ التكلفة المستلمة'}
-                </button>
-                {landedCostConfigured ? (
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                    تم حفظ التكلفة — جاهز للتأكيد
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    احفظ التكلفة المستلمة قبل تأكيد الاستيراد
-                  </span>
-                )}
-              </div>
-            </div>
-
             <div className="flex items-center justify-between flex-wrap gap-3">
               <button onClick={handleCancel} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition text-sm font-medium">
                 إلغاء الدفعة
@@ -1137,8 +874,7 @@ export const ImportExcel = () => {
                     confirming ||
                     preview.errorCount > 0 ||
                     (preview.warnCount > 0 && !allowWarnings && preview.validCount === 0) ||
-                    (verificationMode === 'SCAN' && verificationTotal > 0 && verificationVerified < verificationTotal) ||
-                    !localLandedPreview
+                    (verificationMode === 'SCAN' && verificationTotal > 0 && verificationVerified < verificationTotal)
                   }
                   className="bg-emerald-600 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition disabled:opacity-50 text-sm"
                 >
@@ -1155,7 +891,7 @@ export const ImportExcel = () => {
                 {verificationMode === 'SCAN' && verificationTotal > 0 && verificationVerified < verificationTotal && (
                   <button
                     onClick={handleConfirm}
-                    disabled={confirming || preview.errorCount > 0 || (preview.warnCount > 0 && !allowWarnings && preview.validCount === 0) || !localLandedPreview}
+                    disabled={confirming || preview.errorCount > 0 || (preview.warnCount > 0 && !allowWarnings && preview.validCount === 0)}
                     className="px-5 py-2.5 rounded-xl font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 text-sm"
                   >
                     تأكيد على أي حال
@@ -1181,20 +917,6 @@ export const ImportExcel = () => {
             <SummaryCard label="أتواب مُنشأة" value={confirmResult.createdRolls} color="emerald" />
             <SummaryCard label="إجمالي الأمتار" value={confirmResult.totalLengthM.toFixed(2)} color="indigo" />
             <SummaryCard label="وزن إجمالي (كجم)" value={confirmResult.totalActualWeightKg.toFixed(2)} color="indigo" />
-            {confirmResult.landedCostPerMeter != null && (
-              <SummaryCard
-                label="تكلفة المتر"
-                value={confirmResult.landedCostPerMeter.toFixed(4)}
-                color="emerald"
-              />
-            )}
-            {confirmResult.totalLandedCost != null && (
-              <SummaryCard
-                label="إجمالي التكلفة"
-                value={confirmResult.totalLandedCost.toFixed(2)}
-                color="indigo"
-              />
-            )}
             <SummaryCard label="خامات جديدة" value={confirmResult.createdItems} color={confirmResult.createdItems > 0 ? 'amber' : 'slate'} />
             <SummaryCard label="ألوان جديدة" value={confirmResult.createdColors} color={confirmResult.createdColors > 0 ? 'amber' : 'slate'} />
           </div>
