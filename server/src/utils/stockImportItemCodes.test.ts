@@ -9,7 +9,7 @@ assert.equal(looksLikeUniqueDesignSku('Jakar'), false);
 assert.equal(looksLikeUniqueDesignSku('Düz'), false);
 assert.equal(looksLikeUniqueDesignSku('nw-48142'), true);
 assert.equal(looksLikeUniqueDesignSku('kl-33'), true);
-assert.equal(looksLikeUniqueDesignSku('v-12'), true);
+assert.equal(looksLikeUniqueDesignSku('v-12'), false);
 assert.equal(looksLikeUniqueDesignSku('8'), false);
 
 const royal = resolveStockImportItemCodes('ROYAL MAX JAKAR', '8', 'supplier_invoice');

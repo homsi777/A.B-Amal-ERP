@@ -79,11 +79,27 @@ export function reconcileImportMaterialAndColorCodes(input: {
   supplierMaterialCode?: string;
   colorCode?: string;
 }): SanitizedImportMaterialFields {
-  let materialCode = normalizedCodeForColorHeuristic(
-    cleanString(input.internalMaterialCode) || cleanString(input.supplierMaterialCode),
-  );
+  const internalRaw = cleanString(input.internalMaterialCode);
+  const supplierRaw = cleanString(input.supplierMaterialCode);
   let colorCode = cleanString(input.colorCode);
   let swappedColorFromMaterial = false;
+
+  // Turkish packing lists: DesenAdi (3019, 38-A) + VaryantNo (1, 8) — variant is color ref, not material code.
+  if (
+    supplierRaw
+    && looksLikeUniqueDesignSku(supplierRaw)
+    && internalRaw
+    && looksLikeLikelyColorCode(internalRaw)
+    && !looksLikeUniqueDesignSku(internalRaw)
+  ) {
+    if (!colorCode || colorCode === internalRaw) {
+      colorCode = internalRaw;
+      swappedColorFromMaterial = !cleanString(input.colorCode);
+    }
+    return { materialCode: supplierRaw, colorCode, swappedColorFromMaterial };
+  }
+
+  let materialCode = normalizedCodeForColorHeuristic(internalRaw || supplierRaw);
 
   if (materialCode && looksLikeLikelyColorCode(materialCode) && !looksLikeUniqueDesignSku(materialCode)) {
     if (!colorCode || colorCode === materialCode) {
@@ -114,7 +130,15 @@ export function sanitizeNormalizedImportRow(
   });
 
   if (reconciled.swappedColorFromMaterial) {
-    if (internal && !supplier) {
+    if (
+      supplier
+      && looksLikeUniqueDesignSku(supplier)
+      && internal
+      && looksLikeLikelyColorCode(internal)
+      && !looksLikeUniqueDesignSku(internal)
+    ) {
+      nd.internalMaterialCode = null;
+    } else if (internal && !supplier) {
       nd.internalMaterialCode = null;
     } else if (supplier) {
       nd.supplierMaterialCode = null;

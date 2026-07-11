@@ -31,6 +31,8 @@ import {
   applyPurchaseImportMaterialCodes,
   buildPurchaseLineMetadataFromImport,
   ensureFabricCategoryChainFromImport,
+  findFabricItemByImportDesignCode,
+  findOrCreateImportFabricItem,
   resolveImportMaterialCode,
 } from '../utils/purchaseImportMaterialCodes.js';
 
@@ -275,28 +277,34 @@ async function validateAndMatchRow(
   const matName = cleanString(nd.materialName);
   const intCode = cleanString(nd.internalMaterialCode);
   const supCode = cleanString(nd.supplierMaterialCode);
+  const designCode = resolveImportMaterialCode(nd);
 
-  if (!matName && !intCode && !supCode) {
+  if (!matName && !intCode && !supCode && !designCode) {
     errors.push('اسم الخامة أو كودها مطلوب.');
   } else {
-    // Try matching by priority
     let itemRow: { id: string } | null = null;
 
-    if (intCode) {
+    if (designCode) {
+      const id = await findFabricItemByImportDesignCode(pool, companyId, designCode);
+      if (id) itemRow = { id };
+    }
+
+    if (!itemRow && intCode && (!designCode || intCode.toLowerCase() !== designCode.toLowerCase())) {
       const r = await pool.query<{ id: string }>(
         `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(internal_code))=lower(trim($2)) AND is_active=true LIMIT 1`,
         [companyId, intCode],
       );
       if (r.rows.length) itemRow = r.rows[0];
     }
-    if (!itemRow && supCode) {
+    if (!itemRow && supCode && (!designCode || supCode.toLowerCase() !== designCode.toLowerCase())) {
       const r = await pool.query<{ id: string }>(
         `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(supplier_code))=lower(trim($2)) AND is_active=true LIMIT 1`,
         [companyId, supCode],
       );
       if (r.rows.length) itemRow = r.rows[0];
     }
-    if (!itemRow && matName) {
+    // Name-only when there is no distinct design code — avoids merging ROYAL JAKAR desen 3019/7020/…
+    if (!itemRow && matName && !designCode) {
       const r = await pool.query<{ id: string }>(
         `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(name))=lower(trim($2)) AND is_active=true LIMIT 1`,
         [companyId, matName],
@@ -306,12 +314,14 @@ async function validateAndMatchRow(
 
     if (itemRow) {
       matchedItemId = itemRow.id;
-    } else if (importMode === 'CREATE_MISSING_MASTER_DATA' && matName) {
+    } else if (importMode === 'CREATE_MISSING_MASTER_DATA' && (matName || designCode)) {
       willCreateItem = true;
-      warnings.push(`سيتم إنشاء خامة جديدة: "${matName}"`);
+      const label = designCode ? `"${matName || designCode}" (${designCode})` : `"${matName}"`;
+      warnings.push(`سيتم إنشاء خامة جديدة: ${label}`);
     } else {
       if (importMode === 'MATCH_ONLY') {
-        errors.push(`الخامة "${matName || intCode || supCode}" غير موجودة في النظام.`);
+        const ref = designCode || matName || intCode || supCode;
+        errors.push(`الخامة "${ref}" غير موجودة في النظام.`);
       } else {
         errors.push('اسم الخامة مطلوب لإنشاء خامة جديدة.');
       }
@@ -999,46 +1009,22 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
       for (const row of rowsToImport.rows) {
         const nd = row.normalized_data as NormalizedRowData;
         sanitizeNormalizedImportRow(nd);
-        let itemId = row.matched_item_id;
+        const materialCode = resolveImportMaterialCode(nd);
+        let itemId: string | null = null;
         let variantId = row.matched_variant_id;
 
-        // Create missing item (fabric_items has UNIQUE (company_id, internal_code))
+        if (materialCode) {
+          itemId = await findFabricItemByImportDesignCode(client, companyId, materialCode);
+        } else {
+          itemId = row.matched_item_id;
+        }
+
+        // Create missing item — one row per design code (DesenAdi), not per material name alone
         if (!itemId && batch.import_mode === 'CREATE_MISSING_MASTER_DATA') {
           const matName = cleanString(nd.materialName) || `ITEM-IMPORT`;
-          const materialCode = resolveImportMaterialCode(nd);
-          const supCode = materialCode || null;
-          const intCodeRaw = materialCode || matName;
-          const intCode = intCodeRaw || generateImportCode('IMP');
-
-          if (materialCode) {
-            const byIntCode = await client.query<{ id: string }>(
-              `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(internal_code))=lower(trim($2)) AND is_active=true LIMIT 1`,
-              [companyId, supCode],
-            );
-            if (byIntCode.rows.length) itemId = byIntCode.rows[0].id;
-          }
-          if (!itemId) {
-            // Try to find by name first to avoid duplicates
-            const existCheck = await client.query<{ id: string }>(
-              `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(name))=lower(trim($2)) AND is_active=true LIMIT 1`,
-              [companyId, matName],
-            );
-            if (existCheck.rows.length) {
-              itemId = existCheck.rows[0].id;
-            } else {
-              const newItem = await client.query<{ id: string }>(
-                `INSERT INTO fabric_items (company_id, name, internal_code, supplier_code, is_active)
-                 VALUES ($1,$2,$3,$4,true)
-                 ON CONFLICT (company_id, internal_code) DO UPDATE SET
-                   name=EXCLUDED.name,
-                   supplier_code=COALESCE(EXCLUDED.supplier_code, fabric_items.supplier_code)
-                 RETURNING id`,
-                [companyId, matName, intCode, supCode],
-              );
-              itemId = newItem.rows[0].id;
-              createdItems++;
-            }
-          }
+          const created = await findOrCreateImportFabricItem(client, companyId, matName, materialCode);
+          itemId = created.id;
+          if (created.created) createdItems++;
         }
         if (!itemId) continue; // skip if still no item
 

@@ -79,6 +79,66 @@ async function ensureCategoryNode(
   }
 }
 
+/** Match fabric item by design code stored in internal_code or supplier_code. */
+export async function findFabricItemByImportDesignCode(
+  db: Pick<PoolClient, 'query'>,
+  companyId: string,
+  designCode: string,
+): Promise<string | null> {
+  const code = cleanString(designCode);
+  if (!code) return null;
+  const r = await db.query<{ id: string }>(
+    `SELECT id FROM fabric_items
+     WHERE company_id=$1 AND is_active=true
+       AND (
+         lower(trim(internal_code))=lower(trim($2))
+         OR lower(trim(supplier_code))=lower(trim($2))
+       )
+     LIMIT 1`,
+    [companyId, code],
+  );
+  return r.rows[0]?.id ?? null;
+}
+
+/**
+ * One fabric item per design code (3019, 7020, 38-A…).
+ * Do not collapse multiple desen under the same material name (ROYAL JAKAR).
+ */
+export async function findOrCreateImportFabricItem(
+  client: PoolClient,
+  companyId: string,
+  materialName: string,
+  designCode: string,
+): Promise<{ id: string; created: boolean }> {
+  const name = cleanString(materialName) || cleanString(designCode) || 'ITEM-IMPORT';
+  const code = cleanString(designCode);
+
+  if (code) {
+    const existingId = await findFabricItemByImportDesignCode(client, companyId, code);
+    if (existingId) return { id: existingId, created: false };
+  } else {
+    const byName = await client.query<{ id: string }>(
+      `SELECT id FROM fabric_items
+       WHERE company_id=$1 AND lower(trim(name))=lower(trim($2)) AND is_active=true
+       LIMIT 1`,
+      [companyId, name],
+    );
+    if (byName.rows.length) return { id: byName.rows[0].id, created: false };
+  }
+
+  const internalCode = code || name;
+  const ins = await client.query<{ id: string }>(
+    `INSERT INTO fabric_items (company_id, name, internal_code, supplier_code, is_active)
+     VALUES ($1,$2,$3,$4,true)
+     ON CONFLICT (company_id, internal_code) DO UPDATE SET
+       name=EXCLUDED.name,
+       supplier_code=COALESCE(EXCLUDED.supplier_code, fabric_items.supplier_code)
+     RETURNING id`,
+    [companyId, name, internalCode, code || null],
+  );
+  return { id: ins.rows[0].id, created: true };
+}
+
 /** Build design / material code from normalized import row. */
 export function resolveImportMaterialCode(nd: NormalizedRowData): string {
   const reconciled = reconcileImportMaterialAndColorCodes({

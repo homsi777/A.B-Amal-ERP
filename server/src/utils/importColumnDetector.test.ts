@@ -31,6 +31,14 @@ assert.equal(
   resolveImportMaterialCode({ supplierMaterialCode: 'SUP-2' }),
   'SUP-2',
 );
+assert.equal(
+  resolveImportMaterialCode({ supplierMaterialCode: '3019', internalMaterialCode: '1', materialName: 'ROYAL JAKAR' }),
+  '3019',
+);
+assert.equal(
+  resolveImportMaterialCode({ supplierMaterialCode: '38-A', internalMaterialCode: '8', materialName: 'ROYAL JAKAR' }),
+  '38-A',
+);
 
 // Turkish decimal comma (ahmet bereket.xls)
 assert.equal(cleanNumber('107,7'), 107.7);

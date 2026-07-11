@@ -68,4 +68,32 @@ const legacyPrefix = materialCodeFieldsLookLikeColorMistake({
 assert.equal(legacyPrefix.needsFix, true);
 assert.equal(legacyPrefix.displayedCode, '8');
 
+assert.equal(looksLikeUniqueDesignSku('38-A'), true);
+
+const desenVariant = reconcileImportMaterialAndColorCodes({
+  supplierMaterialCode: '38-A',
+  internalMaterialCode: '8',
+  colorCode: '',
+});
+assert.equal(desenVariant.materialCode, '38-A');
+assert.equal(desenVariant.colorCode, '8');
+assert.equal(desenVariant.swappedColorFromMaterial, true);
+
+const royal3019 = reconcileImportMaterialAndColorCodes({
+  supplierMaterialCode: '3019',
+  internalMaterialCode: '',
+});
+assert.equal(royal3019.materialCode, '3019');
+
+const ndVariant = {
+  supplierMaterialCode: '38-A',
+  internalMaterialCode: '8',
+  materialName: 'ROYAL JAKAR',
+  colorCode: null as string | null,
+};
+sanitizeNormalizedImportRow(ndVariant);
+assert.equal(ndVariant.supplierMaterialCode, '38-A');
+assert.equal(ndVariant.internalMaterialCode, null);
+assert.equal(ndVariant.colorCode, '8');
+
 console.log('importMaterialCodeResolver.test.ts: OK');
