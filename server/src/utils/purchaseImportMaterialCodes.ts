@@ -79,6 +79,30 @@ async function ensureCategoryNode(
   }
 }
 
+/** Item that already owns this design code but under a different material name. */
+export async function findImportMaterialCodeCollision(
+  db: Pick<PoolClient, 'query'>,
+  companyId: string,
+  materialName: string,
+  designCode: string,
+): Promise<{ id: string; name: string } | null> {
+  const name = cleanString(materialName);
+  const code = cleanString(designCode);
+  if (!name || !code) return null;
+
+  const hitId = await findFabricItemByImportDesignCode(db, companyId, code);
+  if (!hitId) return null;
+
+  const hit = await db.query<{ id: string; name: string }>(
+    `SELECT id, name FROM fabric_items WHERE id=$1 AND company_id=$2 AND is_active=true`,
+    [hitId, companyId],
+  );
+  const row = hit.rows[0];
+  if (!row) return null;
+  if (row.name.trim().toLowerCase() === name.trim().toLowerCase()) return null;
+  return row;
+}
+
 /** Match fabric item by design code stored in internal_code or supplier_code. */
 export async function findFabricItemByImportDesignCode(
   db: Pick<PoolClient, 'query'>,

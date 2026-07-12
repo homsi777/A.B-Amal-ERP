@@ -31,8 +31,8 @@ import {
   applyPurchaseImportMaterialCodes,
   buildPurchaseLineMetadataFromImport,
   ensureFabricCategoryChainFromImport,
-  findFabricItemByImportDesignCode,
   findFabricItemForPurchaseImport,
+  findImportMaterialCodeCollision,
   findOrCreateImportFabricItem,
   resolveImportMaterialCode,
 } from '../utils/purchaseImportMaterialCodes.js';
@@ -290,20 +290,6 @@ async function validateAndMatchRow(
       if (id) itemRow = { id };
     }
 
-    if (!itemRow && intCode && (!designCode || intCode.toLowerCase() !== designCode.toLowerCase())) {
-      const r = await pool.query<{ id: string }>(
-        `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(internal_code))=lower(trim($2)) AND is_active=true LIMIT 1`,
-        [companyId, intCode],
-      );
-      if (r.rows.length) itemRow = r.rows[0];
-    }
-    if (!itemRow && supCode && (!designCode || supCode.toLowerCase() !== designCode.toLowerCase())) {
-      const r = await pool.query<{ id: string }>(
-        `SELECT id FROM fabric_items WHERE company_id=$1 AND lower(trim(supplier_code))=lower(trim($2)) AND is_active=true LIMIT 1`,
-        [companyId, supCode],
-      );
-      if (r.rows.length) itemRow = r.rows[0];
-    }
     // Name-only when there is no distinct design code — avoids merging ROYAL JAKAR desen 3019/7020/…
     if (!itemRow && matName && !designCode) {
       const r = await pool.query<{ id: string }>(
@@ -311,6 +297,22 @@ async function validateAndMatchRow(
         [companyId, matName],
       );
       if (r.rows.length) itemRow = r.rows[0];
+    }
+
+    if (!itemRow && designCode && matName) {
+      const collision = await findImportMaterialCodeCollision(pool, companyId, matName, designCode);
+      if (collision) {
+        if (importMode === 'CREATE_MISSING_MASTER_DATA') {
+          willCreateItem = true;
+          warnings.push(
+            `كود ${designCode} مستخدم لخامة «${collision.name}» — سيُنشأ صف منفصل لـ «${matName}» دون المساس بالمخزون الحالي.`,
+          );
+        } else {
+          errors.push(
+            `كود ${designCode} مرتبط بخامة «${collision.name}» وليس «${matName}».`,
+          );
+        }
+      }
     }
 
     if (itemRow) {
@@ -1011,30 +1013,40 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         const nd = row.normalized_data as NormalizedRowData;
         sanitizeNormalizedImportRow(nd);
         const materialCode = resolveImportMaterialCode(nd);
+        const matName = cleanString(nd.materialName);
         let itemId: string | null = null;
+        let itemCreatedInBatch = false;
         let variantId = row.matched_variant_id;
 
-        if (materialCode) {
-          itemId = await findFabricItemForPurchaseImport(
-            client,
-            companyId,
-            cleanString(nd.materialName),
-            materialCode,
+        itemId = await findFabricItemForPurchaseImport(
+          client,
+          companyId,
+          matName,
+          materialCode,
+        );
+        if (!itemId && matName && !materialCode) {
+          const byName = await client.query<{ id: string }>(
+            `SELECT id FROM fabric_items
+             WHERE company_id=$1 AND lower(trim(name))=lower(trim($2)) AND is_active=true
+             LIMIT 1`,
+            [companyId, matName],
           );
-        } else {
-          itemId = row.matched_item_id;
+          itemId = byName.rows[0]?.id ?? null;
         }
 
         // Create missing item — one row per design code (DesenAdi), not per material name alone
         if (!itemId && batch.import_mode === 'CREATE_MISSING_MASTER_DATA') {
-          const matName = cleanString(nd.materialName) || `ITEM-IMPORT`;
-          const created = await findOrCreateImportFabricItem(client, companyId, matName, materialCode);
+          const createName = matName || `ITEM-IMPORT`;
+          const created = await findOrCreateImportFabricItem(client, companyId, createName, materialCode);
           itemId = created.id;
+          itemCreatedInBatch = created.created;
           if (created.created) createdItems++;
         }
         if (!itemId) continue; // skip if still no item
 
-        await applyPurchaseImportMaterialCodes(client, companyId, itemId, nd);
+        if (itemCreatedInBatch) {
+          await applyPurchaseImportMaterialCodes(client, companyId, itemId, nd);
+        }
         await ensureFabricCategoryChainFromImport(client, companyId, nd);
 
         const colorResolved = await resolveFabricColorForImport(
@@ -1090,6 +1102,21 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         // Generate or use barcode
         let barcode = cleanString(nd.barcode);
         if (!barcode) barcode = await generateBarcode(client, companyId);
+
+        if (barcode) {
+          const liveBarcode = await client.query<{ id: string }>(
+            `SELECT id FROM fabric_rolls
+             WHERE company_id=$1 AND barcode=$2 AND status IN ('AVAILABLE', 'RESERVED')
+             LIMIT 1`,
+            [companyId, barcode],
+          );
+          if (liveBarcode.rows.length) {
+            throw Object.assign(
+              new Error(`باركود موجود في مخزون حي ولا يمكن استيراده: ${barcode}`),
+              { code: 'DUPLICATE' },
+            );
+          }
+        }
 
         const lengthM = cleanNumber(nd.lengthM) ?? 0;
         const widthCm = cleanNumber(nd.widthCm);
