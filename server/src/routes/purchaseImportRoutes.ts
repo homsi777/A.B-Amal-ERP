@@ -32,6 +32,7 @@ import {
   buildPurchaseLineMetadataFromImport,
   ensureFabricCategoryChainFromImport,
   findFabricItemByImportDesignCode,
+  findFabricItemForPurchaseImport,
   findOrCreateImportFabricItem,
   resolveImportMaterialCode,
 } from '../utils/purchaseImportMaterialCodes.js';
@@ -285,7 +286,7 @@ async function validateAndMatchRow(
     let itemRow: { id: string } | null = null;
 
     if (designCode) {
-      const id = await findFabricItemByImportDesignCode(pool, companyId, designCode);
+      const id = await findFabricItemForPurchaseImport(pool, companyId, matName, designCode);
       if (id) itemRow = { id };
     }
 
@@ -1014,7 +1015,12 @@ export const purchaseImportRoutes: FastifyPluginAsync = async (app) => {
         let variantId = row.matched_variant_id;
 
         if (materialCode) {
-          itemId = await findFabricItemByImportDesignCode(client, companyId, materialCode);
+          itemId = await findFabricItemForPurchaseImport(
+            client,
+            companyId,
+            cleanString(nd.materialName),
+            materialCode,
+          );
         } else {
           itemId = row.matched_item_id;
         }

@@ -101,6 +101,58 @@ export async function findFabricItemByImportDesignCode(
 }
 
 /**
+ * Safe purchase-import match: name + design code together.
+ * Never matches HONEYCOMB/CLO-3 when importing ASTRLI EKOSE/CLO-3.
+ */
+export async function findFabricItemForPurchaseImport(
+  db: Pick<PoolClient, 'query'>,
+  companyId: string,
+  materialName: string,
+  designCode: string,
+): Promise<string | null> {
+  const name = cleanString(materialName);
+  const code = cleanString(designCode);
+  if (!name && !code) return null;
+
+  if (name && code) {
+    const byPair = await db.query<{ id: string }>(
+      `SELECT id FROM fabric_items
+       WHERE company_id=$1 AND is_active=true
+         AND lower(trim(name))=lower(trim($2))
+         AND (
+           lower(trim(internal_code))=lower(trim($3))
+           OR lower(trim(coalesce(supplier_code, '')))=lower(trim($3))
+         )
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [companyId, name, code],
+    );
+    if (byPair.rows[0]?.id) return byPair.rows[0].id;
+    return null;
+  }
+
+  if (name) {
+    const byName = await db.query<{ id: string }>(
+      `SELECT id FROM fabric_items
+       WHERE company_id=$1 AND lower(trim(name))=lower(trim($2)) AND is_active=true
+       ORDER BY created_at ASC LIMIT 1`,
+      [companyId, name],
+    );
+    return byName.rows[0]?.id ?? null;
+  }
+
+  return findFabricItemByImportDesignCode(db, companyId, code);
+}
+
+function purchaseImportInternalCode(materialName: string, designCode: string): string {
+  const name = cleanString(materialName) || 'ITEM-IMPORT';
+  const code = cleanString(designCode);
+  if (!code) return name;
+  if (looksLikeUniqueDesignSku(code)) return code;
+  return `${name}::${code}`;
+}
+
+/**
  * One fabric item per design code (3019, 7020, 38-A…).
  * Do not collapse multiple desen under the same material name (ROYAL JAKAR).
  */
@@ -113,28 +165,36 @@ export async function findOrCreateImportFabricItem(
   const name = cleanString(materialName) || cleanString(designCode) || 'ITEM-IMPORT';
   const code = cleanString(designCode);
 
+  const existingId = await findFabricItemForPurchaseImport(client, companyId, name, code);
+  if (existingId) return { id: existingId, created: false };
+
+  let internalCode = purchaseImportInternalCode(name, code);
+  const supplierCode = code && looksLikeUniqueDesignSku(code) ? code : code || null;
+
   if (code) {
-    const existingId = await findFabricItemByImportDesignCode(client, companyId, code);
-    if (existingId) return { id: existingId, created: false };
-  } else {
-    const byName = await client.query<{ id: string }>(
-      `SELECT id FROM fabric_items
-       WHERE company_id=$1 AND lower(trim(name))=lower(trim($2)) AND is_active=true
+    const codeTaken = await client.query<{ id: string; name: string }>(
+      `SELECT id, name FROM fabric_items
+       WHERE company_id=$1 AND is_active=true
+         AND (
+           lower(trim(internal_code))=lower(trim($2))
+           OR lower(trim(coalesce(supplier_code, '')))=lower(trim($2))
+         )
        LIMIT 1`,
-      [companyId, name],
+      [companyId, code],
     );
-    if (byName.rows.length) return { id: byName.rows[0].id, created: false };
+    if (codeTaken.rows.length && codeTaken.rows[0].name.trim().toLowerCase() !== name.trim().toLowerCase()) {
+      internalCode = `IMP-${name.replace(/[^\p{L}\p{N}]+/gu, '-').slice(0, 32)}-${code}`.toUpperCase();
+    }
   }
 
-  const internalCode = code || name;
   const ins = await client.query<{ id: string }>(
     `INSERT INTO fabric_items (company_id, name, internal_code, supplier_code, is_active)
      VALUES ($1,$2,$3,$4,true)
      ON CONFLICT (company_id, internal_code) DO UPDATE SET
-       name=EXCLUDED.name,
-       supplier_code=COALESCE(EXCLUDED.supplier_code, fabric_items.supplier_code)
+       supplier_code=COALESCE(EXCLUDED.supplier_code, fabric_items.supplier_code),
+       updated_at=now()
      RETURNING id`,
-    [companyId, name, internalCode, code || null],
+    [companyId, name, internalCode, supplierCode],
   );
   return { id: ins.rows[0].id, created: true };
 }
@@ -219,6 +279,21 @@ export async function applyPurchaseImportMaterialCodes(
     supCode = '';
   }
 
+  let nextName: string | null = matName || null;
+  if (
+    matName
+    && row.name.trim().toLowerCase() !== matName.trim().toLowerCase()
+  ) {
+    const live = await client.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM fabric_rolls
+       WHERE company_id=$1 AND item_id=$2 AND status IN ('AVAILABLE', 'RESERVED')`,
+      [companyId, itemId],
+    );
+    if (parseInt(live.rows[0]?.n ?? '0', 10) > 0) {
+      nextName = null;
+    }
+  }
+
   await client.query(
     `UPDATE fabric_items SET
        name = COALESCE(NULLIF($3,''), name),
@@ -226,7 +301,7 @@ export async function applyPurchaseImportMaterialCodes(
        supplier_code = COALESCE(NULLIF($5,''), supplier_code),
        updated_at = now()
      WHERE id=$1 AND company_id=$2`,
-    [itemId, companyId, matName || null, nextInternal, supCode || null],
+    [itemId, companyId, nextName, nextInternal, supCode || null],
   );
 }
 
