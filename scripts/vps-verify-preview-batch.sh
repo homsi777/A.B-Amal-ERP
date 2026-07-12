@@ -19,3 +19,15 @@ SELECT count(*) AS honeycomb_matches
 FROM purchase_import_rows pir
 JOIN fabric_items fi ON fi.id=pir.matched_item_id
 WHERE pir.batch_id='$BATCH' AND fi.name ILIKE 'honeycomb';"
+
+psql "$DATABASE_URL" -c "
+SELECT pir.normalized_data->>'materialName' AS excel_name,
+       pir.normalized_data->>'supplierMaterialCode' AS code,
+       fi.name AS matched_name, fi.internal_code,
+       count(*) AS rows
+FROM purchase_import_rows pir
+LEFT JOIN fabric_items fi ON fi.id=pir.matched_item_id
+WHERE pir.batch_id='$BATCH'
+  AND pir.normalized_data->>'materialName' ILIKE 'w%nter%sardonlu%'
+GROUP BY 1,2,3,4
+ORDER BY 2;"

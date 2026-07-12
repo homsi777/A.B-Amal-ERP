@@ -80,21 +80,12 @@ export async function syncCategoryUpdateToMasterData(
 
   if (depth === 0 && norm(before.name) !== norm(after.name)) {
     const materialNameCatId = after.id;
+    // Only items explicitly linked to this L1 category — never by design code alone.
     const res = await client.query(
       `UPDATE fabric_items fi
        SET name = $3, updated_at = now()
        WHERE fi.company_id = $1
-         AND (
-           fi.category_id = $2
-           OR fi.id IN (
-             SELECT DISTINCT fr.item_id
-             FROM fabric_rolls fr
-             INNER JOIN fabric_categories c2 ON c2.company_id = $1 AND c2.parent_id = $2
-             INNER JOIN fabric_items fi2 ON fi2.id = fr.item_id AND fi2.company_id = fr.company_id
-             WHERE fr.company_id = $1
-               AND trim(lower(fi2.internal_code)) = trim(lower(COALESCE(NULLIF(c2.code, ''), c2.name)))
-           )
-         )`,
+         AND fi.category_id = $2`,
       [companyId, materialNameCatId, after.name.trim()],
     );
     itemsUpdated = res.rowCount ?? 0;
@@ -103,18 +94,27 @@ export async function syncCategoryUpdateToMasterData(
   if (depth === 1 && before.parent_id && norm(before.code) !== norm(after.code)) {
     const oldCode = materialCodeFromCategory(before);
     const newCode = materialCodeFromCategory(after);
+    const l1 = await client.query<{ name: string }>(
+      `SELECT name FROM fabric_categories WHERE id=$1 AND company_id=$2`,
+      [before.parent_id, companyId],
+    );
+    const l1Name = l1.rows[0]?.name?.trim() ?? '';
+    if (!l1Name) {
+      return { itemsUpdated, colorsUpdated, cartelaColorsUpdated };
+    }
     const res = await client.query(
       `UPDATE fabric_items fi
-       SET internal_code = $4, updated_at = now()
+       SET internal_code = $5, updated_at = now()
        WHERE fi.company_id = $1
+         AND trim(lower(fi.name)) = trim(lower($2::text))
          AND trim(lower(fi.internal_code)) = trim(lower($3::text))
          AND (
-           fi.category_id = $2
-           OR EXISTS (
-             SELECT 1 FROM fabric_rolls fr WHERE fr.company_id = $1 AND fr.item_id = fi.id
+           fi.category_id = $4
+           OR fi.category_id IN (
+             SELECT id FROM fabric_categories WHERE company_id = $1 AND parent_id = $4
            )
          )`,
-      [companyId, before.parent_id, oldCode, newCode],
+      [companyId, l1Name, oldCode, before.parent_id, newCode],
     );
     itemsUpdated = res.rowCount ?? 0;
   }

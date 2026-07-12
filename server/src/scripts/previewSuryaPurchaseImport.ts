@@ -120,6 +120,12 @@ async function main() {
   const honeycombTouches = hits.filter(
     (h) => h.action === 'MATCH' && (h.targetName?.toLowerCase() === 'honeycomb'),
   );
+  const winterOnAstrli = hits.filter(
+    (h) =>
+      h.suryaName.toUpperCase().includes('SARDONLU')
+      && h.action === 'MATCH'
+      && (h.targetName?.toUpperCase().includes('ASTRL') ?? false),
+  );
   const liveItemTouches = hits.filter((h) => h.action === 'MATCH' && h.liveRolls > 0);
 
   const distinctMaterials = [...materialSummary.entries()].map(([k, v]) => {
@@ -134,6 +140,7 @@ async function main() {
         wouldMatch: hits.filter((h) => h.action === 'MATCH').length,
         wouldCreate: hits.filter((h) => h.action === 'CREATE').length,
         honeycombWrongMatch: honeycombTouches.length,
+        winterOnAstrliWrongMatch: winterOnAstrli.length,
         liveInventoryTouches: liveItemTouches.length,
         codeOnlyRisksAvoided: hits.filter((h) => h.oldCodeOnlyHit && h.action === 'CREATE').length,
         risks,
