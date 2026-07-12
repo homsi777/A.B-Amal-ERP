@@ -1,45 +1,159 @@
 import fs from 'node:fs';
-import type { Browser } from 'puppeteer-core';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  Browser,
+  computeExecutablePath,
+  detectBrowserPlatform,
+  getInstalledBrowsers,
+  install,
+  resolveBuildId,
+} from '@puppeteer/browsers';
+import type { Browser as PuppeteerBrowser } from 'puppeteer-core';
 
-let sharedBrowser: Browser | null = null;
-let sharedBrowserPromise: Promise<Browser> | null = null;
+let sharedBrowser: PuppeteerBrowser | null = null;
+let sharedBrowserPromise: Promise<PuppeteerBrowser> | null = null;
+let puppeteerChromeInstallPromise: Promise<string | null> | null = null;
+
+function isSnapChromiumExecutable(executablePath: string): boolean {
+  if (executablePath.includes('/snap/')) return true;
+
+  try {
+    const resolved = fs.realpathSync(executablePath);
+    if (resolved.includes('/snap/')) return true;
+
+    const stat = fs.statSync(executablePath);
+    if (!stat.isFile()) return false;
+
+    const preview = fs.readFileSync(executablePath, { encoding: 'utf8' }).slice(0, 600);
+    if (/snap\/bin\/chromium/i.test(preview)) return true;
+  } catch {
+    /* ignore unreadable paths */
+  }
+
+  return false;
+}
+
+function isUsableBrowserExecutable(executablePath: string): boolean {
+  if (!executablePath || !fs.existsSync(executablePath)) return false;
+  return !isSnapChromiumExecutable(executablePath);
+}
 
 export function findChromiumExecutable(): string | null {
-  const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
-  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+  const fromEnv = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_PATH,
+    process.env.GOOGLE_CHROME_BIN,
+  ]
+    .map((value) => value?.trim())
+    .find(Boolean);
+
+  if (fromEnv && isUsableBrowserExecutable(fromEnv)) return fromEnv;
 
   const candidates = [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
-    '/snap/bin/chromium',
+    '/opt/google/chrome/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   ];
 
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  return candidates.find((candidate) => isUsableBrowserExecutable(candidate)) ?? null;
 }
 
-async function launchBrowser(): Promise<Browser> {
-  const puppeteer = await import('puppeteer-core');
-  const executablePath = findChromiumExecutable();
-  if (!executablePath) {
-    throw new Error(
-      'Chromium/Chrome غير متوفر على الخادم لتصدير PDF. ثبّت chromium-browser أو عيّن PUPPETEER_EXECUTABLE_PATH.',
-    );
+async function findPuppeteerCachedChrome(): Promise<string | null> {
+  const platform = detectBrowserPlatform();
+  if (!platform) return null;
+
+  const cacheDir = process.env.PUPPETEER_CACHE_DIR?.trim() || path.join(os.homedir(), '.cache', 'puppeteer');
+  const installed = await getInstalledBrowsers({ cacheDir });
+  const chrome = installed.find((browser) => browser.browser === Browser.CHROME);
+  if (!chrome) return null;
+
+  const executablePath = computeExecutablePath({
+    browser: Browser.CHROME,
+    platform,
+    buildId: chrome.buildId,
+    cacheDir,
+  });
+
+  return isUsableBrowserExecutable(executablePath) ? executablePath : null;
+}
+
+async function ensurePuppeteerChrome(): Promise<string | null> {
+  const cached = await findPuppeteerCachedChrome();
+  if (cached) return cached;
+
+  if (!puppeteerChromeInstallPromise) {
+    puppeteerChromeInstallPromise = (async () => {
+      const platform = detectBrowserPlatform();
+      if (!platform) return null;
+
+      const cacheDir = process.env.PUPPETEER_CACHE_DIR?.trim() || path.join(os.homedir(), '.cache', 'puppeteer');
+      try {
+        const buildId = await resolveBuildId(Browser.CHROME, platform, 'stable');
+        await install({ browser: Browser.CHROME, buildId, platform, cacheDir });
+        const executablePath = computeExecutablePath({
+          browser: Browser.CHROME,
+          platform,
+          buildId,
+          cacheDir,
+        });
+        return isUsableBrowserExecutable(executablePath) ? executablePath : null;
+      } catch {
+        return null;
+      } finally {
+        puppeteerChromeInstallPromise = null;
+      }
+    })();
   }
+
+  return puppeteerChromeInstallPromise;
+}
+
+async function resolveChromiumExecutable(): Promise<string> {
+  const systemExecutable = findChromiumExecutable();
+  if (systemExecutable) return systemExecutable;
+
+  const cachedExecutable = await findPuppeteerCachedChrome();
+  if (cachedExecutable) return cachedExecutable;
+
+  const installedExecutable = await ensurePuppeteerChrome();
+  if (installedExecutable) return installedExecutable;
+
+  throw new Error(
+    'Chromium/Chrome غير متوفر على الخادم لتصدير PDF. ثبّت google-chrome-stable (deb) أو عيّن PUPPETEER_EXECUTABLE_PATH. تجنّب نسخة snap — لا تعمل مع PM2.',
+  );
+}
+
+const CHROMIUM_LAUNCH_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--disable-software-rasterizer',
+  '--disable-extensions',
+  '--no-first-run',
+  '--no-zygote',
+  '--headless=new',
+];
+
+async function launchBrowser(): Promise<PuppeteerBrowser> {
+  const puppeteer = await import('puppeteer-core');
+  const executablePath = await resolveChromiumExecutable();
 
   return puppeteer.default.launch({
     executablePath,
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    args: CHROMIUM_LAUNCH_ARGS,
   });
 }
 
-async function getBrowser(): Promise<Browser> {
+async function getBrowser(): Promise<PuppeteerBrowser> {
   if (sharedBrowser?.connected) return sharedBrowser;
   if (!sharedBrowserPromise) {
     sharedBrowserPromise = launchBrowser()

@@ -62,6 +62,38 @@ fi
 
 assert_clotex_tree
 
+ensure_pdf_chrome() {
+  if [[ -n "${PUPPETEER_EXECUTABLE_PATH:-}" ]] && [[ -x "$PUPPETEER_EXECUTABLE_PATH" ]]; then
+    echo "✓ PUPPETEER_EXECUTABLE_PATH=$PUPPETEER_EXECUTABLE_PATH"
+    return 0
+  fi
+
+  if [[ -x /usr/bin/google-chrome-stable ]] && ! readlink -f /usr/bin/google-chrome-stable | grep -q '/snap/'; then
+    echo "✓ google-chrome-stable جاهز لتصدير PDF"
+    return 0
+  fi
+
+  if [[ -x /usr/bin/google-chrome ]] && ! readlink -f /usr/bin/google-chrome | grep -q '/snap/'; then
+    echo "✓ google-chrome جاهز لتصدير PDF"
+    return 0
+  fi
+
+  echo ">> تثبيت Google Chrome (deb) لتصدير PDF — نسخة snap لا تعمل مع PM2 ..."
+  TMP_DEB="$(mktemp /tmp/google-chrome.XXXXXX.deb)"
+  wget -q -O "$TMP_DEB" https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+  sudo dpkg -i "$TMP_DEB" || sudo apt-get install -f -y
+  rm -f "$TMP_DEB"
+
+  if [[ -x /usr/bin/google-chrome-stable ]]; then
+    echo "✓ تم تثبيت google-chrome-stable"
+    echo "   يُفضّل إضافة PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable في بيئة PM2"
+  else
+    echo "⚠️  تعذر تثبيت Chrome — تصدير PDF من الخادم قد يفشل (المتصفح يستخدم تصديراً احتياطياً)"
+  fi
+}
+
+ensure_pdf_chrome
+
 echo ">> npm install ..."
 npm install
 

@@ -8,6 +8,7 @@ import {
   isVoucherA5Html,
   type PdfExportOptions,
 } from '../pdfExport';
+import { ApiRequestError } from '../api/client';
 import { downloadPrintPdf } from '../api/documentPdfApi';
 
 /** CSS snippet — keeps printed output matching PDF background colors. */
@@ -90,14 +91,40 @@ export function resolveDocumentPdfOptions(
   };
 }
 
-/** تصدير PDF = نفس HTML الطباعة عبر Chromium (الخادم أو Electron) */
+async function exportPrintHtmlToPdfInBrowser(
+  html: string,
+  filenamePrefix: string,
+  overrides: Partial<PdfExportOptions> = {},
+): Promise<void> {
+  const { exportHtmlDocumentToPdf } = await import('../pdfExport');
+  const options = resolveDocumentPdfOptions(html, {
+    fixedPageLayout: false,
+    pageSize: isVoucherA5Html(html) ? 'A5' : 'A4',
+    orientation: overrides.orientation,
+  });
+  await exportHtmlDocumentToPdf(html, filenamePrefix, { ...options, ...overrides });
+}
+
+function shouldFallbackToBrowserPdf(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError)) return false;
+  if (error.status === 0) return false;
+  return error.status === 503 || error.status >= 500;
+}
+
+/** تصدير PDF = Chromium على الخادم/Electron، مع تصدير احتياطي من المتصفح عند فشل الخادم */
 export async function exportPrintHtmlToPdf(
   html: string,
   filenamePrefix: string,
-  _overrides: Partial<PdfExportOptions> = {},
+  overrides: Partial<PdfExportOptions> = {},
 ): Promise<void> {
   const fileName = `${filenamePrefix.replace(/\.pdf$/i, '')}.pdf`;
-  await downloadPrintPdf(html, fileName);
+
+  try {
+    await downloadPrintPdf(html, fileName);
+  } catch (error) {
+    if (!shouldFallbackToBrowserPdf(error)) throw error;
+    await exportPrintHtmlToPdfInBrowser(html, filenamePrefix, overrides);
+  }
 }
 
 export function resolveElectronPdfMargins(
