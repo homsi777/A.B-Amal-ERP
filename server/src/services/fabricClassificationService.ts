@@ -9,9 +9,12 @@ import {
   colorCodeFromCategories,
   colorNameFromCategory,
   materialCodeFromCategory,
-  materialCodeLookupValues,
   materialNameFromCategory,
 } from '../utils/categoryBusinessValues.js';
+import {
+  findFabricItemByNameAndCode,
+  resolveFabricItemInternalCode,
+} from '../utils/fabricItemIdentity.js';
 
 export type ResolveClassificationInput = {
   companyId: string;
@@ -121,37 +124,26 @@ export async function resolveFabricClassification(
 
     const { c1, c2 } = await loadMaterialPair(client, companyId, level1CategoryId, level2CategoryId);
     const materialCode = materialCodeFromCategory(c2);
-    const materialLookup = materialCodeLookupValues(c2);
+    const materialName = materialNameFromCategory(c1);
 
-    const itemRow = await client.query<{ id: string; internal_code: string }>(
-      `SELECT id, internal_code FROM fabric_items
-       WHERE company_id = $1
-         AND trim(lower(internal_code)) = ANY(
-           SELECT trim(lower(v)) FROM unnest($2::text[]) AS v
-         )
-       ORDER BY created_at ASC LIMIT 1`,
-      [companyId, materialLookup],
-    );
+    const existingItem = await findFabricItemByNameAndCode(client, companyId, materialName, materialCode);
 
     let itemId: string;
     let designNr: string | null;
 
-    if (!itemRow.rows.length) {
+    if (!existingItem) {
+      const internalCode = await resolveFabricItemInternalCode(client, companyId, materialName, materialCode);
       const ins = await client.query<{ id: string; internal_code: string }>(
         `INSERT INTO fabric_items
            (company_id, category_id, internal_code, supplier_code, name, fabric_type, unit, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (company_id, internal_code) DO UPDATE
-           SET category_id = EXCLUDED.category_id,
-               name = EXCLUDED.name,
-               updated_at = now()
          RETURNING id, internal_code`,
         [
           companyId,
           c1.id,
+          internalCode,
           materialCode,
-          '',
-          materialNameFromCategory(c1),
+          materialName,
           '',
           'meter',
           'أُنشئ تلقائياً من تصنيف الأقمشة عند إنشاء ثوب يدوي',
@@ -161,13 +153,13 @@ export async function resolveFabricClassification(
       designNr = ins.rows[0].internal_code;
       createdItem = true;
     } else {
-      itemId = itemRow.rows[0].id;
-      designNr = itemRow.rows[0].internal_code;
+      itemId = existingItem.id;
+      designNr = existingItem.internal_code;
       await client.query(
         `UPDATE fabric_items
-         SET category_id = $3, name = $4, internal_code = $5, updated_at = now()
+         SET category_id = $3, name = $4, supplier_code = COALESCE(NULLIF(trim($5), ''), supplier_code), updated_at = now()
          WHERE id = $1 AND company_id = $2`,
-        [itemId, companyId, c1.id, materialNameFromCategory(c1), materialCode],
+        [itemId, companyId, c1.id, materialName, materialCode],
       );
     }
 

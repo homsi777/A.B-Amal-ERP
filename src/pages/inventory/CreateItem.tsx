@@ -421,9 +421,21 @@ export const CreateItem = () => {
           setSaving(false);
           return;
         }
-        let apiItem = (await listFabricItems({ search: fabricCode, pageSize: 100 })).data.find(
-          (item) => item.internal_code.trim().toLowerCase() === fabricCode.trim().toLowerCase(),
+        let apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
+          (item) =>
+            sameText(item.name, name.trim())
+            && sameText(item.internal_code, fabricCode.trim()),
         );
+        if (!apiItem) {
+          apiItem = (await listFabricItems({ search: fabricCode, pageSize: 100 })).data.find(
+            (item) =>
+              sameText(item.name, name.trim())
+              && (
+                sameText(item.internal_code, fabricCode.trim())
+                || sameText(item.supplier_code, fabricCode.trim())
+              ),
+          );
+        }
         if (apiItem) {
           await updateFabricItem(apiItem.id, {
             name,
@@ -486,9 +498,19 @@ export const CreateItem = () => {
         } catch (error) {
           console.warn('resolveFabricClassification failed, falling back to manual item creation logic', error);
           const internalCode = materialCodeValue || barcode.trim() || name.trim();
-          let apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-            (item) => sameText(item.internal_code, internalCode),
+          let apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
+            (item) => sameText(item.name, name.trim()) && sameText(item.internal_code, internalCode),
           );
+          if (!apiItem) {
+            apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
+              (item) =>
+                sameText(item.name, name.trim())
+                && (
+                  sameText(item.internal_code, internalCode)
+                  || sameText(item.supplier_code, internalCode)
+                ),
+            );
+          }
           if (!apiItem) {
             try {
               apiItem = await createFabricItem({
@@ -523,12 +545,17 @@ export const CreateItem = () => {
         }
       } else {
         const internalCode = materialCodeValue || barcode.trim() || name.trim();
-        let apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-          (item) => sameText(item.internal_code, internalCode),
+        let apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
+          (item) => sameText(item.name, name.trim()) && sameText(item.internal_code, internalCode),
         );
-        if (!apiItem && !hasPartialClassification) {
-          apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
-            (item) => sameText(item.name, name.trim()) && sameText(item.internal_code, internalCode),
+        if (!apiItem) {
+          apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
+            (item) =>
+              sameText(item.name, name.trim())
+              && (
+                sameText(item.internal_code, internalCode)
+                || sameText(item.supplier_code, internalCode)
+              ),
           );
         }
         if (!apiItem) {
