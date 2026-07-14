@@ -1,6 +1,8 @@
 /**
  * Maps the 4-level fabric_categories tree (material name → material code → colour name → colour code)
  * into fabric_items + fabric_colors (+ optional fabric_item_variants) for roll creation.
+ *
+ * Existing master rows are never mutated — find / create / relink only.
  */
 
 import type { PoolClient } from 'pg';
@@ -109,166 +111,186 @@ function buildVariantCode(internalCode: string, colorCode: string, widthCm: numb
   return raw.length > 120 ? raw.slice(0, 120) : raw;
 }
 
-export async function resolveFabricClassification(
+/**
+ * Core resolve logic injectable with any PoolClient (used by API + unit tests).
+ * Never UPDATEs existing fabric_items / fabric_colors.
+ */
+export async function resolveFabricClassificationWithClient(
+  client: PoolClient,
   input: ResolveClassificationInput,
 ): Promise<ResolveClassificationResult> {
-  const { companyId, level1CategoryId, level2CategoryId, level3CategoryId, level4CategoryId, widthCm, gsm } = input;
-  const pool = getPool();
-  const client = await pool.connect();
+  const {
+    companyId,
+    level1CategoryId,
+    level2CategoryId,
+    level3CategoryId,
+    level4CategoryId,
+    widthCm,
+    gsm,
+  } = input;
+
   let createdItem = false;
   let createdColor = false;
   let createdVariant = false;
 
-  try {
-    await client.query('BEGIN');
+  const { c1, c2 } = await loadMaterialPair(client, companyId, level1CategoryId, level2CategoryId);
+  const materialCode = materialCodeFromCategory(c2);
+  const materialName = materialNameFromCategory(c1);
 
-    const { c1, c2 } = await loadMaterialPair(client, companyId, level1CategoryId, level2CategoryId);
-    const materialCode = materialCodeFromCategory(c2);
-    const materialName = materialNameFromCategory(c1);
+  const existingItem = await findFabricItemByNameAndCode(client, companyId, materialName, materialCode);
 
-    const existingItem = await findFabricItemByNameAndCode(client, companyId, materialName, materialCode);
+  let itemId: string;
+  let designNr: string | null;
 
-    let itemId: string;
-    let designNr: string | null;
+  if (!existingItem) {
+    const internalCode = await resolveFabricItemInternalCode(client, companyId, materialName, materialCode);
+    const ins = await client.query<{ id: string; internal_code: string }>(
+      `INSERT INTO fabric_items
+         (company_id, category_id, internal_code, supplier_code, name, fabric_type, unit, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, internal_code`,
+      [
+        companyId,
+        c1.id,
+        internalCode,
+        materialCode,
+        materialName,
+        '',
+        'meter',
+        'أُنشئ تلقائياً من تصنيف الأقمشة عند إنشاء ثوب يدوي',
+      ],
+    );
+    itemId = ins.rows[0].id;
+    designNr = ins.rows[0].internal_code;
+    createdItem = true;
+  } else {
+    // Relink only — never mutate a shared fabric_item that other rolls use.
+    itemId = existingItem.id;
+    designNr = existingItem.internal_code;
+  }
 
-    if (!existingItem) {
-      const internalCode = await resolveFabricItemInternalCode(client, companyId, materialName, materialCode);
-      const ins = await client.query<{ id: string; internal_code: string }>(
-        `INSERT INTO fabric_items
-           (company_id, category_id, internal_code, supplier_code, name, fabric_type, unit, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id, internal_code`,
+  const hasColor = Boolean(level3CategoryId?.trim());
+  let colorId: string | null = null;
+  let colorNameAr = '';
+  let colorCodeVal = '';
+
+  if (hasColor) {
+    const l3 = level3CategoryId!.trim();
+    const l4 = level4CategoryId?.trim() || l3;
+    const { c3, c4 } = await loadColorPair(client, companyId, c2, l3, l4);
+    colorNameAr = colorNameFromCategory(c3);
+    colorCodeVal = colorCodeFromCategories(c3, c4);
+
+    const colorRes = colorCodeVal
+      ? await client.query<{ id: string }>(
+          `SELECT id FROM fabric_colors
+           WHERE company_id = $1
+             AND trim(lower(coalesce(name_ar, ''))) = trim(lower($2::text))
+             AND (
+               trim(lower(coalesce(color_code, ''))) = trim(lower($3::text))
+               OR trim(lower(coalesce(color_code, ''))) = trim(lower($4::text))
+             )
+           LIMIT 1`,
+          [companyId, colorNameAr, colorCodeVal, c4.code.trim()],
+        )
+      : await client.query<{ id: string }>(
+          `SELECT id FROM fabric_colors
+           WHERE company_id = $1
+             AND trim(lower(coalesce(name_ar, ''))) = trim(lower($2::text))
+             AND coalesce(nullif(trim(color_code), ''), '0') IN ('', '0')
+           LIMIT 1`,
+          [companyId, colorNameAr],
+        );
+
+    if (!colorRes.rows.length) {
+      const insC = await client.query<{ id: string }>(
+        `INSERT INTO fabric_colors (company_id, name_ar, name_tr, color_code, supplier_color_code, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
         [
           companyId,
-          c1.id,
-          internalCode,
-          materialCode,
-          materialName,
+          colorNameAr,
           '',
-          'meter',
-          'أُنشئ تلقائياً من تصنيف الأقمشة عند إنشاء ثوب يدوي',
+          colorCodeVal,
+          '',
+          'أُنشئ تلقائياً من تصنيف الأقمشة (اسم خامة → كود خامة → لون → كود لون)',
         ],
       );
-      itemId = ins.rows[0].id;
-      designNr = ins.rows[0].internal_code;
-      createdItem = true;
+      colorId = insC.rows[0].id;
+      createdColor = true;
     } else {
-      // Relink only — never mutate a shared fabric_item that other rolls use.
-      itemId = existingItem.id;
-      designNr = existingItem.internal_code;
+      // Relink only — never mutate a shared fabric_color that other rolls use.
+      colorId = colorRes.rows[0].id;
     }
+  }
 
-    const hasColor = Boolean(level3CategoryId?.trim());
-    let colorId: string | null = null;
-    let colorNameAr = '';
-    let colorCodeVal = '';
+  let variantId: string | null = null;
+  const w = widthCm != null && widthCm > 0 ? widthCm : null;
+  const g = gsm != null && gsm > 0 ? gsm : null;
 
-    if (hasColor) {
-      const l3 = level3CategoryId!.trim();
-      const l4 = (level4CategoryId?.trim() || l3);
-      const { c3, c4 } = await loadColorPair(client, companyId, c2, l3, l4);
-      colorNameAr = colorNameFromCategory(c3);
-      colorCodeVal = colorCodeFromCategories(c3, c4);
+  if (colorId && w != null && g != null) {
+    const vFind = await client.query<{ id: string }>(
+      `SELECT id FROM fabric_item_variants
+       WHERE company_id = $1 AND item_id = $2 AND color_id = $3
+         AND width_cm IS NOT DISTINCT FROM $4::numeric
+         AND gsm IS NOT DISTINCT FROM $5::numeric
+       LIMIT 1`,
+      [companyId, itemId, colorId, w, g],
+    );
 
-      const colorRes = colorCodeVal
-        ? await client.query<{ id: string }>(
-            `SELECT id FROM fabric_colors
-             WHERE company_id = $1
-               AND trim(lower(coalesce(name_ar, ''))) = trim(lower($2::text))
-               AND (
-                 trim(lower(coalesce(color_code, ''))) = trim(lower($3::text))
-                 OR trim(lower(coalesce(color_code, ''))) = trim(lower($4::text))
-               )
-             LIMIT 1`,
-            [companyId, colorNameAr, colorCodeVal, c4.code.trim()],
-          )
-        : await client.query<{ id: string }>(
-            `SELECT id FROM fabric_colors
-             WHERE company_id = $1
-               AND trim(lower(coalesce(name_ar, ''))) = trim(lower($2::text))
-               AND coalesce(nullif(trim(color_code), ''), '0') IN ('', '0')
-             LIMIT 1`,
-            [companyId, colorNameAr],
-          );
-
-      if (!colorRes.rows.length) {
-        const insC = await client.query<{ id: string }>(
-          `INSERT INTO fabric_colors (company_id, name_ar, name_tr, color_code, supplier_color_code, notes)
+    if (vFind.rows.length) {
+      variantId = vFind.rows[0].id;
+    } else {
+      const ic = designNr ?? materialCode;
+      let vcode = buildVariantCode(ic, colorCodeVal || 'NA', w, g);
+      const tryInsert = async (code: string) => {
+        return client.query<{ id: string }>(
+          `INSERT INTO fabric_item_variants (company_id, item_id, color_id, width_cm, gsm, variant_code)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id`,
-          [
-            companyId,
-            colorNameAr,
-            '',
-            colorCodeVal,
-            '',
-            'أُنشئ تلقائياً من تصنيف الأقمشة (اسم خامة → كود خامة → لون → كود لون)',
-          ],
+          [companyId, itemId, colorId, w, g, code],
         );
-        colorId = insC.rows[0].id;
-        createdColor = true;
-      } else {
-        // Relink only — never mutate a shared fabric_color that other rolls use.
-        colorId = colorRes.rows[0].id;
-      }
-    }
-
-    let variantId: string | null = null;
-    const w = widthCm != null && widthCm > 0 ? widthCm : null;
-    const g = gsm != null && gsm > 0 ? gsm : null;
-
-    if (colorId && w != null && g != null) {
-      const vFind = await client.query<{ id: string }>(
-        `SELECT id FROM fabric_item_variants
-         WHERE company_id = $1 AND item_id = $2 AND color_id = $3
-           AND width_cm IS NOT DISTINCT FROM $4::numeric
-           AND gsm IS NOT DISTINCT FROM $5::numeric
-         LIMIT 1`,
-        [companyId, itemId, colorId, w, g],
-      );
-
-      if (vFind.rows.length) {
-        variantId = vFind.rows[0].id;
-      } else {
-        const ic = designNr ?? materialCode;
-        let vcode = buildVariantCode(ic, colorCodeVal || 'NA', w, g);
-        const tryInsert = async (code: string) => {
-          return client.query<{ id: string }>(
-            `INSERT INTO fabric_item_variants (company_id, item_id, color_id, width_cm, gsm, variant_code)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id`,
-            [companyId, itemId, colorId, w, g, code],
-          );
-        };
-        try {
-          const insV = await tryInsert(vcode);
-          variantId = insV.rows[0].id;
+      };
+      try {
+        const insV = await tryInsert(vcode);
+        variantId = insV.rows[0].id;
+        createdVariant = true;
+      } catch (e: unknown) {
+        if ((e as { code?: string }).code === '23505') {
+          vcode = `${vcode}-${itemId.slice(0, 8)}`;
+          const insV2 = await tryInsert(vcode.slice(0, 120));
+          variantId = insV2.rows[0].id;
           createdVariant = true;
-        } catch (e: unknown) {
-          if ((e as { code?: string }).code === '23505') {
-            vcode = `${vcode}-${itemId.slice(0, 8)}`;
-            const insV2 = await tryInsert(vcode.slice(0, 120));
-            variantId = insV2.rows[0].id;
-            createdVariant = true;
-          } else {
-            throw e;
-          }
+        } else {
+          throw e;
         }
       }
     }
+  }
 
+  return {
+    itemId,
+    colorId,
+    variantId,
+    articleCode: materialCode,
+    fabricColorName: colorNameAr,
+    colorCode: colorCodeVal,
+    designNr,
+    created: { item: createdItem, color: createdColor, variant: createdVariant },
+  };
+}
+
+export async function resolveFabricClassification(
+  input: ResolveClassificationInput,
+): Promise<ResolveClassificationResult> {
+  const pool = getPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const result = await resolveFabricClassificationWithClient(client, input);
     await client.query('COMMIT');
-
-    return {
-      itemId,
-      colorId,
-      variantId,
-      articleCode: materialCode,
-      fabricColorName: colorNameAr,
-      colorCode: colorCodeVal,
-      designNr,
-      created: { item: createdItem, color: createdColor, variant: createdVariant },
-    };
+    return result;
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;

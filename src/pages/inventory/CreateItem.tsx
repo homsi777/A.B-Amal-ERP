@@ -7,6 +7,10 @@ import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import type { AdHocLabelInput } from '../../components/labels/LabelCard';
 import { ApiRequestError, getApiBaseUrl, getStoredToken } from '../../lib/api/client';
 import { createFabricItem, listFabricItems, updateFabricItem } from '../../lib/api/fabricItemsApi';
+import {
+  createItemEditFailureMessage,
+  resolveFabricItemForCreateItemEdit,
+} from '../../lib/inventory/createItemEditIdentity';
 import { createFabricRoll } from '../../lib/api/fabricRollsApi';
 import { createFabricColor, listFabricColors, type ApiFabricColor } from '../../lib/api/fabricColorsApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
@@ -421,43 +425,43 @@ export const CreateItem = () => {
           setSaving(false);
           return;
         }
-        // Lookup by the ORIGINAL identity of the edited record — never by the new form
-        // values, or we may update a different fabric_item that shares CLO-2 / similar codes.
+        // FabricItem (Zustand) has no API fabric_items.id — resolve by ORIGINAL name+code only.
+        // Refuse save on 0 or >1 matches (never silent LIMIT 1 / .find).
         const originalName = (editingItem.name || '').trim();
         const originalCode = (editingItem.fabricCode || '').trim();
-        let apiItem = originalName
-          ? (await listFabricItems({ search: originalName, pageSize: 100 })).data.find(
-              (item) =>
-                sameText(item.name, originalName)
-                && (
-                  !originalCode
-                  || sameText(item.internal_code, originalCode)
-                  || sameText(item.supplier_code, originalCode)
-                ),
-            )
-          : undefined;
-        if (!apiItem && originalCode) {
-          apiItem = (await listFabricItems({ search: originalCode, pageSize: 100 })).data.find(
-            (item) =>
-              sameText(item.name, originalName)
-              && (
-                sameText(item.internal_code, originalCode)
-                || sameText(item.supplier_code, originalCode)
-              ),
-          );
+        const searchKey = originalName || originalCode;
+        const listed = searchKey
+          ? (await listFabricItems({ search: searchKey, pageSize: 100 })).data
+          : [];
+        const resolved = resolveFabricItemForCreateItemEdit(
+          {
+            fabricItemId: null,
+            originalName,
+            originalCode,
+          },
+          listed,
+        );
+        if (!resolved.ok) {
+          setSaveError(createItemEditFailureMessage(resolved));
+          setSaving(false);
+          return;
         }
-        if (apiItem) {
-          await updateFabricItem(apiItem.id, {
-            name,
-            internal_code: apiItem.internal_code,
-            supplier_code: barcode || apiItem.supplier_code || '',
-            fabric_type: apiItem.fabric_type || 'عام',
-            unit: apiItem.unit || 'meter',
-            notes: imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : apiItem.notes || '',
-            category_id: apiItem.category_id,
-            supplier_id: apiItem.supplier_id,
-          });
+        const apiItem = listed.find((item) => item.id === resolved.item.id);
+        if (!apiItem) {
+          setSaveError('لم يُعثر على سجل خامة مطابق للهوية الأصلية. أوقِف الحفظ لتجنب تعديل سجل خاطئ.');
+          setSaving(false);
+          return;
         }
+        await updateFabricItem(apiItem.id, {
+          name,
+          internal_code: apiItem.internal_code,
+          supplier_code: barcode || apiItem.supplier_code || '',
+          fabric_type: apiItem.fabric_type || 'عام',
+          unit: apiItem.unit || 'meter',
+          notes: imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : apiItem.notes || '',
+          category_id: apiItem.category_id,
+          supplier_id: apiItem.supplier_id,
+        });
         updateFabric(editingItem.id, payload);
         setSuccessMessage(`تم تعديل المادة "${name}" وحفظها في قاعدة البيانات`);
         setSaving(false);
