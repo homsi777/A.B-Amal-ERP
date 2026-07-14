@@ -421,18 +421,28 @@ export const CreateItem = () => {
           setSaving(false);
           return;
         }
-        let apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
-          (item) =>
-            sameText(item.name, name.trim())
-            && sameText(item.internal_code, fabricCode.trim()),
-        );
-        if (!apiItem) {
-          apiItem = (await listFabricItems({ search: fabricCode, pageSize: 100 })).data.find(
+        // Lookup by the ORIGINAL identity of the edited record — never by the new form
+        // values, or we may update a different fabric_item that shares CLO-2 / similar codes.
+        const originalName = (editingItem.name || '').trim();
+        const originalCode = (editingItem.fabricCode || '').trim();
+        let apiItem = originalName
+          ? (await listFabricItems({ search: originalName, pageSize: 100 })).data.find(
+              (item) =>
+                sameText(item.name, originalName)
+                && (
+                  !originalCode
+                  || sameText(item.internal_code, originalCode)
+                  || sameText(item.supplier_code, originalCode)
+                ),
+            )
+          : undefined;
+        if (!apiItem && originalCode) {
+          apiItem = (await listFabricItems({ search: originalCode, pageSize: 100 })).data.find(
             (item) =>
-              sameText(item.name, name.trim())
+              sameText(item.name, originalName)
               && (
-                sameText(item.internal_code, fabricCode.trim())
-                || sameText(item.supplier_code, fabricCode.trim())
+                sameText(item.internal_code, originalCode)
+                || sameText(item.supplier_code, originalCode)
               ),
           );
         }

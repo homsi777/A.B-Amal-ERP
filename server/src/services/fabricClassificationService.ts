@@ -153,14 +153,9 @@ export async function resolveFabricClassification(
       designNr = ins.rows[0].internal_code;
       createdItem = true;
     } else {
+      // Relink only — never mutate a shared fabric_item that other rolls use.
       itemId = existingItem.id;
       designNr = existingItem.internal_code;
-      await client.query(
-        `UPDATE fabric_items
-         SET category_id = $3, name = $4, supplier_code = COALESCE(NULLIF(trim($5), ''), supplier_code), updated_at = now()
-         WHERE id = $1 AND company_id = $2`,
-        [itemId, companyId, c1.id, materialName, materialCode],
-      );
     }
 
     const hasColor = Boolean(level3CategoryId?.trim());
@@ -213,13 +208,8 @@ export async function resolveFabricClassification(
         colorId = insC.rows[0].id;
         createdColor = true;
       } else {
+        // Relink only — never mutate a shared fabric_color that other rolls use.
         colorId = colorRes.rows[0].id;
-        await client.query(
-          `UPDATE fabric_colors
-           SET name_ar = $3, color_code = $4, updated_at = now()
-           WHERE id = $1 AND company_id = $2`,
-          [colorId, companyId, colorNameAr, colorCodeVal],
-        );
       }
     }
 
