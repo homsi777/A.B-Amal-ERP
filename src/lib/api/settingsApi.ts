@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, getApiBaseUrl, getStoredToken } from './client';
 
 export type SystemSettingsMap = Record<string, Record<string, unknown>>;
 
@@ -173,4 +173,50 @@ export async function purgeBusinessData(payload: {
     body: JSON.stringify(payload),
   });
   return res.data;
+}
+
+/** Download full DB backup to the current device (phone/desktop browser). Admin / settings.manage. */
+export async function downloadDatabaseBackupToDevice(): Promise<{ fileName: string; sizeBytes: number }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('يجب تسجيل الدخول أولاً');
+
+  const res = await fetch(`${getApiBaseUrl()}/api/system/backup/download`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    let message = 'تعذر تنزيل النسخة الاحتياطية';
+    try {
+      const body = (await res.json()) as { message?: string };
+      if (body.message) message = body.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+
+  const blob = await res.blob();
+  const header = res.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^";]+)"?/i.exec(header);
+  const fileName = match?.[1]?.trim() || `clotex-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.dump`;
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    // Delay revoke so mobile browsers can start the download.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+  }
+
+  return { fileName, sizeBytes: blob.size };
 }

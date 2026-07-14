@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Mail,
   Database,
+  Download,
   Save,
   Sparkles,
   AlertTriangle,
@@ -30,6 +31,7 @@ import { ActivationSettingsPanel } from '../components/activation/ActivationSett
 import { DesktopSettingsBody } from './settings/DesktopSettings';
 import {
   createSystemUser,
+  downloadDatabaseBackupToDevice,
   fetchTelegramUpdates,
   getPermissionsOverview,
   getSystemSettings,
@@ -151,6 +153,7 @@ export const SystemSettings = () => {
   const [purgeConfirmPhrase, setPurgeConfirmPhrase] = useState('');
   const [purgePassword, setPurgePassword] = useState('');
   const [purgeLoading, setPurgeLoading] = useState(false);
+  const [backupDownloadLoading, setBackupDownloadLoading] = useState(false);
 
   // Sync active tab when URL ?tab= changes (e.g., redirected from /settings/desktop)
   useEffect(() => {
@@ -246,6 +249,25 @@ export const SystemSettings = () => {
       showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر مسح بيانات الأعمال' });
     } finally {
       setPurgeLoading(false);
+    }
+  };
+
+  const handleDownloadBackupToDevice = async () => {
+    setBackupDownloadLoading(true);
+    try {
+      const result = await downloadDatabaseBackupToDevice();
+      const sizeMb = (result.sizeBytes / (1024 * 1024)).toFixed(2);
+      showToast({
+        type: 'success',
+        message: `تم تنزيل النسخة الاحتياطية (${result.fileName} — ${sizeMb} م.ب). احفظها في ملفات الهاتف أو أرسلها لنفسك.`,
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : 'تعذر تنزيل النسخة الاحتياطية',
+      });
+    } finally {
+      setBackupDownloadLoading(false);
     }
   };
 
@@ -692,6 +714,28 @@ export const SystemSettings = () => {
                   { label: 'مسار النسخ المحلي', type: 'text', value: settingsValues.backup.backupPath, onChange: (value) => updateSetting('backup', 'backupPath', value) },
                 ]}
               />
+
+              <div className="bg-[var(--surface-header)] border border-[var(--border-default)] rounded-xl shadow-sm p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <Download className="w-6 h-6 text-[var(--ui-accent)] shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-xl font-bold text-[var(--text-heading)]">حفظ نسخة احتياطية على هذا الجهاز</h3>
+                    <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
+                      ينشئ نسخة من قاعدة البيانات ثم يحمّلها إلى هاتفك أو جهازك (متصفح الجوال أو الكمبيوتر).
+                      على الهاتف اختر «حفظ في الملفات» أو أرسل الملف إلى واتساب/بريدك للحفظ الآمن.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={backupDownloadLoading}
+                  onClick={() => void handleDownloadBackupToDevice()}
+                  className="inline-flex items-center justify-center gap-2 bg-[var(--ui-accent)] text-white px-5 py-2.5 rounded-lg font-bold hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <Download className="w-4 h-4" />
+                  {backupDownloadLoading ? 'جاري إنشاء وتنزيل النسخة...' : 'تنزيل نسخة احتياطية الآن'}
+                </button>
+              </div>
 
               {currentUser?.role === 'admin' && (
                 <div className="bg-[var(--surface-header)] border-2 border-red-300 dark:border-red-800 rounded-xl shadow-sm p-6 space-y-5">

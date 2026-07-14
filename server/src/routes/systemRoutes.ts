@@ -8,6 +8,11 @@ import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { purgeBusinessData } from '../services/purgeBusinessDataService.js';
 import { listActiveSessions, revokeActiveSession, buildSessionKey } from '../services/activeSessionsService.js';
+import {
+  createDatabaseBackupFile,
+  safeUnlink,
+} from '../services/databaseBackupDownloadService.js';
+import { createReadStream } from 'node:fs';
 
 const settingBody = z.object({
   key: z.string().min(1),
@@ -421,6 +426,44 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 404, 'الجلسة غير موجودة أو انتهت', 'NOT_FOUND');
     }
     return reply.send({ ok: true });
+  });
+
+  app.get('/backup/download', { preHandler: authenticateRequest }, async (req, reply) => {
+    const user = req.user!;
+    if (user.role !== 'admin' && !requirePermission(user, 'settings.manage')) {
+      return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    }
+
+    let backup: Awaited<ReturnType<typeof createDatabaseBackupFile>> | null = null;
+    try {
+      backup = await createDatabaseBackupFile();
+      const stream = createReadStream(backup.filePath);
+      stream.on('close', () => {
+        if (backup) safeUnlink(backup.filePath);
+      });
+      stream.on('error', () => {
+        if (backup) safeUnlink(backup.filePath);
+      });
+
+      return reply
+        .header('Content-Type', 'application/octet-stream')
+        .header('Content-Disposition', `attachment; filename="${backup.fileName}"`)
+        .header('Content-Length', String(backup.sizeBytes))
+        .header('Cache-Control', 'no-store')
+        .send(stream);
+    } catch (error) {
+      if (backup?.filePath) safeUnlink(backup.filePath);
+      req.log.error({ err: error }, 'backup-download failed');
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'تعذر إنشاء النسخة الاحتياطية للتنزيل';
+      const statusCode =
+        typeof (error as { statusCode?: number }).statusCode === 'number'
+          ? (error as { statusCode: number }).statusCode
+          : 500;
+      return sendError(reply, statusCode, message, 'BACKUP_FAILED');
+    }
   });
 
   app.post('/purge-business-data', { preHandler: authenticateRequest }, async (req, reply) => {
