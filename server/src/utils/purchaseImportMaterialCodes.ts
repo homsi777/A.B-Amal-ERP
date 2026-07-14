@@ -1,4 +1,4 @@
-import type { PoolClient } from 'pg';
+﻿import type { PoolClient } from 'pg';
 import { stripImportLevelPrefix } from './categoryBusinessValues.js';
 import { cleanString, type NormalizedField } from './importColumnDetector.js';
 import {
@@ -11,7 +11,7 @@ type NormalizedRowData = Partial<Record<NormalizedField, string | number | null>
 
 /**
  * Find or create a category node under the same parent.
- * Match order: exact name → exact code → legacy L1_/L2_/… code/name (stripped).
+ * Match order: exact name â†’ exact code â†’ legacy L1_/L2_/â€¦ code/name (stripped).
  * New rows store code = name exactly as written (no L1_/L2_ prefixes).
  */
 async function ensureCategoryNode(
@@ -47,7 +47,7 @@ async function ensureCategoryNode(
   );
   if (existing.rows.length) return { id: existing.rows[0].id, created: false };
 
-  // Prefer plain business label; never persist L1_/L2_/… prefixes on new rows.
+  // Prefer plain business label; never persist L1_/L2_/â€¦ prefixes on new rows.
   const storeLabel = stripImportLevelPrefix(name) || name;
 
   try {
@@ -111,22 +111,40 @@ export async function findFabricItemByImportDesignCode(
 ): Promise<string | null> {
   const code = cleanString(designCode);
   if (!code) return null;
-  const r = await db.query<{ id: string }>(
-    `SELECT id FROM fabric_items
+  const r = await db.query<{ id: string; internal_code: string; supplier_code: string | null }>(
+    `SELECT id, internal_code, supplier_code FROM fabric_items
      WHERE company_id=$1 AND is_active=true
        AND (
          lower(trim(internal_code))=lower(trim($2))
          OR lower(trim(supplier_code))=lower(trim($2))
        )
-     LIMIT 1`,
+     ORDER BY
+       CASE WHEN lower(trim(internal_code))=lower(trim($2)) THEN 0 ELSE 1 END,
+       created_at ASC`,
     [companyId, code],
   );
-  return r.rows[0]?.id ?? null;
+  for (const row of r.rows) {
+    const internal = cleanString(row.internal_code);
+    const supplier = cleanString(row.supplier_code);
+    if (internal.toLowerCase() === code.toLowerCase()) return row.id;
+    if (supplier.toLowerCase() === code.toLowerCase()) {
+      if (
+        looksLikeUniqueDesignSku(internal)
+        && internal.toLowerCase() !== code.toLowerCase()
+      ) {
+        continue;
+      }
+      return row.id;
+    }
+  }
+  return null;
 }
 
 /**
  * Safe purchase-import match: name + design code together.
  * Never matches HONEYCOMB/CLO-3 when importing ASTRLI EKOSE/CLO-3.
+ * Never reuses ROYAL JAKAR/36-1 when importing ROYAL JAKAR/7023 just because
+ * supplier_code was wrongly set to 7023 on the 36-1 master row.
  */
 export async function findFabricItemForPurchaseImport(
   db: Pick<PoolClient, 'query'>,
@@ -139,19 +157,35 @@ export async function findFabricItemForPurchaseImport(
   if (!name && !code) return null;
 
   if (name && code) {
-    const byPair = await db.query<{ id: string }>(
-      `SELECT id FROM fabric_items
+    const byPair = await db.query<{ id: string; internal_code: string; supplier_code: string | null }>(
+      `SELECT id, internal_code, supplier_code FROM fabric_items
        WHERE company_id=$1 AND is_active=true
          AND lower(trim(name))=lower(trim($2))
          AND (
            lower(trim(internal_code))=lower(trim($3))
            OR lower(trim(coalesce(supplier_code, '')))=lower(trim($3))
          )
-       ORDER BY created_at ASC
-       LIMIT 1`,
+       ORDER BY
+         CASE WHEN lower(trim(internal_code))=lower(trim($3)) THEN 0 ELSE 1 END,
+         created_at ASC`,
       [companyId, name, code],
     );
-    if (byPair.rows[0]?.id) return byPair.rows[0].id;
+
+    for (const row of byPair.rows) {
+      const internal = cleanString(row.internal_code);
+      const supplier = cleanString(row.supplier_code);
+      if (internal.toLowerCase() === code.toLowerCase()) return row.id;
+      if (supplier.toLowerCase() === code.toLowerCase()) {
+        // Supplier hit only - reject when internal is a different unique design SKU.
+        if (
+          looksLikeUniqueDesignSku(internal)
+          && internal.toLowerCase() !== code.toLowerCase()
+        ) {
+          continue;
+        }
+        return row.id;
+      }
+    }
     return null;
   }
 
@@ -177,7 +211,7 @@ function purchaseImportInternalCode(materialName: string, designCode: string): s
 }
 
 /**
- * One fabric item per design code (3019, 7020, 38-A…).
+ * One fabric item per design code (3019, 7020, 38-Aâ€¦).
  * Do not collapse multiple desen under the same material name (ROYAL JAKAR).
  */
 export async function findOrCreateImportFabricItem(
@@ -234,7 +268,7 @@ export function resolveImportMaterialCode(nd: NormalizedRowData): string {
 }
 
 /**
- * Persist كود الخامة from Excel onto fabric_items.
+ * Persist material code from Excel onto fabric_items.
  * Runs for matched and newly created items — previously codes were dropped when the item already existed by name.
  */
 export async function applyPurchaseImportMaterialCodes(
@@ -303,6 +337,16 @@ export async function applyPurchaseImportMaterialCodes(
     supCode = '';
   }
 
+  // Never stamp a different unique design (7023) onto an item whose identity is another (36-1).
+  if (
+    supCode
+    && looksLikeUniqueDesignSku(supCode)
+    && looksLikeUniqueDesignSku(row.internal_code)
+    && row.internal_code.trim().toLowerCase() !== supCode.trim().toLowerCase()
+  ) {
+    supCode = '';
+  }
+
   let nextName: string | null = matName || null;
   if (
     matName
@@ -329,7 +373,7 @@ export async function applyPurchaseImportMaterialCodes(
   );
 }
 
-/** Keep category tree in sync with import row — reuse existing nodes by name; create only if missing. */
+/** Keep category tree in sync with import row â€” reuse existing nodes by name; create only if missing. */
 export async function ensureFabricCategoryChainFromImport(
   client: PoolClient,
   companyId: string,
