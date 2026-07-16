@@ -376,6 +376,29 @@ export const CustomerStatement = () => {
     });
   }, [accountStatement, dbSaleInvoicesFromApi, invoiceDetailsBySourceId, invoiceDetailsByDocumentNo]);
 
+  const accountFinancialSummary = useMemo(() => {
+    if (!accountStatement) return null;
+    const closing = accountStatement.totals.closingBalance;
+    const closingType: 'مدين' | 'دائن' = closing >= 0 ? 'مدين' : 'دائن';
+
+    let lastPayment: { date: string; amount: number; documentNo: string } | null = null;
+    for (let i = accountStatement.rows.length - 1; i >= 0; i -= 1) {
+      const row = accountStatement.rows[i];
+      if (row.credit > 0 && row.type === 'RECEIPT_VOUCHER') {
+        lastPayment = { date: row.date, amount: row.credit, documentNo: row.documentNo };
+        break;
+      }
+    }
+
+    return {
+      debit: accountStatement.totals.debit,
+      credit: accountStatement.totals.credit,
+      closingBalance: Math.abs(closing),
+      closingType,
+      lastPayment,
+    };
+  }, [accountStatement]);
+
   const presetBanner = useMemo(() => {
     if (preset === 'manual') return null;
     const name = selectedCustomer?.name ?? '';
@@ -764,10 +787,17 @@ export const CustomerStatement = () => {
       `عدد الخامات (أسطر الكشف): ${totals.itemCount}`,
       `مجموع الأتواب: ${totals.totalRolls.toLocaleString('ar')}`,
       `مجموع الكميات (طول): ${totals.totalQuantity.toLocaleString('ar')}`,
-      `إجمالي الدفعات: ${totals.totalPayments.toLocaleString('ar')}`,
-      `الرصيد ${balance.type}: ${balance.amount.toLocaleString('ar')}`,
+      accountFinancialSummary
+        ? `إجمالي المدين: ${accountFinancialSummary.debit.toLocaleString('ar')} — إجمالي الدائن: ${accountFinancialSummary.credit.toLocaleString('ar')}`
+        : null,
+      accountFinancialSummary
+        ? `الرصيد النهائي (${accountFinancialSummary.closingType}): ${accountFinancialSummary.closingBalance.toLocaleString('ar')}`
+        : `الرصيد ${balance.type}: ${balance.amount.toLocaleString('ar')}`,
+      accountFinancialSummary?.lastPayment
+        ? `آخر دفعة: ${accountFinancialSummary.lastPayment.amount.toLocaleString('ar')} بتاريخ ${accountFinancialSummary.lastPayment.date}`
+        : null,
       `تم إنشاء الكشف من ${BRAND.name} — ${BRAND.tagline} (${BRAND.descriptionAr}).`
-    ].join('\n');
+    ].filter(Boolean).join('\n');
 
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
@@ -1202,42 +1232,94 @@ export const CustomerStatement = () => {
                )}
             </div>
 
-            {fabricItems.length > 0 && (
+            {(accountFinancialSummary || fabricItems.length > 0) && (
               <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
                 <h4 className="text-lg font-bold text-slate-900 mb-4">📊 ملخص الكشف</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                  <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">عدد الخامات</p>
-                    <p className="text-2xl font-bold text-indigo-600">{totals.itemCount}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">عدد الأسطر في الكشف</p>
+
+                {!hideFinancialColumns && accountFinancialSummary && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي المدين</p>
+                      <p className="text-2xl font-bold text-blue-700">
+                        {accountFinancialSummary.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">{statementCurrency} — فواتير ومستحقات</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي الدائن</p>
+                      <p className="text-2xl font-bold text-emerald-600">
+                        {accountFinancialSummary.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">{statementCurrency} — قبض ومرتجعات وحسومات</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">آخر دفعة</p>
+                      {accountFinancialSummary.lastPayment ? (
+                        <>
+                          <p className="text-2xl font-bold text-violet-600">
+                            {accountFinancialSummary.lastPayment.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {accountFinancialSummary.lastPayment.date} — {accountFinancialSummary.lastPayment.documentNo}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-2xl font-bold text-slate-300">—</p>
+                          <p className="text-[11px] text-slate-400 mt-1">لا توجد دفعات قبض ضمن الفترة</p>
+                        </>
+                      )}
+                    </div>
+
+                    <div
+                      className={`rounded-lg p-4 border-2 shadow-sm hover:shadow-md transition ${
+                        accountFinancialSummary.closingType === 'مدين'
+                          ? 'border-indigo-300 bg-indigo-50'
+                          : 'border-emerald-300 bg-emerald-50'
+                      }`}
+                    >
+                      <p
+                        className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
+                          accountFinancialSummary.closingType === 'مدين' ? 'text-indigo-600' : 'text-emerald-600'
+                        }`}
+                      >
+                        الرصيد النهائي ({accountFinancialSummary.closingType})
+                      </p>
+                      <p
+                        className={`text-2xl font-bold ${
+                          accountFinancialSummary.closingType === 'مدين' ? 'text-indigo-600' : 'text-emerald-600'
+                        }`}
+                      >
+                        {accountFinancialSummary.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">{statementCurrency} — من كشف الحساب (الخادم)</p>
+                    </div>
                   </div>
+                )}
 
-                  <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">مجموع الأتواب</p>
-                    <p className="text-2xl font-bold text-violet-600">{totals.totalRolls.toLocaleString()}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">مجموع البكر لكل خامة</p>
+                {fabricItems.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي الأمتار</p>
+                      <p className="text-2xl font-bold text-blue-600">{totals.totalQuantity.toLocaleString()}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">مجموع الأطوال من فواتير البيع</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">عدد الخامات</p>
+                      <p className="text-2xl font-bold text-indigo-600">{totals.itemCount}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">عدد الأسطر في كشف الخامات</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">مجموع الأتواب</p>
+                      <p className="text-2xl font-bold text-violet-600">{totals.totalRolls.toLocaleString()}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">مجموع البكر لكل خامة</p>
+                    </div>
                   </div>
-
-                  <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">مجموع الكميات</p>
-                    <p className="text-2xl font-bold text-blue-600">{totals.totalQuantity.toLocaleString()}</p>
-                  </div>
-
-                  {!hideFinancialColumns && <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">الإجمالي المالي</p>
-                    <p className="text-2xl font-bold text-green-600">{totals.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
-                  </div>}
-
-                  {!hideFinancialColumns && <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">الدفعات المستلمة</p>
-                    <p className="text-2xl font-bold text-emerald-600">{totals.totalPayments.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
-                  </div>}
-
-                  {!hideFinancialColumns && <div className={`bg-white rounded-lg p-4 border-2 shadow-sm hover:shadow-md transition ${balance.color === 'indigo' ? 'border-indigo-300 bg-indigo-50' : 'border-emerald-300 bg-emerald-50'}`}>
-                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${balance.color === 'indigo' ? 'text-indigo-600' : 'text-emerald-600'}`}>الرصيد ({balance.type})</p>
-                    <p className={`text-2xl font-bold ${balance.color === 'indigo' ? 'text-indigo-600' : 'text-emerald-600'}`}>{balance.amount.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
-                  </div>}
-                </div>
+                )}
               </div>
             )}
           </>
