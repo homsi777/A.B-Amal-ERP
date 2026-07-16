@@ -921,7 +921,11 @@ return (
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <RepairVoidedPurchaseRollsButton onRepaired={() => void fetchRolls()} />
+          {/*
+            أزرار مخفية حسب طلب المالك — الكود محفوظ للاستخدام لاحقاً:
+            إصلاح مخزون فواتير ملغاة | توليد باركود جماعي | استيراد من ملف Excel
+          */}
+          {false && <RepairVoidedPurchaseRollsButton onRepaired={() => void fetchRolls()} />}
           <Link
             to="/inventory/labels"
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"
@@ -954,22 +958,26 @@ return (
               إضافة ثوب جديد
                 </Link>
               )}
-              <button
-                type="button"
-                onClick={() => setShowBulkBarcodeModal(true)}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition font-bold text-sm shadow-sm"
-              >
-                <Barcode className="w-4 h-4" />
-                توليد باركود جماعي
-              </button>
-              <button
-                type="button"
-                onClick={() => setExcelImportOpen(true)}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition font-bold text-sm shadow-sm"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                استيراد من ملف Excel
-              </button>
+              {false && (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkBarcodeModal(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition font-bold text-sm shadow-sm"
+                >
+                  <Barcode className="w-4 h-4" />
+                  توليد باركود جماعي
+                </button>
+              )}
+              {false && (
+                <button
+                  type="button"
+                  onClick={() => setExcelImportOpen(true)}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition font-bold text-sm shadow-sm"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  استيراد من ملف Excel
+                </button>
+              )}
         </div>
       </div>
 
@@ -1282,7 +1290,7 @@ return (
                          ? 'جرب تعديل معايير البحث أو نطاق العرض'
                          : 'استورد أول ملف Excel للبدء'}
                      </p>
-                      {!search && !filterWarehouseId && inventoryScope === 'available' && (
+                      {false && !search && !filterWarehouseId && inventoryScope === 'available' && (
                         <button
                           type="button"
                           onClick={() => setExcelImportOpen(true)}

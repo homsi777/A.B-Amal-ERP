@@ -396,7 +396,7 @@ export const Purchases = () => {
           <p className="text-slate-500 mt-1">إدارة فواتير المشتريات من الموردين</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <RepairVoidedPurchaseRollsButton />
+          {false && <RepairVoidedPurchaseRollsButton />}
           <Link
             to="/purchases/import-batches"
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"

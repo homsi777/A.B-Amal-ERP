@@ -76,6 +76,13 @@ export const BondDetails = () => {
 
   const doCancel = async () => {
     if (!bond) return;
+    if (
+      !window.confirm(
+        `هل أنت متأكد من إلغاء السند ${bond.voucher_no}؟\n\nسيتم إلغاء السند وعكس أثره على الصندوق والحسابات. لا يمكن التراجع عن هذا الإجراء بسهولة.`,
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     try {
       await cancelVoucher(bond.id);
