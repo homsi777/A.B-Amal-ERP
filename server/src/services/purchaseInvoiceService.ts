@@ -371,7 +371,7 @@ export async function listPurchaseInvoices(
   let p = 2;
 
   if (opts.search?.trim()) {
-    conds.push(`(pi.invoice_no ILIKE $${p} OR s.name ILIKE $${p} OR COALESCE(s.company, '') ILIKE $${p})`);
+    conds.push(`(pi.invoice_no ILIKE $${p} OR s.name ILIKE $${p} OR COALESCE(s.code, '') ILIKE $${p})`);
     params.push(`%${opts.search.trim()}%`);
     p++;
   }
