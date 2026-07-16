@@ -754,7 +754,13 @@ export async function listSalesInvoices(
        LIMIT $${p} OFFSET $${p + 1}`,
       [...params, pageSize, offset],
     ),
-    db.query(`SELECT COUNT(*)::int AS total FROM sales_invoices si WHERE ${where}`, params),
+    db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM sales_invoices si
+       INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
+       WHERE ${where}`,
+      params,
+    ),
   ]);
 
   return { rows: rows.rows, total: countRow.rows[0].total, page, pageSize };

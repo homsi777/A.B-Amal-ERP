@@ -371,7 +371,7 @@ export async function listPurchaseInvoices(
   let p = 2;
 
   if (opts.search?.trim()) {
-    conds.push(`(pi.invoice_no ILIKE $${p} OR s.name ILIKE $${p})`);
+    conds.push(`(pi.invoice_no ILIKE $${p} OR s.name ILIKE $${p} OR COALESCE(s.company, '') ILIKE $${p})`);
     params.push(`%${opts.search.trim()}%`);
     p++;
   }
@@ -412,7 +412,13 @@ export async function listPurchaseInvoices(
        LIMIT $${p} OFFSET $${p + 1}`,
       [...params, pageSize, offset],
     ),
-    db.query(`SELECT COUNT(*)::int AS total FROM purchase_invoices pi WHERE ${where}`, params),
+    db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM purchase_invoices pi
+       INNER JOIN suppliers s ON s.id = pi.supplier_id AND s.company_id = pi.company_id
+       WHERE ${where}`,
+      params,
+    ),
   ]);
 
   return { rows: rows.rows, total: countRow.rows[0].total, page, pageSize };
