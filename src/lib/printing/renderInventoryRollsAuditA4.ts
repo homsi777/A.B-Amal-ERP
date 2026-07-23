@@ -111,47 +111,35 @@ export function renderInventoryRollsAuditA4Html(opts: {
       );
     });
 
-  const materialGroups = new Map<string, typeof preparedRolls>();
+  const colorGroups = new Map<string, typeof preparedRolls>();
   for (const prepared of preparedRolls) {
-    const key = `${prepared.materialName}\u0000${prepared.materialCode}`;
-    const group = materialGroups.get(key);
+    const key = [
+      prepared.materialName,
+      prepared.materialCode,
+      prepared.colorName,
+      prepared.colorCode,
+    ].join('\u0000');
+    const group = colorGroups.get(key);
     if (group) group.push(prepared);
-    else materialGroups.set(key, [prepared]);
+    else colorGroups.set(key, [prepared]);
   }
 
   let printedRowIndex = 0;
-  const bodyRows = Array.from(materialGroups.values())
+  const bodyRows = Array.from(colorGroups.values())
     .map((group) => {
       const first = group[0];
-      const colorCounts = new Map<string, { name: string; code: string; count: number }>();
-      const warehouses = new Set<string>();
-
-      for (const row of group) {
-        const colorKey = `${row.colorName}\u0000${row.colorCode}`;
-        const color = colorCounts.get(colorKey);
-        if (color) color.count += 1;
-        else colorCounts.set(colorKey, { name: row.colorName, code: row.colorCode, count: 1 });
-        warehouses.add(String(row.roll.warehouse_name || '—').trim() || '—');
-      }
-
       const groupMeters = group.reduce((sum, row) => sum + row.lengthM, 0);
-      const groupKg = group.reduce((sum, row) => sum + row.weightKg, 0);
-      const colorsBreakdown = Array.from(colorCounts.values())
-        .map((color) => {
-          const colorIdentity =
-            color.code && color.code !== '—'
-              ? `${color.name} (${color.code})`
-              : color.name;
-          return `${colorIdentity}: ${color.count.toLocaleString('en-US')} ثوب`;
-        })
-        .join(' • ');
+      const colorIdentity =
+        first.colorCode && first.colorCode !== '—'
+          ? `${first.colorName} (${first.colorCode})`
+          : first.colorName;
 
       const rowsHtml = group
         .map((row, index) => {
           printedRowIndex += 1;
           const isLastLine = index === group.length - 1;
           return `
-        <tr class="line-row${isLastLine ? ' material-last-line' : ''}">
+        <tr class="line-row${isLastLine ? ' color-last-line' : ''}">
           <td class="cell num center">${printedRowIndex}</td>
           <td class="cell mono center">${escapeHtml(row.roll.barcode || '—')}</td>
           <td class="cell text">${escapeHtml(row.materialName)}</td>
@@ -167,20 +155,12 @@ export function renderInventoryRollsAuditA4Html(opts: {
         .join('');
 
       return `${rowsHtml}
-        <tr class="material-summary-row">
-          <td class="cell material-summary-cell" colspan="10">
-            <div class="material-summary-main">
-              <span class="material-summary-title">إجمالي الخامة: ${escapeHtml(first.materialName)} — ${escapeHtml(first.materialCode)}</span>
-              <span>الأتواب: <strong>${group.length.toLocaleString('en-US')}</strong></span>
-              <span>الألوان: <strong>${colorCounts.size.toLocaleString('en-US')}</strong></span>
-              <span>الأمتار: <strong class="num">${formatAr(groupMeters)}</strong></span>
-              <span>الوزن: <strong class="num">${formatAr(groupKg)} كغ</strong></span>
-              <span>المستودعات: <strong>${warehouses.size.toLocaleString('en-US')}</strong></span>
-            </div>
-            <div class="material-color-breakdown">
-              <span class="material-color-label">تفصيل الألوان:</span>
-              ${escapeHtml(colorsBreakdown)}
-            </div>
+        <tr class="color-summary-row">
+          <td class="cell color-summary-cell" colspan="10">
+            إجمالي اللون ${escapeHtml(colorIdentity)}:
+            <strong>${group.length.toLocaleString('en-US')} ثوب</strong>
+            <span class="color-summary-separator">—</span>
+            <strong class="num">${formatAr(groupMeters)} متر</strong>
           </td>
         </tr>`;
     })
@@ -323,7 +303,7 @@ export function renderInventoryRollsAuditA4Html(opts: {
     }
     .data-table thead th:last-child { border-left: none; }
     .data-table tbody .cell {
-      padding: 5px 3px;
+      padding: 4px 3px;
       font-size: 9.2px;
       font-weight: 700;
       color: #000;
@@ -341,46 +321,30 @@ export function renderInventoryRollsAuditA4Html(opts: {
       font-size: 9.5px;
       border-top: 1px solid #000;
     }
-    .data-table tbody .material-summary-cell {
-      padding: 7px 9px;
-      background: #e7eaee;
-      border-top: 1.5px solid #8d96a3;
-      border-bottom: 1.5px solid #8d96a3;
-      color: #172033;
-    }
-    .material-summary-main {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 5px 14px;
-      font-size: 9.5px;
-      font-weight: 800;
-      line-height: 1.4;
-    }
-    .material-summary-title {
-      color: ${NAVY};
-      font-weight: 900;
-    }
-    .material-color-breakdown {
-      margin-top: 4px;
-      padding-top: 4px;
-      border-top: 1px dashed #a8afb8;
-      font-size: 9.2px;
+    .data-table tbody .color-summary-cell {
+      padding: 1px 6px;
+      background: #eef0f3;
+      border-top: 1px solid #a8afb8;
+      border-bottom: 1px solid #a8afb8;
+      color: #263244;
+      text-align: center;
+      font-size: 8px;
       font-weight: 700;
-      line-height: 1.45;
-      text-align: right;
+      line-height: 1.15;
     }
-    .material-color-label {
-      color: ${NAVY};
+    .color-summary-cell strong {
       font-weight: 900;
-      margin-left: 4px;
     }
-    .material-last-line {
+    .color-summary-separator {
+      display: inline-block;
+      margin: 0 7px;
+      color: #737d8a;
+    }
+    .color-last-line {
       page-break-after: avoid;
       break-after: avoid-page;
     }
-    .material-summary-row {
+    .color-summary-row {
       page-break-before: avoid;
       break-before: avoid-page;
       page-break-inside: avoid;
