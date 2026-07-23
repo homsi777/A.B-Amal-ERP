@@ -325,11 +325,12 @@ export function renderInvoiceStatementA4Html(opts: {
       </table>
     </div>`;
 
-  const bodyRows = groups
-    .map((group) => {
-      const rowsHtml = group.rows
-        .map(
-          (line) => `
+  const detailRows: Array<{ html: string; kind: 'line' | 'subtotal' | 'grand' }> = [];
+  for (const group of groups) {
+    for (const line of group.rows) {
+      detailRows.push({
+        kind: 'line',
+        html: `
         <tr class="line-row">
           <td class="cell text">${escapeHtml(line.materialName)}</td>
           <td class="cell text center">${escapeHtml(line.designCode)}</td>
@@ -340,32 +341,38 @@ export function renderInvoiceStatementA4Html(opts: {
           <td class="cell text center mono">${escapeHtml(line.barcode || '—')}</td>
           <td class="cell text center">${escapeHtml(line.lotNo || '—')}</td>
         </tr>`,
-        )
-        .join('');
+      });
+    }
 
-      const subtotalLabel =
-        group.rollCount === 1 ? `${group.rollCount} نوب` : `إجمالي: ${group.rollCount} نوب`;
+    const subtotalLabel =
+      group.rollCount === 1 ? `${group.rollCount} نوب` : `إجمالي: ${group.rollCount} نوب`;
 
-      return `
-        ${rowsHtml}
+    detailRows.push({
+      kind: 'subtotal',
+      html: `
         <tr class="group-subtotal-row">
           <td class="subtotal-cell subtotal-label" colspan="4">${escapeHtml(subtotalLabel)}</td>
           <td class="subtotal-cell num">${formatAr(group.totalMeters)} mt</td>
           <td class="subtotal-cell num">${formatAr(group.totalKg)} kg</td>
           <td class="subtotal-cell" colspan="2"></td>
-        </tr>`;
-    })
-    .join('');
+        </tr>`,
+    });
+  }
 
   const showGrandSubtotal = groups.length > 1;
 
-  const grandSubtotalRow = `
+  if (showGrandSubtotal) {
+    detailRows.push({
+      kind: 'grand',
+      html: `
     <tr class="grand-subtotal-row">
       <td class="subtotal-cell subtotal-label strong" colspan="4">إجمالي: ${totalRollsAll} نوب</td>
       <td class="subtotal-cell num strong">${formatAr(totalMetersAll)} mt</td>
       <td class="subtotal-cell num strong">${formatAr(totalKgAll)} kg</td>
       <td class="subtotal-cell" colspan="2"></td>
-    </tr>`;
+    </tr>`,
+    });
+  }
 
   const summaryRows = summaryRowsData
     .map((row) => {
@@ -422,6 +429,127 @@ export function renderInvoiceStatementA4Html(opts: {
   const noteLines = buildManagerNoteLines();
   const invoiceNote = (invoice.notes || '').trim();
 
+  const renderMainTable = (rowsHtml: string) => `
+      <table class="data-table main-table">
+        <colgroup>
+          <col class="col-material" /><col class="col-design" /><col class="col-color-code" />
+          <col class="col-color-name" /><col class="col-meter" /><col class="col-kg" />
+          <col class="col-barcode" /><col class="col-lot" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>اسم الخامة</th>
+            <th>كود الخامة</th>
+            <th>كود اللون</th>
+            <th>اللون</th>
+            <th>متر</th>
+            <th>كغ</th>
+            <th>رقم الباركود</th>
+            <th>رقم اللوط</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || `<tr><td class="cell center" colspan="8">—</td></tr>`}
+        </tbody>
+      </table>`;
+
+  const summaryAndTotalsHtml = `
+      <div class="summary-section">
+        <div class="section-title">ملخص الأشعار</div>
+        <table class="data-table summary-table">
+          <colgroup>
+            <col class="sum-material" /><col class="sum-design" /><col class="sum-colors" />
+            <col class="sum-meter" /><col class="sum-kg" />
+            ${hideFinancialColumns ? '' : '<col class="sum-price" /><col class="sum-amount" />'}
+          </colgroup>
+          <thead>
+            <tr>
+              <th>اسم الخامة</th>
+              <th>كود الخامة</th>
+              <th>عدد الألوان</th>
+              <th>متر</th>
+              <th>كغ</th>
+              ${hideFinancialColumns ? '' : '<th>السعر/م</th><th>الإجمالي</th>'}
+            </tr>
+          </thead>
+          <tbody>
+            ${summaryRows || `<tr><td class="cell center" colspan="${hideFinancialColumns ? 5 : 7}">—</td></tr>`}
+            <tr class="summary-total-row">
+              <td class="cell text strong" colspan="2">الإجمالي العام</td>
+              <td class="cell center strong">${totalRollsAll} توب</td>
+              <td class="cell num strong">${formatAr(totalMetersAll)}</td>
+              <td class="cell num strong">${formatAr(totalKgAll)}</td>
+              ${totalPriceCell}
+              ${totalAmountCell}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bottom-row">
+        <div class="notes-box">
+          <div class="notes-title">ملاحظة:</div>
+          ${invoiceNote ? `<div class="notes-line">• ${escapeHtml(invoiceNote)}</div>` : ''}
+          ${noteLines.map((line) => `<div class="notes-line">• ${escapeHtml(line)}</div>`).join('')}
+        </div>
+        ${financialHtml}
+      </div>
+
+      <div class="signatures">
+        <div class="signature-box">سلّمها (ختم/توقيع)</div>
+        <div class="signature-box">استلمها (ختم/توقيع)</div>
+      </div>`;
+
+  // المسودة أطول قليلًا بسبب شريط التنبيه، لذلك لها سعة أقل بسطرين.
+  const detailCapacity = isDraft ? 21 : 23;
+  const singlePageBudget = isDraft ? 16 : 18;
+  const summaryCost = summaryRowsData.length + 9;
+  const fitsSinglePage = detailRows.length + summaryCost <= singlePageBudget;
+  const detailChunks: typeof detailRows[] = [];
+
+  if (fitsSinglePage) {
+    detailChunks.push(detailRows);
+  } else {
+    for (let index = 0; index < detailRows.length;) {
+      const chunk = detailRows.slice(index, index + detailCapacity);
+      index += chunk.length;
+
+      // إبقاء أسطر الإجماليات مع آخر سطر بيانات بدل ظهورها وحيدة في أول الصفحة التالية.
+      while (chunk.length > 1 && index < detailRows.length && detailRows[index]?.kind !== 'line') {
+        chunk.pop();
+        index -= 1;
+      }
+      detailChunks.push(chunk);
+    }
+  }
+
+  const pageContents = fitsSinglePage
+    ? [`${renderMainTable(detailRows.map((row) => row.html).join(''))}${summaryAndTotalsHtml}`]
+    : [
+        ...detailChunks.map((chunk) => renderMainTable(chunk.map((row) => row.html).join(''))),
+        summaryAndTotalsHtml,
+      ];
+  const totalPages = pageContents.length;
+  const pagesHtml = pageContents
+    .map(
+      (content, pageIndex) => `
+  <div class="page" data-clotex-doc="invoice-statement-a4">
+    ${isDraft ? `<div class="draft-watermark">${escapeHtml(draftLabel)}</div>` : ''}
+    <div class="page-no-box">${pageIndex + 1} / ${totalPages}</div>
+    <div class="page-body">
+      <div class="brand-wrap">
+        <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
+      </div>
+      <div class="doc-title">${escapeHtml(title)}</div>
+      ${isDraft ? `<div class="draft-banner">${escapeHtml(draftLabel)}</div>` : ''}
+      ${metaRowsHtml}
+      ${content}
+    </div>
+    ${renderDocumentFooterHtml('invoice')}
+  </div>`,
+    )
+    .join('');
+
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -447,12 +575,16 @@ export function renderInvoiceStatementA4Html(opts: {
     .page {
       width: 210mm;
       min-height: 297mm;
-      max-height: 297mm;
+      height: 297mm;
       display: flex;
       flex-direction: column;
       padding: 7mm 10mm 5mm;
       position: relative;
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
     }
+    .page:last-child { page-break-after: auto; break-after: auto; }
     .page-body { flex: 1 1 auto; min-height: 0; }
     .page-no-box {
       position: absolute;
@@ -739,13 +871,18 @@ export function renderInvoiceStatementA4Html(opts: {
       }
       html, body {
         width: 210mm;
-        height: 297mm;
-        overflow: hidden;
+        height: auto;
+        overflow: visible;
       }
       .page {
-        page-break-after: avoid;
+        page-break-after: always;
+        break-after: page;
         page-break-inside: avoid;
         overflow: hidden;
+      }
+      .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
       }
       .doc-footer-bar {
         page-break-inside: avoid;
@@ -754,91 +891,7 @@ export function renderInvoiceStatementA4Html(opts: {
   </style>
 </head>
 <body>
-  <div class="page" data-clotex-doc="invoice-statement-a4">
-    ${isDraft ? `<div class="draft-watermark">${escapeHtml(draftLabel)}</div>` : ''}
-    <div class="page-no-box">1 / 1</div>
-    <div class="page-body">
-      <div class="brand-wrap">
-        <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
-      </div>
-      <div class="doc-title">${escapeHtml(title)}</div>
-      ${isDraft ? `<div class="draft-banner">${escapeHtml(draftLabel)}</div>` : ''}
-
-      ${metaRowsHtml}
-
-      <table class="data-table main-table">
-        <colgroup>
-          <col class="col-material" /><col class="col-design" /><col class="col-color-code" />
-          <col class="col-color-name" /><col class="col-meter" /><col class="col-kg" />
-          <col class="col-barcode" /><col class="col-lot" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>اسم الخامة</th>
-            <th>كود الخامة</th>
-            <th>كود اللون</th>
-            <th>اللون</th>
-            <th>متر</th>
-            <th>كغ</th>
-            <th>رقم الباركود</th>
-            <th>رقم اللوط</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${bodyRows || `<tr><td class="cell center" colspan="8">—</td></tr>`}
-          ${showGrandSubtotal ? grandSubtotalRow : ''}
-        </tbody>
-      </table>
-
-      <div class="summary-section">
-      <div class="section-title">ملخص الأشعار</div>
-      <table class="data-table summary-table">
-        <colgroup>
-          <col class="sum-material" /><col class="sum-design" /><col class="sum-colors" />
-          <col class="sum-meter" /><col class="sum-kg" />
-          ${hideFinancialColumns ? '' : '<col class="sum-price" /><col class="sum-amount" />'}
-        </colgroup>
-        <thead>
-          <tr>
-            <th>اسم الخامة</th>
-            <th>كود الخامة</th>
-            <th>عدد الألوان</th>
-            <th>متر</th>
-            <th>كغ</th>
-            ${hideFinancialColumns ? '' : '<th>السعر/م</th><th>الإجمالي</th>'}
-          </tr>
-        </thead>
-        <tbody>
-          ${summaryRows || `<tr><td class="cell center" colspan="${hideFinancialColumns ? 5 : 7}">—</td></tr>`}
-          <tr class="summary-total-row">
-            <td class="cell text strong" colspan="2">الإجمالي العام</td>
-            <td class="cell center strong">${totalRollsAll} توب</td>
-            <td class="cell num strong">${formatAr(totalMetersAll)}</td>
-            <td class="cell num strong">${formatAr(totalKgAll)}</td>
-            ${totalPriceCell}
-            ${totalAmountCell}
-          </tr>
-        </tbody>
-      </table>
-      </div>
-
-      <div class="bottom-row">
-        <div class="notes-box">
-          <div class="notes-title">ملاحظة:</div>
-          ${invoiceNote ? `<div class="notes-line">• ${escapeHtml(invoiceNote)}</div>` : ''}
-          ${noteLines.map((line) => `<div class="notes-line">• ${escapeHtml(line)}</div>`).join('')}
-        </div>
-        ${financialHtml}
-      </div>
-
-      <div class="signatures">
-        <div class="signature-box">سلّمها (ختم/توقيع)</div>
-        <div class="signature-box">استلمها (ختم/توقيع)</div>
-      </div>
-    </div>
-
-    ${renderDocumentFooterHtml('invoice')}
-  </div>
+  ${pagesHtml}
 </body>
 </html>`;
 }
