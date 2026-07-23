@@ -80,29 +80,108 @@ export function renderInventoryRollsAuditA4Html(opts: {
     ? `نتائج البحث: ${searchQuery}`
     : 'جميع الأتواب الظاهرة حسب الفلتر الحالي';
 
-  const bodyRows = rolls
-    .map((roll, index) => {
+  const preparedRolls = rolls
+    .map((roll) => {
+      const materialName = String(roll.item_name || '—').trim() || '—';
       const materialCode = displayInventoryMaterialCode({
         internal_code: roll.internal_code,
         supplier_code_item: roll.supplier_code_item,
       });
       const colorName = displayImportedColorName(roll.color_name_ar || roll.color_name_tr);
       const colorCode = displayImportedColorCode(roll.color_code);
-      const lengthM = getRollLengthMeters(roll);
-      const weight = rollWeightKg(roll);
+      return {
+        roll,
+        materialName,
+        materialCode: materialCode || '—',
+        colorName,
+        colorCode,
+        lengthM: getRollLengthMeters(roll),
+        weightKg: rollWeightKg(roll),
+      };
+    })
+    .sort((a, b) => {
+      const compare = (left: string, right: string) =>
+        left.localeCompare(right, 'ar', { numeric: true, sensitivity: 'base' });
+      return (
+        compare(a.materialName, b.materialName)
+        || compare(a.materialCode, b.materialCode)
+        || compare(a.colorName, b.colorName)
+        || compare(a.colorCode, b.colorCode)
+        || compare(a.roll.barcode || '', b.roll.barcode || '')
+      );
+    });
 
-      return `
-        <tr class="line-row">
-          <td class="cell num center">${index + 1}</td>
-          <td class="cell mono center">${escapeHtml(roll.barcode || '—')}</td>
-          <td class="cell text">${escapeHtml(roll.item_name || '—')}</td>
-          <td class="cell mono center">${escapeHtml(materialCode || '—')}</td>
-          <td class="cell text center">${escapeHtml(colorName)}</td>
-          <td class="cell mono center">${escapeHtml(colorCode)}</td>
-          <td class="cell num">${formatAr(lengthM)}</td>
-          <td class="cell num">${formatAr(weight)}</td>
-          <td class="cell text center">${escapeHtml(roll.warehouse_name || '—')}</td>
-          <td class="cell center">${escapeHtml(rollStatusLabel(roll))}</td>
+  const materialGroups = new Map<string, typeof preparedRolls>();
+  for (const prepared of preparedRolls) {
+    const key = `${prepared.materialName}\u0000${prepared.materialCode}`;
+    const group = materialGroups.get(key);
+    if (group) group.push(prepared);
+    else materialGroups.set(key, [prepared]);
+  }
+
+  let printedRowIndex = 0;
+  const bodyRows = Array.from(materialGroups.values())
+    .map((group) => {
+      const first = group[0];
+      const colorCounts = new Map<string, { name: string; code: string; count: number }>();
+      const warehouses = new Set<string>();
+
+      for (const row of group) {
+        const colorKey = `${row.colorName}\u0000${row.colorCode}`;
+        const color = colorCounts.get(colorKey);
+        if (color) color.count += 1;
+        else colorCounts.set(colorKey, { name: row.colorName, code: row.colorCode, count: 1 });
+        warehouses.add(String(row.roll.warehouse_name || '—').trim() || '—');
+      }
+
+      const groupMeters = group.reduce((sum, row) => sum + row.lengthM, 0);
+      const groupKg = group.reduce((sum, row) => sum + row.weightKg, 0);
+      const colorsBreakdown = Array.from(colorCounts.values())
+        .map((color) => {
+          const colorIdentity =
+            color.code && color.code !== '—'
+              ? `${color.name} (${color.code})`
+              : color.name;
+          return `${colorIdentity}: ${color.count.toLocaleString('en-US')} ثوب`;
+        })
+        .join(' • ');
+
+      const rowsHtml = group
+        .map((row, index) => {
+          printedRowIndex += 1;
+          const isLastLine = index === group.length - 1;
+          return `
+        <tr class="line-row${isLastLine ? ' material-last-line' : ''}">
+          <td class="cell num center">${printedRowIndex}</td>
+          <td class="cell mono center">${escapeHtml(row.roll.barcode || '—')}</td>
+          <td class="cell text">${escapeHtml(row.materialName)}</td>
+          <td class="cell mono center">${escapeHtml(row.materialCode)}</td>
+          <td class="cell text center">${escapeHtml(row.colorName)}</td>
+          <td class="cell mono center">${escapeHtml(row.colorCode)}</td>
+          <td class="cell num">${formatAr(row.lengthM)}</td>
+          <td class="cell num">${formatAr(row.weightKg)}</td>
+          <td class="cell text center">${escapeHtml(row.roll.warehouse_name || '—')}</td>
+          <td class="cell center">${escapeHtml(rollStatusLabel(row.roll))}</td>
+        </tr>`;
+        })
+        .join('');
+
+      return `${rowsHtml}
+        <tr class="material-summary-row">
+          <td class="cell material-summary-cell" colspan="10">
+            <div class="material-summary-main">
+              <span class="material-summary-title">إجمالي الخامة: ${escapeHtml(first.materialName)} — ${escapeHtml(first.materialCode)}</span>
+              <span>الأتواب: <strong>${group.length.toLocaleString('en-US')}</strong></span>
+              <span>الألوان: <strong>${colorCounts.size.toLocaleString('en-US')}</strong></span>
+              <span>الأمتار: <strong class="num">${formatAr(groupMeters)}</strong></span>
+              <span>الوزن: <strong class="num">${formatAr(groupKg)} كغ</strong></span>
+              <span>المستودعات: <strong>${warehouses.size.toLocaleString('en-US')}</strong></span>
+            </div>
+            <div class="material-color-breakdown">
+              <span class="material-color-label">تفصيل الألوان:</span>
+              ${escapeHtml(colorsBreakdown)}
+            </div>
+          </td>
         </tr>`;
     })
     .join('');
@@ -261,6 +340,51 @@ export function renderInventoryRollsAuditA4Html(opts: {
       font-weight: 900;
       font-size: 9.5px;
       border-top: 1px solid #000;
+    }
+    .data-table tbody .material-summary-cell {
+      padding: 7px 9px;
+      background: #e7eaee;
+      border-top: 1.5px solid #8d96a3;
+      border-bottom: 1.5px solid #8d96a3;
+      color: #172033;
+    }
+    .material-summary-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 5px 14px;
+      font-size: 9.5px;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+    .material-summary-title {
+      color: ${NAVY};
+      font-weight: 900;
+    }
+    .material-color-breakdown {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px dashed #a8afb8;
+      font-size: 9.2px;
+      font-weight: 700;
+      line-height: 1.45;
+      text-align: right;
+    }
+    .material-color-label {
+      color: ${NAVY};
+      font-weight: 900;
+      margin-left: 4px;
+    }
+    .material-last-line {
+      page-break-after: avoid;
+      break-after: avoid-page;
+    }
+    .material-summary-row {
+      page-break-before: avoid;
+      break-before: avoid-page;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .text { text-align: right; word-break: break-word; }
     .center { text-align: center; }
