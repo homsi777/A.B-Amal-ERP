@@ -544,16 +544,17 @@ export function renderInvoiceStatementA4Html(opts: {
   const pagesHtml = pageContents
     .map(
       (content, pageIndex) => `
-  <div class="page" data-clotex-doc="invoice-statement-a4">
+  <div class="page${pageIndex === 0 ? '' : ' page--continuation'}" data-clotex-doc="invoice-statement-a4">
     ${isDraft ? `<div class="draft-watermark">${escapeHtml(draftLabel)}</div>` : ''}
     <div class="page-no-box">${pageIndex + 1} / ${totalPages}</div>
     <div class="page-body">
+      ${pageIndex === 0 ? `
       <div class="brand-wrap">
         <img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" class="brand-logo" />
       </div>
       <div class="doc-title">${escapeHtml(title)}</div>
       ${isDraft ? `<div class="draft-banner">${escapeHtml(draftLabel)}</div>` : ''}
-      ${metaRowsHtml}
+      ${metaRowsHtml}` : ''}
       ${content}
     </div>
     ${renderDocumentFooterHtml('invoice')}
@@ -597,6 +598,7 @@ export function renderInvoiceStatementA4Html(opts: {
     }
     .page:last-child { page-break-after: auto; break-after: auto; }
     .page-body { flex: 1 1 auto; min-height: 0; }
+    .page--continuation .page-body { padding-top: 7mm; }
     .page-no-box {
       position: absolute;
       top: 7mm;
