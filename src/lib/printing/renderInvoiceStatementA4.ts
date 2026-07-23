@@ -397,14 +397,16 @@ export function renderInvoiceStatementA4Html(opts: {
     })
     .join('');
 
-  const averageMeterPriceAll = totalMetersAll > 0 ? subtotalAmount / totalMetersAll : 0;
   const totalPriceCell = hideFinancialColumns
     ? ''
-    : `<td class="cell num strong">${formatAr(averageMeterPriceAll)} ${escapeHtml(currency)}</td>`;
+    : '<td class="cell num strong"></td>';
   const totalAmountCell = hideFinancialColumns
     ? ''
     : `<td class="cell num strong">${formatAr(subtotalAmount)} ${escapeHtml(currency)}</td>`;
 
+  const paidAmount = Math.max(0, Number(invoice.paidAmount ?? 0) || 0);
+  const remainingAmount = Math.max(0, invoiceFinalTotal - paidAmount);
+  const hasAdvancePayment = paidAmount > 0.0001;
   const financialHtml = hideFinancialColumns
     ? ''
     : `
@@ -419,10 +421,19 @@ export function renderInvoiceStatementA4Html(opts: {
             <td class="fin-value num">−${formatAr(discountAmount)} ${escapeHtml(currency)}</td>
           </tr>` : ''}
           ${taxAmount > 0 ? `<tr><td class="fin-label">(الضريبة)</td><td class="fin-value num">${formatAr(taxAmount)} ${escapeHtml(currency)}</td></tr>` : ''}
-          <tr class="financial-final">
+          <tr class="${hasAdvancePayment ? '' : 'financial-final'}">
             <td class="fin-label">(الإجمالي النهائي)</td>
             <td class="fin-value num">${formatAr(invoiceFinalTotal)} ${escapeHtml(currency)}</td>
           </tr>
+          ${hasAdvancePayment ? `
+          <tr>
+            <td class="fin-label">(العربون / الدفعة المقدمة)</td>
+            <td class="fin-value num">−${formatAr(paidAmount)} ${escapeHtml(currency)}</td>
+          </tr>
+          <tr class="financial-final">
+            <td class="fin-label">(المتبقي للدفع)</td>
+            <td class="fin-value num">${formatAr(remainingAmount)} ${escapeHtml(currency)}</td>
+          </tr>` : ''}
         </tbody>
       </table>`;
 
@@ -502,8 +513,8 @@ export function renderInvoiceStatementA4Html(opts: {
 
   // المسودة أطول قليلًا بسبب شريط التنبيه، لذلك لها سعة أقل بسطرين.
   const detailCapacity = isDraft ? 21 : 23;
-  const singlePageBudget = isDraft ? 16 : 18;
-  const summaryCost = summaryRowsData.length + 9;
+  const singlePageBudget = isDraft ? 22 : 24;
+  const summaryCost = summaryRowsData.length + 9 + (hasAdvancePayment ? 2 : 0);
   const fitsSinglePage = detailRows.length + summaryCost <= singlePageBudget;
   const detailChunks: typeof detailRows[] = [];
 
