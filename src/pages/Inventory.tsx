@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Plus, QrCode, Search, RefreshCw, Filter, ChevronDown,
   Eye, Pencil, MoveRight, ToggleLeft, Printer,
@@ -614,6 +614,9 @@ export const Inventory = () => {
   const [error, setError] = useState('');
 
    const [search, setSearch] = useState('');
+   const [debouncedSearch, setDebouncedSearch] = useState('');
+   const searchInputRef = useRef('');
+   const rollsRequestIdRef = useRef(0);
    const [inventoryScope, setInventoryScope] = useState<InventoryScope>('available');
    const [filterWarehouseId, setFilterWarehouseId] = useState('');
    const [sortBy, setSortBy] = useState<InventorySortableField>('created_at');
@@ -670,6 +673,8 @@ export const Inventory = () => {
    }, []);
 
    const fetchRolls = useCallback(async () => {
+      const requestId = ++rollsRequestIdRef.current;
+      const requestedSearch = debouncedSearch.trim();
       setLoading(true);
       setError('');
       try {
@@ -678,7 +683,7 @@ export const Inventory = () => {
         let expectedTotal = 0;
         for (;;) {
           const filters: FabricRollListFilters = {
-            search: search || undefined,
+            search: requestedSearch || undefined,
             warehouseId: filterWarehouseId || undefined,
             page: currentPage,
             pageSize: PAGE_SIZE,
@@ -708,22 +713,31 @@ export const Inventory = () => {
                  getRollLengthMeters(r) > 1e-6,
              )
            : uniqueRows;
-       setRolls(visibleRows);
-       setTotal(Math.min(expectedTotal || visibleRows.length, visibleRows.length));
-     } catch (e: unknown) {
-       setError((e as { message?: string }).message ?? 'تعذر تحميل بيانات المخزون');
-     } finally {
-       setLoading(false);
-     }
-   }, [search, inventoryScope, filterWarehouseId, sortBy, sortDir, materialSort]);
+        if (requestId !== rollsRequestIdRef.current || requestedSearch !== searchInputRef.current) return;
+        setRolls(visibleRows);
+        setTotal(Math.min(expectedTotal || visibleRows.length, visibleRows.length));
+      } catch (e: unknown) {
+        if (requestId !== rollsRequestIdRef.current) return;
+        setError((e as { message?: string }).message ?? 'تعذر تحميل بيانات المخزون');
+      } finally {
+        if (requestId === rollsRequestIdRef.current) setLoading(false);
+      }
+   }, [debouncedSearch, inventoryScope, filterWarehouseId, sortBy, sortDir, materialSort]);
 
   useEffect(() => {
     fetchWarehouses();
   }, [fetchWarehouses]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     fetchRolls();
-  }, [search, inventoryScope, filterWarehouseId, sortBy, sortDir, fetchRolls]);
+  }, [fetchRolls]);
 
   useEffect(() => {
     setSelectedRollIds((prev) => {
@@ -738,13 +752,13 @@ export const Inventory = () => {
     if (loading || rolls.length === 0) return;
     const html = renderInventoryRollsAuditA4Html({
       rolls,
-      searchQuery: search.trim(),
+      searchQuery: debouncedSearch,
       scopeLabel: SCOPE_LABELS[inventoryScope],
       warehouseLabel: warehouseFilterLabel,
       printedAt: new Date(),
     });
-    const title = search.trim()
-      ? `كشف جرد — ${search.trim()}`
+    const title = debouncedSearch
+      ? `كشف جرد — ${debouncedSearch}`
       : 'كشف جرد أتواب الأقمشة';
     const ok = openDocumentPrintWindow(html, title);
     if (!ok) {
@@ -1018,7 +1032,16 @@ return (
               <input
                 type="text"
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  searchInputRef.current = value.trim();
+                  rollsRequestIdRef.current += 1;
+                  setLoading(false);
+                  setSearch(value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setDebouncedSearch(search.trim());
+                }}
                 placeholder="بحث بالباركود، اسم الخامة، كود المورد، اسم اللون..."
                 className="w-full pr-9 pl-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
               />

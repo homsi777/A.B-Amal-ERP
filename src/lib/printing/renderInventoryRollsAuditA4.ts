@@ -232,7 +232,7 @@ export function renderInventoryRollsAuditA4Html(opts: {
     .data-table thead th {
       background: ${NAVY};
       color: #fff;
-      font-size: 8.5px;
+      font-size: 9.5px;
       font-weight: 900;
       padding: 6px 3px;
       text-align: center;
@@ -245,7 +245,7 @@ export function renderInventoryRollsAuditA4Html(opts: {
     .data-table thead th:last-child { border-left: none; }
     .data-table tbody .cell {
       padding: 5px 3px;
-      font-size: 8.2px;
+      font-size: 9.2px;
       font-weight: 700;
       color: #000;
       border-bottom: 1px solid ${CELL_LINE};
@@ -259,7 +259,7 @@ export function renderInventoryRollsAuditA4Html(opts: {
     .summary-row .cell {
       background: ${SUBTOTAL_GRAY};
       font-weight: 900;
-      font-size: 9px;
+      font-size: 9.5px;
       border-top: 1px solid #000;
     }
     .text { text-align: right; word-break: break-word; }
