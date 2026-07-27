@@ -378,10 +378,16 @@ export const InvoiceStatement = () => {
 
   const handleSendTelegram = async () => {
     if (!invoice) return;
+    const isDraft = invoice.documentStatus === 'DRAFT';
     setTelegramBusy(true);
     try {
       await sendTelegramInvoiceFromSavedInvoice(invoice, partyName);
-      showToast({ type: 'success', message: 'تم إرسال الفاتورة إلى تيليغرام.' });
+      showToast({
+        type: 'success',
+        message: isDraft
+          ? 'تم إرسال مسودة الفاتورة إلى تيليغرام للمراجعة والاعتماد.'
+          : 'تم إرسال الفاتورة إلى تيليغرام.',
+      });
     } catch (e) {
       showToast({
         type: 'error',
@@ -613,10 +619,10 @@ export const InvoiceStatement = () => {
             <Share2 className="w-4 h-4" />
             <span className="hidden sm:inline">مشاركة</span>
           </button>
-          {documentStatus === 'CONFIRMED' ? (
+          {documentStatus === 'CONFIRMED' || documentStatus === 'DRAFT' ? (
             <TelegramSendButton
               size="toolbar"
-              label="إرسال تيليغرام"
+              label={documentStatus === 'DRAFT' ? 'إرسال المسودة تيليغرام' : 'إرسال تيليغرام'}
               busy={telegramBusy}
               disabled={!invoice}
               onClick={handleSendTelegram}

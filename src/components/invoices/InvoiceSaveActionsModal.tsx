@@ -6,8 +6,10 @@ import { AR_INVOICE_STATEMENT } from '../../lib/i18n/arTerminology';
 import { ELECTRON_A4_EMBEDDED_MARGINS } from '../../lib/pdfExport';
 import { exportPrintHtmlToPdf } from '../../lib/printing/documentPrint';
 import { buildInvoiceStatementFileName, pdfFileStem } from '../../lib/printing/documentFileNames';
+import { sendTelegramInvoiceFromSavedInvoice } from '../../lib/telegramInvoice';
 import { useToast } from '../NonBlockingToast';
 import { A4PreviewModal } from '../printing/A4PreviewModal';
+import { TelegramSendButton } from '../telegram/TelegramSendButton';
 
 interface InvoiceSaveActionsModalProps {
   isOpen: boolean;
@@ -33,21 +35,42 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
   const { showToast } = useToast();
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
+  const [sendingTelegram, setSendingTelegram] = React.useState(false);
 
   if (!isOpen || !invoice) return null;
 
+  const isPurchase = invoiceKind === 'purchase';
+  const isDraft = invoice.documentStatus === 'DRAFT';
   const buildHtml = () =>
     renderInvoiceStatementA4Html({
       invoice,
       partyName,
       title: AR_INVOICE_STATEMENT.printTitle,
       subtitle: AR_INVOICE_STATEMENT.printSubtitle,
-      isDraft: invoice.documentStatus === 'DRAFT',
+      isDraft,
     });
 
   const safeInvoiceNo = safeFilePart(invoice.invoiceNumber || invoice.id, 'كشف');
   const safePartyName = safeFilePart(partyName, isPurchase ? 'مورد' : 'عميل');
   const defaultFileName = `${buildInvoiceStatementFileName(safePartyName, safeInvoiceNo)}.pdf`;
+
+  const handleSendTelegram = async () => {
+    setSendingTelegram(true);
+    try {
+      await sendTelegramInvoiceFromSavedInvoice(invoice, partyName);
+      showToast({
+        type: 'success',
+        message: 'تم إرسال مسودة الفاتورة إلى تيليغرام للمراجعة والاعتماد.',
+      });
+    } catch (error) {
+      showToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'تعذر إرسال مسودة الفاتورة إلى تيليغرام',
+      });
+    } finally {
+      setSendingTelegram(false);
+    }
+  };
 
   const handleExportPdf = async () => {
     setExporting(true);
@@ -81,7 +104,6 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
     }
   };
 
-  const isPurchase = invoiceKind === 'purchase';
   const savedTitle = isPurchase ? 'تم حفظ فاتورة الشراء' : 'تم حفظ فاتورة البيع';
   const partyLabel = isPurchase ? 'المورد' : 'العميل';
 
@@ -128,10 +150,21 @@ export const InvoiceSaveActionsModal: React.FC<InvoiceSaveActionsModalProps> = (
             <span>{exporting ? 'جاري تجهيز PDF...' : 'تصدير PDF'}</span>
           </button>
 
+          {isDraft ? (
+            <TelegramSendButton
+              size="toolbar"
+              label="إرسال المسودة إلى تيليغرام"
+              busy={sendingTelegram}
+              disabled={exporting}
+              onClick={handleSendTelegram}
+              className="w-full justify-center py-3"
+            />
+          ) : null}
+
           <button
             type="button"
             onClick={onClose}
-            disabled={exporting}
+            disabled={exporting || sendingTelegram}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
           >
             <FileText className="h-4 w-4" />

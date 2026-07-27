@@ -18,6 +18,7 @@ const formatNumber = (value: number) =>
 const formatMoney = (value: number, currency?: string) => `${formatNumber(value)} ${currency || 'USD'}`;
 
 export function formatTelegramInvoiceMessage({ invoice, invoiceType, partyName }: TelegramInvoicePayload): string {
+  const isDraft = invoice.documentStatus === 'DRAFT';
   const currency = invoice.currency || 'USD';
   const exchangeRateToUsd = currency === 'USD' ? 1 : Number(invoice.exchangeRateToUsd ?? 0);
   const totalUsd =
@@ -47,7 +48,13 @@ export function formatTelegramInvoiceMessage({ invoice, invoiceType, partyName }
   );
 
   const headerIcon = invoiceType === 'sale' ? '🧾' : '📦';
-  const title = invoiceType === 'sale' ? 'فاتورة بيع جديدة' : 'فاتورة شراء جديدة';
+  const title = isDraft
+    ? invoiceType === 'sale'
+      ? 'مسودة فاتورة بيع للمراجعة'
+      : 'مسودة فاتورة شراء للمراجعة'
+    : invoiceType === 'sale'
+      ? 'فاتورة بيع جديدة'
+      : 'فاتورة شراء جديدة';
   const partyLabel = invoiceType === 'sale' ? 'العميل' : 'المورد';
   const invoiceNo = invoice.invoiceNumber || invoice.id || 'بدون رقم';
 
@@ -66,6 +73,7 @@ export function formatTelegramInvoiceMessage({ invoice, invoiceType, partyName }
   const moreItemsLine = invoice.items.length > 20 ? `\n\nتم اختصار الأصناف المعروضة في الرسالة: ${invoice.items.length} صنف.` : '';
 
   return `${headerIcon} ${title}
+${isDraft ? '\n⚠️ هذه مسودة غير مؤكدة، أُرسلت للمراجعة والاعتماد.' : ''}
 
 رقم الفاتورة: ${invoiceNo}
 التاريخ: ${invoice.date}
@@ -109,6 +117,7 @@ export async function sendTelegramInvoiceFromSavedInvoice(invoice: Invoice, part
 }
 
 export async function sendTelegramInvoiceNotification(payload: TelegramInvoicePayload): Promise<void> {
+  const isDraft = payload.invoice.documentStatus === 'DRAFT';
   const message = formatTelegramInvoiceMessage(payload);
   const pdfHtml = formatTelegramInvoicePdfHtml(payload);
   const invoiceNo = payload.invoice.invoiceNumber || payload.invoice.id || 'invoice';
@@ -123,7 +132,13 @@ export async function sendTelegramInvoiceNotification(payload: TelegramInvoicePa
     message,
     pdfHtml,
     fileName,
-    caption: payload.invoiceType === 'sale' ? 'فاتورة بيع PDF' : 'فاتورة شراء PDF',
+    caption: isDraft
+      ? payload.invoiceType === 'sale'
+        ? 'مسودة فاتورة بيع PDF - للمراجعة والاعتماد'
+        : 'مسودة فاتورة شراء PDF - للمراجعة والاعتماد'
+      : payload.invoiceType === 'sale'
+        ? 'فاتورة بيع PDF'
+        : 'فاتورة شراء PDF',
     eventType: payload.invoiceType === 'sale' ? 'SALE_INVOICE' : 'PURCHASE_INVOICE',
   });
 }

@@ -16,6 +16,7 @@ export function buildTelegramInvoiceHtml(invoice: Invoice, partyName: string): s
     partyName,
     title: AR_INVOICE_STATEMENT.printTitle,
     subtitle: AR_INVOICE_STATEMENT.printSubtitle,
+    isDraft: invoice.documentStatus === 'DRAFT',
   });
 }
 
