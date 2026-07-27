@@ -5,6 +5,7 @@ export type InvoicePaginationRow = {
 export type InvoicePaginationPage<T extends InvoicePaginationRow> = {
   rows: T[];
   includeSummary: boolean;
+  includeFooter: boolean;
 };
 
 export function paginateInvoiceStatementRows<T extends InvoicePaginationRow>(
@@ -12,12 +13,15 @@ export function paginateInvoiceStatementRows<T extends InvoicePaginationRow>(
   summaryCost: number,
   isDraft: boolean,
 ): InvoicePaginationPage<T>[] {
-  const firstPageDetailCapacity = isDraft ? 21 : 23;
+  // Multi-page documents show the footer only on the final page, so detail-only
+  // pages can use the reclaimed vertical space for two additional rows.
+  const firstPageDetailCapacity = isDraft ? 23 : 25;
   const firstPageBudget = isDraft ? 22 : 24;
-  const continuationPageBudget = isDraft ? 34 : 36;
+  const continuationDetailCapacity = isDraft ? 36 : 38;
+  const finalPageBudget = isDraft ? 34 : 36;
 
   if (detailRows.length + summaryCost <= firstPageBudget) {
-    return [{ rows: detailRows, includeSummary: true }];
+    return [{ rows: detailRows, includeSummary: true, includeFooter: true }];
   }
 
   const takeDetailChunk = (start: number, capacity: number) => {
@@ -38,23 +42,29 @@ export function paginateInvoiceStatementRows<T extends InvoicePaginationRow>(
   const pages: InvoicePaginationPage<T>[] = [];
   let index = 0;
   const firstPage = takeDetailChunk(index, firstPageDetailCapacity);
-  pages.push({ rows: firstPage.rows, includeSummary: false });
+  pages.push({ rows: firstPage.rows, includeSummary: false, includeFooter: false });
   index = firstPage.nextIndex;
 
   while (index < detailRows.length) {
     const remainingCount = detailRows.length - index;
 
-    if (remainingCount + summaryCost <= continuationPageBudget) {
-      pages.push({ rows: detailRows.slice(index), includeSummary: true });
+    if (remainingCount + summaryCost <= finalPageBudget) {
+      pages.push({ rows: detailRows.slice(index), includeSummary: true, includeFooter: false });
       index = detailRows.length;
       break;
     }
 
-    const continuationPage = takeDetailChunk(index, continuationPageBudget);
-    pages.push({ rows: continuationPage.rows, includeSummary: false });
+    const continuationPage = takeDetailChunk(index, continuationDetailCapacity);
+    pages.push({ rows: continuationPage.rows, includeSummary: false, includeFooter: false });
     index = continuationPage.nextIndex;
   }
 
-  if (!pages.at(-1)?.includeSummary) pages.push({ rows: [], includeSummary: true });
-  return pages;
+  if (!pages.at(-1)?.includeSummary) {
+    pages.push({ rows: [], includeSummary: true, includeFooter: false });
+  }
+
+  return pages.map((page, pageIndex) => ({
+    ...page,
+    includeFooter: pageIndex === pages.length - 1,
+  }));
 }

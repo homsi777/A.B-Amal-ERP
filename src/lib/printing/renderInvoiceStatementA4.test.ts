@@ -24,13 +24,17 @@ const shortRows = makeGroupedRows(3);
 const shortPages = paginateInvoiceStatementRows(shortRows, 10, false);
 assert.equal(shortPages.length, 1, 'short invoices should remain on one page');
 assert.equal(shortPages[0]?.includeSummary, true);
+assert.equal(shortPages[0]?.includeFooter, true);
 
 const longRows = makeGroupedRows(64);
 const longPages = paginateInvoiceStatementRows(longRows, 17, false);
 assert.equal(longPages.length, 3, 'long invoice should use continuation space instead of five pages');
 assert.equal(longPages.filter((page) => page.includeSummary).length, 1);
+assert.equal(longPages.filter((page) => page.includeFooter).length, 1);
 assert.ok(longPages.at(-1)?.rows.length, 'last page should contain detail rows');
 assert.equal(longPages.at(-1)?.includeSummary, true, 'last page should also contain the summary');
+assert.equal(longPages.at(-1)?.includeFooter, true, 'footer should appear only on the final page');
+assert.equal(longPages[0]?.rows.length, 25, 'first detail-only page should use the reclaimed footer space');
 
 for (const page of longPages.slice(1)) {
   assert.notEqual(page.rows[0]?.kind, 'subtotal', 'a subtotal must not be orphaned at the top of a page');

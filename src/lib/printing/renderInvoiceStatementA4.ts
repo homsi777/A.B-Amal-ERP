@@ -514,7 +514,8 @@ export function renderInvoiceStatementA4Html(opts: {
 
   // المسودة أطول قليلًا بسبب شريط التنبيه، لذلك لها سعة أقل بسطرين.
   const summaryCost = summaryRowsData.length + 9 + (hasAdvancePayment ? 2 : 0);
-  const pageContents = paginateInvoiceStatementRows(detailRows, summaryCost, isDraft).map((page) => {
+  const pagePlan = paginateInvoiceStatementRows(detailRows, summaryCost, isDraft);
+  const pageContents = pagePlan.map((page) => {
     const detailsHtml = page.rows.length
       ? renderMainTable(page.rows.map((row) => row.html).join(''))
       : '';
@@ -538,7 +539,7 @@ export function renderInvoiceStatementA4Html(opts: {
       ${metaRowsHtml}` : ''}
       ${content}
     </div>
-    ${renderDocumentFooterHtml('invoice')}
+    ${pagePlan[pageIndex]?.includeFooter ? renderDocumentFooterHtml('invoice') : ''}
   </div>`,
     )
     .join('');
