@@ -4,6 +4,7 @@ import { AR_INVOICE_STATEMENT } from '../i18n/arTerminology';
 import { resolveDisplayMaterialCode } from '../importDisplay';
 import { displayStoredInvoiceNo } from '../invoiceDbMappers';
 import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocumentFooter';
+import { paginateInvoiceStatementRows } from './invoiceStatementPagination';
 
 const NAVY = '#2C405A';
 const GOLD = '#C4A962';
@@ -512,34 +513,14 @@ export function renderInvoiceStatementA4Html(opts: {
       </div>`;
 
   // المسودة أطول قليلًا بسبب شريط التنبيه، لذلك لها سعة أقل بسطرين.
-  const detailCapacity = isDraft ? 21 : 23;
-  const singlePageBudget = isDraft ? 22 : 24;
   const summaryCost = summaryRowsData.length + 9 + (hasAdvancePayment ? 2 : 0);
-  const fitsSinglePage = detailRows.length + summaryCost <= singlePageBudget;
-  const detailChunks: typeof detailRows[] = [];
+  const pageContents = paginateInvoiceStatementRows(detailRows, summaryCost, isDraft).map((page) => {
+    const detailsHtml = page.rows.length
+      ? renderMainTable(page.rows.map((row) => row.html).join(''))
+      : '';
+    return `${detailsHtml}${page.includeSummary ? summaryAndTotalsHtml : ''}`;
+  });
 
-  if (fitsSinglePage) {
-    detailChunks.push(detailRows);
-  } else {
-    for (let index = 0; index < detailRows.length;) {
-      const chunk = detailRows.slice(index, index + detailCapacity);
-      index += chunk.length;
-
-      // إبقاء أسطر الإجماليات مع آخر سطر بيانات بدل ظهورها وحيدة في أول الصفحة التالية.
-      while (chunk.length > 1 && index < detailRows.length && detailRows[index]?.kind !== 'line') {
-        chunk.pop();
-        index -= 1;
-      }
-      detailChunks.push(chunk);
-    }
-  }
-
-  const pageContents = fitsSinglePage
-    ? [`${renderMainTable(detailRows.map((row) => row.html).join(''))}${summaryAndTotalsHtml}`]
-    : [
-        ...detailChunks.map((chunk) => renderMainTable(chunk.map((row) => row.html).join(''))),
-        summaryAndTotalsHtml,
-      ];
   const totalPages = pageContents.length;
   const pagesHtml = pageContents
     .map(
