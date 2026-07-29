@@ -320,7 +320,7 @@ export const Sales = () => {
                                 to={`/invoices/sales/${invoice.id}/edit`}
                                 className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
                               >
-                                متابعة المسودة
+                                تعديل
                               </Link>
                               <button
                                 type="button"
@@ -349,6 +349,12 @@ export const Sales = () => {
                           ) : null}
                           {doc === 'CONFIRMED' ? (
                             <>
+                              <Link
+                                to={`/invoices/sales/${invoice.id}/edit`}
+                                className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
+                              >
+                                تعديل
+                              </Link>
                               <TelegramSendButton
                                 size="compact"
                                 label="تيليغرام"

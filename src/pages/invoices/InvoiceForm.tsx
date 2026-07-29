@@ -18,7 +18,14 @@ import { getRollLengthMeters, isFabricRollStockRow, isRollApplicableToSalesInvoi
 import { listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { listCashboxes } from '../../lib/api/cashboxesApi';
-import { createSalesInvoice as postSalesInvoice, getSalesInvoice, updateSalesInvoice, confirmSalesInvoice } from '../../lib/api/salesInvoicesApi';
+import {
+  createSalesInvoice as postSalesInvoice,
+  getSalesInvoice,
+  getSalesInvoiceEditEligibility,
+  updateSalesInvoice,
+  updateSalesInvoiceConfirmed,
+  confirmSalesInvoice,
+} from '../../lib/api/salesInvoicesApi';
 import type { SalesInvoiceCreatePayload } from '../../lib/api/salesInvoicesApi';
 import { fetchCustomerOrderImportPreview } from '../../lib/api/customerOrdersApi';
 import { displayCustomerOrderNumber } from '../../lib/orderDisplay';
@@ -574,7 +581,9 @@ export const InvoiceForm = () => {
   const [importOrderBusy, setImportOrderBusy] = useState(false);
   const [draftLoading, setDraftLoading] = useState(false);
   const [editBlocked, setEditBlocked] = useState(false);
+  const [salesConfirmedEdit, setSalesConfirmedEdit] = useState(false);
   const [purchaseConfirmedEdit, setPurchaseConfirmedEdit] = useState(false);
+  const [salesEditBlockReason, setSalesEditBlockReason] = useState<string | null>(null);
   const [purchaseEditBlockReason, setPurchaseEditBlockReason] = useState<string | null>(null);
   const [savedInvoiceActions, setSavedInvoiceActions] = useState<{ invoice: Invoice; partyName: string } | null>(null);
   const [partyStatementBalance, setPartyStatementBalance] = useState<number | null>(null);
@@ -607,6 +616,8 @@ export const InvoiceForm = () => {
     let cancelled = false;
     setDraftLoading(true);
     setEditBlocked(false);
+    setSalesConfirmedEdit(false);
+    setSalesEditBlockReason(null);
     setPurchaseConfirmedEdit(false);
     setPurchaseEditBlockReason(null);
     void (async () => {
@@ -615,7 +626,19 @@ export const InvoiceForm = () => {
         if (cancelled) return;
         const doc = String(res.data.header.document_status ?? '').toUpperCase();
         if (doc !== 'DRAFT') {
-          if (!isSales && doc === 'CONFIRMED') {
+          if (isSales && doc === 'CONFIRMED') {
+            const elig = await getSalesInvoiceEditEligibility(editInvoiceId);
+            if (!elig.data.editable) {
+              setEditBlocked(true);
+              const blockText = elig.data.blocks
+                .filter((b) => b.reason.trim())
+                .map((b) => (b.barcode ? `${b.barcode}: ${b.reason}` : b.reason))
+                .join(' · ');
+              setSalesEditBlockReason(blockText || 'حدثت حركة مخزون أو مرتجع مرتبط بهذه الفاتورة');
+              return;
+            }
+            setSalesConfirmedEdit(true);
+          } else if (!isSales && doc === 'CONFIRMED') {
             const elig = await getPurchaseInvoiceEditEligibility(editInvoiceId);
             if (!elig.data.editable) {
               setEditBlocked(true);
@@ -2491,9 +2514,11 @@ export const InvoiceForm = () => {
     };
 
     if (editInvoiceId && status === 'final') {
-      const msg = purchaseConfirmedEdit
-        ? 'سيتم حفظ تعديلات فاتورة الشراء المؤكدة وتحديث المخزون والقيود. هل أنت متأكد؟'
-        : 'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟';
+      const msg = salesConfirmedEdit
+        ? 'سيتم حفظ تعديلات فاتورة البيع المؤكدة وتحديث المخزون والقيود المحاسبية. هل أنت متأكد؟'
+        : purchaseConfirmedEdit
+          ? 'سيتم حفظ تعديلات فاتورة الشراء المؤكدة وتحديث المخزون والقيود. هل أنت متأكد؟'
+          : 'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟';
       if (!window.confirm(msg)) return;
     }
 
@@ -2602,6 +2627,13 @@ export const InvoiceForm = () => {
                 : `تم إنشاء وتأكيد الفاتورة رقم: ${newNo}`,
           });
         }
+      } else if (isSales && salesConfirmedEdit) {
+        await updateSalesInvoiceConfirmed(editInvoiceId, salesPersistBodyUpdate);
+        showToast({
+          type: 'success',
+          message: `تم حفظ تعديلات فاتورة البيع ${trimmedInvoiceNo || ''}`.trim(),
+        });
+        navigate('/invoices/sales');
       } else if (isSales) {
         await updateSalesInvoice(editInvoiceId, salesPersistBodyUpdate);
         const noAfterSave =
@@ -2770,9 +2802,10 @@ export const InvoiceForm = () => {
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 space-y-3">
           <p className="font-black">لا يمكن تعديل هذه الفاتورة</p>
           <p className="text-sm">
-            {purchaseEditBlockReason ||
+            {salesEditBlockReason ||
+              purchaseEditBlockReason ||
               (isSales
-                ? 'لا يمكن تعديل فاتورة مؤكدة. يجب إلغاؤها أو إصدار مستند تصحيحي.'
+                ? 'لا يمكن تعديل الفاتورة بسبب حركة مخزون أو مستند مرتبط بها.'
                 : 'لا يمكن تعديل فاتورة مؤكدة أو ملغاة من هذه الشاشة.')}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -2845,7 +2878,9 @@ export const InvoiceForm = () => {
             <h2 className="text-2xl font-bold text-slate-900">
               {editInvoiceId
                 ? isSales
-                  ? 'تعديل مسودة فاتورة مبيعات'
+                  ? salesConfirmedEdit
+                    ? 'تعديل فاتورة بيع مؤكدة'
+                    : 'تعديل مسودة فاتورة مبيعات'
                   : purchaseConfirmedEdit
                     ? 'تعديل فاتورة شراء مؤكدة'
                     : 'تعديل مسودة فاتورة مشتريات'
@@ -2862,13 +2897,15 @@ export const InvoiceForm = () => {
             <X className="w-4 h-4" />
             <span className="hidden sm:inline">إلغاء</span>
           </button>
-          <button onClick={() => handleSave('draft')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition shadow-sm font-medium disabled:opacity-50">
-            <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">حفظ مسودة</span>
-          </button>
+          {!salesConfirmedEdit && !purchaseConfirmedEdit ? (
+            <button onClick={() => handleSave('draft')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition shadow-sm font-medium disabled:opacity-50">
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">حفظ مسودة</span>
+            </button>
+          ) : null}
           <button onClick={() => handleSave('final')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
             <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">{purchaseConfirmedEdit ? 'حفظ التعديلات' : 'حفظ نهائي'}</span>
+            <span className="hidden sm:inline">{salesConfirmedEdit || purchaseConfirmedEdit ? 'حفظ التعديلات' : 'حفظ نهائي'}</span>
           </button>
         </div>
       </div>

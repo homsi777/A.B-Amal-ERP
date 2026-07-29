@@ -99,6 +99,29 @@ export async function updateSalesInvoice(id: string, partial: Partial<SalesInvoi
   });
 }
 
+export type SalesInvoiceEditEligibility = {
+  editable: boolean;
+  documentStatus: string;
+  blocks: Array<{ rollId: string; barcode: string; reason: string }>;
+};
+
+export async function getSalesInvoiceEditEligibility(id: string): Promise<{
+  ok: boolean;
+  data: SalesInvoiceEditEligibility;
+}> {
+  return apiFetch(`/api/sales-invoices/${id}/edit-eligibility`);
+}
+
+export async function updateSalesInvoiceConfirmed(
+  id: string,
+  partial: Partial<SalesInvoiceCreatePayload>,
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/sales-invoices/${id}/confirmed`, {
+    method: 'PUT',
+    body: JSON.stringify(partial),
+  });
+}
+
 export async function deleteSalesInvoice(id: string): Promise<{ ok: boolean }> {
   return apiFetch(`/api/sales-invoices/${id}`, { method: 'DELETE' });
 }

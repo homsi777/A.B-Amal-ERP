@@ -726,12 +726,12 @@ export const InvoiceStatement = () => {
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2 justify-end">
-              {documentStatus === 'DRAFT' && draftEditPath ? (
+              {(documentStatus === 'DRAFT' || (documentStatus === 'CONFIRMED' && invoice.type === 'sale')) && draftEditPath ? (
                 <Link
                   to={draftEditPath}
                   className="text-amber-900 font-bold bg-amber-100 px-3 py-2 rounded-lg hover:bg-amber-200 transition text-sm"
                 >
-                  تعديل المسودة
+                  {documentStatus === 'DRAFT' ? 'تعديل المسودة' : 'تعديل الفاتورة'}
                 </Link>
               ) : null}
               {documentStatus === 'DRAFT' && Number(invoice.paidAmount ?? 0) > 1e-4 ? (

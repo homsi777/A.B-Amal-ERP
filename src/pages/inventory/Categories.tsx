@@ -485,7 +485,7 @@ export const Categories = () => {
                     <span className="text-xs font-mono text-slate-400 shrink-0">{subtitle}</span>
                   ) : null}
                 </button>
-              ); }),
+              ); })
             )}
           </div>
         </div>

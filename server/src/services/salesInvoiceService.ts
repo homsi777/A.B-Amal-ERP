@@ -1067,6 +1067,282 @@ export async function updateSalesInvoiceDraft(
   assertSalesInvoiceLinesHaveMeterPrice(persistedLines.rows);
 }
 
+export type SalesInvoiceEditBlock = {
+  rollId: string;
+  barcode: string;
+  reason: string;
+};
+
+type SalesInventorySnapshot = {
+  fabric_roll_id?: string;
+  prev_length_m?: number;
+  prev_status?: string;
+  qty_sold_m?: number;
+  final_length_m?: number;
+  final_status?: string;
+};
+
+async function checkConfirmedSalesInvoiceEditable(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<{ ok: boolean; blocks: SalesInvoiceEditBlock[] }> {
+  const blocks: SalesInvoiceEditBlock[] = [];
+  const linkedReturn = await client.query(
+    `SELECT id FROM return_invoices
+     WHERE company_id=$1 AND original_sales_invoice_id=$2 AND status='CONFIRMED'
+     LIMIT 1`,
+    [companyId, invoiceId],
+  );
+  if (linkedReturn.rows.length) {
+    blocks.push({ rollId: '', barcode: '', reason: 'توجد مرتجعات مبيعات مؤكدة مرتبطة بهذه الفاتورة' });
+  }
+
+  const rows = await client.query<{
+    line_id: string;
+    fabric_roll_id: string | null;
+    metadata: unknown;
+    barcode: string | null;
+    length_m: string | null;
+    status: string | null;
+  }>(
+    `SELECT sil.id AS line_id, sil.fabric_roll_id, sil.metadata,
+            COALESCE(NULLIF(trim(fr.barcode), ''), NULLIF(trim(fr.roll_no), ''), fr.id::text) AS barcode,
+            fr.length_m, fr.status
+       FROM sales_invoice_lines sil
+       LEFT JOIN fabric_rolls fr ON fr.id=sil.fabric_roll_id AND fr.company_id=sil.company_id
+      WHERE sil.invoice_id=$1 AND sil.company_id=$2
+      ORDER BY sil.line_no`,
+    [invoiceId, companyId],
+  );
+
+  const seenRolls = new Set<string>();
+  for (const row of rows.rows) {
+    if (!row.fabric_roll_id) continue;
+    const barcode = row.barcode || row.fabric_roll_id;
+    if (seenRolls.has(row.fabric_roll_id)) {
+      blocks.push({
+        rollId: row.fabric_roll_id,
+        barcode,
+        reason: 'الثوب مكرر في أسطر الفاتورة ولا يمكن تعديل الفاتورة المؤكدة بأمان',
+      });
+      continue;
+    }
+    seenRolls.add(row.fabric_roll_id);
+
+    if (row.length_m == null || row.status == null) {
+      blocks.push({ rollId: row.fabric_roll_id, barcode, reason: 'الثوب غير موجود في المخزون' });
+      continue;
+    }
+
+    const snap = parseSalesLineMetadata({ metadata: row.metadata }).inventory as SalesInventorySnapshot | undefined;
+    const expectedLength = Number(snap?.final_length_m);
+    const expectedStatus = String(snap?.final_status ?? '').toUpperCase();
+    if (!Number.isFinite(expectedLength) || !expectedStatus) {
+      blocks.push({
+        rollId: row.fabric_roll_id,
+        barcode,
+        reason: 'لا تتوفر بصمة مخزون آمنة لهذه الفاتورة القديمة',
+      });
+      continue;
+    }
+
+    const currentLength = Number(row.length_m);
+    const currentStatus = String(row.status).toUpperCase();
+    if (Math.abs(currentLength - expectedLength) > EPS || currentStatus !== expectedStatus) {
+      blocks.push({
+        rollId: row.fabric_roll_id,
+        barcode,
+        reason: 'حدثت حركة على الثوب بعد البيع',
+      });
+    }
+  }
+
+  return { ok: blocks.length === 0, blocks };
+}
+
+export async function getSalesInvoiceEditEligibility(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+): Promise<{ editable: boolean; documentStatus: string; blocks: SalesInvoiceEditBlock[] }> {
+  const cur = await client.query<{ document_status: string }>(
+    `SELECT document_status FROM sales_invoices WHERE id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  if (!cur.rows.length) throw Object.assign(new Error('الفاتورة غير موجودة'), { code: 'NOT_FOUND' });
+  const documentStatus = String(cur.rows[0].document_status);
+  if (documentStatus !== 'CONFIRMED') {
+    return {
+      editable: false,
+      documentStatus,
+      blocks: [{ rollId: '', barcode: '', reason: 'التعديل من هذا المسار متاح للفواتير المؤكدة فقط' }],
+    };
+  }
+  const stock = await checkConfirmedSalesInvoiceEditable(client, companyId, invoiceId);
+  return { editable: stock.ok, documentStatus, blocks: stock.blocks };
+}
+
+async function restoreConfirmedSalesStockForEdit(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  invoiceNo: string,
+): Promise<void> {
+  const lines = await client.query(
+    `SELECT * FROM sales_invoice_lines WHERE invoice_id=$1 AND company_id=$2 ORDER BY line_no`,
+    [invoiceId, companyId],
+  );
+  for (const ln of lines.rows) {
+    const snap = parseSalesLineMetadata(ln).inventory as SalesInventorySnapshot | undefined;
+    const rollId = String(snap?.fabric_roll_id ?? ln.fabric_roll_id ?? '').trim();
+    if (!rollId) continue;
+
+    const roll = await client.query<{ length_m: string; status: string }>(
+      `SELECT length_m, status FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+      [rollId, companyId],
+    );
+    if (!roll.rows.length) throw Object.assign(new Error('الثوب غير موجود في المخزون'), { code: 'INVALID_STOCK' });
+
+    const target = resolveVoidRollRestoreTarget(ln, snap, Number(roll.rows[0].length_m), roll.rows[0].status);
+    const restoredQty = round2(target.lengthM - Number(roll.rows[0].length_m));
+    await client.query(
+      `UPDATE fabric_rolls SET length_m=$3, status=$4, updated_at=now() WHERE id=$1 AND company_id=$2`,
+      [rollId, companyId, target.lengthM, target.status],
+    );
+    await client.query(
+      `INSERT INTO inventory_movements (
+         company_id, roll_id, movement_type, old_status, new_status,
+         length_delta_m, reference_type, reference_id, reference_no, notes, created_by_user_id
+       ) VALUES ($1,$2,'RETURN',$3,$4,$5,'SALES_INVOICE_EDIT',$6,$7,$8,$9)`,
+      [
+        companyId,
+        rollId,
+        roll.rows[0].status,
+        target.status,
+        restoredQty,
+        invoiceId,
+        invoiceNo,
+        `استرجاع مؤقت لتعديل فاتورة البيع ${invoiceNo}`,
+        userId,
+      ],
+    );
+  }
+}
+
+async function clearAndRepostSalesInvoiceGl(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  invoiceNo: string,
+): Promise<void> {
+  await reverseSalesInvoiceGl(client, { companyId, salesInvoiceId: invoiceId, invoiceNo, userId });
+  await client.query(
+    `DELETE FROM journal_entries
+     WHERE company_id=$1 AND source_id=$2
+       AND source_type IN ('SALES_INVOICE', 'SALES_INVOICE_REVERSAL')`,
+    [companyId, invoiceId],
+  );
+}
+
+export async function updateSalesInvoiceConfirmed(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  invoiceId: string,
+  raw: unknown,
+): Promise<void> {
+  const parsed = salesInvoiceUpdateDraftSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw Object.assign(new Error('بيانات فاتورة البيع غير صالحة'), { code: 'VALIDATION', details: parsed.error.flatten() });
+  }
+  if (!parsed.data.lines?.length) {
+    throw Object.assign(new Error('يجب أن تحتوي الفاتورة على سطر واحد على الأقل'), { code: 'VALIDATION' });
+  }
+
+  const invRow = await client.query(`SELECT * FROM sales_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE`, [
+    invoiceId,
+    companyId,
+  ]);
+  if (!invRow.rows.length) throw Object.assign(new Error('الفاتورة غير موجودة'), { code: 'NOT_FOUND' });
+  const inv = invRow.rows[0];
+  if (inv.document_status !== 'CONFIRMED') {
+    throw Object.assign(new Error('لا يمكن تعديل فاتورة غير مؤكدة من هذا المسار'), { code: 'INVALID_STATE' });
+  }
+
+  const eligibility = await checkConfirmedSalesInvoiceEditable(client, companyId, invoiceId);
+  if (!eligibility.ok) {
+    const first = eligibility.blocks[0];
+    const detail = first?.barcode ? ` (${first.barcode}: ${first.reason})` : first?.reason ? ` (${first.reason})` : '';
+    throw Object.assign(new Error(`لا يمكن تعديل الفاتورة${detail}`), { code: 'INVALID_STOCK' });
+  }
+
+  const d = parsed.data;
+  const currentPaid = Number(inv.paid_amount);
+  const nextPaid = d.paidAmount ?? currentPaid;
+  if (Math.abs(nextPaid - currentPaid) > EPS) {
+    throw Object.assign(new Error('لا يمكن تغيير الدفعة من شاشة التعديل — استخدم سندات القبض'), { code: 'VALIDATION' });
+  }
+  if (d.customerId && String(d.customerId) !== String(inv.customer_id)) {
+    throw Object.assign(new Error('لا يمكن تغيير العميل بعد تأكيد الفاتورة بسبب القيود والسندات المرتبطة'), {
+      code: 'VALIDATION',
+    });
+  }
+  if (d.invoiceNo?.trim() && d.invoiceNo.trim() !== String(inv.invoice_no)) {
+    throw Object.assign(new Error('لا يمكن تغيير رقم فاتورة البيع بعد التأكيد'), { code: 'VALIDATION' });
+  }
+  const nextTotal = d.totalAmount ?? Number(inv.total_amount);
+  if (nextTotal + EPS < currentPaid) {
+    throw Object.assign(new Error('إجمالي الفاتورة بعد التعديل أقل من المبلغ المقبوض'), { code: 'VALIDATION' });
+  }
+
+  const invoiceNo = String(inv.invoice_no);
+  await restoreConfirmedSalesStockForEdit(client, companyId, userId, invoiceId, invoiceNo);
+  await clearAndRepostSalesInvoiceGl(client, companyId, userId, invoiceId, invoiceNo);
+
+  await client.query(
+    `UPDATE sales_invoices SET document_status='DRAFT', paid_amount=0, paid_amount_usd=0,
+       remaining_amount=total_amount, remaining_amount_usd=total_amount_usd,
+       payment_status='unpaid', updated_by_user_id=$3, updated_at=now()
+     WHERE id=$1 AND company_id=$2`,
+    [invoiceId, companyId, userId],
+  );
+
+  const safeUpdate = {
+    ...(raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}),
+    invoiceNo,
+    customerId: String(inv.customer_id),
+    paidAmount: 0,
+  };
+  await updateSalesInvoiceDraft(client, companyId, userId, invoiceId, safeUpdate);
+  await confirmSalesInvoice(client, companyId, userId, invoiceId);
+
+  const refreshed = await client.query<{ total_amount: string; exchange_rate_to_usd: string }>(
+    `SELECT total_amount, exchange_rate_to_usd FROM sales_invoices WHERE id=$1 AND company_id=$2`,
+    [invoiceId, companyId],
+  );
+  const finalTotal = Number(refreshed.rows[0].total_amount);
+  const finalRate = Number(refreshed.rows[0].exchange_rate_to_usd);
+  const pay = paymentStatuses(finalTotal, currentPaid);
+  await client.query(
+    `UPDATE sales_invoices SET paid_amount=$3, remaining_amount=$4, payment_status=$5,
+       paid_amount_usd=$6, remaining_amount_usd=$7, updated_by_user_id=$8, updated_at=now()
+     WHERE id=$1 AND company_id=$2`,
+    [
+      invoiceId,
+      companyId,
+      currentPaid,
+      pay.remaining,
+      pay.paymentStatus,
+      computeUsd(currentPaid, finalRate),
+      computeUsd(pay.remaining, finalRate),
+      userId,
+    ],
+  );
+}
+
 export async function deleteSalesInvoiceDraft(client: PoolClient, companyId: string, invoiceId: string): Promise<void> {
   const cur = await client.query<{ document_status: string }>(
     `SELECT document_status FROM sales_invoices WHERE id=$1 AND company_id=$2`,
