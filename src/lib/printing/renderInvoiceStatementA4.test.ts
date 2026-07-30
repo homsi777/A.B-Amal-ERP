@@ -36,6 +36,18 @@ assert.equal(compactManagerPages.length, 1, 'compact manager invoice should fit 
 assert.equal(compactManagerPages[0]?.includeSummary, true);
 assert.equal(compactManagerPages[0]?.includeFooter, true);
 
+// Representative three-page screenshot: the old 25-row first page left four
+// unused row slots and forced the summary onto a third page. Reclaiming those
+// slots leaves a safe 22-row final page with its summary and footer.
+const managerLongRows = makeGroupedRows(44);
+const managerLongPages = paginateInvoiceStatementRows(managerLongRows, 12, false);
+assert.equal(managerLongRows.length, 51);
+assert.equal(managerLongPages.length, 2, 'manager invoice should use two full pages, not three sparse pages');
+assert.equal(managerLongPages[0]?.rows.length, 29);
+assert.equal(managerLongPages[1]?.rows.length, 22);
+assert.equal(managerLongPages[1]?.includeSummary, true);
+assert.equal(managerLongPages[1]?.includeFooter, true);
+
 const longRows = makeGroupedRows(64);
 const longPages = paginateInvoiceStatementRows(longRows, 17, false);
 assert.equal(longPages.length, 3, 'long invoice should use continuation space instead of five pages');
@@ -44,7 +56,7 @@ assert.equal(longPages.filter((page) => page.includeFooter).length, 1);
 assert.ok(longPages.at(-1)?.rows.length, 'last page should contain detail rows');
 assert.equal(longPages.at(-1)?.includeSummary, true, 'last page should also contain the summary');
 assert.equal(longPages.at(-1)?.includeFooter, true, 'footer should appear only on the final page');
-assert.equal(longPages[0]?.rows.length, 25, 'first detail-only page should use the reclaimed footer space');
+assert.equal(longPages[0]?.rows.length, 29, 'first detail-only page should use all safe reclaimed space');
 
 for (const page of longPages.slice(1)) {
   assert.notEqual(page.rows[0]?.kind, 'subtotal', 'a subtotal must not be orphaned at the top of a page');

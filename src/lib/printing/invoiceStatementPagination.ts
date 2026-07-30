@@ -14,13 +14,14 @@ export function paginateInvoiceStatementRows<T extends InvoicePaginationRow>(
   isDraft: boolean,
 ): InvoicePaginationPage<T>[] {
   // Multi-page documents show the footer only on the final page, so detail-only
-  // pages can use the reclaimed vertical space for two additional rows.
-  const firstPageDetailCapacity = isDraft ? 23 : 25;
+  // pages can use the reclaimed vertical space. The confirmed layout has room
+  // for four more detail rows without changing typography or table spacing.
+  const firstPageDetailCapacity = isDraft ? 23 : 29;
   // The compact A4 layout safely fits the summary with up to 27 row-cost units.
   // Keeping the old 24-unit threshold pushed a small summary, notes and
   // signatures onto an otherwise almost-empty second page.
   const firstPageBudget = isDraft ? 22 : 27;
-  const continuationDetailCapacity = isDraft ? 36 : 38;
+  const continuationDetailCapacity = isDraft ? 36 : 42;
   const finalPageBudget = isDraft ? 34 : 36;
 
   if (detailRows.length + summaryCost <= firstPageBudget) {
