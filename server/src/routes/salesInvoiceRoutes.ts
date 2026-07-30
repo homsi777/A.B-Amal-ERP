@@ -188,6 +188,7 @@ export const salesInvoiceRoutes: FastifyPluginAsync = async (app) => {
       const err = e as { code?: string; message?: string };
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || '', 'NOT_FOUND');
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
+      if (err.code === 'INVALID_STOCK') return sendError(reply, 400, err.message || '', 'INVALID_STOCK');
       throw e;
     } finally {
       client.release();

@@ -431,8 +431,7 @@ async function resolveFabricRollIdForSalesLine(
     const r = await client.query<{ id: string }>(
       `SELECT id FROM fabric_rolls
        WHERE company_id = $1
-         AND status = 'AVAILABLE'
-         AND length_m > 0
+         ${requireAvailable ? "AND status = 'AVAILABLE' AND length_m > 0" : ''}
          AND (
            lower(trim(barcode)) = lower($2::text)
            OR lower(trim(coalesce(roll_no, ''))) = lower($2::text)
@@ -1800,14 +1799,27 @@ export async function voidSalesInvoice(
         }
       | undefined;
 
-    const rollId = String(snap?.fabric_roll_id ?? ln.fabric_roll_id ?? '').trim();
-    if (!rollId) continue;
+    const rollId =
+      String(snap?.fabric_roll_id ?? ln.fabric_roll_id ?? '').trim() ||
+      await resolveSalesInvoiceLineRollId(client, companyId, ln, { requireAvailable: false });
+    if (!rollId) {
+      if (isStatementImportLineMetadata(ln.metadata) || Math.abs(Number(ln.quantity)) <= EPS) continue;
+      throw Object.assign(
+        new Error(`لا يمكن إلغاء الفاتورة ${inv.invoice_no}: تعذر تحديد ثوب مخزون لأحد السطور`),
+        { code: 'INVALID_STOCK' },
+      );
+    }
 
     const r = await client.query<{ length_m: string; status: string }>(
       `SELECT length_m, status FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
       [rollId, companyId],
     );
-    if (!r.rows.length) continue;
+    if (!r.rows.length) {
+      throw Object.assign(
+        new Error(`لا يمكن إلغاء الفاتورة ${inv.invoice_no}: الثوب المرتبط بالسطر غير موجود في المخزون`),
+        { code: 'INVALID_STOCK' },
+      );
+    }
 
     const target = resolveVoidRollRestoreTarget(
       ln,
@@ -1821,10 +1833,16 @@ export async function voidSalesInvoice(
       target.lengthM - Number(r.rows[0].length_m),
     );
 
-    await client.query(
+    const restored = await client.query(
       `UPDATE fabric_rolls SET length_m=$3, status=$4, updated_at=now() WHERE id=$1 AND company_id=$2`,
       [rollId, companyId, target.lengthM, target.status],
     );
+    if (restored.rowCount !== 1) {
+      throw Object.assign(
+        new Error(`لا يمكن إلغاء الفاتورة ${inv.invoice_no}: فشل استرجاع أحد الأتواب`),
+        { code: 'INVALID_STOCK' },
+      );
+    }
     await client.query(
       `INSERT INTO inventory_movements (
          company_id, roll_id, movement_type, old_status, new_status,

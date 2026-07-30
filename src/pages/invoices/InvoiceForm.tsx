@@ -563,8 +563,12 @@ export const InvoiceForm = () => {
   const scanParseTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
   const rollPatchInFlightRef = useRef<Set<string>>(new Set());
   const internalRollSequenceRef = useRef(0);
-  /** Cache of barcode/identity lookups already resolved against the server to avoid spamming the API. */
-  const barcodeLookupCacheRef = useRef<Map<string, FabricRollDto | null>>(new Map());
+  /**
+   * Cache successful barcode/identity lookups only.
+   * A miss must never be cached: a roll can become sellable immediately after
+   * another user voids an invoice, without this already-open form remounting.
+   */
+  const barcodeLookupCacheRef = useRef<Map<string, FabricRollDto>>(new Map());
   /** Tracks in-flight server lookups so a single scan never fires two parallel HTTP calls. */
   const barcodeLookupInFlightRef = useRef<Map<string, Promise<FabricRollDto | null>>>(new Map());
 
@@ -1206,9 +1210,8 @@ export const InvoiceForm = () => {
     }
 
     const cacheKey = `${options.barcodeColumnOnly ? 'bc:' : 'id:'}${query.toLowerCase()}`;
-    if (barcodeLookupCacheRef.current.has(cacheKey)) {
-      return barcodeLookupCacheRef.current.get(cacheKey) ?? null;
-    }
+    const cached = barcodeLookupCacheRef.current.get(cacheKey);
+    if (cached) return cached;
     const inFlight = barcodeLookupInFlightRef.current.get(cacheKey);
     if (inFlight) return inFlight;
 
@@ -1257,7 +1260,6 @@ export const InvoiceForm = () => {
                 message: `هذا الرول غير متاح للبيع${status ? ` (الحالة: ${status})` : ''}.`,
               });
             }
-            barcodeLookupCacheRef.current.set(cacheKey, null);
             return null;
           }
         }
