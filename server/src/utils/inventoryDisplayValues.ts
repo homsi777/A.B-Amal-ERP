@@ -1,14 +1,14 @@
 import { stripImportLevelPrefix } from './categoryBusinessValues.js';
 
-const AUTO_INTERNAL_CODE_PREFIX = 'IMP-AUTO-';
+const GENERATED_IMPORT_INTERNAL_CODE_RE = /^IMP-/i;
 
 /** كود الخامة للعرض — بدون L1_/L2_/… */
 export function sanitizeMaterialCodeForDisplay(
   internalCode: string | null | undefined,
   supplierCode: string | null | undefined,
 ): string {
-  let internal = stripImportLevelPrefix(String(internalCode ?? ''));
-  if (internal && !internal.startsWith(AUTO_INTERNAL_CODE_PREFIX)) return internal;
+  const internal = stripImportLevelPrefix(String(internalCode ?? ''));
+  if (internal && !GENERATED_IMPORT_INTERNAL_CODE_RE.test(internal)) return internal;
   return stripImportLevelPrefix(String(supplierCode ?? ''));
 }
 

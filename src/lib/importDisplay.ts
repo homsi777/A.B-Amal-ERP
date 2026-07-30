@@ -1,4 +1,8 @@
-const AUTO_INTERNAL_CODE_PREFIX = 'IMP-AUTO-';
+const GENERATED_IMPORT_INTERNAL_CODE_RE = /^IMP-/i;
+
+function isGeneratedImportInternalCode(value: string | null | undefined): boolean {
+  return GENERATED_IMPORT_INTERNAL_CODE_RE.test(String(value ?? '').trim());
+}
 
 /** يزيل بادئة L1_/L2_/L3_/L4_ الداخلية — لا تُعرض للمستخدم أبداً. */
 export function stripImportLevelPrefix(value: string | null | undefined): string {
@@ -23,8 +27,8 @@ export function displayInventoryMaterialCode(roll: {
   internal_code?: string | null;
   supplier_code_item?: string | null;
 }): string {
-  let internal = stripImportLevelPrefix(roll.internal_code);
-  if (internal && !internal.startsWith(AUTO_INTERNAL_CODE_PREFIX)) return internal;
+  const internal = stripImportLevelPrefix(roll.internal_code);
+  if (internal && !isGeneratedImportInternalCode(internal)) return internal;
   return stripImportLevelPrefix(roll.supplier_code_item);
 }
 
@@ -59,7 +63,7 @@ export function resolveDisplayMaterialCode(input: {
   let supplier = String(input.supplierCode ?? '').trim();
   if (!supplier) {
     const fromQr = parseCompactQrMaterialCode(input.rawQrPayload);
-    if (fromQr && fromQr !== internal && !fromQr.startsWith(AUTO_INTERNAL_CODE_PREFIX)) {
+    if (fromQr && fromQr !== internal && !isGeneratedImportInternalCode(fromQr)) {
       supplier = fromQr;
     }
   }
@@ -67,7 +71,7 @@ export function resolveDisplayMaterialCode(input: {
     internal_code: internal,
     supplier_code_item: supplier,
   });
-  return shown || internal;
+  return shown || (isGeneratedImportInternalCode(internal) ? '' : internal);
 }
 
 /** كود الخامة كما في Excel: يُفضَّل كود المورد عند الاستيراد. */
@@ -78,7 +82,7 @@ export function displayImportedItemCode(roll: {
   const supplier = String(roll.supplier_code_item ?? '').trim();
   if (supplier) return supplier;
   const internal = String(roll.internal_code ?? '').trim();
-  if (!internal || internal.startsWith(AUTO_INTERNAL_CODE_PREFIX)) return '';
+  if (!internal || isGeneratedImportInternalCode(internal)) return '';
   return stripImportLevelPrefix(internal);
 }
 
