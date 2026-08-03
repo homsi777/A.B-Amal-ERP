@@ -945,12 +945,13 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
       await client.query('BEGIN');
       const lock = await client.query<{
         length_m: string;
+        status: string;
         width_cm: string | null;
         gsm: string | null;
         calculated_weight_kg: string | null;
         actual_weight_kg: string | null;
       }>(
-        `SELECT length_m, width_cm, gsm, calculated_weight_kg, actual_weight_kg
+        `SELECT length_m, status, width_cm, gsm, calculated_weight_kg, actual_weight_kg
          FROM fabric_rolls WHERE id=$1 AND company_id=$2 FOR UPDATE`,
         [id, companyId],
       );
@@ -965,6 +966,10 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
       let newActualWt: number | null = null;
 
       if (lengthMeters != null) {
+        if (row.status === 'SOLD' || row.status === 'INACTIVE') {
+          await client.query('ROLLBACK');
+          return sendError(reply, 400, 'لا يمكن تعبئة طول رول مباع أو غير نشط من الفاتورة', 'FIELD_EXISTS');
+        }
         if (!rollLengthIsFillableDb(row.length_m)) {
           await client.query('ROLLBACK');
           return sendError(reply, 400, 'لا يمكن تعديل طول الرول من الفاتورة لأنه موجود مسبقاً في المخزون', 'FIELD_EXISTS');
