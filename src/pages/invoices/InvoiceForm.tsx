@@ -1981,7 +1981,10 @@ export const InvoiceForm = () => {
       toastOnError: boolean;
     },
   ): Promise<'applied' | 'noop' | 'error'> {
-    if (!isSales) return 'noop';
+    // Confirmed sales edits use the server-side inventory snapshot and safe
+    // restore/repost transaction. They must never enter the missing-fields
+    // completion flow, because sold rolls legitimately have length_m = 0.
+    if (!isSales || salesConfirmedEdit) return 'noop';
     const rollId = String(item.internalRollId || '').trim();
     if (!INVOICE_LINE_UUID_RE.test(rollId)) return 'noop';
 
@@ -2224,48 +2227,50 @@ export const InvoiceForm = () => {
           : [...rollsAcc, r];
         setApiRolls(rollsAcc);
       };
-      for (const item of activeItems) {
-        const r = await syncMissingRollPhysicalFromInvoiceLine(
-          item,
-          rollsAcc,
-          mergeRollDuringSave,
-          { field: 'both', toastOnSuccess: false, toastOnError: true },
-        );
-        if (r === 'error') return;
-      }
-      for (const item of activeItems) {
-        const rid = String(item.internalRollId || '').trim();
-        if (!INVOICE_LINE_UUID_RE.test(rid)) continue;
-        const roll = rollsAcc.find((r) => r.id === rid);
-        if (!roll) {
-          showToast({
-            type: 'error',
-            message: 'لا يمكن حفظ الفاتورة: يوجد رول ناقص البيانات في المخزون',
-          });
-          return;
+      if (!salesConfirmedEdit) {
+        for (const item of activeItems) {
+          const r = await syncMissingRollPhysicalFromInvoiceLine(
+            item,
+            rollsAcc,
+            mergeRollDuringSave,
+            { field: 'both', toastOnSuccess: false, toastOnError: true },
+          );
+          if (r === 'error') return;
         }
-        if (numberValue(item.length) > 0 && invoiceRollLengthMissingInInventory(roll.length_m)) {
-          showToast({
-            type: 'error',
-            message: 'لا يمكن حفظ الفاتورة: يوجد رول ناقص البيانات في المخزون',
-          });
-          return;
-        }
-      }
-      if (status === 'final') {
         for (const item of activeItems) {
           const rid = String(item.internalRollId || '').trim();
           if (!INVOICE_LINE_UUID_RE.test(rid)) continue;
           const roll = rollsAcc.find((r) => r.id === rid);
-          if (!roll) continue;
-          const stockLen = Number(roll.length_m);
-          const qty = numberValue(item.length);
-          if (qty > stockLen + 1e-4) {
+          if (!roll) {
             showToast({
-              type: 'warning',
-              message: 'الكمية المدخلة أكبر من المتر المتاح على الرول في المخزون',
+              type: 'error',
+              message: 'لا يمكن حفظ الفاتورة: يوجد رول ناقص البيانات في المخزون',
             });
             return;
+          }
+          if (numberValue(item.length) > 0 && invoiceRollLengthMissingInInventory(roll.length_m)) {
+            showToast({
+              type: 'error',
+              message: 'لا يمكن حفظ الفاتورة: يوجد رول ناقص البيانات في المخزون',
+            });
+            return;
+          }
+        }
+        if (status === 'final') {
+          for (const item of activeItems) {
+            const rid = String(item.internalRollId || '').trim();
+            if (!INVOICE_LINE_UUID_RE.test(rid)) continue;
+            const roll = rollsAcc.find((r) => r.id === rid);
+            if (!roll) continue;
+            const stockLen = Number(roll.length_m);
+            const qty = numberValue(item.length);
+            if (qty > stockLen + 1e-4) {
+              showToast({
+                type: 'warning',
+                message: 'الكمية المدخلة أكبر من المتر المتاح على الرول في المخزون',
+              });
+              return;
+            }
           }
         }
       }
