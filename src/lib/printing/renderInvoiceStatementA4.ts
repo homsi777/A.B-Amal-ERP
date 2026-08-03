@@ -501,7 +501,7 @@ export function renderInvoiceStatementA4Html(opts: {
       <div class="bottom-row">
         <div class="notes-box">
           <div class="notes-title">ملاحظة:</div>
-          ${invoiceNote ? `<div class="notes-line">• ${escapeHtml(invoiceNote)}</div>` : ''}
+          ${invoiceNote ? `<div class="notes-line invoice-note-line">• ${escapeHtml(invoiceNote)}</div>` : ''}
           ${noteLines.map((line) => `<div class="notes-line">• ${escapeHtml(line)}</div>`).join('')}
         </div>
         ${financialHtml}
@@ -816,6 +816,9 @@ export function renderInvoiceStatementA4Html(opts: {
       font-weight: 700;
       margin-bottom: 2px;
       color: #000;
+    }
+    .invoice-note-line {
+      color: #dc2626;
     }
     .signatures {
       display: flex;
