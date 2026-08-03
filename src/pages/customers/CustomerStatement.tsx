@@ -611,7 +611,7 @@ export const CustomerStatement = () => {
             return {
               code: customer.code,
               name: customer.name,
-              total: debit + credit,
+              total: debit,
               credit,
               debit,
               remaining: debit - credit,

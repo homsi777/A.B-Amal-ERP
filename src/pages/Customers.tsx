@@ -104,7 +104,7 @@ export const Customers = () => {
             const res = await getCustomerStatement(id, {});
             const debit = Number(res.data.totals.debit || 0);
             const credit = Number(res.data.totals.credit || 0);
-            const totalAmount = debit + credit;
+            const totalAmount = debit;
             const remaining = debit - credit;
             const currency = String(res.data.rows[0]?.currency || 'USD');
             return [id, { debit, credit, total: totalAmount, remaining, currency }] as const;
