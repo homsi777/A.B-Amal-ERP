@@ -3,7 +3,7 @@ import {
   Plus, QrCode, Search, RefreshCw, Filter, ChevronDown,
   Eye, Pencil, MoveRight, ToggleLeft, Printer,
   Package, Ruler, Weight, FileSpreadsheet, Trash2,
-  ArrowUp, ArrowDown, Barcode, X, Loader2, FileText, Layers,
+  ArrowUp, ArrowDown, Barcode, X, Loader2, FileText, Layers, Check,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -73,6 +73,117 @@ interface StatusModalProps {
   onClose: () => void;
   onSave: (rollId: string, status: RollStatus, notes: string) => Promise<void>;
 }
+
+interface MaterialCodeOption {
+  code: string;
+  materialNames: string[];
+  rollCount: number;
+  totalMeters: number;
+}
+
+interface MaterialCodePickerModalProps {
+  open: boolean;
+  search: string;
+  options: MaterialCodeOption[];
+  selectedCode: string;
+  onClose: () => void;
+  onSelect: (code: string) => void;
+}
+
+const MaterialCodePickerModal = ({
+  open,
+  search,
+  options,
+  selectedCode,
+  onClose,
+  onSelect,
+}: MaterialCodePickerModalProps) => {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="material-code-picker-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      onTouchStart={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-2xl ring-1 ring-slate-900/5 sm:rounded-2xl"
+        dir="rtl"
+        onMouseDown={(event) => event.stopPropagation()}
+        onTouchStart={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <Layers className="h-4 w-4" />
+              </span>
+              <h3 id="material-code-picker-title" className="truncate text-base font-black text-slate-900 sm:text-lg">
+                اختر كود الخامة
+              </h3>
+            </div>
+            <p className="text-xs leading-5 text-slate-500">
+              ظهرت {options.length.toLocaleString()} أكواد متوفرة للخامة «{search}». اختر كودًا لعرضه فقط.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="إغلاق اختيار كود الخامة"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[58vh] space-y-2 overflow-y-auto p-3 sm:p-4">
+          {options.map((option) => {
+            const isSelected = selectedCode === option.code;
+            return (
+              <button
+                key={option.code}
+                type="button"
+                onClick={() => onSelect(option.code)}
+                className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-right transition active:scale-[0.99] sm:px-4 ${
+                  isSelected
+                    ? 'border-indigo-300 bg-indigo-50/80 ring-2 ring-indigo-100'
+                    : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50'
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-mono text-sm font-black text-slate-900">{option.code}</span>
+                  <span className="mt-1 block truncate text-xs text-slate-500">
+                    {option.materialNames.join('، ')}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-left text-[11px] leading-5 text-slate-500">
+                    <span className="block font-bold text-slate-700">{option.rollCount.toLocaleString()} ثوب</span>
+                    <span className="block">{option.totalMeters.toFixed(2)} م</span>
+                  </span>
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-full ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-transparent'}`}>
+                    <Check className="h-4 w-4" />
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-center text-[11px] text-slate-500 sm:px-5">
+          يمكنك إغلاق البطاقة لعرض نتائج الخامة كاملة.
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const StatusModal = ({ roll, onClose, onSave }: StatusModalProps) => {
   const [status, setStatus] = useState<RollStatus>(roll.status);
@@ -615,6 +726,9 @@ export const Inventory = () => {
 
    const [search, setSearch] = useState('');
    const [debouncedSearch, setDebouncedSearch] = useState('');
+   const [selectedMaterialCode, setSelectedMaterialCode] = useState('');
+   const [materialCodeOptions, setMaterialCodeOptions] = useState<MaterialCodeOption[]>([]);
+   const [materialCodePickerOpen, setMaterialCodePickerOpen] = useState(false);
    const searchInputRef = useRef('');
    const rollsRequestIdRef = useRef(0);
    const [inventoryScope, setInventoryScope] = useState<InventoryScope>('available');
@@ -702,6 +816,34 @@ export const Inventory = () => {
           currentPage += 1;
         }
 
+        const materialSearch = requestedSearch.toLocaleLowerCase();
+        const optionsByCode = new Map<string, { materialNames: Set<string>; rollCount: number; totalMeters: number }>();
+        if (materialSearch) {
+          for (const roll of allRows) {
+            const materialName = String(roll.item_name ?? '').trim();
+            if (!materialName || !materialName.toLocaleLowerCase().includes(materialSearch)) continue;
+            const code = displayInventoryMaterialCode(roll).trim();
+            if (!code) continue;
+            const current = optionsByCode.get(code) ?? { materialNames: new Set<string>(), rollCount: 0, totalMeters: 0 };
+            current.materialNames.add(materialName);
+            current.rollCount += 1;
+            current.totalMeters += Number.parseFloat(roll.length_m || '0') || 0;
+            optionsByCode.set(code, current);
+          }
+        }
+        const nextMaterialCodeOptions = [...optionsByCode.entries()]
+          .map(([code, value]) => ({
+            code,
+            materialNames: [...value.materialNames],
+            rollCount: value.rollCount,
+            totalMeters: value.totalMeters,
+          }))
+          .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
+        setMaterialCodeOptions(nextMaterialCodeOptions);
+        if (requestedSearch && !selectedMaterialCode && nextMaterialCodeOptions.length > 0) {
+          setMaterialCodePickerOpen(true);
+        }
+
         const sortedRows = sortInventoryRolls(allRows, sortBy, sortDir, materialSort);
 
        const uniqueRows = uniqueById(sortedRows);
@@ -713,16 +855,21 @@ export const Inventory = () => {
                  getRollLengthMeters(r) > 1e-6,
              )
            : uniqueRows;
+        const codeScopedRows = selectedMaterialCode
+          ? visibleRows.filter(
+              (roll) => displayInventoryMaterialCode(roll).trim().toLocaleLowerCase() === selectedMaterialCode.toLocaleLowerCase(),
+            )
+          : visibleRows;
         if (requestId !== rollsRequestIdRef.current || requestedSearch !== searchInputRef.current) return;
-        setRolls(visibleRows);
-        setTotal(Math.min(expectedTotal || visibleRows.length, visibleRows.length));
+        setRolls(codeScopedRows);
+        setTotal(Math.min(expectedTotal || codeScopedRows.length, codeScopedRows.length));
       } catch (e: unknown) {
         if (requestId !== rollsRequestIdRef.current) return;
         setError((e as { message?: string }).message ?? 'تعذر تحميل بيانات المخزون');
       } finally {
         if (requestId === rollsRequestIdRef.current) setLoading(false);
       }
-   }, [debouncedSearch, inventoryScope, filterWarehouseId, sortBy, sortDir, materialSort]);
+   }, [debouncedSearch, inventoryScope, filterWarehouseId, sortBy, sortDir, materialSort, selectedMaterialCode]);
 
   useEffect(() => {
     fetchWarehouses();
@@ -1037,6 +1184,8 @@ return (
                   searchInputRef.current = value.trim();
                   rollsRequestIdRef.current += 1;
                   setLoading(false);
+                  setSelectedMaterialCode('');
+                  setMaterialCodePickerOpen(false);
                   setSearch(value);
                 }}
                 onKeyDown={(e) => {
@@ -1046,6 +1195,23 @@ return (
                 className="w-full pr-9 pl-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
               />
             </div>
+            {selectedMaterialCode && (
+              <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
+                <span className="truncate text-slate-500">
+                  الكود المحدد: <strong className="font-mono text-indigo-700">{selectedMaterialCode}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedMaterialCode('');
+                    setMaterialCodePickerOpen(true);
+                  }}
+                  className="shrink-0 font-bold text-indigo-600 hover:text-indigo-800"
+                >
+                  تغيير الكود
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-1 min-w-[200px]">
             <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
@@ -1554,6 +1720,18 @@ return (
             warehouseId: result.warehouseId,
           });
           fetchRolls();
+        }}
+      />
+
+      <MaterialCodePickerModal
+        open={materialCodePickerOpen}
+        search={search.trim()}
+        options={materialCodeOptions}
+        selectedCode={selectedMaterialCode}
+        onClose={() => setMaterialCodePickerOpen(false)}
+        onSelect={(code) => {
+          setSelectedMaterialCode(code);
+          setMaterialCodePickerOpen(false);
         }}
       />
 
