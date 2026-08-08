@@ -155,6 +155,23 @@ async function findOrCreateAleppoItem(
   layout: StockImportLayout | string,
   dryRun: boolean,
 ): Promise<{ id: string; internalCode: string; supplierCode: string | null; created: boolean }> {
+  // Prefer an existing exact (name + material code) master before applying
+  // import heuristics. Codes such as Y-192 can look like color references to
+  // the heuristic, but an exact master is the stronger identity signal.
+  const exactCode = normalizeBusinessCode(materialCode);
+  if (exactCode) {
+    const exactExistingId = await findItemForExcelIdentity(
+      client,
+      companyId,
+      materialName,
+      exactCode,
+      exactCode,
+    );
+    if (exactExistingId) {
+      return { id: exactExistingId, internalCode: exactCode, supplierCode: exactCode, created: false };
+    }
+  }
+
   const { internalCode, supplierCode } = await resolveItemIdentity(
     client,
     companyId,
