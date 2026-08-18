@@ -43,3 +43,8 @@ server/_setup_*.py
 server/_test_node_pg.mjs
 server/_test_phase2_apis.py
 server/_test_phase3_apis.py
+
+# أسرار الاتصال بالـ VPS — لا تُرفع أبداً (تُقرأ من متغيرات البيئة)
+server/src/config/vps-connection.json
+**/vps-connection.json
+!**/vps-connection.example.json

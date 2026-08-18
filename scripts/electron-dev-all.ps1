@@ -9,8 +9,10 @@ param([string]$VpsHost)
 
 $ErrorActionPreference = 'Stop'
 
-# --- يمكنك تغيير كلمة المرور هنا أو عبر FABRIC_VPS_SSH_PASSWORD ---
-$script:CLOTEX_VPS_SSH_PASSWORD = '***REMOVED***'
+# --- كلمة المرور تُقرأ من متغير البيئة FABRIC_VPS_SSH_PASSWORD ---
+# لا تكتب كلمة مرور هنا: هذا الملف يُرفع إلى مستودع Git.
+# للجلسة الحالية:  $env:FABRIC_VPS_SSH_PASSWORD = '...'
+$script:CLOTEX_VPS_SSH_PASSWORD = ''
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location -LiteralPath $repoRoot
@@ -107,6 +109,8 @@ if (-not (Test-PortOpen $localTunnelPort)) {
       Write-Host '[electron:dev] sshpass/plink not found. Install Git (sshpass) or PuTTY (plink), or remove password from script and use interactive window.'
       Write-Host '[electron:dev] Falling back to interactive SSH window...'
     }
+  } else {
+    Write-Host '[electron:dev] FABRIC_VPS_SSH_PASSWORD not set - opening interactive SSH window.'
   }
 
   if (-not $started) {

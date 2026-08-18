@@ -2,6 +2,13 @@ import * as fs from 'fs';
 import pg from 'pg';
 import { parseStockWorkbook } from '../src/lib/stockExcelImport.ts';
 
+if (!process.env.DATABASE_URL) {
+  console.error('[compare] عرّف DATABASE_URL قبل التشغيل — مثال:');
+  console.error("  $env:DATABASE_URL='postgresql://erp_user:***@127.0.0.1:5433/fabric_erp?sslmode=disable'");
+  process.exit(1);
+}
+
+
 const xlsxPath = fs.readdirSync('.').find((f) => f.endsWith('-15.xlsx')) || 'مستودعات حلب-15.xlsx';
 const buf = fs.readFileSync(xlsxPath);
 const preview = await parseStockWorkbook({
@@ -13,7 +20,9 @@ const incoming = preview.sheets.find((s) => s.kind === 'incoming');
 const excelRows = incoming.rows.filter((r) => r.itemName);
 
 const pool = new pg.Pool({
-  connectionString: 'postgresql://erp_user:***REMOVED***@127.0.0.1:5433/fabric_erp?sslmode=disable',
+  // بيانات الاتصال من متغير البيئة — لا تكتب كلمة المرور هنا (الملف في مستودع Git).
+  // مثال: DATABASE_URL='postgresql://erp_user:***@127.0.0.1:5433/fabric_erp?sslmode=disable'
+  connectionString: process.env.DATABASE_URL,
 });
 const dbRolls = await pool.query(`
   SELECT r.barcode, r.length_m::float AS length_m,

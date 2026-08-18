@@ -313,7 +313,7 @@ Has password_hash: false ✅
 
 | المشكلة | الحل |
 |---------|------|
-| كلمة مرور SSH "***REMOVED***" غير مكتوبة في أي ملف | استخدام متغير بيئة مؤقت `$env:_VPS_PASS` في session فقط |
+| كلمة مرور SSH "«محذوفة»" غير مكتوبة في أي ملف | استخدام متغير بيئة مؤقت `$env:_VPS_PASS` في session فقط |
 | Node.js لا يعمل على VPS | اختيار Option C (SSH Tunnel) — تشغيل الـbackend محلياً |
 | paramiko tunnel غير مستقر مع Node.js pg | التبديل إلى `ssh.exe` مع `-L` (Windows OpenSSH) |
 | `bcrypt.hash` بطيء في seed (12 rounds) | التحقق من أن العملية تعمل — أكملت بنجاح |
