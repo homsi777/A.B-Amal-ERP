@@ -323,6 +323,17 @@ export async function repairRollStuckAfterVoidedSale(
           OR lower(trim(coalesce(fr.roll_no, ''))) = lower($2::text)
           OR lower(trim(coalesce(fr.supplier_roll_ref, ''))) = lower($2::text)
         )
+        -- التوب المحجوز/المباع على فاتورة قائمة (مؤكّدة أو مسودة) ليس عالقاً:
+        -- إلغاء فاتورة قديمة لا يمنحنا حق تحريره من الفاتورة التي تملكه الآن.
+        AND NOT EXISTS (
+          SELECT 1
+            FROM sales_invoice_lines sil2
+            INNER JOIN sales_invoices si2
+              ON si2.id = sil2.invoice_id AND si2.company_id = sil2.company_id
+           WHERE sil2.fabric_roll_id = fr.id
+             AND sil2.company_id = fr.company_id
+             AND si2.document_status <> 'VOIDED'
+        )
       ORDER BY si.voided_at DESC NULLS LAST, si.updated_at DESC
       LIMIT 1`,
     [companyId, token],
