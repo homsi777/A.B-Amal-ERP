@@ -16,13 +16,12 @@
 
 set -euo pipefail
 
-# SSH non-login shells do not automatically load NVM. The deployment needs Node
-# before its first package identity check, so load the user's installed NVM here.
+# SSH non-login shells do not automatically expose the NVM Node binary. Resolve
+# the installed binary directly before the first package identity check.
 if ! command -v node >/dev/null 2>&1; then
-  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-    # shellcheck source=/dev/null
-    . "$NVM_DIR/nvm.sh"
+  NVM_NODE_BIN="$(find "${NVM_DIR:-$HOME/.nvm}/versions/node" -type f -path '*/bin/node' 2>/dev/null | sort -V | tail -n 1 || true)"
+  if [[ -n "$NVM_NODE_BIN" ]]; then
+    export PATH="$(dirname "$NVM_NODE_BIN"):$PATH"
   fi
 fi
 
