@@ -29,6 +29,8 @@ import { SUPPORTED_CURRENCIES, normalizeExchangeRate } from '../lib/currency';
 import type { Invoice } from '../types';
 import { renderInvoiceStatementA4Html } from '../lib/printing/renderInvoiceStatementA4';
 import { A4PreviewModal } from '../components/printing/A4PreviewModal';
+import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
+import { sendTelegramDocument } from '../lib/api/telegramApi';
 
 function labelReturnType(t: string) {
   if (t === 'SALES_RETURN') return 'مرتجع مبيعات';
@@ -124,6 +126,7 @@ export const ReturnInvoices = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<ReturnInvoiceDetail | null>(null);
   const [returnPreviewOpen, setReturnPreviewOpen] = useState(false);
+  const [telegramBusy, setTelegramBusy] = useState(false);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -550,6 +553,52 @@ export const ReturnInvoices = () => {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
+  const sendReturnTelegram = async () => {
+    if (!detail) return;
+
+    const isSalesReturn = detail.return_type === 'SALES_RETURN';
+    const partyId = isSalesReturn ? detail.customer_id : detail.supplier_id;
+    const partyName = detail.customer_name || detail.supplier_name || 'جهة المرتجع';
+    const title = returnDocumentTitle(detail.return_type);
+    const total = Number(detail.total_amount || 0).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    setTelegramBusy(true);
+    try {
+      await sendTelegramDocument({
+        documentType: 'INVOICE',
+        partyType: isSalesReturn ? 'customer' : 'supplier',
+        partyId: partyId || null,
+        targetType: isSalesReturn ? 'CUSTOMER' : 'SUPPLIER',
+        targetId: partyId || null,
+        message: [
+          title,
+          `رقم المرتجع: ${detail.return_no}`,
+          `التاريخ: ${detail.return_date}`,
+          `${isSalesReturn ? 'العميل' : 'المورد'}: ${partyName}`,
+          `مرجع الفاتورة: ${originalInvoiceLabel(detail)}`,
+          `الإجمالي: ${total} ${detail.currency_code || 'USD'}`,
+          detail.reason ? `السبب: ${detail.reason}` : '',
+          'تم إرفاق فاتورة المرتجع PDF.',
+        ].filter(Boolean).join('\n'),
+        pdfHtml: buildReturnInvoiceHtml(),
+        fileName: `${title}_${detail.return_no}`.replace(/[\\/:*?"<>|]+/g, '_') + '.pdf',
+        caption: `${title} PDF`,
+        eventType: 'RETURN_INVOICE',
+      });
+      showToast({ type: 'success', message: 'تم إرسال فاتورة المرتجع إلى تيليغرام.' });
+    } catch (error) {
+      showToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'تعذر إرسال فاتورة المرتجع إلى تيليغرام.',
+      });
+    } finally {
+      setTelegramBusy(false);
+    }
+  };
+
   const submitCancel = async () => {
     if (!cancelId) return;
     setCancelSaving(true);
@@ -796,6 +845,14 @@ export const ReturnInvoices = () => {
             ) : (
               <>
                 <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 pb-3">
+                  {detail.status !== 'CANCELLED' && (
+                    <TelegramSendButton
+                      size="compact"
+                      busy={telegramBusy}
+                      onClick={sendReturnTelegram}
+                      label="تيليغرام"
+                    />
+                  )}
                   <button type="button" onClick={shareReturnWhatsApp} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
                     <Share2 className="h-4 w-4" /> مشاركة واتساب
                   </button>
