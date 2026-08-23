@@ -552,6 +552,10 @@ export const InvoiceForm = () => {
   const [exchangeRateToUsd, setExchangeRateToUsd] = useState('1');
   const [items, setItems] = useState<InvoiceFormItem[]>([emptyItem()]);
   const [summaryOpen, setSummaryOpen] = useState(true);
+  const [invoiceZoomLevel, setInvoiceZoomLevel] = useState(() => {
+    const saved = Number(window.localStorage.getItem('clotex.salesInvoiceZoomLevel') || '1');
+    return Number.isInteger(saved) && saved >= 1 && saved <= 5 ? saved : 1;
+  });
   const [scanInput, setScanInput] = useState('');
   const [scanMessage, setScanMessage] = useState('');
   const [latestScannedLineId, setLatestScannedLineId] = useState<number | null>(null);
@@ -2786,8 +2790,17 @@ export const InvoiceForm = () => {
       hasError ? 'border-rose-300 bg-rose-50' : 'border-slate-200'
     }`;
 
+  const canAdjustSalesInvoiceZoom = isSales && !editInvoiceId;
+  const cycleSalesInvoiceZoom = () => {
+    setInvoiceZoomLevel((current) => {
+      const next = current >= 5 ? 1 : current + 1;
+      window.localStorage.setItem('clotex.salesInvoiceZoomLevel', String(next));
+      return next;
+    });
+  };
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={`max-w-7xl mx-auto space-y-6 ${canAdjustSalesInvoiceZoom ? `invoice-form-zoom invoice-form-zoom-${invoiceZoomLevel}` : ''}`}>
       <InvoiceSaveActionsModal
         isOpen={Boolean(savedInvoiceActions)}
         invoice={savedInvoiceActions?.invoice ?? null}
@@ -2900,6 +2913,16 @@ export const InvoiceForm = () => {
         </div>
 
         <div className="flex gap-3">
+          {canAdjustSalesInvoiceZoom ? (
+            <button
+              type="button"
+              onClick={cycleSalesInvoiceZoom}
+              className="hidden lg:inline-flex bg-slate-900 text-white px-3 py-2 rounded-lg items-center hover:bg-slate-800 transition shadow-sm font-bold"
+              title="تكبير النصوص والأرقام داخل فاتورة المبيعات"
+            >
+              الحجم ×{invoiceZoomLevel}
+            </button>
+          ) : null}
           <button onClick={() => navigate(-1)} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm font-medium">
             <X className="w-4 h-4" />
             <span className="hidden sm:inline">إلغاء</span>

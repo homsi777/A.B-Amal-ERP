@@ -61,6 +61,15 @@
 }
 
 @layer utilities {
+  /* تكبير مخصص لفاتورة المبيعات على الشاشات المكتبية فقط. */
+  @media (min-width: 1024px) {
+    .invoice-form-zoom-1 { zoom: 1; }
+    .invoice-form-zoom-2 { zoom: 1.12; }
+    .invoice-form-zoom-3 { zoom: 1.25; }
+    .invoice-form-zoom-4 { zoom: 1.4; }
+    .invoice-form-zoom-5 { zoom: 1.55; }
+  }
+
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
