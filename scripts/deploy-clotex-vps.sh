@@ -16,6 +16,21 @@
 
 set -euo pipefail
 
+# SSH non-login shells do not automatically load NVM. The deployment needs Node
+# before its first package identity check, so load the user's installed NVM here.
+if ! command -v node >/dev/null 2>&1; then
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck source=/dev/null
+    . "$NVM_DIR/nvm.sh"
+  fi
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "❌ لم يتم العثور على Node.js. ثبّت Node/NVM للمستخدم الذي يشغّل النشر."
+  exit 1
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -151,4 +166,3 @@ fi
 echo ""
 echo "✓ تم نشر CLOTEX"
 echo "  تحقق: curl -sI http://127.0.0.1/ | head -1"
-
