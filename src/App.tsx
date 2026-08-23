@@ -92,6 +92,28 @@ function writeRouteTrail(trail: string[]): void {
   }
 }
 
+/** The top navigation has dropdown sections. A direct submenu visit still needs
+ * a useful Back destination when a mobile browser drops its SPA history entry. */
+function parentSectionRoute(route: string): string | null {
+  const pathname = route.split(/[?#]/, 1)[0] || '/';
+
+  if (pathname.startsWith('/customers/')) return '/customers';
+  if (pathname.startsWith('/suppliers/')) return '/suppliers';
+  if (pathname.startsWith('/inventory/') || pathname === '/cartela') return '/inventory';
+  if (pathname.startsWith('/treasury/')) return '/treasury';
+  if (pathname.startsWith('/bonds/records/')) return '/bonds/records';
+  if (pathname.startsWith('/bonds/')) return '/bonds/records';
+  if (pathname.startsWith('/salaries/')) return '/salaries';
+  if (pathname.startsWith('/settings/')) return '/settings';
+  if (pathname.startsWith('/invoices/sales/')) return '/invoices/sales';
+  if (pathname.startsWith('/invoices/purchases/')) return '/invoices/purchases';
+  if (pathname.startsWith('/invoices/returns')) return '/invoices/sales';
+  if (pathname.startsWith('/invoices/exchange')) return '/invoices/sales';
+  if (pathname.startsWith('/invoices/statement')) return '/invoices/sales';
+  if (pathname.startsWith('/purchases/import')) return '/invoices/purchases';
+  return null;
+}
+
 /**
  * Some mobile browsers/PWA shells occasionally jump from an internal route to
  * the dashboard when their physical Back button has no matching SPA entry.
@@ -116,12 +138,15 @@ function BrowserBackNavigation() {
     const lastRoute = trail.at(-1);
 
     // The only recovery case: a browser Back action skipped the internal page
-    // history and landed on the dashboard. Restore the previous internal route.
+    // history and landed on the dashboard. Prefer the submenu's parent section
+    // (for example: customer statement -> customers) over the dashboard.
     if (navigationType === 'POP' && route === '/' && trail.length > 1 && lastRoute !== '/') {
       const previousRoute = trail.at(-2);
-      if (previousRoute) {
-        writeRouteTrail(trail.slice(0, -1));
-        navigate(previousRoute, { replace: true });
+      const parentRoute = parentSectionRoute(lastRoute);
+      const destination = parentRoute || (previousRoute && previousRoute !== '/' ? previousRoute : null);
+      if (destination) {
+        writeRouteTrail([...trail.slice(0, -1), destination]);
+        navigate(destination, { replace: true });
         return;
       }
     }
