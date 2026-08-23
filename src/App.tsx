@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect } from 'react';
-import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate, useNavigationType, Navigate } from 'react-router-dom';
 
 /**
  * In Electron production (file:// protocol), BrowserRouter cannot handle
@@ -65,6 +65,80 @@ function EscapeBackNavigation() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [location.pathname, navigate]);
+
+  return null;
+}
+
+const SESSION_ROUTE_TRAIL_KEY = 'clotex:route-trail:v1';
+
+function currentRoute(location: ReturnType<typeof useLocation>): string {
+  return `${location.pathname}${location.search}${location.hash}`;
+}
+
+function readRouteTrail(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(sessionStorage.getItem(SESSION_ROUTE_TRAIL_KEY) || '[]');
+    return Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string') ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRouteTrail(trail: string[]): void {
+  try {
+    sessionStorage.setItem(SESSION_ROUTE_TRAIL_KEY, JSON.stringify(trail.slice(-30)));
+  } catch {
+    // Browsing must continue normally if the browser blocks session storage.
+  }
+}
+
+/**
+ * Some mobile browsers/PWA shells occasionally jump from an internal route to
+ * the dashboard when their physical Back button has no matching SPA entry.
+ * Keep a small per-tab trail so that specific jump still returns one real page.
+ */
+function BrowserBackNavigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navigationType = useNavigationType();
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    const route = currentRoute(location);
+
+    if (!initialized.current) {
+      initialized.current = true;
+      writeRouteTrail([route]);
+      return;
+    }
+
+    const trail = readRouteTrail();
+    const lastRoute = trail.at(-1);
+
+    // The only recovery case: a browser Back action skipped the internal page
+    // history and landed on the dashboard. Restore the previous internal route.
+    if (navigationType === 'POP' && route === '/' && trail.length > 1 && lastRoute !== '/') {
+      const previousRoute = trail.at(-2);
+      if (previousRoute) {
+        writeRouteTrail(trail.slice(0, -1));
+        navigate(previousRoute, { replace: true });
+        return;
+      }
+    }
+
+    if (navigationType === 'PUSH') {
+      if (lastRoute !== route) writeRouteTrail([...trail, route]);
+      return;
+    }
+
+    if (navigationType === 'REPLACE') {
+      writeRouteTrail(lastRoute ? [...trail.slice(0, -1), route] : [route]);
+      return;
+    }
+
+    const knownIndex = trail.lastIndexOf(route);
+    writeRouteTrail(knownIndex >= 0 ? trail.slice(0, knownIndex + 1) : [...trail, route]);
+  }, [location, navigate, navigationType]);
 
   return null;
 }
@@ -130,6 +204,7 @@ export default function App() {
     <ThemeApplier>
       <StartupConnectionBanner />
       <RouterComponent>
+        <BrowserBackNavigation />
         <EscapeBackNavigation />
         <Routes>
           <Route path="/login" element={<Login />} />
