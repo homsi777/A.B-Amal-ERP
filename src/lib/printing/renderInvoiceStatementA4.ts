@@ -140,6 +140,10 @@ export function renderInvoiceStatementA4Html(opts: {
   hideFinancialColumns?: boolean;
   title?: string;
   subtitle?: string;
+  /** Optional label for a document that uses the invoice layout but is not a sale/purchase invoice. */
+  invoiceTypeLabel?: string;
+  /** Defaults to the customer label used by the sales invoice layout. */
+  partyLabel?: string;
   /** عند true يُظهر شريط «مسودة غير مؤكدة» على المستند */
   isDraft?: boolean;
   draftLabel?: string;
@@ -150,6 +154,8 @@ export function renderInvoiceStatementA4Html(opts: {
   const currency = (invoice.currency || 'USD').trim() || 'USD';
   const title = opts.title ?? 'إشعار تسليم تفصيلي';
   const subtitle = opts.subtitle ?? 'كشف الفاتورة';
+  const invoiceTypeLabel = opts.invoiceTypeLabel ?? (invoice.type === 'purchase' ? 'شراء' : 'بيع');
+  const partyLabel = opts.partyLabel ?? (invoice.type === 'purchase' ? 'اسم المورد' : 'اسم العميل');
   const invoiceNo = normalizeText(displayStoredInvoiceNo(invoice.invoiceNumber), '—');
   const invoiceDate = formatInvoiceDate(invoice.date);
   const partyName = normalizeText(opts.partyName, '—');
@@ -287,7 +293,7 @@ export function renderInvoiceStatementA4Html(opts: {
       <table class="meta-card">
         <tbody>
           <tr>
-            <td class="meta-lbl">اسم العميل</td>
+            <td class="meta-lbl">${escapeHtml(partyLabel)}</td>
             <td class="meta-val">${escapeHtml(partyName)}</td>
           </tr>
           <tr>
@@ -308,7 +314,7 @@ export function renderInvoiceStatementA4Html(opts: {
         <tbody>
           <tr>
             <td class="meta-lbl">نوع الفاتورة</td>
-            <td class="meta-val">${escapeHtml(invoice.type === 'purchase' ? 'شراء' : 'بيع')}</td>
+            <td class="meta-val">${escapeHtml(invoiceTypeLabel)}</td>
           </tr>
           <tr>
             <td class="meta-lbl">التاريخ</td>

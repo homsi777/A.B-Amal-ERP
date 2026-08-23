@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, Filter, Plus, ArrowLeftRight, Loader2, Eye, Pencil, Ban, Printer } from 'lucide-react';
+import { Search, Filter, Plus, ArrowLeftRight, Loader2, Eye, Pencil, Ban, Printer, Share2 } from 'lucide-react';
 import {
   listReturns,
   createReturn,
@@ -26,6 +26,9 @@ import { arDocumentStatus } from '../lib/i18n/arTerminology';
 import { useToast } from '../components/NonBlockingToast';
 import { listExchangeRates, type ExchangeRateDto, type SupportedCurrencyCode } from '../lib/api/exchangeRatesApi';
 import { SUPPORTED_CURRENCIES, normalizeExchangeRate } from '../lib/currency';
+import type { Invoice } from '../types';
+import { renderInvoiceStatementA4Html } from '../lib/printing/renderInvoiceStatementA4';
+import { A4PreviewModal } from '../components/printing/A4PreviewModal';
 
 function labelReturnType(t: string) {
   if (t === 'SALES_RETURN') return 'مرتجع مبيعات';
@@ -56,6 +59,53 @@ function originalInvoiceLabel(r: ReturnInvoice): string {
   );
 }
 
+function returnDocumentTitle(returnType: ReturnType): string {
+  return returnType === 'SALES_RETURN' ? 'فاتورة مرتجع مبيعات' : 'فاتورة مرتجع مشتريات';
+}
+
+function mapReturnToPrintableInvoice(detail: ReturnInvoiceDetail): Invoice {
+  const status: Invoice['documentStatus'] = detail.status === 'DRAFT'
+    ? 'DRAFT'
+    : detail.status === 'CANCELLED'
+      ? 'VOIDED'
+      : 'CONFIRMED';
+  const total = Number(detail.total_amount) || 0;
+  const subtotal = Number(detail.subtotal) || detail.lines.reduce((sum, line) => sum + (Number(line.line_total) || 0), 0);
+
+  return {
+    id: detail.id,
+    date: detail.return_date,
+    type: detail.return_type === 'SALES_RETURN' ? 'sale' : 'purchase',
+    partyId: detail.customer_id || detail.supplier_id || '',
+    partyDisplayName: detail.customer_name || detail.supplier_name || undefined,
+    invoiceNumber: detail.return_no,
+    currency: detail.currency_code || 'USD',
+    exchangeRateToUsd: Number(detail.exchange_rate_to_usd) || 1,
+    warehouse: '—',
+    notes: detail.notes || detail.reason || undefined,
+    subtotal,
+    discountTotal: Number(detail.discount_total) || 0,
+    taxTotal: Number(detail.tax_total) || 0,
+    totalAmount: total,
+    paidAmount: 0,
+    remainingAmount: total,
+    items: detail.lines.map((line) => ({
+      fabricId: line.fabric_item_id || line.id,
+      quantity: Number(line.quantity) || 0,
+      unitType: line.unit === 'yard' ? 'yard' : 'meter',
+      unitPrice: Number(line.unit_price) || 0,
+      total: Number(line.line_total) || 0,
+      fabricName: line.description,
+      materialName: line.description,
+      rollNumber: line.fabric_roll_id || undefined,
+      note: line.return_reason || line.notes || undefined,
+    })),
+    status: 'unpaid',
+    documentStatus: status,
+    paymentStatus: 'unpaid',
+  };
+}
+
 export const ReturnInvoices = () => {
   const { showToast } = useToast();
   const [rows, setRows] = useState<ReturnInvoice[]>([]);
@@ -73,6 +123,7 @@ export const ReturnInvoices = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<ReturnInvoiceDetail | null>(null);
+  const [returnPreviewOpen, setReturnPreviewOpen] = useState(false);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -451,6 +502,7 @@ export const ReturnInvoices = () => {
   };
 
   const openDetail = async (id: string) => {
+    setReturnPreviewOpen(false);
     setDetailOpen(true);
     setDetailLoading(true);
     setDetail(null);
@@ -463,6 +515,39 @@ export const ReturnInvoices = () => {
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  const buildReturnInvoiceHtml = () => {
+    if (!detail) return '';
+    const printable = mapReturnToPrintableInvoice(detail);
+    const partyName = detail.customer_name || detail.supplier_name || 'جهة المرتجع';
+    const reference = originalInvoiceLabel(detail);
+    const reason = detail.reason?.trim();
+    return renderInvoiceStatementA4Html({
+      invoice: printable,
+      partyName,
+      title: returnDocumentTitle(detail.return_type),
+      subtitle: `مرجع الفاتورة الأصلية: ${reference}${reason ? ` — السبب: ${reason}` : ''}`,
+      invoiceTypeLabel: labelReturnType(detail.return_type),
+      partyLabel: detail.return_type === 'SALES_RETURN' ? 'اسم العميل' : 'اسم المورد',
+      isDraft: detail.status === 'DRAFT',
+      draftLabel: 'مسودة مرتجع غير مؤكدة',
+    });
+  };
+
+  const shareReturnWhatsApp = () => {
+    if (!detail) return;
+    const partyName = detail.customer_name || detail.supplier_name || '—';
+    const text = [
+      returnDocumentTitle(detail.return_type),
+      `رقم المرتجع: ${detail.return_no}`,
+      `التاريخ: ${detail.return_date}`,
+      `الجهة: ${partyName}`,
+      `مرجع الفاتورة: ${originalInvoiceLabel(detail)}`,
+      `الإجمالي: ${Number(detail.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${detail.currency_code || 'USD'}`,
+      detail.reason ? `السبب: ${detail.reason}` : '',
+    ].filter(Boolean).join('\n');
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
   const submitCancel = async () => {
@@ -710,6 +795,14 @@ export const ReturnInvoices = () => {
               </div>
             ) : (
               <>
+                <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 pb-3">
+                  <button type="button" onClick={shareReturnWhatsApp} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
+                    <Share2 className="h-4 w-4" /> مشاركة واتساب
+                  </button>
+                  <button type="button" onClick={() => setReturnPreviewOpen(true)} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700">
+                    <Printer className="h-4 w-4" /> فاتورة المرتجع
+                  </button>
+                </div>
                 <dl className="grid grid-cols-2 gap-2 text-sm">
                   <dt className="text-slate-500">الرقم</dt>
                   <dd className="font-mono font-semibold">{detail.return_no}</dd>
@@ -767,6 +860,16 @@ export const ReturnInvoices = () => {
           </div>
         </div>
       )}
+
+      <A4PreviewModal
+        open={returnPreviewOpen && Boolean(detail)}
+        title={detail ? returnDocumentTitle(detail.return_type) : 'فاتورة مرتجع'}
+        html={buildReturnInvoiceHtml()}
+        pageSize="A4"
+        fixedPageLayout
+        defaultFileName={detail ? `${returnDocumentTitle(detail.return_type)}_${detail.return_no}` : 'فاتورة_مرتجع'}
+        onClose={() => setReturnPreviewOpen(false)}
+      />
 
       {cancelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
