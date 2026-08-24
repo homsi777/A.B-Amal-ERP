@@ -1097,25 +1097,29 @@ return (
             <FileText className="w-4 h-4" />
             تقرير خامة مباعة
           </button>
-          <Link
-            to="/inventory/labels"
-            className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"
-          >
-            <QrCode className="w-4 h-4" />
-            طباعة اللصاقات
-          </Link>
-          <button
-            type="button"
-            onClick={bulkDeleteMode ? cancelBulkDeleteMode : startBulkDeleteMode}
-            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition font-bold text-sm shadow-sm ${
-              bulkDeleteMode
-                ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                : 'bg-rose-600 text-white hover:bg-rose-700'
-            }`}
-          >
-            {bulkDeleteMode ? <X className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
-            {bulkDeleteMode ? 'إلغاء الحذف' : 'حذف جماعي'}
-          </button>
+          {false && (
+            <Link
+              to="/inventory/labels"
+              className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"
+            >
+              <QrCode className="w-4 h-4" />
+              طباعة اللصاقات
+            </Link>
+          )}
+          {false && (
+            <button
+              type="button"
+              onClick={bulkDeleteMode ? cancelBulkDeleteMode : startBulkDeleteMode}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition font-bold text-sm shadow-sm ${
+                bulkDeleteMode
+                  ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  : 'bg-rose-600 text-white hover:bg-rose-700'
+              }`}
+            >
+              {bulkDeleteMode ? <X className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+              {bulkDeleteMode ? 'إلغاء الحذف' : 'حذف جماعي'}
+            </button>
+          )}
           {/*
             "إضافة ثوب جديد" مُخفي حسب طلب المالك (مكرر مع تدفق الاستيراد).
             المسار /inventory/rolls/new + صفحة CreateRoll مُحتفظ بهما كما هما.
