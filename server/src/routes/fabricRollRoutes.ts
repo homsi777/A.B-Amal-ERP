@@ -298,6 +298,70 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true, data: sanitizeRollDtoRows(rows.rows), total: countRow.rows[0].total, page, pageSize });
   });
 
+  /** بنود خامات مباعة بالفعل: فواتير بيع مؤكدة فقط، دون المسودات أو الفواتير الملغاة. */
+  app.get('/sold-material-report', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const q = req.query as Record<string, string>;
+    const search = q.search?.trim() || '';
+    const page = Math.max(1, parseInt(q.page) || 1);
+    const pageSize = Math.min(50000, Math.max(1, parseInt(q.pageSize) || 500));
+    const offset = (page - 1) * pageSize;
+    const params: unknown[] = [companyId];
+    const conditions = [
+      'sil.company_id = $1',
+      'si.company_id = $1',
+      "si.document_status = 'CONFIRMED'",
+      'si.voided_at IS NULL',
+      'sil.fabric_item_id IS NOT NULL',
+    ];
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(
+        fi.name ILIKE $2 OR fi.internal_code ILIKE $2 OR fi.supplier_code ILIKE $2
+        OR c.name ILIKE $2 OR si.invoice_no ILIKE $2 OR sil.description ILIKE $2
+      )`);
+    }
+    const where = conditions.join(' AND ');
+    const limitParam = params.length + 1;
+    const offsetParam = params.length + 2;
+    const pool = getPool();
+    const [rows, count] = await Promise.all([
+      pool.query(
+        `SELECT
+           sil.id,
+           COALESCE(NULLIF(fi.name, ''), NULLIF(sil.description, ''), '—') AS material_name,
+           COALESCE(NULLIF(fi.internal_code, ''), NULLIF(fi.supplier_code, '')) AS material_code,
+           COALESCE(c.name, '—') AS customer_name,
+           sil.quantity,
+           sil.unit,
+           CASE WHEN sil.unit = 'yard' THEN sil.quantity * 0.9144 ELSE sil.quantity END AS meters,
+           sil.unit_price,
+           sil.line_total,
+           si.currency_code,
+           si.invoice_no,
+           si.invoice_date
+         FROM sales_invoice_lines sil
+         INNER JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+         INNER JOIN fabric_items fi ON fi.id = sil.fabric_item_id AND fi.company_id = sil.company_id
+         LEFT JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
+         WHERE ${where}
+         ORDER BY si.invoice_date DESC, si.created_at DESC, sil.line_no ASC
+         LIMIT $${limitParam} OFFSET $${offsetParam}`,
+        [...params, pageSize, offset],
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total
+         FROM sales_invoice_lines sil
+         INNER JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+         INNER JOIN fabric_items fi ON fi.id = sil.fabric_item_id AND fi.company_id = sil.company_id
+         LEFT JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
+         WHERE ${where}`,
+        params,
+      ),
+    ]);
+    return reply.send({ ok: true, data: rows.rows, total: count.rows[0]?.total ?? 0, page, pageSize });
+  });
+
   // ── Recent purchase invoices (used by the bulk-pricing filter) ────────────
   app.get(
     '/bulk-pricing/recent-purchase-invoices',

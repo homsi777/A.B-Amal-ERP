@@ -38,6 +38,7 @@ import { getRollLengthMeters, isRollInDraftSalesInvoice } from '../lib/inventory
 import { renderInventoryRollsAuditA4Html } from '../lib/printing/renderInventoryRollsAuditA4';
 import { openDocumentPrintWindow } from '../lib/printing/documentPrint';
 import { RepairVoidedPurchaseRollsButton } from '../components/purchases/RepairVoidedPurchaseRollsButton';
+import { SoldMaterialsReportModal } from '../components/inventory/SoldMaterialsReportModal';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -758,6 +759,7 @@ export const Inventory = () => {
      warehouseId: string;
    } | null>(null);
    const [showBulkBarcodeModal, setShowBulkBarcodeModal] = useState(false);
+   const [soldMaterialsReportOpen, setSoldMaterialsReportOpen] = useState(false);
 
   // إحصائيات الصفحة الحالية فقط (مع توضيح نطاق العرض في التسميات)
   const stats = {
@@ -1087,6 +1089,14 @@ return (
             إصلاح مخزون فواتير ملغاة | توليد باركود جماعي | استيراد من ملف Excel
           */}
           {false && <RepairVoidedPurchaseRollsButton onRepaired={() => void fetchRolls()} />}
+          <button
+            type="button"
+            onClick={() => setSoldMaterialsReportOpen(true)}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition font-bold text-sm shadow-sm"
+          >
+            <FileText className="w-4 h-4" />
+            تقرير خامة مباعة
+          </button>
           <Link
             to="/inventory/labels"
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"
@@ -1141,6 +1151,8 @@ return (
               )}
         </div>
       </div>
+
+      <SoldMaterialsReportModal open={soldMaterialsReportOpen} onClose={() => setSoldMaterialsReportOpen(false)} />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
