@@ -312,13 +312,15 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
       'si.company_id = $1',
       "si.document_status = 'CONFIRMED'",
       'si.voided_at IS NULL',
-      'sil.fabric_item_id IS NOT NULL',
+      '(sil.fabric_item_id IS NOT NULL OR sil.fabric_roll_id IS NOT NULL)',
     ];
     if (search) {
       params.push(`%${search}%`);
       conditions.push(`(
         fi.name ILIKE $2 OR fi.internal_code ILIKE $2 OR fi.supplier_code ILIKE $2
-        OR c.name ILIKE $2 OR si.invoice_no ILIKE $2 OR sil.description ILIKE $2
+        OR sil.metadata->>'materialName' ILIKE $2 OR sil.metadata->>'fabricName' ILIKE $2
+        OR sil.metadata->>'designCode' ILIKE $2 OR c.name ILIKE $2
+        OR si.invoice_no ILIKE $2 OR sil.description ILIKE $2
       )`);
     }
     const where = conditions.join(' AND ');
@@ -329,8 +331,8 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
       pool.query(
         `SELECT
            sil.id,
-           COALESCE(NULLIF(fi.name, ''), NULLIF(sil.description, ''), '—') AS material_name,
-           COALESCE(NULLIF(fi.internal_code, ''), NULLIF(fi.supplier_code, '')) AS material_code,
+           COALESCE(NULLIF(fi.name, ''), NULLIF(sil.metadata->>'materialName', ''), NULLIF(sil.metadata->>'fabricName', ''), NULLIF(sil.description, ''), '—') AS material_name,
+           COALESCE(NULLIF(fi.internal_code, ''), NULLIF(fi.supplier_code, ''), NULLIF(sil.metadata->>'designCode', '')) AS material_code,
            COALESCE(c.name, '—') AS customer_name,
            sil.quantity,
            sil.unit,
@@ -342,10 +344,11 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
            si.invoice_date
          FROM sales_invoice_lines sil
          INNER JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
-         INNER JOIN fabric_items fi ON fi.id = sil.fabric_item_id AND fi.company_id = sil.company_id
+         LEFT JOIN fabric_rolls fr ON fr.id = sil.fabric_roll_id AND fr.company_id = sil.company_id
+         LEFT JOIN fabric_items fi ON fi.id = COALESCE(sil.fabric_item_id, fr.item_id) AND fi.company_id = sil.company_id
          LEFT JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
          WHERE ${where}
-         ORDER BY si.invoice_date DESC, si.created_at DESC, sil.line_no ASC
+         ORDER BY material_name ASC, si.invoice_date DESC, si.created_at DESC, sil.line_no ASC
          LIMIT $${limitParam} OFFSET $${offsetParam}`,
         [...params, pageSize, offset],
       ),
@@ -353,7 +356,8 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
         `SELECT COUNT(*)::int AS total
          FROM sales_invoice_lines sil
          INNER JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
-         INNER JOIN fabric_items fi ON fi.id = sil.fabric_item_id AND fi.company_id = sil.company_id
+         LEFT JOIN fabric_rolls fr ON fr.id = sil.fabric_roll_id AND fr.company_id = sil.company_id
+         LEFT JOIN fabric_items fi ON fi.id = COALESCE(sil.fabric_item_id, fr.item_id) AND fi.company_id = sil.company_id
          LEFT JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
          WHERE ${where}`,
         params,
