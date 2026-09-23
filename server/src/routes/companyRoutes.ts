@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticateRequest, requirePlatformAdmin } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
+import { clientIp } from '../utils/clientIp.js';
 import {
   CompanyProvisioningError,
   listCompanies,
@@ -41,6 +42,11 @@ export const companyRoutes: FastifyPluginAsync = async (app) => {
           username: parsed.data.adminUsername,
           password: parsed.data.adminPassword,
           fullName: parsed.data.adminFullName,
+        },
+        {
+          userId: req.user!.sub,
+          ip: clientIp(req),
+          userAgent: String(req.headers['user-agent'] || '—'),
         },
       );
       return reply.status(201).send({ ok: true, data: company });

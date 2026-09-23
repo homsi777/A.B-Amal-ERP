@@ -284,7 +284,10 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.put('/roles/:code', { preHandler: authenticateRequest }, async (req, reply) => {
-    if (!requirePermission(req.user, 'users.manage')) {
+    // الأدوار/الصلاحيات (roles/permissions/role_permissions) عالمية بلا
+    // company_id — تعديلها يؤثر على كل الحسابات دفعة واحدة، فيُسمح لمدير
+    // المنصة فقط، وليس أي "أدمن" شركة عادية.
+    if (!requirePlatformAdmin(req.user)) {
       return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     }
 

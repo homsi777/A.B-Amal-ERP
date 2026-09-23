@@ -928,6 +928,7 @@ export const SystemSettings = () => {
                 </div>
               </div>
 
+              {currentUser?.isPlatformAdmin && (
               <div className="border border-[var(--border-default)] rounded-xl p-4 space-y-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2 font-bold text-[var(--text-heading)]"><KeyRound className="w-5 h-5 text-[var(--ui-accent)]" /> صلاحيات الدور</div>
@@ -935,7 +936,7 @@ export const SystemSettings = () => {
                     {roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
                   </select>
                 </div>
-                <p className="text-xs text-[var(--text-muted)]">عدّلي الصلاحيات بالنقر على المربعات — يُحفظ التعديل مباشرة.</p>
+                <p className="text-xs text-[var(--text-muted)]">عدّلي الصلاحيات بالنقر على المربعات — يُحفظ التعديل مباشرة. تعديل الأدوار عام لكل الحسابات، لذا متاح لمدير المنصة فقط.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {permissions.map((permission) => (
                     <label key={permission.code} className="flex items-center justify-between gap-3 p-3 border border-[var(--border-default)] rounded-lg hover:bg-[var(--surface-muted-nav)] cursor-pointer">
@@ -946,6 +947,7 @@ export const SystemSettings = () => {
                   {permissions.length === 0 && <p className="text-[var(--text-muted)] text-sm">لا توجد صلاحيات محملة من الخادم.</p>}
                 </div>
               </div>
+              )}
             </div>
           )}
 

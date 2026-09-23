@@ -35,6 +35,7 @@ import { ClotexAssistant } from '../components/ai/ClotexAssistant';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { SessionPresenceTracker } from '../components/SessionPresenceTracker';
 import { CompanySwitcher } from '../components/companies/CompanySwitcher';
+import { ActiveCompanyBanner } from '../components/companies/ActiveCompanyBanner';
 import { BRAND } from '../branding';
 import { useAnchoredPopoverStyle } from '../lib/useAnchoredPopoverStyle';
 
@@ -337,6 +338,7 @@ const Topbar = () => {
 
   return (
     <header className="bg-[var(--surface-header)] border-b border-[var(--border-default)] shadow-sm sticky top-0 z-50 transition-colors duration-300 [--mobile-nav-top:3.75rem] md:[--mobile-nav-top:4.5rem]">
+      <ActiveCompanyBanner />
       <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--border-subtle)] relative z-20 bg-[var(--surface-header)] md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:gap-3 md:px-6 md:py-3">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:order-2 md:justify-center md:gap-3">
           <button

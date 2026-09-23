@@ -8,6 +8,8 @@ import bcrypt from 'bcryptjs';
 import { getPool } from '../db/pool.js';
 import { ensureCompanyGlCoa } from './glCoaService.js';
 import { seedRbacWarehouseTemplate } from './postActivationBootstrap.js';
+import { setCompanyActivationStatus } from './activationService.js';
+import { logPlatformAction } from './platformAuditService.js';
 
 export class CompanyProvisioningError extends Error {
   constructor(
@@ -41,9 +43,16 @@ export type ProvisionedCompany = {
   created_at: string;
 };
 
+export type ProvisioningActor = {
+  userId: string;
+  ip?: string | null;
+  userAgent?: string | null;
+};
+
 export async function provisionCompany(
   company: NewCompanyInput,
   admin: NewCompanyAdminInput,
+  actor: ProvisioningActor,
 ): Promise<ProvisionedCompany> {
   const pool = getPool();
   const client = await pool.connect();
@@ -82,6 +91,28 @@ export async function provisionCompany(
       }
       throw e;
     }
+
+    // تفعيل تلقائي فور الإنشاء — نفس منطق تفعيل مفتاح حقيقي بالضبط
+    // (نفس الدالة، بدون استهلاك أو توليد مفتاح تفعيل حقيقي).
+    await setCompanyActivationStatus(client, companyId, {
+      planCode: 'FULL',
+      activatedAt: new Date().toISOString(),
+    });
+    await client.query(
+      `INSERT INTO activation_events (company_id, event_type, message, created_by_user_id)
+       VALUES ($1, 'PLATFORM_PROVISIONED', 'تفعيل تلقائي عند إنشاء حساب من مدير المنصة', $2)`,
+      [companyId, actor.userId],
+    );
+
+    await logPlatformAction(client, {
+      actorUserId: actor.userId,
+      action: 'CREATE_COMPANY',
+      fromCompanyId: null,
+      toCompanyId: companyId,
+      ip: actor.ip,
+      userAgent: actor.userAgent,
+      details: { code: company.code.trim(), name: company.name.trim() },
+    });
 
     await client.query('COMMIT');
     return companyRow.rows[0];

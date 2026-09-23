@@ -4,7 +4,12 @@ export type AuthUser = {
   id: string;
   username: string;
   fullName: string | null;
+  /** الحساب النشط حالياً (قد يختلف عن homeCompanyId بعد تبديل حساب). */
   companyId: string;
+  companyCode: string;
+  companyName: string;
+  /** حساب المستخدم الأصلي في قاعدة البيانات — لا يتغيّر بتبديل الحساب. */
+  homeCompanyId: string;
   role: string;
   permissions: string[];
   /** مدير منصة clotex نفسه — منفصل عن "أدمن" أي شركة عميل. */

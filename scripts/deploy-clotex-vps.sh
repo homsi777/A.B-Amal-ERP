@@ -1,167 +1,180 @@
 #!/usr/bin/env bash
 # =============================================================================
-# CLOTEX — نشر الواجهة + API على clotexerp.org
+# CLOTEX — نشر VPS (clotexerp.org) — نسخة آمنة بلا أي أمر حذف
 #
-# ⚠️  لا تستخدم git pull origin main — فرع main يحتوي مشروع Obada (الأمل).
-#     هذا السكربت يسحب فرع clotex فقط ويتأكد من اسم الحزمة قبل النشر.
+# يُشغَّل يدوياً من قبل نبيل داخل جلسة SSH تفاعلية (ssh -t)، حتى تعمل موجّهات
+# sudo بشكل طبيعي — لا يستخدم sudo -S ولا يمرّر كلمة السر بأي شكل.
 #
-# الاستخدام (على السيرفر داخل ~/ab-amal-erp):
-#   chmod +x scripts/deploy-clotex-vps.sh
-#   ./scripts/deploy-clotex-vps.sh
+#   ssh -t ubuntu@<host> -p <port>
+#   cd ~/ab-amal-erp && ./scripts/deploy-clotex-vps.sh           # تنفيذ فعلي
+#   cd ~/ab-amal-erp && ./scripts/deploy-clotex-vps.sh --dry-run # عرض فقط، بلا تنفيذ
 #
-# متغيرات اختيارية:
-#   CLOTEX_SKIP_GIT_PULL=1   تخطي git pull
-#   CLOTEX_GIT_BRANCH=clotex  الفرع (افتراضي: clotex)
+# لا يحذف أي شيء إطلاقاً (لا rm، لا rsync --delete، لا find -delete). كل نشر
+# ينسخ إلى مجلد إصدار جديد بختم زمني، ثم يبدّل رمزاً (symlink) بشكل ذرّي.
+# الإصدارات القديمة تبقى في مكانها — نبيل يحذفها يدوياً متى أراد.
 # =============================================================================
 
 set -euo pipefail
 
-# SSH non-login shells do not automatically expose the NVM Node binary. Resolve
-# the installed binary directly before the first package identity check.
-if ! command -v node >/dev/null 2>&1; then
-  NVM_NODE_BIN="$(find "${NVM_DIR:-$HOME/.nvm}/versions/node" -type f -path '*/bin/node' 2>/dev/null | sort -V | tail -n 1 || true)"
-  if [[ -n "$NVM_NODE_BIN" ]]; then
-    export PATH="$(dirname "$NVM_NODE_BIN"):$PATH"
-  fi
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "❌ لم يتم العثور على Node.js. ثبّت Node/NVM للمستخدم الذي يشغّل النشر."
-  exit 1
-fi
+# ── إعدادات ثابتة (لا تُبنى من متغيرات بيئة قابلة للتفريغ) ──────────────────
+readonly APP_ROOT="/home/ubuntu/ab-amal-erp"
+readonly RELEASES_ROOT="/var/www/clotexerp/releases"
+readonly CURRENT_LINK="/var/www/clotexerp/current"
+readonly PM2_NAME="clotexerp-server"
+readonly GIT_BRANCH="clotex"
+readonly BACKUP_DIR="${HOME:?}/backups"
+readonly TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+readonly RELEASE_DIR="${RELEASES_ROOT}/${TIMESTAMP}"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+log() { echo ">> $*"; }
+err() { echo "❌ $*" >&2; }
 
-CLOTEX_GIT_BRANCH="${CLOTEX_GIT_BRANCH:-clotex}"
-CLOTEX_PM2_NAME="${CLOTEX_PM2_NAME:-clotexerp-server}"
-CLOTEX_NGINX_SITE="${CLOTEX_NGINX_SITE:-clotexerp-org}"
-EXPECTED_PKG="fabric-warehouse-erp"
-
-echo "=============================================="
-echo " CLOTEX — نشر VPS (clotexerp.org)"
-echo " المسار: $ROOT"
-echo "=============================================="
-
-assert_clotex_tree() {
-  local pkg
-  pkg="$(node -p "require('./package.json').name" 2>/dev/null || echo '')"
-  if [[ "$pkg" != "$EXPECTED_PKG" ]]; then
-    echo ""
-    echo "❌ خطأ: هذا المجلد ليس CLOTEX (package.json.name=$pkg)."
-    echo "   غالباً أنت على فرع main (Obada). نفّذ:"
-    echo "   git fetch origin"
-    echo "   git checkout $CLOTEX_GIT_BRANCH"
-    echo "   أو: git checkout acb5ebc   # آخر CLOTEX معروف على GitHub"
-    exit 1
-  fi
-  if ! grep -q 'CLOTEX' index.html 2>/dev/null; then
-    echo "❌ خطأ: index.html لا يحتوي CLOTEX — تحقق من الفرع."
-    exit 1
-  fi
-  echo "✓ تحقق: CLOTEX ($EXPECTED_PKG)"
-}
-
-if [[ "${CLOTEX_SKIP_GIT_PULL:-}" != "1" ]]; then
-  echo ">> git fetch + checkout $CLOTEX_GIT_BRANCH (تجاهل تعديلات محلية على السيرفر) ..."
-  git fetch origin
-  if git show-ref --verify --quiet "refs/remotes/origin/$CLOTEX_GIT_BRANCH"; then
-    git checkout "$CLOTEX_GIT_BRANCH"
-    git reset --hard "origin/$CLOTEX_GIT_BRANCH"
+# ينفّذ الأمر فعلياً، أو يطبعه فقط مع كل المتغيرات مُستبدَلة بقيمها الحقيقية
+# إن كان --dry-run — لا حذف مطلقاً هنا مهما كانت الحالة.
+run() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "    [dry-run] $*"
   else
-    echo ">> فرع origin/$CLOTEX_GIT_BRANCH غير موجود — استخدام acb5ebc (CLOTEX) ..."
-    git checkout acb5ebc
-  fi
-fi
-
-assert_clotex_tree
-
-ensure_pdf_chrome() {
-  if [[ -n "${PUPPETEER_EXECUTABLE_PATH:-}" ]] && [[ -x "$PUPPETEER_EXECUTABLE_PATH" ]]; then
-    echo "✓ PUPPETEER_EXECUTABLE_PATH=$PUPPETEER_EXECUTABLE_PATH"
-    return 0
-  fi
-
-  if [[ -x /usr/bin/google-chrome-stable ]] && ! readlink -f /usr/bin/google-chrome-stable | grep -q '/snap/'; then
-    echo "✓ google-chrome-stable جاهز لتصدير PDF"
-    return 0
-  fi
-
-  if [[ -x /usr/bin/google-chrome ]] && ! readlink -f /usr/bin/google-chrome | grep -q '/snap/'; then
-    echo "✓ google-chrome جاهز لتصدير PDF"
-    return 0
-  fi
-
-  echo ">> تثبيت Google Chrome (deb) لتصدير PDF — نسخة snap لا تعمل مع PM2 ..."
-  TMP_DEB="$(mktemp /tmp/google-chrome.XXXXXX.deb)"
-  wget -q -O "$TMP_DEB" https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-  sudo dpkg -i "$TMP_DEB" || sudo apt-get install -f -y
-  rm -f "$TMP_DEB"
-
-  if [[ -x /usr/bin/google-chrome-stable ]]; then
-    echo "✓ تم تثبيت google-chrome-stable"
-    echo "   يُفضّل إضافة PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable في بيئة PM2"
-  else
-    echo "⚠️  تعذر تثبيت Chrome — تصدير PDF من الخادم قد يفشل (المتصفح يستخدم تصديراً احتياطياً)"
+    "$@"
   fi
 }
 
-ensure_pdf_chrome
+confirm() {
+  local prompt="$1"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "    [dry-run] (تخطّي التأكيد) $prompt"
+    return 0
+  fi
+  read -r -p "$prompt [y/N] " reply
+  if [[ "$reply" != "y" && "$reply" != "Y" ]]; then
+    err "أُلغي النشر عند: $prompt"
+    exit 1
+  fi
+}
 
-echo ">> npm install ..."
-npm install
+cd "${APP_ROOT:?}" || exit 1
 
-echo ">> بناء الخادم + ترحيلات قاعدة البيانات (مطلوب لأقسام جديدة مثل الكارتيله) ..."
-npm run server:build
-npm run server:migrate
+# ── الخطوة أ: نسخة احتياطية قبل أي تعديل ────────────────────────────────────
+log "الخطوة أ: نسخة احتياطية من قاعدة البيانات قبل النشر"
+mkdir -p "${BACKUP_DIR:?}"
+readonly BACKUP_FILE="${BACKUP_DIR}/fabric_erp_predeploy_${TIMESTAMP}.dump"
+confirm "أخذ نسخة احتياطية إلى ${BACKUP_FILE}؟"
+run sudo -u postgres pg_dump -Fc fabric_erp -f "${BACKUP_FILE:?}"
+run pg_restore --list "${BACKUP_FILE:?}"
+if [[ "$DRY_RUN" != "1" ]]; then
+  ls -lh "${BACKUP_FILE}"
+fi
+echo ""
+echo "  ⬇ نزّل هذه النسخة إلى جهازك الآن من PowerShell على جهازك (وليس على السيرفر):"
+echo "  scp -P <منفذ SSH> ubuntu@<عنوان السيرفر>:${BACKUP_FILE} ."
+echo ""
+confirm "هل نزّلت النسخة الاحتياطية بنجاح وتأكدت من وجودها على جهازك؟ (لا تكمل قبل ذلك)"
 
-echo ">> بناء الواجهة ..."
-NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}" npm run build
+# ── الخطوة ب: عرض الترحيلات المعلّقة قبل تطبيقها ────────────────────────────
+log "الخطوة ب: git fetch + checkout ${GIT_BRANCH} (بدون أي حذف — reset --hard على الشيفرة فقط، ليس على قاعدة البيانات)"
+run git fetch origin
+run git checkout "${GIT_BRANCH:?}"
+run git reset --hard "origin/${GIT_BRANCH:?}"
 
-if [[ ! -f dist/index.html ]]; then
-  echo "❌ فشل البناء: dist/index.html غير موجود"
+log "الترحيلات المعلّقة (موجودة بالمجلد وغير مسجَّلة في schema_migrations):"
+if [[ "$DRY_RUN" != "1" ]]; then
+  comm -23 \
+    <(ls server/src/db/migrations/*.sql | xargs -n1 basename | sort) \
+    <(sudo -u postgres psql -d fabric_erp -tAc "SELECT filename FROM schema_migrations ORDER BY filename" | sort) \
+    || true
+else
+  echo "    [dry-run] comm -23 <(ls server/src/db/migrations/*.sql) <(psql ... SELECT filename FROM schema_migrations)"
+fi
+confirm "تطبيق الترحيلات أعلاه على قاعدة الإنتاج؟"
+
+log "npm install"
+run npm install
+
+log "بناء الخادم + تطبيق الترحيلات"
+run npm run server:build
+run npm run server:migrate
+
+log "بناء الواجهة"
+run bash -c 'NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}" npm run build'
+
+if [[ "$DRY_RUN" != "1" ]] && [[ ! -f dist/index.html ]]; then
+  err "فشل البناء: dist/index.html غير موجود"
   exit 1
 fi
 
-if grep -qE 'src="\./assets/' dist/index.html 2>/dev/null; then
-  echo "❌ تحذير: dist/index.html يستخدم مسارات نسبية ./assets — تحديث الصفحة على مسار فرعي سيفشل."
-  echo "   تأكد أن npm run build يضبط VITE_APP_BASE=/ (انظر package.json)."
-  exit 1
-fi
-echo "✓ مسارات الأصول: جذر مطلق (/assets/) — مناسب لتحديث SPA"
+# ── الخطوة ج: نسخ لمجلد إصدار جديد + تبديل الرمز الرمزي (بدون حذف أي شيء) ──
+log "الخطوة ج: نسخ إلى مجلد إصدار جديد + تبديل الرمز الرمزي"
+confirm "نسخ البناء إلى ${RELEASE_DIR} وتفعيله كحالي؟"
+run sudo mkdir -p "${RELEASE_DIR:?}"
+run sudo cp -r dist/. "${RELEASE_DIR:?}/"
+run sudo chown -R www-data:www-data "${RELEASE_DIR:?}"
+run sudo find "${RELEASE_DIR:?}" -type d -exec chmod 755 {} \;
+run sudo find "${RELEASE_DIR:?}" -type f -exec chmod 644 {} \;
 
-FRONTEND_ROOT="$(sudo grep -E '^\s*root ' "/etc/nginx/sites-available/$CLOTEX_NGINX_SITE" 2>/dev/null | head -1 | awk '{print $2}' | tr -d ';' || true)"
-if [[ -z "$FRONTEND_ROOT" ]]; then
-  FRONTEND_ROOT="${CLOTEX_FRONTEND_ROOT:-/var/www/clotexerp/frontend}"
-fi
-echo ">> Frontend root: $FRONTEND_ROOT"
+# تبديل ذرّي: رمز مؤقت ثم mv -T فوق الرمز الحالي (لا يوجد لحظة بلا هدف صالح،
+# ولا يُحذف أي إصدار سابق — current فقط يتغيّر ليشير لمكان آخر).
+readonly TMP_LINK="${CURRENT_LINK}.next"
+run sudo ln -sfn "${RELEASE_DIR:?}" "${TMP_LINK:?}"
+run sudo mv -T "${TMP_LINK:?}" "${CURRENT_LINK:?}"
+echo "  current -> ${RELEASE_DIR} (الإصدارات السابقة بقيت في ${RELEASES_ROOT}، لم يُحذف شيء)"
 
-sudo rm -rf "${FRONTEND_ROOT:?}"/*
-sudo cp -r dist/* "${FRONTEND_ROOT}/"
-sudo chown -R www-data:www-data "$FRONTEND_ROOT"
-sudo find "$FRONTEND_ROOT" -type d -exec chmod 755 {} \;
-sudo find "$FRONTEND_ROOT" -type f -exec chmod 644 {} \;
+# ── الخطوة د: إعادة تشغيل الخدمات ───────────────────────────────────────────
+log "الخطوة د: إعادة تشغيل الخدمات"
+confirm "إعادة تشغيل pm2 وإعادة تحميل nginx؟"
+run pm2 restart "${PM2_NAME:?}" --update-env
+run sudo nginx -t
+run sudo systemctl reload nginx
 
-if [[ -f "${FRONTEND_ROOT}/clotex-logo.png" ]]; then
-  sudo cp "${FRONTEND_ROOT}/clotex-logo.png" "${FRONTEND_ROOT}/favicon.ico"
-elif [[ -f "${FRONTEND_ROOT}/assets/logo-FKhVmTXu.png" ]]; then
-  sudo cp "${FRONTEND_ROOT}/assets/"logo-*.png "${FRONTEND_ROOT}/favicon.ico" 2>/dev/null || true
-fi
-
-echo ">> pm2 restart $CLOTEX_PM2_NAME ..."
-pm2 restart "$CLOTEX_PM2_NAME" --update-env
-
-sudo nginx -t
-sudo systemctl reload nginx
-
-NGINX_SITE_FILE="/etc/nginx/sites-available/$CLOTEX_NGINX_SITE"
-if [[ -f "$NGINX_SITE_FILE" ]] && ! grep -q 'try_files.*index\.html' "$NGINX_SITE_FILE" 2>/dev/null; then
-  echo ""
-  echo "⚠️  nginx: لم يُعثر على try_files ... /index.html في $NGINX_SITE_FILE"
-  echo "   بدونه، تحديث الصفحة على /inventory/... قد يعطي 404 أو شاشة بيضاء."
-  echo "   أضِف من scripts/nginx-clotexerp-spa.snippet داخل location / للواجهة."
+# ── الخطوة هـ: فحص الصحة ────────────────────────────────────────────────────
+log "الخطوة هـ: فحص الصحة (/api/health يجب أن يرجع database: connected)"
+if [[ "$DRY_RUN" != "1" ]]; then
+  sleep 2
+  HEALTH_RESPONSE="$(curl -s http://127.0.0.1/api/health || true)"
+  echo "  $HEALTH_RESPONSE"
+  if [[ "$HEALTH_RESPONSE" != *'"database":"connected"'* ]]; then
+    err "فحص الصحة فشل — راجع القسم «التراجع» أسفل هذا الملف."
+    exit 1
+  fi
+else
+  echo "    [dry-run] curl -s http://127.0.0.1/api/health"
 fi
 
 echo ""
-echo "✓ تم نشر CLOTEX"
-echo "  تحقق: curl -sI http://127.0.0.1/ | head -1"
+echo "✓ تم نشر CLOTEX بنجاح — current -> ${RELEASE_DIR}"
+
+# =============================================================================
+# تغيير nginx لمرة واحدة (مُطبَّق يدوياً من نبيل، غير منفّذ من هذا السكربت) —
+# =============================================================================
+#
+# في /etc/nginx/sites-available/clotexerp-org، غيّر سطر root ليشير إلى:
+#
+#   root /var/www/clotexerp/current;
+#
+# بدل المسار الحالي (كان يشير مباشرة لمجلد واحد ثابت يُستبدل محتواه بالكامل
+# بكل نشر — نمط الحذف القديم الذي أدى للحادثة). بعد هذا التغيير الوحيد،
+# كل نشر لاحق فقط يبدّل وجهة current، ولا يلمس nginx.conf مرة أخرى.
+# طبّق هذا التغيير يدوياً، ثم: sudo nginx -t && sudo systemctl reload nginx
+#
+# =============================================================================
+# التراجع (Rollback) — يدوي، خطوة بخطوة، بدون حذف أي شيء
+# =============================================================================
+#
+# 1) اعثر على الإصدار السابق:
+#      ls -1t /var/www/clotexerp/releases | sed -n '2p'
+# 2) أعد توجيه current إليه (نفس أسلوب التبديل الذري أعلاه):
+#      sudo ln -sfn /var/www/clotexerp/releases/<الإصدار_السابق> /var/www/clotexerp/current.next
+#      sudo mv -T /var/www/clotexerp/current.next /var/www/clotexerp/current
+# 3) إن كان الترحيل الأخير هو سبب المشكلة، لا يوجد "تراجع تلقائي" عن SQL —
+#    استعد النسخة الاحتياطية من الخطوة أ يدوياً بعد مراجعة الوضع مع الفريق:
+#      pg_restore --clean --if-exists -d fabric_erp <ملف .dump>
+#    هذا أمر إعادة استعادة كامل — لا يُنفَّذ إلا بعد قرار واضح، ويستبدل بيانات
+#    القاعدة الحالية بالكامل، لذا خذ نسخة احتياطية من الحالة الحالية أولاً.
+# 4) أعد تشغيل الخدمات:
+#      pm2 restart clotexerp-server --update-env
+#      sudo nginx -t && sudo systemctl reload nginx
+# =============================================================================

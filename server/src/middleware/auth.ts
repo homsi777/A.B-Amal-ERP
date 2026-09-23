@@ -69,12 +69,28 @@ export async function authenticateRequest(request: FastifyRequest, reply: Fastif
   try {
     const payload = verifyAuthToken(token);
     const pool = getPool();
-    const userCheck = await pool.query<{ is_active: boolean; full_name: string | null }>(
-      'SELECT is_active, full_name FROM users WHERE id = $1',
+    // بحث واحد بمفتاح id (PK، مفهرس أصلاً) يجلب كل ما يلزم: الحالة، الاسم،
+    // الشركة الأصلية، وحالة "مدير المنصة" — تُقرأ من قاعدة البيانات مباشرة
+    // بكل طلب، لا تُؤخذ من التوكن.
+    const userCheck = await pool.query<{
+      is_active: boolean;
+      full_name: string | null;
+      company_id: string;
+      is_platform_admin: boolean;
+    }>(
+      'SELECT is_active, full_name, company_id, is_platform_admin FROM users WHERE id = $1',
       [payload.sub],
     );
     if (userCheck.rows.length === 0 || !userCheck.rows[0].is_active) {
       return sendError(reply, 401, ArabicErrors.userInactive, 'UNAUTHORIZED');
+    }
+
+    // التوكن يمثّل شركة غير الشركة الأصلية للمستخدم (بعد switch-company) —
+    // هذا لا يُسمح به إلا لمدير منصة ما زال فعّالاً *الآن*، وليس وقت إصدار
+    // التوكن. مدير منصة أُلغيت صلاحيته يفقد الوصول لحسابات الآخرين فوراً،
+    // بدل انتظار انتهاء صلاحية التوكن.
+    if (payload.companyId !== userCheck.rows[0].company_id && !userCheck.rows[0].is_platform_admin) {
+      return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     }
 
     if (isSessionRevoked(payload.sub, token)) {

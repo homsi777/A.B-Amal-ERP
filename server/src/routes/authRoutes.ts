@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { getPool } from '../db/pool.js';
 import {
   authenticateRequest,
-  requirePlatformAdmin,
   signAuthToken,
   type JwtPayload,
 } from '../middleware/auth.js';
@@ -13,6 +12,7 @@ import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { touchActiveSession } from '../services/activeSessionsService.js';
 import { clientIp } from '../utils/clientIp.js';
+import { logPlatformAction } from '../services/platformAuditService.js';
 
 const loginBodySchema = z.object({
   username: z.string().min(1),
@@ -124,6 +124,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       fullName: user.full_name,
     });
 
+    const companyRow = await pool.query<{ code: string; name: string }>(
+      `SELECT code, name FROM companies WHERE id = $1`,
+      [user.company_id],
+    );
+
     return reply.send({
       ok: true,
       token,
@@ -132,6 +137,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         username: user.username,
         fullName: user.full_name,
         companyId: user.company_id,
+        companyCode: companyRow.rows[0]?.code ?? '',
+        companyName: companyRow.rows[0]?.name ?? '',
+        homeCompanyId: user.company_id,
         role: user.role,
         permissions,
         isPlatformAdmin: user.is_platform_admin,
@@ -160,9 +168,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       full_name: string | null;
       company_id: string;
       role: string;
+      is_active: boolean;
       is_platform_admin: boolean;
     }>(
-      `SELECT id, username, full_name, company_id, role, is_platform_admin FROM users WHERE id = $1`,
+      `SELECT id, username, full_name, company_id, role, is_active, is_platform_admin FROM users WHERE id = $1`,
       [u.sub],
     );
 
@@ -171,6 +180,27 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const user = row.rows[0];
+    const activeCompanyId = u.companyId;
+
+    // إذا كان التوكن يمثّل حساباً مختلفاً عن حساب المستخدم الأصلي (بعد
+    // switch-company)، هذا مسموح فقط لمدير منصة فعّال — لا نثق بادّعاء
+    // التوكن وحده، نعيد التحقق من قاعدة البيانات في كل طلب.
+    if (activeCompanyId !== user.company_id) {
+      if (!user.is_platform_admin || !user.is_active) {
+        return sendError(reply, 401, ArabicErrors.unauthorized, 'UNAUTHORIZED');
+      }
+    } else if (!user.is_active) {
+      return sendError(reply, 401, ArabicErrors.unauthorized, 'UNAUTHORIZED');
+    }
+
+    const companyRow = await pool.query<{ code: string; name: string; is_active: boolean }>(
+      `SELECT code, name, is_active FROM companies WHERE id = $1`,
+      [activeCompanyId],
+    );
+    if (companyRow.rows.length === 0 || !companyRow.rows[0].is_active) {
+      return sendError(reply, 401, ArabicErrors.unauthorized, 'UNAUTHORIZED');
+    }
+
     const permissions = await permissionCodesForRole(user.role);
 
     return reply.send({
@@ -179,7 +209,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         id: user.id,
         username: user.username,
         fullName: user.full_name,
-        companyId: user.company_id,
+        companyId: activeCompanyId,
+        companyCode: companyRow.rows[0].code,
+        companyName: companyRow.rows[0].name,
+        homeCompanyId: user.company_id,
         role: user.role,
         permissions,
         isPlatformAdmin: user.is_platform_admin,
@@ -193,15 +226,32 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
    * req.user.companyId) تلقائياً على بيانات ذلك الحساب دون أي تعديل عليها.
    */
   app.post('/switch-company', { preHandler: authenticateRequest }, async (request, reply) => {
-    if (!requirePlatformAdmin(request.user)) {
+    const pool = getPool();
+
+    // لا نثق بادّعاء isPlatformAdmin بالتوكن — نعيد التحقق من قاعدة
+    // البيانات مباشرة قبل أي تبديل حساب.
+    const actorRow = await pool.query<{
+      id: string;
+      username: string;
+      full_name: string | null;
+      role: string;
+      company_id: string;
+      is_active: boolean;
+      is_platform_admin: boolean;
+    }>(
+      'SELECT id, username, full_name, role, company_id, is_active, is_platform_admin FROM users WHERE id = $1',
+      [request.user!.sub],
+    );
+    const user = actorRow.rows[0];
+    if (!user || !user.is_platform_admin || !user.is_active) {
       return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     }
+
     const parsed = switchCompanyBodySchema.safeParse(request.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
 
-    const pool = getPool();
-    const companyRow = await pool.query<{ id: string; is_active: boolean }>(
-      'SELECT id, is_active FROM companies WHERE id = $1',
+    const companyRow = await pool.query<{ id: string; code: string; name: string; is_active: boolean }>(
+      'SELECT id, code, name, is_active FROM companies WHERE id = $1',
       [parsed.data.companyId],
     );
     if (companyRow.rows.length === 0) {
@@ -211,17 +261,6 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 409, 'الحساب المحدد غير فعّال', 'COMPANY_INACTIVE');
     }
 
-    const userRow = await pool.query<{
-      id: string;
-      username: string;
-      full_name: string | null;
-      role: string;
-      is_platform_admin: boolean;
-    }>(
-      'SELECT id, username, full_name, role, is_platform_admin FROM users WHERE id = $1',
-      [request.user!.sub],
-    );
-    const user = userRow.rows[0];
     const permissions = await permissionCodesForRole(user.role);
 
     const payload: JwtPayload = {
@@ -243,6 +282,15 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       fullName: user.full_name,
     });
 
+    await logPlatformAction(pool, {
+      actorUserId: user.id,
+      action: 'SWITCH_COMPANY',
+      fromCompanyId: user.company_id,
+      toCompanyId: companyRow.rows[0].id,
+      ip: clientIp(request),
+      userAgent: String(request.headers['user-agent'] || '—'),
+    });
+
     return reply.send({
       ok: true,
       token,
@@ -251,6 +299,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         username: user.username,
         fullName: user.full_name,
         companyId: companyRow.rows[0].id,
+        companyCode: companyRow.rows[0].code,
+        companyName: companyRow.rows[0].name,
+        homeCompanyId: user.company_id,
         role: user.role,
         permissions,
         isPlatformAdmin: user.is_platform_admin,

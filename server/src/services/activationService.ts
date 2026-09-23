@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { Pool, PoolClient } from 'pg';
 import { getEnv } from '../config/env.js';
 import { getPool } from '../db/pool.js';
 import { runPostActivationBootstrap } from './postActivationBootstrap.js';
@@ -16,7 +17,8 @@ export type ActivationEventType =
   | 'REVOKED_ATTEMPT'
   | 'EXPIRED_ATTEMPT'
   | 'KEY_REVOKED'
-  | 'STATUS_CHECK';
+  | 'STATUS_CHECK'
+  | 'PLATFORM_PROVISIONED';
 
 export type ActivationStatusDto = {
   active: boolean;
@@ -25,6 +27,31 @@ export type ActivationStatusDto = {
   activatedAt?: string;
   keySuffix?: string;
 };
+
+/**
+ * المصدر الوحيد الذي يكتب system_settings.'activation.status' — يستخدمها
+ * كل من تفعيل مفتاح حقيقي (activateProject) والتفعيل التلقائي عند إنشاء
+ * حساب جديد من مدير المنصة (companyProvisioningService)، حتى لا يكون هناك
+ * شكلان مختلفان لنفس بيانات التفعيل.
+ */
+export async function setCompanyActivationStatus(
+  client: Pool | PoolClient,
+  companyId: string,
+  status: Pick<ActivationStatusDto, 'planCode' | 'activatedAt' | 'keySuffix'>,
+): Promise<ActivationStatusDto> {
+  const activationStatus: ActivationStatusDto = {
+    active: true,
+    requireActive: getEnv().ACTIVATION_REQUIRE_ACTIVE,
+    ...status,
+  };
+  await client.query(
+    `INSERT INTO system_settings(company_id, key, value)
+     VALUES($1,'activation.status',$2::jsonb)
+     ON CONFLICT (company_id, key) DO UPDATE SET value=EXCLUDED.value`,
+    [companyId, JSON.stringify(activationStatus)],
+  );
+  return activationStatus;
+}
 
 export type ActivationRequestMeta = {
   ipAddress?: string;
@@ -366,19 +393,11 @@ export async function activateProject(
       [activationKey.id, nextCount, nextStatus, companyId, userContext.userId ?? null],
     );
 
-    const activationStatus: ActivationStatusDto = {
-      active: true,
-      requireActive: getEnv().ACTIVATION_REQUIRE_ACTIVE,
+    const activationStatus = await setCompanyActivationStatus(client, companyId, {
       planCode: activationKey.plan_code,
       activatedAt,
       keySuffix: activationKey.key_suffix,
-    };
-    await client.query(
-      `INSERT INTO system_settings(company_id, key, value)
-       VALUES($1,'activation.status',$2::jsonb)
-       ON CONFLICT (company_id, key) DO UPDATE SET value=EXCLUDED.value`,
-      [companyId, JSON.stringify(activationStatus)],
-    );
+    });
 
     await client.query(
       `INSERT INTO activation_events
