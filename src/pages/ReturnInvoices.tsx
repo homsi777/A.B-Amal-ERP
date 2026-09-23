@@ -961,9 +961,20 @@ export const ReturnInvoices = () => {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full p-6 space-y-4 border border-slate-200 my-6">
-            <h3 className="text-lg font-bold text-slate-900">{editId ? 'تعديل مسودة مرتجع' : 'مرتجع جديد'}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full border border-slate-200 max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 shrink-0">
+              <h3 className="text-lg font-bold text-slate-900">{editId ? 'تعديل مسودة مرتجع' : 'مرتجع جديد'}</h3>
+              <button
+                type="button"
+                className="text-slate-500 hover:text-slate-800"
+                onClick={() => setModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4 overflow-y-auto grow">
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1330,8 +1341,9 @@ export const ReturnInvoices = () => {
                 إجمالي المسودة (تقريبي): {draftTotal.toFixed(2)} {formCurrencyCode}
               </p>
             )}
+            </div>
 
-            <div className="flex flex-wrap gap-2 justify-end pt-2">
+            <div className="flex flex-wrap gap-2 justify-end px-6 py-4 border-t border-slate-200 shrink-0">
               <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-lg border border-slate-200">
                 إلغاء
               </button>
