@@ -1,9 +1,13 @@
 #!/bin/bash
 cd ~/ab-amal-erp && export $(grep -v '^#' server/.env | xargs)
+if [ -z "$VPS_API_USERNAME" ] || [ -z "$VPS_API_PASSWORD" ]; then
+  echo "عرّف VPS_API_USERNAME و VPS_API_PASSWORD قبل التشغيل" >&2
+  exit 1
+fi
 # login and fetch rolls
 TOKEN=$(curl -s -X POST http://127.0.0.1:3001/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}' | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+  -d "{\"username\":\"$VPS_API_USERNAME\",\"password\":\"$VPS_API_PASSWORD\"}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
 if [ -z "$TOKEN" ]; then
   echo "Login failed, try env"
   exit 1

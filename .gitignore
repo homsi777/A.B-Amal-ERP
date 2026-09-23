@@ -24,6 +24,10 @@ electron/config/vps-connection.json
 
 # نسخ احتياطية محلية قد تحتوي على بيانات حساسة
 backups/
+*.dump
+
+# تفضيلات محلية شخصية لأداة Claude Code — لا تُرفع (settings.json نفسه يُرفع)
+.claude/settings.local.json
 
 # Optional: if plink is placed at repo root by mistake (use electron/bin/plink.exe instead)
 /plink.exe
