@@ -6,6 +6,7 @@ import { verifyAuthToken } from './middleware/auth.js';
 import { requireActiveActivation } from './services/activationService.js';
 import { authRoutes } from './routes/authRoutes.js';
 import { activationRoutes } from './routes/activationRoutes.js';
+import { companyRoutes } from './routes/companyRoutes.js';
 import { customerRoutes } from './routes/customerRoutes.js';
 import { fabricCategoryRoutes } from './routes/fabricCategoryRoutes.js';
 import { fabricColorRoutes } from './routes/fabricColorRoutes.js';
@@ -110,6 +111,7 @@ export async function buildApp() {
   await app.register(telegramRoutes, { prefix: '/api/telegram' });
   await app.register(activationRoutes, { prefix: '/api/activation' });
   await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(companyRoutes, { prefix: '/api/companies' });
 
   // Master data routes
   await app.register(supplierRoutes, { prefix: '/api/suppliers' });

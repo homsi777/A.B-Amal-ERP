@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import https from 'node:https';
 import { z } from 'zod';
 import { getPool } from '../db/pool.js';
-import { authenticateRequest } from '../middleware/auth.js';
+import { authenticateRequest, requirePlatformAdmin } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { purgeBusinessData } from '../services/purgeBusinessDataService.js';
@@ -25,6 +25,9 @@ const userBody = z.object({
   password: z.string().min(6).optional(),
   role: z.string().min(1).default('viewer'),
   isActive: z.boolean().default(true),
+  // يُقبَل فقط من مدير المنصة (isPlatformAdmin) — غير ذلك يُتجاهَل ويُستخدم
+  // company_id المستخدم المُنشئ نفسه دائماً، كما كان الحال قبل هذا الحقل.
+  companyId: z.string().uuid().optional(),
 });
 
 const roleBody = z.object({
@@ -343,6 +346,9 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
     const parsed = userBody.required({ password: true }).safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
 
+    const targetCompanyId =
+      requirePlatformAdmin(req.user) && parsed.data.companyId ? parsed.data.companyId : companyId;
+
     const passwordHash = await bcrypt.hash(parsed.data.password, 12);
     try {
       const row = await getPool().query(
@@ -350,7 +356,7 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
          VALUES($1,$2,$3,$4,$5,$6)
          RETURNING id, username, full_name, role, is_active, created_at`,
         [
-          companyId,
+          targetCompanyId,
           parsed.data.username.trim(),
           parsed.data.fullName || null,
           passwordHash,
@@ -360,8 +366,12 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
       );
       return reply.status(201).send({ ok: true, data: row.rows[0] });
     } catch (error: unknown) {
-      if ((error as { code?: string }).code === '23505') {
+      const code = (error as { code?: string }).code;
+      if (code === '23505') {
         return sendError(reply, 409, 'اسم المستخدم مستخدم مسبقا', 'DUPLICATE');
+      }
+      if (code === '23503') {
+        return sendError(reply, 400, 'الحساب المحدد غير موجود', 'COMPANY_NOT_FOUND');
       }
       throw error;
     }

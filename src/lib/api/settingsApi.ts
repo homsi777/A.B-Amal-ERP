@@ -110,6 +110,8 @@ export async function createSystemUser(payload: {
   password: string;
   role: string;
   isActive: boolean;
+  /** لمدير المنصة فقط: تحديد الحساب الذي يتبع له المستخدم الجديد. */
+  companyId?: string;
 }): Promise<ApiUser> {
   const res = await apiFetch<{ ok: boolean; data: ApiUser }>('/api/system/users', {
     method: 'POST',

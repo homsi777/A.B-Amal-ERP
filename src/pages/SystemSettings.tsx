@@ -22,6 +22,7 @@ import {
   Pencil,
   X,
   Wifi,
+  Globe2,
 } from 'lucide-react';
 import { ThemeDisplaySettings } from '../components/settings/ThemeDisplaySettings';
 import { TelegramBotSettingsPanel } from '../components/settings/TelegramBotSettingsPanel';
@@ -48,10 +49,12 @@ import {
   type TelegramChatCandidate,
 } from '../lib/api/settingsApi';
 import { fetchMe, type AuthUser } from '../lib/api/authApi';
+import { listCompanies, type ApiCompany } from '../lib/api/companiesApi';
+import { CompanyManagementPanel } from '../components/companies/CompanyManagementPanel';
 import { listExchangeRates, updateExchangeRate, type ExchangeRateDto, type SupportedCurrencyCode } from '../lib/api/exchangeRatesApi';
 import { useToast } from '../components/NonBlockingToast';
 
-type SettingsSectionId = 'company' | 'general' | 'desktop' | 'invoice' | 'users' | 'mail' | 'ai' | 'activation' | 'backup' | 'themes' | 'stub' | 'activeDevices';
+type SettingsSectionId = 'company' | 'general' | 'desktop' | 'invoice' | 'users' | 'mail' | 'ai' | 'activation' | 'companies' | 'backup' | 'themes' | 'stub' | 'activeDevices';
 
 type NavRow = {
   navKey: string;
@@ -73,7 +76,7 @@ const NAV_ITEMS: NavRow[] = [
   { navKey: 'themes',  section: 'themes',  label: 'الثيمات و عرض', icon: Sparkles },
 ];
 
-const VALID_NAV_KEYS = [...NAV_ITEMS.map((row) => row.navKey), 'activation'];
+const VALID_NAV_KEYS = [...NAV_ITEMS.map((row) => row.navKey), 'activation', 'companies'];
 
 const defaultSettings = {
   general: {
@@ -130,7 +133,9 @@ export const SystemSettings = () => {
     password: '',
     role: 'viewer',
     isActive: true,
+    companyId: '',
   });
+  const [companies, setCompanies] = useState<ApiCompany[]>([]);
   const [editingUser, setEditingUser] = useState<ApiUser | null>(null);
   const [editUserForm, setEditUserForm] = useState({
     username: '',
@@ -172,7 +177,9 @@ export const SystemSettings = () => {
 
   const activeSection: SettingsSectionId = activeNavKey === 'activation'
     ? 'activation'
-    : NAV_ITEMS.find((row) => row.navKey === activeNavKey)?.section ?? 'company';
+    : activeNavKey === 'companies'
+      ? 'companies'
+      : NAV_ITEMS.find((row) => row.navKey === activeNavKey)?.section ?? 'company';
 
   useEffect(() => {
     if (activeSection !== 'company') return;
@@ -212,6 +219,21 @@ export const SystemSettings = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser?.isPlatformAdmin) return;
+    let cancelled = false;
+    void listCompanies()
+      .then((rows) => {
+        if (!cancelled) setCompanies(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setCompanies([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.isPlatformAdmin]);
 
   const handlePurgeBusinessData = async () => {
     if (currentUser?.role !== 'admin') {
@@ -378,9 +400,12 @@ export const SystemSettings = () => {
   const handleCreateUser = async () => {
     if (!userForm.username || !userForm.password) return;
     try {
-      const created = await createSystemUser(userForm);
+      const created = await createSystemUser({
+        ...userForm,
+        companyId: currentUser?.isPlatformAdmin && userForm.companyId ? userForm.companyId : undefined,
+      });
       setUsers((current) => [created, ...current]);
-      setUserForm({ username: '', fullName: '', password: '', role: userForm.role, isActive: true });
+      setUserForm({ username: '', fullName: '', password: '', role: userForm.role, isActive: true, companyId: '' });
       showToast({ message: 'تم إضافة المستخدم.', type: 'success' });
     } catch (error) {
       showToast({
@@ -526,6 +551,26 @@ export const SystemSettings = () => {
                 </span>
               </button>
             </li>
+            {currentUser?.isPlatformAdmin && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleNavClick('companies')}
+                  className={`w-full p-4 border-b border-[var(--border-subtle)] cursor-pointer flex items-center gap-3 text-right transition-colors ${
+                    activeNavKey === 'companies'
+                      ? 'bg-[var(--ui-accent-soft-bg)] border-r-4 border-r-[var(--ui-accent)]'
+                      : 'hover:bg-[var(--surface-muted-nav)]'
+                  }`}
+                >
+                  <Globe2
+                    className={`w-5 h-5 shrink-0 ${activeNavKey === 'companies' ? 'text-[var(--ui-accent)]' : 'text-[var(--text-muted)]'}`}
+                  />
+                  <span className={`font-medium ${activeNavKey === 'companies' ? 'font-bold text-[var(--ui-accent)]' : 'text-[var(--text-heading)]'}`}>
+                    الحسابات
+                  </span>
+                </button>
+              </li>
+            )}
           </ul>
         </div>
 
@@ -702,6 +747,12 @@ export const SystemSettings = () => {
 
           {activeSection === 'activation' && <ActivationSettingsPanel />}
 
+          {activeSection === 'companies' && currentUser?.isPlatformAdmin && (
+            <CompanyManagementPanel
+              onCompaniesChanged={(rows) => setCompanies(rows)}
+            />
+          )}
+
           {activeSection === 'backup' && (
             <div className="space-y-6">
               <SettingsPanel
@@ -820,6 +871,18 @@ export const SystemSettings = () => {
                   <select className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
                     {(roles.length ? roles : [{ code: 'viewer', name: 'مشاهد' } as ApiRole]).map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
                   </select>
+                  {currentUser?.isPlatformAdmin && (
+                    <select
+                      className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
+                      value={userForm.companyId}
+                      onChange={(e) => setUserForm({ ...userForm, companyId: e.target.value })}
+                    >
+                      <option value="">— الحساب الحالي —</option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                      ))}
+                    </select>
+                  )}
                   <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-heading)]">
                     <input type="checkbox" checked={userForm.isActive} onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })} className="accent-[var(--ui-accent)]" />
                     الحساب فعال

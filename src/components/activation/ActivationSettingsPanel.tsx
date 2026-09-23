@@ -12,6 +12,7 @@ import {
   type ActivationPlanCode,
   type ActivationStatusDto,
 } from '../../lib/api/activationApi';
+import { fetchMe } from '../../lib/api/authApi';
 import { ApiRequestError } from '../../lib/api/client';
 
 const planLabels: Record<ActivationPlanCode, string> = {
@@ -39,19 +40,22 @@ export function ActivationSettingsPanel() {
   const [message, setMessage] = useState('');
   const [generateCount, setGenerateCount] = useState(5);
   const [planCode, setPlanCode] = useState<ActivationPlanCode>('FULL');
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
-  const load = async () => {
+  const load = async (platformAdmin: boolean) => {
     setLoading(true);
     setMessage('');
     try {
-      const [nextStatus, nextKeys] = await Promise.all([
-        getActivationStatus(),
-        listActivationKeys().catch(() => []),
-      ]);
-      const nextEvents = await listActivationEvents().catch(() => []);
+      const nextStatus = await getActivationStatus();
       setStatus(nextStatus);
-      setKeys(nextKeys);
-      setEvents(nextEvents);
+      if (platformAdmin) {
+        const [nextKeys, nextEvents] = await Promise.all([
+          listActivationKeys().catch(() => []),
+          listActivationEvents().catch(() => []),
+        ]);
+        setKeys(nextKeys);
+        setEvents(nextEvents);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر تحميل حالة التفعيل.');
     } finally {
@@ -60,12 +64,17 @@ export function ActivationSettingsPanel() {
   };
 
   useEffect(() => {
-    load();
+    void fetchMe()
+      .then((me) => {
+        setIsPlatformAdmin(me.isPlatformAdmin);
+        return load(me.isPlatformAdmin);
+      })
+      .catch(() => load(false));
   }, []);
 
   const handleActivated = (next: ActivationStatusDto) => {
     setStatus(next);
-    load();
+    void load(isPlatformAdmin);
   };
 
   const handleGenerate = async () => {
@@ -76,7 +85,7 @@ export function ActivationSettingsPanel() {
       const result = await generateActivationKeys(generateCount, planCode);
       setGeneratedKeys(result.keys);
       setMessage(result.warning);
-      await load();
+      await load(isPlatformAdmin);
     } catch (error) {
       setMessage(error instanceof ApiRequestError ? error.message : 'تعذر توليد مفاتيح جديدة.');
     } finally {
@@ -89,7 +98,7 @@ export function ActivationSettingsPanel() {
     setMessage('');
     try {
       await revokeActivationKey(id);
-      await load();
+      await load(isPlatformAdmin);
       setMessage('تم إيقاف مفتاح التفعيل.');
     } catch (error) {
       setMessage(error instanceof ApiRequestError ? error.message : 'تعذر إيقاف المفتاح.');
@@ -112,7 +121,7 @@ export function ActivationSettingsPanel() {
         </div>
         <button
           type="button"
-          onClick={load}
+          onClick={() => load(isPlatformAdmin)}
           disabled={loading}
           className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition text-sm font-bold disabled:opacity-60"
         >
@@ -155,6 +164,7 @@ export function ActivationSettingsPanel() {
         </div>
       )}
 
+      {isPlatformAdmin && (
       <div className="border border-[var(--border-default)] rounded-xl overflow-hidden">
         <div className="px-4 py-3 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] flex items-center justify-between gap-3 flex-wrap">
           <div className="font-bold text-[var(--text-heading)] flex items-center gap-2">
@@ -236,7 +246,9 @@ export function ActivationSettingsPanel() {
           </table>
         </div>
       </div>
+      )}
 
+      {isPlatformAdmin && (
       <div className="border border-[var(--border-default)] rounded-xl overflow-hidden">
         <div className="px-4 py-3 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] font-bold text-[var(--text-heading)]">
           سجل أحداث التفعيل
@@ -267,6 +279,7 @@ export function ActivationSettingsPanel() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

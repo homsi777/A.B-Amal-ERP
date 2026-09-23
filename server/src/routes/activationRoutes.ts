@@ -11,7 +11,12 @@ import {
   revokeActivationKey,
   type ActivationPlanCode,
 } from '../services/activationService.js';
-import { authenticateRequest, verifyAuthToken, type JwtPayload } from '../middleware/auth.js';
+import {
+  authenticateRequest,
+  requirePlatformAdmin,
+  verifyAuthToken,
+  type JwtPayload,
+} from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 
@@ -39,10 +44,6 @@ const listQuery = z.object({
 const attemptWindowMs = 10 * 60 * 1000;
 const maxAttemptsPerWindow = 20;
 const activationAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function requireAdmin(user: JwtPayload | undefined): boolean {
-  return Boolean(user && (user.role === 'admin' || user.permissions.includes('settings.manage')));
-}
 
 function requestIp(req: FastifyRequest): string {
   const forwarded = req.headers['x-forwarded-for'];
@@ -123,7 +124,7 @@ export const activationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/keys', { preHandler: authenticateRequest }, async (req, reply) => {
-    if (!requireAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    if (!requirePlatformAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const query = listQuery.safeParse(req.query);
     if (!query.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     const keys = await listActivationKeysForAdmin(query.data);
@@ -131,7 +132,7 @@ export const activationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/keys/generate', { preHandler: authenticateRequest }, async (req, reply) => {
-    if (!requireAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    if (!requirePlatformAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const parsed = generateBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
 
@@ -155,7 +156,7 @@ export const activationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch('/keys/:id/revoke', { preHandler: authenticateRequest }, async (req, reply) => {
-    if (!requireAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    if (!requirePlatformAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { id } = req.params as { id: string };
     try {
       const result = await revokeActivationKey(id, req.user?.sub);
@@ -166,7 +167,7 @@ export const activationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/events', { preHandler: authenticateRequest }, async (req, reply) => {
-    if (!requireAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    if (!requirePlatformAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const query = listQuery.safeParse(req.query);
     if (!query.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     const events = await listActivationEvents(query.data);
@@ -174,7 +175,7 @@ export const activationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/devices', { preHandler: authenticateRequest }, async (req, reply) => {
-    if (!requireAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    if (!requirePlatformAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const devices = await listActivationDevices();
     return reply.send({ ok: true, data: devices });
   });

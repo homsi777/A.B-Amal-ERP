@@ -13,6 +13,8 @@ export type JwtPayload = {
   username: string;
   role: string;
   permissions: string[];
+  /** مدير منصة حقيقي (مالك نظام clotex) — منفصل عن "أدمن" أي شركة عميل. */
+  isPlatformAdmin: boolean;
 };
 
 export function signAuthToken(payload: JwtPayload): string {
@@ -26,6 +28,7 @@ export function signAuthToken(payload: JwtPayload): string {
       username: payload.username,
       role: payload.role,
       permissions: payload.permissions,
+      isPlatformAdmin: payload.isPlatformAdmin,
     },
     secret,
     signOpts,
@@ -46,6 +49,9 @@ export function verifyAuthToken(token: string): JwtPayload {
   ) {
     throw new Error('invalid_token_payload');
   }
+  // متساهل عمداً: توكنات صادرة قبل إضافة هذا الحقل لا تحمله — تُعامل كـ false
+  // (أضيق صلاحية) بدل رفض الجلسة بالكامل.
+  p.isPlatformAdmin = p.isPlatformAdmin === true;
   return p;
 }
 
@@ -88,6 +94,15 @@ export async function authenticateRequest(request: FastifyRequest, reply: Fastif
   } catch {
     return sendError(reply, 401, ArabicErrors.tokenInvalid, 'UNAUTHORIZED');
   }
+}
+
+/**
+ * إدارة الحسابات (companies) وتراخيص كل الحسابات تخص مالك منصة clotex فقط
+ * — وليست صلاحية "أدمن" عادية، لأن "أدمن" موجود بكل حساب على حدة ولا يجوز
+ * أن يرى أو يتحكم بحسابات/تراخيص حسابات أخرى.
+ */
+export function requirePlatformAdmin(user: JwtPayload | undefined): boolean {
+  return Boolean(user?.isPlatformAdmin);
 }
 
 declare module 'fastify' {

@@ -9,7 +9,12 @@ import { PERMISSIONS, ROLES } from '../db/seedConstants.js';
 import { getPool } from '../db/pool.js';
 import { ensureCompanyGlCoa } from '../services/glCoaService.js';
 
-async function seedRbacWarehouseTemplate(client: PoolClient, companyId: string): Promise<void> {
+/**
+ * تُستخدم أيضاً من companyProvisioningService.ts عند إنشاء حساب جديد يدوياً
+ * (وليس فقط عند أول تفعيل للنظام) — كل عملياتها ON CONFLICT DO NOTHING،
+ * آمنة للاستدعاء المتكرر بمعرّف شركة مختلف في كل مرة.
+ */
+export async function seedRbacWarehouseTemplate(client: PoolClient, companyId: string): Promise<void> {
   for (const c of [
     { code: 'USD', name: 'دولار أمريكي', symbol: '$' },
     { code: 'TRY', name: 'ليرة تركية', symbol: '₺' },

@@ -7,6 +7,8 @@ export type AuthUser = {
   companyId: string;
   role: string;
   permissions: string[];
+  /** مدير منصة clotex نفسه — منفصل عن "أدمن" أي شركة عميل. */
+  isPlatformAdmin: boolean;
 };
 
 export type LoginResponse = {
@@ -42,6 +44,18 @@ export async function logoutApi(): Promise<void> {
 
 export async function fetchMe(): Promise<AuthUser> {
   const data = await apiFetch<MeResponse>('/api/auth/me');
+  return data.user;
+}
+
+/** لمدير المنصة فقط: يُصدر توكناً جديداً لمشاهدة/العمل ضمن حساب آخر. */
+export async function switchCompanyApi(companyId: string): Promise<AuthUser> {
+  const data = await apiFetch<LoginResponse>('/api/auth/switch-company', {
+    method: 'POST',
+    body: JSON.stringify({ companyId }),
+  });
+  if (data.token) {
+    setStoredToken(data.token);
+  }
   return data.user;
 }
 

@@ -34,6 +34,7 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { ClotexAssistant } from '../components/ai/ClotexAssistant';
 import { ToastProvider } from '../components/NonBlockingToast';
 import { SessionPresenceTracker } from '../components/SessionPresenceTracker';
+import { CompanySwitcher } from '../components/companies/CompanySwitcher';
 import { BRAND } from '../branding';
 import { useAnchoredPopoverStyle } from '../lib/useAnchoredPopoverStyle';
 
@@ -382,6 +383,7 @@ const Topbar = () => {
             {t('apiLogin')}
           </Link>
           <BackendConnectionBadge />
+          <CompanySwitcher />
           <div className="hidden sm:flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-[var(--ui-accent-soft-bg)] flex items-center justify-center text-[var(--ui-accent)] font-bold border border-[var(--ui-accent-border)]">
               M

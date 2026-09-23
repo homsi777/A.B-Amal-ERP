@@ -141,6 +141,7 @@ async function main() {
     username: u.username,
     role: u.role,
     permissions,
+    isPlatformAdmin: false,
   });
 
   const buf = readFileSync(FILE);
