@@ -22,6 +22,7 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [form, setForm] = useState(emptyForm);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -59,6 +60,7 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
       });
       setForm(emptyForm);
       setMessage('تم إنشاء الحساب بنجاح.');
+      setShowCreateForm(false);
       await load();
     } catch (error) {
       setMessage(error instanceof ApiRequestError ? error.message : 'تعذر إنشاء الحساب.');
@@ -79,15 +81,25 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
             كل حساب معزول تماماً عن الحسابات الأخرى (مستودعات، فواتير، عملاء، خزينة...). هذا القسم يظهر فقط لمدير المنصة.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition text-sm font-bold disabled:opacity-60"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          تحديث
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCreateForm((v) => !v)}
+            className="bg-[var(--ui-accent)] text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:opacity-95 transition text-sm font-bold"
+          >
+            <Plus className="w-4 h-4" />
+            {showCreateForm ? 'إلغاء' : 'إضافة فرع جديد'}
+          </button>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition text-sm font-bold disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            تحديث
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -96,10 +108,10 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-1 border border-[var(--border-default)] rounded-xl p-4 space-y-3">
+      {showCreateForm && (
+        <div className="border border-[var(--border-default)] rounded-xl p-4 space-y-3 max-w-md">
           <div className="flex items-center gap-2 font-bold text-[var(--text-heading)]">
-            <Plus className="w-5 h-5 text-[var(--ui-accent)]" /> حساب جديد
+            <Plus className="w-5 h-5 text-[var(--ui-accent)]" /> فرع جديد (مثال: تركيا)
           </div>
           <input
             className="w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg"
@@ -144,43 +156,43 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
             {busy ? <Loader2 className="w-4 h-4 animate-spin inline" /> : 'إنشاء الحساب'}
           </button>
         </div>
+      )}
 
-        <div className="lg:col-span-2 border border-[var(--border-default)] rounded-xl overflow-hidden">
-          <div className="p-4 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] font-bold text-[var(--text-heading)]">
-            الحسابات الحالية
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
-                <tr>
-                  <th className="p-3 text-right">الاسم</th>
-                  <th className="p-3 text-right">الكود</th>
-                  <th className="p-3 text-right">العملة الأساسية</th>
-                  <th className="p-3 text-right">الحالة</th>
+      <div className="border border-[var(--border-default)] rounded-xl overflow-hidden">
+        <div className="p-4 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] font-bold text-[var(--text-heading)]">
+          الحسابات الحالية
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
+              <tr>
+                <th className="p-3 text-right">الاسم</th>
+                <th className="p-3 text-right">الكود</th>
+                <th className="p-3 text-right">العملة الأساسية</th>
+                <th className="p-3 text-right">الحالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {companies.map((c) => (
+                <tr key={c.id} className="border-t border-[var(--border-subtle)]">
+                  <td className="p-3 font-bold text-[var(--text-heading)]">{c.name}</td>
+                  <td className="p-3 font-mono text-[var(--text-muted)]">{c.code}</td>
+                  <td className="p-3 text-[var(--text-muted)]">{c.base_currency_code}</td>
+                  <td className="p-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${c.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {c.is_active ? 'فعال' : 'موقوف'}
+                    </span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {companies.map((c) => (
-                  <tr key={c.id} className="border-t border-[var(--border-subtle)]">
-                    <td className="p-3 font-bold text-[var(--text-heading)]">{c.name}</td>
-                    <td className="p-3 font-mono text-[var(--text-muted)]">{c.code}</td>
-                    <td className="p-3 text-[var(--text-muted)]">{c.base_currency_code}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${c.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {c.is_active ? 'فعال' : 'موقوف'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {!loading && companies.length === 0 && (
-                  <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">لا توجد حسابات.</td></tr>
-                )}
-                {loading && (
-                  <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">جاري التحميل...</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              ))}
+              {!loading && companies.length === 0 && (
+                <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">لا توجد حسابات.</td></tr>
+              )}
+              {loading && (
+                <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">جاري التحميل...</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
