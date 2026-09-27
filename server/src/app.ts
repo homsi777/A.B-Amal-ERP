@@ -12,6 +12,7 @@ import { fabricCategoryRoutes } from './routes/fabricCategoryRoutes.js';
 import { fabricColorRoutes } from './routes/fabricColorRoutes.js';
 import { fabricItemRoutes } from './routes/fabricItemRoutes.js';
 import { fabricRollRoutes } from './routes/fabricRollRoutes.js';
+import { yarnLotRoutes } from './routes/yarnLotRoutes.js';
 import { inventoryTransferRoutes } from './routes/inventoryTransferRoutes.js';
 import { inventoryWasteRoutes } from './routes/inventoryWasteRoutes.js';
 import { stockImportRoutes } from './routes/stockImportRoutes.js';
@@ -126,6 +127,7 @@ export async function buildApp() {
 
   // Inventory rolls engine
   await app.register(fabricRollRoutes, { prefix: '/api/inventory/rolls' });
+  await app.register(yarnLotRoutes, { prefix: '/api/inventory/yarn-lots' });
   await app.register(inventoryTransferRoutes, { prefix: '/api/inventory/transfers' });
   await app.register(inventoryWasteRoutes, { prefix: '/api/inventory/waste' });
   await app.register(stockImportRoutes, { prefix: '/api/inventory/stock-import' });

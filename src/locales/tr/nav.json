@@ -2,6 +2,7 @@
   "home": "Ana Sayfa",
   "inventory": "Stok",
   "inventory.createItem": "Yeni Malzeme Oluştur",
+  "inventory.yarn": "İplik (Ağırlıkla)",
   "inventory.rolls": "Kumaş Topları",
   "inventory.categories": "Kumaş Kategorileri",
   "inventory.settings": "Stok Ayarları",

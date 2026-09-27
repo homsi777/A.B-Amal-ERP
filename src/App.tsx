@@ -171,6 +171,7 @@ import { DashboardLayout } from './layouts/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
 import { CreateItem } from './pages/inventory/CreateItem';
+import { YarnManagement } from './pages/inventory/YarnManagement';
 import { InventorySettings } from './pages/inventory/InventorySettings';
 import { StickerPrinting } from './pages/inventory/StickerPrinting';
 import { CustomStickerPrinting } from './pages/inventory/CustomStickerPrinting';
@@ -249,6 +250,7 @@ export default function App() {
             <Route path="inventory" element={<Inventory />} />
             <Route path="inventory/create" element={<CreateItem />} />
             <Route path="inventory/edit/:id" element={<CreateItem />} />
+            <Route path="inventory/yarn" element={<YarnManagement />} />
             <Route path="inventory/settings" element={<InventorySettings />} />
             <Route path="inventory/labels" element={<StickerPrinting />} />
             <Route path="inventory/custom-label" element={<CustomStickerPrinting />} />

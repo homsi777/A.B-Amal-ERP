@@ -97,6 +97,7 @@ const Topbar = () => {
       icon: Package,
       subItems: [
         { labelKey: 'inventory.createItem', to: '/inventory/create' },
+        { labelKey: 'inventory.yarn', to: '/inventory/yarn' },
         { labelKey: 'inventory.rolls', to: '/inventory' },
         { labelKey: 'inventory.categories', to: '/inventory/categories' },
         { labelKey: 'inventory.settings', to: '/inventory/settings' },

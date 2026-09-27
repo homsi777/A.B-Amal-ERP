@@ -34,6 +34,7 @@ export interface FabricItemsListParams {
   categoryId?: string;
   supplierId?: string;
   fabricType?: string;
+  unit?: string;
   page?: number;
   pageSize?: number;
 }
@@ -52,6 +53,7 @@ export async function listFabricItems(params: FabricItemsListParams = {}): Promi
   if (params.categoryId) q.set('categoryId', params.categoryId);
   if (params.supplierId) q.set('supplierId', params.supplierId);
   if (params.fabricType) q.set('fabricType', params.fabricType);
+  if (params.unit) q.set('unit', params.unit);
   if (params.page) q.set('page', String(params.page));
   if (params.pageSize) q.set('pageSize', String(params.pageSize));
   const qs = q.toString() ? `?${q}` : '';

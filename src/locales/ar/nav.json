@@ -2,6 +2,7 @@
   "home": "الرئيسية",
   "inventory": "المخزون",
   "inventory.createItem": "إنشاء مادة جديدة",
+  "inventory.yarn": "الخيط (بالوزن)",
   "inventory.rolls": "أتواب الأقمشة",
   "inventory.categories": "تصنيفات الأقمشة",
   "inventory.settings": "إعدادات المخزون",

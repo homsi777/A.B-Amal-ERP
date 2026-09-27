@@ -25,6 +25,7 @@ export const fabricItemRoutes: FastifyPluginAsync = async (app) => {
     const categoryId = q.categoryId;
     const supplierId = q.supplierId;
     const fabricType = q.fabricType?.trim() || '';
+    const unit = q.unit?.trim() || '';
     const page = Math.max(1, parseInt(q.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(q.pageSize) || 20));
     const offset = (page - 1) * pageSize;
@@ -42,6 +43,7 @@ export const fabricItemRoutes: FastifyPluginAsync = async (app) => {
     if (categoryId) { conditions.push(`fi.category_id=$${p}`); params.push(categoryId); p++; }
     if (supplierId) { conditions.push(`fi.supplier_id=$${p}`); params.push(supplierId); p++; }
     if (fabricType) { conditions.push(`fi.fabric_type ILIKE $${p}`); params.push(`%${fabricType}%`); p++; }
+    if (unit) { conditions.push(`fi.unit=$${p}`); params.push(unit); p++; }
 
     const where = conditions.join(' AND ');
     const pool = getPool();
