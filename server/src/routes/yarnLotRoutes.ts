@@ -50,7 +50,7 @@ function normalizeSevenDigitBarcode(value: string | undefined): string | undefin
 }
 
 /** نفس أسلوب generateBarcode بـ rollHelpers.ts، على جدول yarn_lots بدل fabric_rolls. */
-async function generateYarnLotBarcode(companyId: string): Promise<string> {
+export async function generateYarnLotBarcode(companyId: string): Promise<string> {
   const pool = getPool();
   const maxExisting = await pool.query<{ max_barcode: string | null }>(
     `SELECT MAX(barcode)::text AS max_barcode FROM yarn_lots

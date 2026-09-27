@@ -16,6 +16,8 @@ import {
 } from '../../lib/api/fabricRollsApi';
 import { getRollLengthMeters, isFabricRollStockRow, isRollApplicableToSalesInvoice, isRollAvailableForSale, rollNeedsLengthCompletionFromInvoice } from '../../lib/inventory/rollAvailability';
 import { listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
+import { listYarnLots, getYarnLot, type YarnLotDto } from '../../lib/api/yarnLotsApi';
+import { getYarnLotWeightKg, isYarnLotAvailableForSale } from '../../lib/inventory/yarnLotAvailability';
 import { ApiRequestError } from '../../lib/api/client';
 import { listCashboxes } from '../../lib/api/cashboxesApi';
 import {
@@ -125,6 +127,8 @@ function collectRollIdentityCandidates(r: FabricRollDto): string[] {
 
 interface InvoiceFormItem {
   id: number;
+  /** نوع البيع/الشراء لهذا السطر: توب/متر (الافتراضي، القماش) أو كج (الخيط بالوزن). */
+  unit: 'meter' | 'kg';
   materialName: string;
   dsamNumber: string;
   rollNo: string;
@@ -173,6 +177,7 @@ interface StagedRollItemPayload {
 
 const emptyItem = (): InvoiceFormItem => ({
   id: Date.now() + Math.floor(Math.random() * 1000),
+  unit: 'meter',
   materialName: '',
   dsamNumber: '',
   rollNo: '',
@@ -563,6 +568,7 @@ export const InvoiceForm = () => {
   const [apiCustomers, setApiCustomers] = useState<ApiCustomer[]>([]);
   const [apiSuppliers, setApiSuppliers] = useState<ApiSupplier[]>([]);
   const [apiRolls, setApiRolls] = useState<FabricRollDto[]>([]);
+  const [apiYarnLots, setApiYarnLots] = useState<YarnLotDto[]>([]);
   const [rollsLoading, setRollsLoading] = useState(true);
   const scanParseTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
   const rollPatchInFlightRef = useRef<Set<string>>(new Set());
@@ -735,6 +741,31 @@ export const InvoiceForm = () => {
               });
             }
           }
+          const yarnLotIds = [
+            ...new Set(
+              res.data.lines
+                .map((ln) => ln.yarn_lot_id)
+                .filter((x): x is string => x != null && EDIT_INVOICE_ID_RE.test(String(x)))
+                .map((x) => String(x)),
+            ),
+          ];
+          if (yarnLotIds.length) {
+            const fetchedLots: YarnLotDto[] = [];
+            for (const lid of yarnLotIds) {
+              try {
+                fetchedLots.push(await getYarnLot(lid));
+              } catch {
+                /* lot missing */
+              }
+            }
+            if (fetchedLots.length && !cancelled) {
+              setApiYarnLots((prev) => {
+                const byId = new Map(prev.map((x) => [x.id, x]));
+                for (const l of fetchedLots) byId.set(l.id, l);
+                return Array.from(byId.values());
+              });
+            }
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -759,10 +790,11 @@ export const InvoiceForm = () => {
     setWarehousesLoading(true);
     void (async () => {
       try {
-       const [cust, sup, stock, boxes, rates, whs] = await Promise.all([
+       const [cust, sup, stock, yarnLots, boxes, rates, whs] = await Promise.all([
          listCustomers({ status: 'active', pageSize: 1000 }),
          listSuppliers({ status: 'active', pageSize: 1000 }),
          listFabricRolls({ onlyAvailable: true, pageSize: 10000 }), // متاح للبيع فقط (AVAILABLE + length_m > 0)
+         listYarnLots({ onlyAvailable: true, pageSize: 10000 }), // دفعات خيط متاحة للبيع فقط
          listCashboxes({ active: true }),
          listExchangeRates(),
          listWarehouses({ status: 'active' }),
@@ -771,6 +803,7 @@ export const InvoiceForm = () => {
         setApiCustomers(cust.data);
         setApiSuppliers(sup.data);
         setApiRolls(stock.data.filter((r) => (isSales ? isRollApplicableToSalesInvoice(r) : isRollAvailableForSale(r))));
+        setApiYarnLots(isSales ? yarnLots.data.filter(isYarnLotAvailableForSale) : []);
         setExchangeRates(rates.data);
         setApiWarehouses(whs);
         setWarehouse((prev) => {
@@ -785,6 +818,7 @@ export const InvoiceForm = () => {
         setApiCustomers([]);
         setApiSuppliers([]);
         setApiRolls([]);
+        setApiYarnLots([]);
         setExchangeRates([]);
         setCashboxOptions([]);
         setApiWarehouses([]);
@@ -875,12 +909,20 @@ export const InvoiceForm = () => {
      const qRaw = String(materialSuggest.query || '').trim();
      if (qRaw.includes('|') || isLikelyBarcodePayload(qRaw) || isLikelyIdentityBarcodePayload(qRaw)) return [];
      const q = qRaw.toLowerCase();
+     const activeLineUnit = items.find((it) => it.id === materialSuggest.lineId)?.unit ?? 'meter';
+     const isYarnLine = activeLineUnit === 'kg';
 
-     const rollRowsForSuggest = isSales
+     const rollRowsForSuggest = isYarnLine
+       ? (apiYarnLots as unknown as Record<string, unknown>[])
+       : isSales
        ? (inventorySource as Record<string, unknown>[]).filter(
            (s) => !isFabricRollStockRow(s) || isRollApplicableToSalesInvoice(s),
          )
        : (inventorySource as Record<string, unknown>[]);
+
+     const itemsForSuggest = isYarnLine
+       ? allFabricItems.filter((it) => it.unit === 'kg')
+       : allFabricItems.filter((it) => it.unit !== 'kg');
 
       const buildOptionFromStock = (stock: any): MaterialSuggestOption => {
         const name = stock.item_name || stock.name || '';
@@ -934,7 +976,7 @@ export const InvoiceForm = () => {
 
      // If query empty: show ALL fabric items + ALL inventory rolls
      if (!q) {
-       const fromItems = allFabricItems.map(buildOptionFromItem);
+       const fromItems = itemsForSuggest.map(buildOptionFromItem);
        const fromInventory = rollRowsForSuggest.map(buildOptionFromStock);
        return [...fromItems, ...fromInventory];
      }
@@ -942,8 +984,8 @@ export const InvoiceForm = () => {
      // Otherwise: search in both
      const out: MaterialSuggestOption[] = [];
 
-     // Search in allFabricItems
-     for (const item of allFabricItems) {
+     // Search in itemsForSuggest
+     for (const item of itemsForSuggest) {
        if (
          (item.name && item.name.toLowerCase().includes(q)) ||
          (item.internal_code && item.internal_code.toLowerCase().includes(q))
@@ -980,7 +1022,7 @@ export const InvoiceForm = () => {
      }
 
      return out.slice(0, 60);
-   }, [materialSuggest?.lineId, materialSuggest?.query, inventorySource, allFabricItems, isSales]);
+   }, [materialSuggest?.lineId, materialSuggest?.query, inventorySource, allFabricItems, isSales, items, apiYarnLots]);
 
   useEffect(() => {
     setMaterialSuggestIndex(0);
@@ -1036,6 +1078,7 @@ export const InvoiceForm = () => {
     () =>
       calculateFabricInvoiceSummary(
         items.map((item) => ({
+          unit: item.unit,
           materialName: item.materialName,
           designCode: item.dsamNumber,
           colorCode: item.colorCode,
@@ -1062,6 +1105,9 @@ export const InvoiceForm = () => {
       prev.map((item) => {
         if (item.id !== id) return item;
         const updatedItem = sanitizeInvoiceFormItemBarcode({ ...item, [field]: value });
+        if (updatedItem.unit === 'kg') {
+          return updatedItem;
+        }
         if (field === 'length' || field === 'widthCm' || field === 'gsm') {
           return sanitizeInvoiceFormItemBarcode({
             ...updatedItem,
@@ -1069,6 +1115,34 @@ export const InvoiceForm = () => {
           });
         }
         return updatedItem;
+      }),
+    );
+  };
+
+  /** تبديل نوع البيع/الشراء لسطر: توب/متر ↔ كج. يمسح حقول التوب (الرول/العرض/GSM) عند التحويل لخيط، لتفادي بقايا تطابق قديمة. */
+  const updateItemUnit = (id: number, unit: 'meter' | 'kg') => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        if (unit === 'kg') {
+          return {
+            ...item,
+            unit,
+            internalRollId: '',
+            materialName: '',
+            dsamNumber: '',
+            colorCode: '',
+            colorName: '',
+            length: '',
+            widthCm: '',
+            gsm: '',
+            weight: '',
+            rollNo: '',
+            supplierBarcode: '',
+            printBarcode: '',
+          };
+        }
+        return { ...item, unit, internalRollId: '', materialName: '', length: '', weight: '' };
       }),
     );
   };
@@ -1379,6 +1453,42 @@ export const InvoiceForm = () => {
         });
       });
     }
+    return true;
+  };
+
+  /**
+   * موازٍ لـ applyStockToLine لكن لسطور الخيط (unit==='kg') — يملأ السطر من دفعة
+   * خيط موجودة (بيع) أو من صنف خيط بلا دفعة بعد (شراء، دفعة جديدة تُنشأ عند
+   * التأكيد بالخادم). لا يلمس منطق applyStockToLine الخاص بالتوب إطلاقاً.
+   */
+  const applyYarnStockToLine = (lineId: number, stock: YarnLotDto | ApiFabricItem | Record<string, unknown>) => {
+    const row = stock as Record<string, unknown>;
+    const isLot = typeof row.weight_kg !== 'undefined';
+    if (isLot && isSales && !isYarnLotAvailableForSale(row)) {
+      const status = String(row.status ?? '');
+      showToast({
+        type: 'warning',
+        message: status === 'SOLD' ? 'هذه الدفعة مباعة بالكامل وغير متاحة للبيع' : `هذه الدفعة غير متاحة للبيع${status ? ` (الحالة: ${status})` : ''}`,
+      });
+      return false;
+    }
+    const weightKg = isLot ? getYarnLotWeightKg(row) : undefined;
+    setItems((prev) =>
+      prev.map((line) => {
+        if (line.id !== lineId) return line;
+        return {
+          ...line,
+          materialName: String(row.item_name ?? row.name ?? line.materialName),
+          dsamNumber: String(row.item_internal_code ?? row.internal_code ?? line.dsamNumber),
+          colorCode: String(row.color_code ?? line.colorCode),
+          colorName: String(row.color_name_ar ?? line.colorName),
+          length: isLot && typeof weightKg === 'number' ? String(weightKg) : line.length,
+          internalRollId: String(row.id ?? line.internalRollId),
+          supplierBarcode: String(row.barcode ?? line.supplierBarcode),
+          unit: 'kg',
+        };
+      }),
+    );
     return true;
   };
 
@@ -2233,6 +2343,7 @@ export const InvoiceForm = () => {
       };
       if (!salesConfirmedEdit) {
         for (const item of activeItems) {
+          if (item.unit === 'kg') continue;
           const r = await syncMissingRollPhysicalFromInvoiceLine(
             item,
             rollsAcc,
@@ -2242,6 +2353,7 @@ export const InvoiceForm = () => {
           if (r === 'error') return;
         }
         for (const item of activeItems) {
+          if (item.unit === 'kg') continue;
           const rid = String(item.internalRollId || '').trim();
           if (!INVOICE_LINE_UUID_RE.test(rid)) continue;
           const roll = rollsAcc.find((r) => r.id === rid);
@@ -2262,6 +2374,7 @@ export const InvoiceForm = () => {
         }
         if (status === 'final') {
           for (const item of activeItems) {
+            if (item.unit === 'kg') continue;
             const rid = String(item.internalRollId || '').trim();
             if (!INVOICE_LINE_UUID_RE.test(rid)) continue;
             const roll = rollsAcc.find((r) => r.id === rid);
@@ -2272,6 +2385,22 @@ export const InvoiceForm = () => {
               showToast({
                 type: 'warning',
                 message: 'الكمية المدخلة أكبر من المتر المتاح على الرول في المخزون',
+              });
+              return;
+            }
+          }
+          for (const item of activeItems) {
+            if (item.unit !== 'kg') continue;
+            const lotId = String(item.internalRollId || '').trim();
+            if (!INVOICE_LINE_UUID_RE.test(lotId)) continue;
+            const lot = apiYarnLots.find((l) => l.id === lotId);
+            if (!lot) continue;
+            const stockKg = getYarnLotWeightKg(lot);
+            const qty = numberValue(item.length);
+            if (qty > stockKg + 1e-4) {
+              showToast({
+                type: 'warning',
+                message: 'الكمية المدخلة أكبر من الوزن المتاح على دفعة الخيط في المخزون',
               });
               return;
             }
@@ -2321,10 +2450,17 @@ export const InvoiceForm = () => {
     };
 
     const apiLines = await Promise.all(activeItems.map(async (item, index) => {
-      const fabricRollId = isSales ? await resolveSalesFabricRollId(item) : (() => {
+      const isYarnLine = item.unit === 'kg';
+      const fabricRollId = isYarnLine ? null : isSales ? await resolveSalesFabricRollId(item) : (() => {
         const rollRaw = String(item.internalRollId || '').trim();
         return uuidRe.test(rollRaw) ? rollRaw : null;
       })();
+      const yarnLotId = isYarnLine && isSales
+        ? (() => {
+            const raw = String(item.internalRollId || '').trim();
+            return uuidRe.test(raw) ? raw : null;
+          })()
+        : null;
       const quantity = numberValue(item.length);
       const unitPrice = Math.max(0, numberValue(item.price));
       const desc =
@@ -2332,9 +2468,10 @@ export const InvoiceForm = () => {
         `سطر ${index + 1}`;
       return {
         fabricRollId,
+        yarnLotId,
         description: desc,
         quantity,
-        unit: 'meter' as const,
+        unit: (isYarnLine ? 'kg' : 'meter') as 'kg' | 'meter',
         unitPrice,
         lineDiscount: 0,
         lineTax: 0,
@@ -2440,7 +2577,7 @@ export const InvoiceForm = () => {
         return {
           fabricId: item.materialName || item.rollNo || `LINE-${index + 1}`,
           quantity,
-          unitType: 'meter' as const,
+          unitType: (item.unit === 'kg' ? 'kg' : 'meter') as 'kg' | 'meter',
           unitPrice,
           total: quantity * unitPrice,
           fabricName: item.materialName,
@@ -2868,7 +3005,9 @@ export const InvoiceForm = () => {
                       onMouseEnter={() => setMaterialSuggestIndex(idx)}
                       onMouseDown={(ev) => {
                         ev.preventDefault();
-                        applyStockToLine(materialSuggest.lineId, opt.stock);
+                        const targetItem = items.find((it) => it.id === materialSuggest.lineId);
+                        if (targetItem?.unit === 'kg') applyYarnStockToLine(materialSuggest.lineId, opt.stock);
+                        else applyStockToLine(materialSuggest.lineId, opt.stock);
                         setMaterialSuggest(null);
                       }}
                       className={`w-full text-right px-3 py-2 hover:bg-indigo-50 ${
@@ -3171,12 +3310,13 @@ export const InvoiceForm = () => {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border border-slate-200">
                   <th className="p-3 font-bold w-12 text-center">#</th>
+                  <th className="p-3 font-bold w-28">نوع البيع</th>
                   <th className="p-3 font-bold min-w-[160px]">الباركود</th>
                   <th className="p-3 font-bold min-w-[220px]">الخامة</th>
                   <th className="p-3 font-bold min-w-[120px]">كود الخامة</th>
                   <th className="p-3 font-bold min-w-[130px]">اللون</th>
                   <th className="p-3 font-bold min-w-[120px]">كود اللون</th>
-                  <th className="p-3 font-bold w-24">متر</th>
+                  <th className="p-3 font-bold w-24">الكمية (م/كج)</th>
                   <th className="hidden p-3 font-bold w-24">العرض CM</th>
                   <th className="hidden p-3 font-bold w-20">GSM</th>
                   <th className="p-3 font-bold w-24">وزن KG</th>
@@ -3191,6 +3331,16 @@ export const InvoiceForm = () => {
                   return (
                     <tr key={item.id} data-invoice-item-row className="border-b border-x border-slate-200">
                       <td className="p-2 text-center font-bold text-slate-400">{index + 1}</td>
+                      <td className="p-2">
+                        <select
+                          value={item.unit}
+                          onChange={(e) => updateItemUnit(item.id, e.target.value === 'kg' ? 'kg' : 'meter')}
+                          className="w-full bg-white border border-slate-200 rounded px-1 py-1.5 focus:outline-none focus:border-indigo-500 shadow-sm text-xs font-bold"
+                        >
+                          <option value="meter">توب/م</option>
+                          <option value="kg">كج (خيط)</option>
+                        </select>
+                      </td>
                       <td className="p-2">
                         <div className="relative">
                           <QrCode className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" />
@@ -3325,7 +3475,8 @@ export const InvoiceForm = () => {
                                   if (!raw.includes('|') && !isLikelyBarcodePayload(raw)) {
                                     const opt = materialSuggestOptions[materialSuggestIndex];
                                     if (opt) {
-                                      applyStockToLine(item.id, opt.stock);
+                                      if (item.unit === 'kg') applyYarnStockToLine(item.id, opt.stock);
+                                      else applyStockToLine(item.id, opt.stock);
                                       updateItem(
                                         item.id,
                                         'supplierBarcode',

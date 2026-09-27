@@ -1,6 +1,8 @@
 export const UNKNOWN_FABRIC_VALUE = 'غير محدد';
 
 export interface FabricInvoiceSummaryLine {
+  /** 'kg' لسطور الخيط بالوزن — الكمية تُحسب بالكامل كوزن، لا كأمتار. */
+  unit?: 'meter' | 'yard' | 'kg' | null;
   materialName?: string | null;
   fabricName?: string | null;
   designName?: string | null;
@@ -73,11 +75,13 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
   lines.forEach((line) => {
     const materialName = normalizeName(line.materialName ?? line.fabricName);
     const designCode = normalizeName(line.designCode ?? line.designName ?? line.dsamNumber);
+    const isYarnLine = line.unit === 'kg';
     const pricePerMeter = Math.max(0, toNumber(line.pricePerMeter ?? line.price ?? line.unitPrice));
-    const totalMeters = Math.max(0, toNumber(line.lengthMeters ?? line.length ?? line.quantity));
-    const totalKg = Math.max(0, toNumber(line.weightKg ?? line.weight));
+    const quantity = Math.max(0, toNumber(line.lengthMeters ?? line.length ?? line.quantity));
+    const totalMeters = isYarnLine ? 0 : quantity;
+    const totalKg = isYarnLine ? quantity : Math.max(0, toNumber(line.weightKg ?? line.weight));
     const explicitTotal = toNumber(line.lineTotal ?? line.total);
-    const totalAmount = explicitTotal > 0 ? explicitTotal : totalMeters * pricePerMeter;
+    const totalAmount = explicitTotal > 0 ? explicitTotal : quantity * pricePerMeter;
     const key = `${materialName}|||${designCode}|||${pricePerMeter}`;
     const group = groupsByKey.get(key) ?? {
       materialName,

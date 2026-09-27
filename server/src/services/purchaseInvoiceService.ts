@@ -5,6 +5,7 @@ import { applyVoucherConfirmation, cancelConfirmedVoucher, insertDraftVoucher } 
 import { invoiceLineSchema, paymentStatuses, quantityToMeters } from './salesInvoiceService.js';
 import { getExchangeRateToUsdTx } from './exchangeRateService.js';
 import { calcWeight, generateBarcode, archiveFabricRollBarcode } from '../utils/rollHelpers.js';
+import { generateYarnLotBarcode } from '../routes/yarnLotRoutes.js';
 import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
 import {
   allocateHeaderDiscountToLines,
@@ -105,6 +106,54 @@ async function findOrCreateFabricItem(
     const again = await client.query<{ id: string }>(
       `SELECT id FROM fabric_items
        WHERE company_id=$1 AND lower(trim(internal_code))=lower(trim($2))
+       LIMIT 1`,
+      [companyId, internalCode],
+    );
+    if (!again.rows.length) throw e;
+    return again.rows[0].id;
+  }
+}
+
+async function findOrCreateYarnItem(
+  client: PoolClient,
+  companyId: string,
+  materialName: string,
+  designCode: string,
+): Promise<string> {
+  const byCode = designCode
+    ? await client.query<{ id: string }>(
+        `SELECT id FROM fabric_items
+         WHERE company_id=$1 AND unit='kg' AND lower(trim(internal_code))=lower(trim($2))
+         LIMIT 1`,
+        [companyId, designCode],
+      )
+    : { rows: [] as { id: string }[] };
+  if (byCode.rows.length) return byCode.rows[0].id;
+
+  const byName = materialName
+    ? await client.query<{ id: string }>(
+        `SELECT id FROM fabric_items
+         WHERE company_id=$1 AND unit='kg' AND lower(trim(name))=lower(trim($2))
+         LIMIT 1`,
+        [companyId, materialName],
+      )
+    : { rows: [] as { id: string }[] };
+  if (byName.rows.length) return byName.rows[0].id;
+
+  const internalCode = designCode || `AUTO-YARN-${slugCode(materialName || 'ITEM')}`;
+  try {
+    const ins = await client.query<{ id: string }>(
+      `INSERT INTO fabric_items (company_id, name, internal_code, supplier_code, is_active, unit)
+       VALUES ($1,$2,$3,$4,true,'kg')
+       RETURNING id`,
+      [companyId, materialName || internalCode, internalCode, null],
+    );
+    return ins.rows[0].id;
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code !== '23505') throw e;
+    const again = await client.query<{ id: string }>(
+      `SELECT id FROM fabric_items
+       WHERE company_id=$1 AND unit='kg' AND lower(trim(internal_code))=lower(trim($2))
        LIMIT 1`,
       [companyId, internalCode],
     );
@@ -320,15 +369,16 @@ async function insertPurchaseLines(
     const lineTotalUsd = (ln as any).lineTotalUsd ?? computeUsd(ln.lineTotal, exchangeRateToUsd);
     await client.query(
       `INSERT INTO purchase_invoice_lines (
-         company_id, invoice_id, line_no, fabric_roll_id, fabric_item_id, variant_id, warehouse_id,
+         company_id, invoice_id, line_no, fabric_roll_id, yarn_lot_id, fabric_item_id, variant_id, warehouse_id,
          description, quantity, unit, unit_cost, line_discount, line_tax, line_total,
          unit_cost_usd, line_discount_usd, line_tax_usd, line_total_usd, metadata
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb)`,
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb)`,
       [
         companyId,
         invoiceId,
         i,
         ln.fabricRollId ?? null,
+        ln.yarnLotId ?? null,
         ln.fabricItemId ?? null,
         ln.variantId ?? null,
         ln.warehouseId ?? null,
@@ -910,6 +960,66 @@ export async function confirmPurchaseInvoice(
   const targetWarehouseId = await resolveWarehouseForPurchaseInvoice(client, companyId, inv.warehouse_id ?? null);
 
   for (const ln of lines.rows) {
+    if (String(ln.unit || '').toLowerCase() === 'kg') {
+      let lotId = ln.yarn_lot_id as string | null;
+      if (!lotId) {
+        const meta = ((ln.metadata as Record<string, unknown> | null) || {}) as Record<string, unknown>;
+        const materialName = cleanText(meta.materialName ?? meta.fabricName ?? ln.description);
+        const designCode = cleanText(meta.designCode ?? meta.dsamNumber ?? meta.articleCode);
+        const weightKg = Math.max(0, Number(ln.quantity ?? 0) || 0);
+        const itemId = await findOrCreateYarnItem(client, companyId, materialName, designCode);
+        const barcode = await generateYarnLotBarcode(companyId);
+
+        const lotIns = await client.query<{ id: string }>(
+          `INSERT INTO yarn_lots
+             (company_id, barcode, item_id, supplier_id, warehouse_id, weight_kg, unit_cost,
+              currency_code, purchase_invoice_id, purchase_invoice_line_id, notes, created_by_user_id, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'AVAILABLE')
+           RETURNING id`,
+          [
+            companyId,
+            barcode,
+            itemId,
+            inv.supplier_id ?? null,
+            targetWarehouseId,
+            weightKg,
+            Number(ln.unit_cost ?? 0) || null,
+            String(inv.currency_code || 'USD'),
+            invoiceId,
+            ln.id,
+            cleanText(meta.note ?? ln.description) || null,
+            userId,
+          ],
+        );
+        lotId = lotIns.rows[0].id;
+
+        await client.query(
+          `UPDATE purchase_invoice_lines
+           SET yarn_lot_id=$3, fabric_item_id=$4, warehouse_id=$5
+           WHERE id=$1 AND company_id=$2`,
+          [ln.id, companyId, lotId, itemId, targetWarehouseId],
+        );
+
+        if (!opts.skipStockMovement) {
+          await client.query(
+            `INSERT INTO yarn_lot_movements
+               (company_id, yarn_lot_id, movement_type, weight_delta_kg, to_warehouse_id,
+                reference_type, reference_id, notes, created_by_user_id)
+             VALUES ($1,$2,'PURCHASE_RECEIPT',$3,$4,'PURCHASE_INVOICE',$5,$6,$7)`,
+            [
+              companyId,
+              lotId,
+              weightKg,
+              targetWarehouseId,
+              invoiceId,
+              `استلام خيط مرتبط بفاتورة شراء ${String(inv.invoice_no)}`,
+              userId,
+            ],
+          );
+        }
+      }
+      continue;
+    }
     let rollId = ln.fabric_roll_id as string | null;
     if (!rollId) {
       const meta = ((ln.metadata as Record<string, unknown> | null) || {}) as Record<string, unknown>;

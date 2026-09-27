@@ -128,8 +128,8 @@ export interface Invoice {
 
 export interface InvoiceItem {
   fabricId: string;
-  quantity: number; // in yards or meters based on preference
-  unitType: 'yard' | 'meter';
+  quantity: number; // in yards or meters based on preference, or kg for yarn lines
+  unitType: 'yard' | 'meter' | 'kg';
   unitPrice: number;
   lineDiscount?: number;
   total: number;

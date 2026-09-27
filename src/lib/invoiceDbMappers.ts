@@ -57,8 +57,13 @@ function stringFromMeta(meta: Record<string, unknown>, keys: string[], fallback 
 }
 
 function mapLineToInvoiceItem(l: Record<string, unknown>): InvoiceItem {
-  const unit = l.unit === 'yard' ? 'yard' : 'meter';
-  const rollId = l.fabric_roll_id != null ? String(l.fabric_roll_id) : undefined;
+  const unit = l.unit === 'kg' ? 'kg' : l.unit === 'yard' ? 'yard' : 'meter';
+  const rollId =
+    l.fabric_roll_id != null
+      ? String(l.fabric_roll_id)
+      : l.yarn_lot_id != null
+        ? String(l.yarn_lot_id)
+        : undefined;
   const meta = parseMetadata(l.metadata);
   const description = String(l.description ?? '');
   const materialName = stringFromMeta(meta, ['materialName', 'fabricName'], description);
@@ -127,6 +132,7 @@ function lineQuantityToDisplayMeters(line: Record<string, unknown>): number {
 
 /** حقول سطر لملء `InvoiceForm` من استجابة GET الفاتورة (بدون `id` المحلي للنموذج). */
 export type InvoiceFormLineDraft = {
+  unit: 'meter' | 'kg';
   materialName: string;
   dsamNumber: string;
   rollNo: string;
@@ -155,10 +161,18 @@ export function buildInvoiceFormLineDraftsFromDbLines(lines: Record<string, unkn
     const rollNo = stringFromMeta(meta, ['rollNo', 'rollNumber']);
     const supplierBarcode = stringFromMeta(meta, ['supplierBarcode', 'barcode']);
     const printBarcode = stringFromMeta(meta, ['printBarcode']);
-    const rollId = l.fabric_roll_id != null ? String(l.fabric_roll_id).trim() : '';
+    const isYarnLine = l.unit === 'kg';
+    const rollId = isYarnLine
+      ? l.yarn_lot_id != null
+        ? String(l.yarn_lot_id).trim()
+        : ''
+      : l.fabric_roll_id != null
+        ? String(l.fabric_roll_id).trim()
+        : '';
     const lengthM = lineQuantityToDisplayMeters(l);
     const priceNum = numFromDb(l.unit_cost ?? l.unit_price);
     return {
+      unit: isYarnLine ? 'kg' : 'meter',
       materialName,
       dsamNumber: stringFromMeta(meta, ['designCode', 'dsamNumber']),
       rollNo,
