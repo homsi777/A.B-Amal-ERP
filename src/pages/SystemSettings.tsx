@@ -22,7 +22,6 @@ import {
   Pencil,
   X,
   Wifi,
-  Globe2,
 } from 'lucide-react';
 import { ThemeDisplaySettings } from '../components/settings/ThemeDisplaySettings';
 import { TelegramBotSettingsPanel } from '../components/settings/TelegramBotSettingsPanel';
@@ -76,7 +75,7 @@ const NAV_ITEMS: NavRow[] = [
   { navKey: 'themes',  section: 'themes',  label: 'الثيمات و عرض', icon: Sparkles },
 ];
 
-const VALID_NAV_KEYS = [...NAV_ITEMS.map((row) => row.navKey), 'activation', 'companies'];
+const VALID_NAV_KEYS = [...NAV_ITEMS.map((row) => row.navKey), 'activation'];
 
 const defaultSettings = {
   general: {
@@ -177,9 +176,7 @@ export const SystemSettings = () => {
 
   const activeSection: SettingsSectionId = activeNavKey === 'activation'
     ? 'activation'
-    : activeNavKey === 'companies'
-      ? 'companies'
-      : NAV_ITEMS.find((row) => row.navKey === activeNavKey)?.section ?? 'company';
+    : NAV_ITEMS.find((row) => row.navKey === activeNavKey)?.section ?? 'company';
 
   useEffect(() => {
     if (activeSection !== 'company') return;
@@ -551,26 +548,6 @@ export const SystemSettings = () => {
                 </span>
               </button>
             </li>
-            {currentUser?.isPlatformAdmin && (
-              <li>
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('companies')}
-                  className={`w-full p-4 border-b border-[var(--border-subtle)] cursor-pointer flex items-center gap-3 text-right transition-colors ${
-                    activeNavKey === 'companies'
-                      ? 'bg-[var(--ui-accent-soft-bg)] border-r-4 border-r-[var(--ui-accent)]'
-                      : 'hover:bg-[var(--surface-muted-nav)]'
-                  }`}
-                >
-                  <Globe2
-                    className={`w-5 h-5 shrink-0 ${activeNavKey === 'companies' ? 'text-[var(--ui-accent)]' : 'text-[var(--text-muted)]'}`}
-                  />
-                  <span className={`font-medium ${activeNavKey === 'companies' ? 'font-bold text-[var(--ui-accent)]' : 'text-[var(--text-heading)]'}`}>
-                    الحسابات
-                  </span>
-                </button>
-              </li>
-            )}
           </ul>
         </div>
 
@@ -747,12 +724,6 @@ export const SystemSettings = () => {
 
           {activeSection === 'activation' && <ActivationSettingsPanel />}
 
-          {activeSection === 'companies' && currentUser?.isPlatformAdmin && (
-            <CompanyManagementPanel
-              onCompaniesChanged={(rows) => setCompanies(rows)}
-            />
-          )}
-
           {activeSection === 'backup' && (
             <div className="space-y-6">
               <SettingsPanel
@@ -861,6 +832,10 @@ export const SystemSettings = () => {
                   تحديث
                 </button>
               </div>
+
+              {currentUser?.isPlatformAdmin && (
+                <CompanyManagementPanel onCompaniesChanged={(rows) => setCompanies(rows)} />
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-1 border border-[var(--border-default)] rounded-xl p-4 space-y-3">

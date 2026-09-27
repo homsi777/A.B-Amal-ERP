@@ -549,6 +549,8 @@ export const InvoiceForm = () => {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [invoiceNumber, setInvoiceNumber] = useState(INVOICE_NUMBER_PENDING_LABEL);
   const [partyId, setPartyId] = useState('');
+  /** نوع الفاتورة بأكملها: توب/متر (الافتراضي، القماش) أو كج (الخيط بالوزن) — على مستوى الفاتورة، بجانب اختيار العميل/المورد. */
+  const [invoiceUnitMode, setInvoiceUnitMode] = useState<'meter' | 'kg'>('meter');
   const [warehouse, setWarehouse] = useState('');
   const [apiWarehouses, setApiWarehouses] = useState<ApiWarehouse[]>([]);
   const [warehousesLoading, setWarehousesLoading] = useState(true);
@@ -715,6 +717,7 @@ export const InvoiceForm = () => {
             ? drafts.map((d, i) => ({ ...emptyItem(), ...d, id: Date.now() + i }))
             : [emptyItem()],
         );
+        if (drafts.some((d) => d.unit === 'kg')) setInvoiceUnitMode('kg');
         if (isSales) {
           const rollIds = [
             ...new Set(
@@ -1093,7 +1096,36 @@ export const InvoiceForm = () => {
   );
 
   const handleAddItem = () => {
-    setItems((prev) => [...prev.map(sanitizeInvoiceFormItemBarcode), emptyItem()]);
+    setItems((prev) => [...prev.map(sanitizeInvoiceFormItemBarcode), { ...emptyItem(), unit: invoiceUnitMode }]);
+  };
+
+  /** تبديل نوع الفاتورة بأكملها (توب/متر ↔ كج) — يطبَّق على كل الأسطر دفعة واحدة، مع مسح الحقول الخاصة بالنوع القديم. */
+  const handleInvoiceUnitModeChange = (unit: 'meter' | 'kg') => {
+    setInvoiceUnitMode(unit);
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.unit === unit) return item;
+        if (unit === 'kg') {
+          return {
+            ...item,
+            unit,
+            internalRollId: '',
+            materialName: '',
+            dsamNumber: '',
+            colorCode: '',
+            colorName: '',
+            length: '',
+            widthCm: '',
+            gsm: '',
+            weight: '',
+            rollNo: '',
+            supplierBarcode: '',
+            printBarcode: '',
+          };
+        }
+        return { ...item, unit, internalRollId: '', materialName: '', length: '', weight: '' };
+      }),
+    );
   };
 
   const handleRemoveItem = (id: number) => {
@@ -1115,34 +1147,6 @@ export const InvoiceForm = () => {
           });
         }
         return updatedItem;
-      }),
-    );
-  };
-
-  /** تبديل نوع البيع/الشراء لسطر: توب/متر ↔ كج. يمسح حقول التوب (الرول/العرض/GSM) عند التحويل لخيط، لتفادي بقايا تطابق قديمة. */
-  const updateItemUnit = (id: number, unit: 'meter' | 'kg') => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        if (unit === 'kg') {
-          return {
-            ...item,
-            unit,
-            internalRollId: '',
-            materialName: '',
-            dsamNumber: '',
-            colorCode: '',
-            colorName: '',
-            length: '',
-            widthCm: '',
-            gsm: '',
-            weight: '',
-            rollNo: '',
-            supplierBarcode: '',
-            printBarcode: '',
-          };
-        }
-        return { ...item, unit, internalRollId: '', materialName: '', length: '', weight: '' };
       }),
     );
   };
@@ -3083,24 +3087,37 @@ export const InvoiceForm = () => {
         className={`bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-6 ${editBlocked || draftLoading ? 'pointer-events-none opacity-50' : ''}`}
         data-enter-scope
       >
-        {/* صف 1: العميل / المورد — الأول على الموبايل */}
-        <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700">{isSales ? 'العميل' : 'المورد'}</label>
-          <SmartPartySearch
-            options={partyOptions}
-            selectedId={partyId}
-            onSelect={setPartyId}
-            onEnterFallback={focusNextFormControl}
-            placeholder={isSales ? 'اسم العميل أو الهاتف' : 'اسم المورد أو الهاتف'}
-            emptyLabel={isSales ? 'اختر عميلاً' : 'اختر مورداً'}
-          />
-          {partyId && selectedParty ? (
-            <p className={`text-xs font-bold font-mono px-0.5 ${balanceColor}`}>
-              {partyStatementBalanceLoading
-                ? 'جاري تحميل الرصيد...'
-                : `الرصيد السابق: ${Math.abs(partyBalance).toFixed(2)} (${balanceText})`}
-            </p>
-          ) : null}
+        {/* صف 1: العميل / المورد + نوع البيع (توب/متر أو كج) — الأول على الموبايل */}
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">{isSales ? 'العميل' : 'المورد'}</label>
+            <SmartPartySearch
+              options={partyOptions}
+              selectedId={partyId}
+              onSelect={setPartyId}
+              onEnterFallback={focusNextFormControl}
+              placeholder={isSales ? 'اسم العميل أو الهاتف' : 'اسم المورد أو الهاتف'}
+              emptyLabel={isSales ? 'اختر عميلاً' : 'اختر مورداً'}
+            />
+            {partyId && selectedParty ? (
+              <p className={`text-xs font-bold font-mono px-0.5 ${balanceColor}`}>
+                {partyStatementBalanceLoading
+                  ? 'جاري تحميل الرصيد...'
+                  : `الرصيد السابق: ${Math.abs(partyBalance).toFixed(2)} (${balanceText})`}
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">نوع {isSales ? 'البيع' : 'الشراء'}</label>
+            <select
+              value={invoiceUnitMode}
+              onChange={(e) => handleInvoiceUnitModeChange(e.target.value === 'kg' ? 'kg' : 'meter')}
+              className="w-full sm:w-40 bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 font-bold focus:outline-none focus:border-indigo-500"
+            >
+              <option value="meter">توب / متر</option>
+              <option value="kg">وزن (كج)</option>
+            </select>
+          </div>
         </div>
 
         {/* صف 2 (مبيعات): استيراد طلبية — شريط مضغوط */}
@@ -3310,7 +3327,6 @@ export const InvoiceForm = () => {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border border-slate-200">
                   <th className="p-3 font-bold w-12 text-center">#</th>
-                  <th className="p-3 font-bold w-28">نوع البيع</th>
                   <th className="p-3 font-bold min-w-[160px]">الباركود</th>
                   <th className="p-3 font-bold min-w-[220px]">الخامة</th>
                   <th className="p-3 font-bold min-w-[120px]">كود الخامة</th>
@@ -3331,16 +3347,6 @@ export const InvoiceForm = () => {
                   return (
                     <tr key={item.id} data-invoice-item-row className="border-b border-x border-slate-200">
                       <td className="p-2 text-center font-bold text-slate-400">{index + 1}</td>
-                      <td className="p-2">
-                        <select
-                          value={item.unit}
-                          onChange={(e) => updateItemUnit(item.id, e.target.value === 'kg' ? 'kg' : 'meter')}
-                          className="w-full bg-white border border-slate-200 rounded px-1 py-1.5 focus:outline-none focus:border-indigo-500 shadow-sm text-xs font-bold"
-                        >
-                          <option value="meter">توب/م</option>
-                          <option value="kg">كج (خيط)</option>
-                        </select>
-                      </td>
                       <td className="p-2">
                         <div className="relative">
                           <QrCode className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" />
