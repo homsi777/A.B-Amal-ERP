@@ -207,9 +207,9 @@ export async function postReturnInvoiceToGl(
       : [];
   const cogsTotal = round2(
     cogsLines.reduce((sum, ln) => {
-      const uc = ln.unitCostPerMeter;
+      const { qty, uc } = cogsLineQtyAndUnitCost(ln);
       if (uc == null || uc <= 0) return sum;
-      const cost = round2(ln.quantityMeters * uc);
+      const cost = round2(qty * uc);
       return sum + (cost > 0 ? cost : 0);
     }, 0),
   );
@@ -268,9 +268,9 @@ export async function postReturnInvoiceToGl(
     const invId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.INVENTORY);
     const cogsId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.COGS);
     for (const ln of cogsLines) {
-      const uc = ln.unitCostPerMeter;
+      const { qty, uc } = cogsLineQtyAndUnitCost(ln);
       if (uc == null || uc <= 0) continue;
-      const cost = round2(ln.quantityMeters * uc);
+      const cost = round2(qty * uc);
       if (cost <= 0) continue;
       lines.push({
         glAccountId: invId,
@@ -469,10 +469,15 @@ export async function reversePayrollAccrualGl(
   });
 }
 
-export type SalesInvoiceLineCogsInput = {
-  quantityMeters: number;
-  unitCostPerMeter: number | null;
-};
+export type SalesInvoiceLineCogsInput =
+  | { quantityMeters: number; unitCostPerMeter: number | null }
+  | { quantityKg: number; unitCostPerKg: number | null };
+
+/** يستخرج (الكمية، التكلفة/وحدة) من أي من الشكلين — بالمتر أو بالكيلوغرام. */
+function cogsLineQtyAndUnitCost(ln: SalesInvoiceLineCogsInput): { qty: number; uc: number | null } {
+  if ('quantityKg' in ln) return { qty: ln.quantityKg, uc: ln.unitCostPerKg };
+  return { qty: ln.quantityMeters, uc: ln.unitCostPerMeter };
+}
 
 /** Revenue + AR (+ optional COGS / inventory from roll unit costs). Idempotent per invoice id. */
 export async function postSalesInvoiceToGl(
@@ -536,9 +541,9 @@ export async function postSalesInvoiceToGl(
   ];
 
   for (const ln of input.linesForCogs) {
-    const uc = ln.unitCostPerMeter;
+    const { qty: rawQty, uc } = cogsLineQtyAndUnitCost(ln);
     if (uc == null || uc <= 0) continue;
-    const qty = round2(ln.quantityMeters);
+    const qty = round2(rawQty);
     const cost = round2(qty * uc);
     if (cost <= 0) continue;
     lines.push({

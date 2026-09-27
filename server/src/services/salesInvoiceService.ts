@@ -22,12 +22,13 @@ const EPS = INVOICE_AMOUNT_EPS;
 
 export const invoiceLineSchema = z.object({
   fabricRollId: z.string().uuid().optional().nullable(),
+  yarnLotId: z.string().uuid().optional().nullable(),
   fabricItemId: z.string().uuid().optional().nullable(),
   variantId: z.string().uuid().optional().nullable(),
   warehouseId: z.string().uuid().optional().nullable(),
   description: z.string().optional().default(''),
   quantity: z.coerce.number().nonnegative(),
-  unit: z.enum(['meter', 'yard']).default('meter'),
+  unit: z.enum(['meter', 'yard', 'kg']).default('meter'),
   unitPrice: z.coerce.number().nonnegative(),
   lineDiscount: z.coerce.number().nonnegative().default(0),
   lineTax: z.coerce.number().nonnegative().default(0),
@@ -77,15 +78,21 @@ const salesLinesRequirePositiveUnitPrice = (
 };
 
 const SALES_METER_PRICE_REQUIRED_MSG =
-  'لا يمكن حفظ فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر';
+  'لا يمكن حفظ فاتورة البيع: أدخل سعر الوحدة (متر/ياردة/كج، أكبر من صفر) لكل سطر';
+
+/** الكمية القابلة للمقارنة بصفر لأي وحدة — كج لا تحتاج أي تحويل (لا علاقة له بالطول). */
+function lineQuantityForPriceCheck(quantity: number, unit: 'meter' | 'yard' | 'kg'): number {
+  return unit === 'kg' ? quantity : quantityToMeters(quantity, unit);
+}
 
 function assertSalesInvoiceLinesHaveMeterPrice(
   lines: Array<{ quantity: unknown; unit?: unknown; unit_price?: unknown; unitPrice?: unknown }>,
 ): void {
   for (const ln of lines) {
-    const qtyM = quantityToMeters(Number(ln.quantity), (ln.unit as 'meter' | 'yard') || 'meter');
+    const unit = ((ln.unit as string) || 'meter') as 'meter' | 'yard' | 'kg';
+    const qty = lineQuantityForPriceCheck(Number(ln.quantity), unit);
     const unitPrice = Number(ln.unitPrice ?? ln.unit_price ?? 0);
-    if (qtyM > EPS && (!Number.isFinite(unitPrice) || unitPrice <= 0)) {
+    if (qty > EPS && (!Number.isFinite(unitPrice) || unitPrice <= 0)) {
       throw Object.assign(new Error(SALES_METER_PRICE_REQUIRED_MSG), { code: 'VALIDATION' });
     }
   }
@@ -151,6 +158,11 @@ function round2(n: number): number {
 
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
+}
+
+/** أوزان الخيط تُخزَّن بدقة 3 خانات عشرية (numeric(12,3)). */
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
 }
 
 function computeUsd(amountOriginal: number, exchangeRateToUsd: number): number {
@@ -662,28 +674,31 @@ async function insertLines(
   let i = 0;
   for (const ln of lines) {
     i++;
-    let fabricRollId = ln.fabricRollId ?? null;
-    if (!fabricRollId) {
+    const isYarnLine = ln.unit === 'kg';
+    let fabricRollId = isYarnLine ? null : ln.fabricRollId ?? null;
+    if (!isYarnLine && !fabricRollId) {
       fabricRollId = await resolveFabricRollIdForSalesLine(client, companyId, {
         fabric_roll_id: null,
         metadata: ln.metadata ?? {},
       });
     }
+    const yarnLotId = isYarnLine ? ln.yarnLotId ?? null : null;
     const unitPriceUsd = ln.unitPriceUsd ?? computeUsd4(ln.unitPrice, exchangeRateToUsd);
     const lineDiscountUsd = ln.lineDiscountUsd ?? computeUsd(ln.lineDiscount, exchangeRateToUsd);
     const lineTaxUsd = ln.lineTaxUsd ?? computeUsd(ln.lineTax, exchangeRateToUsd);
     const lineTotalUsd = ln.lineTotalUsd ?? computeUsd(ln.lineTotal, exchangeRateToUsd);
     await client.query(
       `INSERT INTO sales_invoice_lines (
-         company_id, invoice_id, line_no, fabric_roll_id, fabric_item_id, variant_id, warehouse_id,
+         company_id, invoice_id, line_no, fabric_roll_id, yarn_lot_id, fabric_item_id, variant_id, warehouse_id,
          description, quantity, unit, unit_price, line_discount, line_tax, line_total,
          unit_price_usd, line_discount_usd, line_tax_usd, line_total_usd, metadata, customer_order_line_id
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20)`,
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21)`,
       [
         companyId,
         invoiceId,
         i,
         fabricRollId,
+        yarnLotId,
         ln.fabricItemId ?? null,
         ln.variantId ?? null,
         ln.warehouseId ?? null,
@@ -1353,6 +1368,129 @@ export async function updateSalesInvoiceConfirmed(
   );
 }
 
+/**
+ * موازٍ تماماً لمنطق تأكيد سطر توب (الحلقة داخل confirmSalesInvoice) لكن على
+ * دفعة خيط بالوزن (yarn_lots.weight_kg) بدل طول توب (fabric_rolls.length_m).
+ * صفر تعديل على منطق التوب — دالة مستقلة بالكامل.
+ */
+async function confirmYarnSalesLine(
+  client: PoolClient,
+  companyId: string,
+  invoiceId: string,
+  invoiceNo: string,
+  userId: string | null,
+  ln: { id: string; quantity: unknown; yarn_lot_id: unknown; metadata: unknown },
+  ccy: string,
+  exchangeRateToUsd: number,
+): Promise<{ quantityKg: number; unitCostPerKg: number | null } | null> {
+  const qtyKg = Number(ln.quantity);
+  const yarnLotId = (ln.yarn_lot_id as string | null) ?? null;
+
+  if (!yarnLotId) {
+    if (qtyKg > EPS) {
+      throw Object.assign(
+        new Error('سطر الفاتورة غير مربوط بدفعة خيط في المخزون — لا يمكن تأكيد البيع'),
+        { code: 'VALIDATION' },
+      );
+    }
+    return null;
+  }
+
+  const lotRow = await client.query<{
+    id: string;
+    weight_kg: string;
+    status: string;
+    unit_cost: string | null;
+    currency_code: string | null;
+  }>(
+    `SELECT id, weight_kg, status, unit_cost, currency_code FROM yarn_lots WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [yarnLotId, companyId],
+  );
+  if (!lotRow.rows.length) throw Object.assign(new Error('دفعة الخيط غير موجودة'), { code: 'NOT_FOUND' });
+  const lot = lotRow.rows[0];
+  if (lot.status !== 'AVAILABLE' && lot.status !== 'RESERVED') {
+    throw Object.assign(new Error(`دفعة الخيط ${yarnLotId} غير متاحة للبيع`), { code: 'INVALID_STOCK' });
+  }
+
+  const weight = Number(lot.weight_kg);
+  if (qtyKg > weight + EPS) {
+    throw Object.assign(new Error('الكمية المباعة أكبر من رصيد الوزن على دفعة الخيط'), { code: 'INVALID_STOCK' });
+  }
+
+  const uc = lot.unit_cost != null ? Number(lot.unit_cost) : null;
+  const costSnapshot = await buildSalesLineCostSnapshot(
+    client,
+    companyId,
+    qtyKg,
+    uc,
+    lot.currency_code,
+    ccy,
+    exchangeRateToUsd,
+  );
+
+  const soldQty = Math.min(qtyKg, weight);
+  const newWeight = round3(weight - soldQty);
+  const fullSale = soldQty >= weight - EPS || newWeight <= EPS;
+
+  const meta: Record<string, unknown> = parseSalesLineMetadata(ln);
+  meta.inventory = {
+    yarn_lot_id: yarnLotId,
+    prev_weight_kg: weight,
+    qty_sold_kg: soldQty,
+    final_weight_kg: fullSale ? 0 : newWeight,
+    final_status: fullSale ? 'SOLD' : 'AVAILABLE',
+  };
+
+  if (fullSale) {
+    await client.query(
+      `UPDATE yarn_lots SET weight_kg=0, status='SOLD', updated_at=now() WHERE id=$1 AND company_id=$2`,
+      [yarnLotId, companyId],
+    );
+  } else {
+    await client.query(
+      `UPDATE yarn_lots SET weight_kg=$3, status='AVAILABLE', updated_at=now() WHERE id=$1 AND company_id=$2`,
+      [yarnLotId, companyId, newWeight],
+    );
+  }
+
+  await client.query(
+    `INSERT INTO yarn_lot_movements
+       (company_id, yarn_lot_id, movement_type, weight_delta_kg, reference_type, reference_id, notes, created_by_user_id)
+     VALUES ($1,$2,'SALE',$3,'SALES_INVOICE',$4,$5,$6)`,
+    [companyId, yarnLotId, -soldQty, invoiceId, `بيع${fullSale ? '' : ' جزئي'} — ${invoiceNo}`, userId],
+  );
+
+  await client.query(
+    `UPDATE sales_invoice_lines SET
+       metadata=$3::jsonb,
+       cost_unit_price=$4,
+       cost_total=$5,
+       cost_currency_code=$6,
+       cost_exchange_rate_to_usd=$7,
+       cost_unit_price_usd=$8,
+       cost_total_usd=$9,
+       cost_source=$10,
+       cost_snapshot_at=now(),
+       cost_missing=$11
+     WHERE id=$1 AND company_id=$2`,
+    [
+      ln.id,
+      companyId,
+      JSON.stringify(meta),
+      costSnapshot.costUnitPrice,
+      costSnapshot.costTotal,
+      costSnapshot.costCurrencyCode,
+      costSnapshot.costExchangeRateToUsd,
+      costSnapshot.costUnitPriceUsd,
+      costSnapshot.costTotalUsd,
+      costSnapshot.costMissing ? 'MISSING' : 'YARN_LOT_AT_CONFIRMATION',
+      costSnapshot.costMissing,
+    ],
+  );
+
+  return { quantityKg: qtyKg, unitCostPerKg: costSnapshot.costUnitPriceUsd ?? uc };
+}
+
 export async function deleteSalesInvoiceDraft(client: PoolClient, companyId: string, invoiceId: string): Promise<void> {
   const cur = await client.query<{ document_status: string }>(
     `SELECT document_status FROM sales_invoices WHERE id=$1 AND company_id=$2`,
@@ -1397,9 +1535,27 @@ export async function confirmSalesInvoice(
 
   assertSalesInvoiceLinesHaveMeterPrice(lines.rows);
 
-  const linesForCogs: { quantityMeters: number; unitCostPerMeter: number | null }[] = [];
+  const linesForCogs: (
+    | { quantityMeters: number; unitCostPerMeter: number | null }
+    | { quantityKg: number; unitCostPerKg: number | null }
+  )[] = [];
 
   for (const ln of lines.rows) {
+    if (ln.unit === 'kg') {
+      const cogsEntry = await confirmYarnSalesLine(
+        client,
+        companyId,
+        invoiceId,
+        String(inv.invoice_no),
+        userId,
+        ln,
+        ccy,
+        exchangeRateToUsd,
+      );
+      if (cogsEntry) linesForCogs.push({ quantityKg: cogsEntry.quantityKg, unitCostPerKg: cogsEntry.unitCostPerKg });
+      continue;
+    }
+
     const qtyM = quantityToMeters(Number(ln.quantity), ln.unit as 'meter' | 'yard');
 
     if (isStatementImportLineMetadata(ln.metadata)) {

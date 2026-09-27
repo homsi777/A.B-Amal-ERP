@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, Package, Plus, Scale } from 'lucide-react';
+import { Loader2, Package, Plus, Scale, ShoppingCart } from 'lucide-react';
 import { createFabricItem, listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
 import { createYarnLot, listYarnLots, type YarnLotDto } from '../../lib/api/yarnLotsApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
+import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
+import { createSalesInvoice } from '../../lib/api/salesInvoicesApi';
 import { useToast } from '../../components/NonBlockingToast';
 
 /**
@@ -18,7 +20,11 @@ export function YarnManagement() {
   const [lots, setLots] = useState<YarnLotDto[]>([]);
   const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
   const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
+  const [customers, setCustomers] = useState<ApiCustomer[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [sellForm, setSellForm] = useState({ lotId: '', customerId: '', weightKg: '', unitPrice: '' });
+  const [sellSaving, setSellSaving] = useState(false);
 
   const [itemForm, setItemForm] = useState({ internalCode: '', name: '', supplierCode: '', notes: '' });
   const [itemSaving, setItemSaving] = useState(false);
@@ -31,16 +37,18 @@ export function YarnManagement() {
   const load = async () => {
     setLoading(true);
     try {
-      const [itemsRes, lotsRes, suppliersRes, warehousesRes] = await Promise.all([
+      const [itemsRes, lotsRes, suppliersRes, warehousesRes, customersRes] = await Promise.all([
         listFabricItems({ unit: 'kg', pageSize: 200 }),
         listYarnLots({ pageSize: 100 }),
         listSuppliers({ pageSize: 200 }),
         listWarehouses(),
+        listCustomers({ pageSize: 200 }),
       ]);
       setItems(itemsRes.data);
       setLots(lotsRes.data);
       setSuppliers(suppliersRes.data);
       setWarehouses(warehousesRes);
+      setCustomers(customersRes.data);
     } catch (error) {
       showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر تحميل البيانات' });
     } finally {
@@ -105,6 +113,57 @@ export function YarnManagement() {
     }
   };
 
+  const handleSellLot = async () => {
+    const weight = Number(sellForm.weightKg);
+    const price = Number(sellForm.unitPrice);
+    if (!sellForm.lotId || !sellForm.customerId || !weight || weight <= 0 || !price || price <= 0) {
+      showToast({ type: 'error', message: 'اختر الدفعة والعميل وأدخل وزناً وسعراً صحيحين' });
+      return;
+    }
+    const lot = lots.find((l) => l.id === sellForm.lotId);
+    if (!lot) return;
+    if (weight > Number(lot.weight_kg) + 1e-6) {
+      showToast({ type: 'error', message: `الوزن المطلوب أكبر من المتاح (${lot.weight_kg} كج)` });
+      return;
+    }
+    setSellSaving(true);
+    try {
+      const lineTotal = Math.round(weight * price * 100) / 100;
+      await createSalesInvoice({
+        invoiceNo: 'AUTO',
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        customerId: sellForm.customerId,
+        currencyCode: 'USD',
+        exchangeRateToUsd: 1,
+        subtotal: lineTotal,
+        discountTotal: 0,
+        taxTotal: 0,
+        totalAmount: lineTotal,
+        paidAmount: 0,
+        remainingAmount: lineTotal,
+        confirm: true,
+        lines: [
+          {
+            yarnLotId: lot.id,
+            fabricItemId: lot.item_id,
+            description: lot.item_name || 'خيط',
+            quantity: weight,
+            unit: 'kg',
+            unitPrice: price,
+            lineTotal,
+          },
+        ],
+      });
+      setSellForm({ lotId: '', customerId: '', weightKg: '', unitPrice: '' });
+      showToast({ type: 'success', message: 'تم بيع الخيط وتأكيد الفاتورة' });
+      await load();
+    } catch (error) {
+      showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر إتمام البيع' });
+    } finally {
+      setSellSaving(false);
+    }
+  };
+
   const inputCls = 'w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm';
 
   return (
@@ -116,7 +175,7 @@ export function YarnManagement() {
         <p className="text-slate-500 mt-1">أصناف وخيط يُشترى ويُباع بالكيلوغرام — منفصل تماماً عن أتواب القماش بالمتر.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
           <div className="flex items-center gap-2 font-bold text-slate-800">
             <Package className="w-5 h-5 text-indigo-600" /> صنف خيط جديد
@@ -164,6 +223,33 @@ export function YarnManagement() {
             className="w-full bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
             {lotSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             استلام الدفعة
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
+          <div className="flex items-center gap-2 font-bold text-slate-800">
+            <ShoppingCart className="w-5 h-5 text-rose-600" /> بيع خيط (فاتورة فورية)
+          </div>
+          <select className={inputCls} value={sellForm.lotId} onChange={(e) => setSellForm({ ...sellForm, lotId: e.target.value })}>
+            <option value="">— اختر دفعة الخيط —</option>
+            {lots.filter((l) => l.status === 'AVAILABLE' && Number(l.weight_kg) > 0).map((l) => (
+              <option key={l.id} value={l.id}>{l.item_name} — {l.barcode} ({Number(l.weight_kg).toFixed(3)} كج متاح)</option>
+            ))}
+          </select>
+          <select className={inputCls} value={sellForm.customerId} onChange={(e) => setSellForm({ ...sellForm, customerId: e.target.value })}>
+            <option value="">— اختر العميل —</option>
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" step="0.001" className={inputCls} placeholder="الوزن المباع (كج)" value={sellForm.weightKg}
+              onChange={(e) => setSellForm({ ...sellForm, weightKg: e.target.value })} />
+            <input type="number" step="0.0001" className={inputCls} placeholder="سعر البيع لكل كج" value={sellForm.unitPrice}
+              onChange={(e) => setSellForm({ ...sellForm, unitPrice: e.target.value })} />
+          </div>
+          <button type="button" onClick={() => void handleSellLot()} disabled={sellSaving}
+            className="w-full bg-rose-600 text-white px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+            {sellSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+            بيع وتأكيد الفاتورة
           </button>
         </div>
       </div>

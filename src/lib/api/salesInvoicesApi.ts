@@ -2,12 +2,13 @@ import { apiFetch } from './client';
 
 export interface SalesInvoiceLinePayload {
   fabricRollId?: string | null;
+  yarnLotId?: string | null;
   fabricItemId?: string | null;
   variantId?: string | null;
   warehouseId?: string | null;
   description?: string;
   quantity: number;
-  unit: 'meter' | 'yard';
+  unit: 'meter' | 'yard' | 'kg';
   unitPrice: number;
   lineDiscount?: number;
   lineTax?: number;
