@@ -17,6 +17,8 @@
   "activation.enterKey": "أدخل مفتاح التفعيل لتفعيل النظام قبل تسجيل الدخول.",
   "welcomeTitle": "مرحباً بعودتك",
   "welcomeSubtitle": "سجّل دخولك للمتابعة إلى مستودعك.",
+  "company": "الفرع",
+  "companyRequired": "يرجى اختيار الفرع أولاً",
   "username": "اسم المستخدم",
   "password": "كلمة المرور",
   "showPassword": "إظهار كلمة المرور",

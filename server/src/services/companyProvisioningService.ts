@@ -131,3 +131,13 @@ export async function listCompanies(): Promise<ProvisionedCompany[]> {
   );
   return res.rows;
 }
+
+export type PublicCompanyOption = { id: string; code: string; name: string };
+
+/** قائمة عامة (بلا مصادقة) لعرض اختيار الفرع بشاشة تسجيل الدخول — أسماء/أكواد فقط، بلا أي بيانات حساسة. */
+export async function listActiveCompaniesPublic(): Promise<PublicCompanyOption[]> {
+  const res = await getPool().query<PublicCompanyOption>(
+    `SELECT id, code, name FROM companies WHERE is_active = true ORDER BY created_at ASC`,
+  );
+  return res.rows;
+}

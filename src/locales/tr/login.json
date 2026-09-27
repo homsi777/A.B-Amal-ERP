@@ -17,6 +17,8 @@
   "activation.enterKey": "Giriş yapmadan önce sistemi etkinleştirmek için etkinleştirme anahtarını girin.",
   "welcomeTitle": "Tekrar hoş geldiniz",
   "welcomeSubtitle": "Depoya devam etmek için giriş yapın.",
+  "company": "Şube",
+  "companyRequired": "Lütfen önce şubeyi seçin",
   "username": "Kullanıcı adı",
   "password": "Şifre",
   "showPassword": "Şifreyi göster",

@@ -14,7 +14,7 @@ import {
   KeyRound,
   X,
 } from 'lucide-react';
-import { loginApi } from '../lib/api/authApi';
+import { loginApi, listPublicCompanies, type PublicCompanyOption } from '../lib/api/authApi';
 import { ApiRequestError } from '../lib/api/client';
 import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
@@ -37,6 +37,9 @@ export const Login = () => {
   const [activationStatusError, setActivationStatusError] = useState('');
   const [activationModalOpen, setActivationModalOpen] = useState(false);
   const activationModalTitleId = useId();
+  const [companies, setCompanies] = useState<PublicCompanyOption[]>([]);
+  const [companiesLoaded, setCompaniesLoaded] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const features = useMemo(
     () => [
@@ -64,6 +67,27 @@ export const Login = () => {
     loadActivationStatus();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await listPublicCompanies();
+        if (cancelled) return;
+        setCompanies(rows);
+        if (rows.length === 1) setSelectedCompanyId(rows[0].id);
+      } catch {
+        if (!cancelled) setCompanies([]);
+      } finally {
+        if (!cancelled) setCompaniesLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const needsCompanyChoice = companiesLoaded && companies.length > 1;
+
   const isActivated = activationStatus?.active === true;
   const canLogin = activationChecked && isActivated && !activationStatusError;
 
@@ -79,10 +103,14 @@ export const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canLogin) return;
+    if (needsCompanyChoice && !selectedCompanyId) {
+      setError(t('companyRequired'));
+      return;
+    }
     setError('');
     setLoading(true);
     try {
-      await loginApi(username, password);
+      await loginApi(username, password, selectedCompanyId || undefined);
       const requestedRedirect = searchParams.get('redirect') ?? '';
       const safeRedirect =
         requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//')
@@ -237,6 +265,36 @@ export const Login = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {needsCompanyChoice && (
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="company"
+                    className={`text-[13px] font-medium ${canLogin ? 'text-slate-200' : 'text-slate-500'}`}
+                  >
+                    {t('company')}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('company')}>
+                    {companies.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selectedCompanyId === c.id}
+                        disabled={!canLogin}
+                        onClick={() => setSelectedCompanyId(c.id)}
+                        className={`rounded-xl border px-4 py-3 text-[14px] font-bold transition ${
+                          selectedCompanyId === c.id
+                            ? 'border-indigo-400/70 bg-indigo-500/20 text-white'
+                            : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.07]'
+                        } disabled:cursor-not-allowed disabled:opacity-40`}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label
                   htmlFor="username"
@@ -308,7 +366,7 @@ export const Login = () => {
 
               <button
                 type="submit"
-                disabled={loading || !canLogin || !username || !password}
+                disabled={loading || !canLogin || !username || !password || (needsCompanyChoice && !selectedCompanyId)}
                 className="group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-l from-indigo-500 via-indigo-500 to-violet-600 px-4 py-3 text-[15px] font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:shadow-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:saturate-75"
               >
                 {loading ? (

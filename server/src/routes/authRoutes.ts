@@ -17,6 +17,7 @@ import { logPlatformAction } from '../services/platformAuditService.js';
 const loginBodySchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
+  companyId: z.string().uuid().optional(),
 });
 
 const switchCompanyBodySchema = z.object({
@@ -44,7 +45,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     }
 
-    const { username, password } = parsed.data;
+    const { username, password, companyId: selectedCompanyId } = parsed.data;
     const pool = getPool();
 
     const userQuery = () =>
@@ -99,6 +100,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
+      return sendError(reply, 401, ArabicErrors.invalidCredentials, 'AUTH');
+    }
+
+    // اختيار الفرع (سوريا/تركيا) بشاشة الدخول — تحقق إضافي أن المستخدم فعلاً
+    // ينتمي للفرع المختار، وليس فقط اسم مستخدم/كلمة سر صحيحين لفرع آخر.
+    if (selectedCompanyId && selectedCompanyId !== user.company_id) {
       return sendError(reply, 401, ArabicErrors.invalidCredentials, 'AUTH');
     }
 

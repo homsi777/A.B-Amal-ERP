@@ -27,10 +27,20 @@ export type MeResponse = {
   user: AuthUser;
 };
 
-export async function loginApi(username: string, password: string): Promise<LoginResponse> {
+export type PublicCompanyOption = { id: string; code: string; name: string };
+
+/** بلا مصادقة — قائمة الفروع (سوريا/تركيا) لعرضها بشاشة تسجيل الدخول قبل إدخال بيانات الاعتماد. */
+export async function listPublicCompanies(): Promise<PublicCompanyOption[]> {
+  const data = await apiFetch<{ ok: boolean; data: PublicCompanyOption[] }>('/api/companies/public', {
+    skipAuth: true,
+  });
+  return data.data;
+}
+
+export async function loginApi(username: string, password: string, companyId?: string): Promise<LoginResponse> {
   const data = await apiFetch<LoginResponse>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, companyId }),
     skipAuth: true,
   });
   if (data.token) {

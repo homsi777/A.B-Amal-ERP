@@ -6,6 +6,7 @@ import { ArabicErrors } from '../utils/arabicErrors.js';
 import { clientIp } from '../utils/clientIp.js';
 import {
   CompanyProvisioningError,
+  listActiveCompaniesPublic,
   listCompanies,
   provisionCompany,
 } from '../services/companyProvisioningService.js';
@@ -20,6 +21,13 @@ const createCompanyBody = z.object({
 });
 
 export const companyRoutes: FastifyPluginAsync = async (app) => {
+  // بلا مصادقة عمداً — لعرض اختيار الفرع (سوريا/تركيا) بشاشة تسجيل الدخول
+  // قبل إدخال أي بيانات اعتماد. لا يُرجع سوى id/code/name، بلا أي بيانات حساسة.
+  app.get('/public', async (_req, reply) => {
+    const companies = await listActiveCompaniesPublic();
+    return reply.send({ ok: true, data: companies });
+  });
+
   app.get('/', { preHandler: authenticateRequest }, async (req, reply) => {
     if (!requirePlatformAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const companies = await listCompanies();
