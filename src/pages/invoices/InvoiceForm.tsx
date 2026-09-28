@@ -1956,7 +1956,9 @@ export const InvoiceForm = () => {
   };
 
   const SALES_METER_PRICE_MSG =
-    'لا يمكن حفظ فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر';
+    invoiceUnitMode === 'kg'
+      ? 'لا يمكن حفظ فاتورة البيع: أدخل سعر الكيلو (يجب أن يكون أكبر من صفر) لكل سطر'
+      : 'لا يمكن حفظ فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر';
 
   const handleImportCustomerOrder = async () => {
     const orderNo = importOrderInput.trim();
@@ -2036,7 +2038,9 @@ export const InvoiceForm = () => {
 
   const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price') => {
     const value = numberValue(item[field]);
-    if (field === 'length' && value <= 0) return 'الطول يجب أن يكون أكبر من صفر';
+    if (field === 'length' && value <= 0) {
+      return item.unit === 'kg' ? 'الوزن يجب أن يكون أكبر من صفر' : 'الطول يجب أن يكون أكبر من صفر';
+    }
     if (field === 'price') {
       if (value < 0) return 'السعر لا يمكن أن يكون سالبا';
       if (isSales && value <= 0) return 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر';
@@ -3328,14 +3332,14 @@ export const InvoiceForm = () => {
                 <tr className="bg-slate-50 text-slate-600 border border-slate-200">
                   <th className="p-3 font-bold w-12 text-center">#</th>
                   <th className="p-3 font-bold min-w-[160px]">الباركود</th>
-                  <th className="p-3 font-bold min-w-[220px]">الخامة</th>
-                  <th className="p-3 font-bold min-w-[120px]">كود الخامة</th>
+                  <th className="p-3 font-bold min-w-[220px]">{invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'}</th>
+                  <th className="p-3 font-bold min-w-[120px]">كود {invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'}</th>
                   <th className="p-3 font-bold min-w-[130px]">اللون</th>
                   <th className="p-3 font-bold min-w-[120px]">كود اللون</th>
-                  <th className="p-3 font-bold w-24">الكمية (م/كج)</th>
+                  <th className="p-3 font-bold w-24">{invoiceUnitMode === 'kg' ? 'الوزن (كج)' : 'المتر (م)'}</th>
                   <th className="hidden p-3 font-bold w-24">العرض CM</th>
                   <th className="hidden p-3 font-bold w-20">GSM</th>
-                  <th className="p-3 font-bold w-24">وزن KG</th>
+                  {invoiceUnitMode !== 'kg' && <th className="p-3 font-bold w-24">وزن KG</th>}
                   <th className="p-3 font-bold w-32">الإجمالي</th>
                   <th className="p-3 font-bold w-12 text-center"></th>
                 </tr>
@@ -3403,7 +3407,7 @@ export const InvoiceForm = () => {
                             type="text"
                             data-invoice-field-index={1}
                             autoComplete="off"
-                            placeholder="اكتب اسم الخامة"
+                            placeholder={invoiceUnitMode === 'kg' ? 'اكتب اسم الخيط' : 'اكتب اسم الخامة'}
                             value={item.materialName}
                             onFocus={(e) => {
                               materialSuggestInputRef.current = e.currentTarget;
@@ -3522,7 +3526,9 @@ export const InvoiceForm = () => {
                       <td className="p-2"><input data-invoice-field-index={5} type="number" min="0.01" value={item.length} onChange={(e) => updateItem(item.id, 'length', e.target.value)} onBlur={(e) => { if (isSales) { void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, { field: 'length', lengthInput: e.currentTarget.value, toastOnSuccess: true, toastOnError: false }); } }} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} title={lengthError} className={inputClass(Boolean(lengthError))} /></td>
                       <td className="hidden p-2"><input type="number" min="0" value={item.widthCm} onChange={(e) => updateItem(item.id, 'widthCm', e.target.value)} className={inputClass()} /></td>
                       <td className="hidden p-2"><input type="number" min="0" value={item.gsm} onChange={(e) => updateItem(item.id, 'gsm', e.target.value)} className={inputClass()} /></td>
-                      <td className="p-2"><input data-invoice-field-index={6} type="number" min="0" value={item.weight} onChange={(e) => updateItem(item.id, 'weight', e.target.value)} onBlur={(e) => { if (isSales) { void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, { field: 'weight', weightInput: e.currentTarget.value, toastOnSuccess: true, toastOnError: false }); } }} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} title={weightError} className={inputClass(Boolean(weightError))} /></td>
+                      {invoiceUnitMode !== 'kg' && (
+                        <td className="p-2"><input data-invoice-field-index={6} type="number" min="0" value={item.weight} onChange={(e) => updateItem(item.id, 'weight', e.target.value)} onBlur={(e) => { if (isSales) { void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, { field: 'weight', weightInput: e.currentTarget.value, toastOnSuccess: true, toastOnError: false }); } }} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} title={weightError} className={inputClass(Boolean(weightError))} /></td>
+                      )}
                       <td className="p-2 font-bold text-slate-700 bg-slate-50 text-center font-mono text-xs">{(numberValue(item.length) * numberValue(item.price)).toFixed(2)}</td>
                       <td className="hidden p-2"><input type="text" value={item.rollNo} onChange={(e) => updateItem(item.id, 'rollNo', e.target.value)} className={`${inputClass()} font-mono text-xs`} dir="ltr" /></td>
                       <td className="p-2 text-center">
@@ -3551,8 +3557,10 @@ export const InvoiceForm = () => {
         <section className="rounded-xl border border-slate-200 bg-slate-50">
           <button type="button" onClick={() => setSummaryOpen(!summaryOpen)} className="w-full flex items-center justify-between px-5 py-4 text-right">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">ملخص تفنيد الفاتورة حسب الخامة</h3>
-              <p className="text-sm text-slate-500">يتحدث مباشرة حسب الخامة والتصميم والسعر</p>
+              <h3 className="text-lg font-bold text-slate-900">
+                ملخص تفنيد الفاتورة حسب {invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'}
+              </h3>
+              <p className="text-sm text-slate-500">يتحدث مباشرة حسب {invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'} والتصميم والسعر</p>
             </div>
             {summaryOpen ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
           </button>
@@ -3563,14 +3571,14 @@ export const InvoiceForm = () => {
                 <table className="w-full text-sm text-right">
                   <thead className="bg-slate-100 text-slate-600">
                     <tr>
-                      <th className="p-3">الخامة / القماش</th>
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة / القماش'}</th>
                       <th className="p-3">كود التصميم</th>
                       <th className="p-3">عدد الألوان</th>
-                      <th className="p-3">عدد الرولات</th>
-                      <th className="p-3">إجمالي الأمتار</th>
-                      <th className="p-3">سعر المتر</th>
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'عدد الدفعات' : 'عدد الرولات'}</th>
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'إجمالي الوزن (كج)' : 'إجمالي الأمتار'}</th>
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'سعر الكيلو' : 'سعر المتر'}</th>
                       <th className="p-3">الإجمالي</th>
-                      <th className="p-3">إجمالي الوزن</th>
+                      {invoiceUnitMode !== 'kg' && <th className="p-3">إجمالي الوزن</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -3580,7 +3588,7 @@ export const InvoiceForm = () => {
                         <td className="p-3 font-mono text-xs">{group.designCode}</td>
                         <td className="p-3">{group.colorCount}</td>
                         <td className="p-3">{group.rollCount}</td>
-                        <td className="p-3 font-mono">{group.totalMeters.toFixed(2)}</td>
+                        <td className="p-3 font-mono">{(invoiceUnitMode === 'kg' ? group.totalKg : group.totalMeters).toFixed(2)}</td>
                         <td className="p-3">
                           {(() => {
                             const summaryPriceError =
@@ -3613,16 +3621,22 @@ export const InvoiceForm = () => {
                           })()}
                         </td>
                         <td className="p-3 font-mono font-bold text-indigo-700">{money(group.totalAmount, currency)}</td>
-                        <td className="p-3 font-mono">{group.totalKg.toFixed(2)}</td>
+                        {invoiceUnitMode !== 'kg' && <td className="p-3 font-mono">{group.totalKg.toFixed(2)}</td>}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <SummaryStat label="إجمالي الرولات" value={summary.totals.rollCount.toString()} />
-                <SummaryStat label="إجمالي الأمتار" value={summary.totals.totalMeters.toFixed(2)} />
-                <SummaryStat label="إجمالي الوزن" value={summary.totals.totalKg.toFixed(2)} />
+                <SummaryStat label={invoiceUnitMode === 'kg' ? 'إجمالي الدفعات' : 'إجمالي الرولات'} value={summary.totals.rollCount.toString()} />
+                {invoiceUnitMode === 'kg' ? (
+                  <SummaryStat label="إجمالي الوزن (كج)" value={summary.totals.totalKg.toFixed(2)} />
+                ) : (
+                  <>
+                    <SummaryStat label="إجمالي الأمتار" value={summary.totals.totalMeters.toFixed(2)} />
+                    <SummaryStat label="إجمالي الوزن" value={summary.totals.totalKg.toFixed(2)} />
+                  </>
+                )}
                 <SummaryStat label={`إجمالي ${currency}`} value={money(summary.totals.totalAmount, currency)} />
                 <SummaryStat label="عدد المجموعات" value={summary.totals.groupCount.toString()} />
               </div>
