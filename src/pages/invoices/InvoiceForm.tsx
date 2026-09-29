@@ -3332,14 +3332,15 @@ export const InvoiceForm = () => {
                 <tr className="bg-slate-50 text-slate-600 border border-slate-200">
                   <th className="p-3 font-bold w-12 text-center">#</th>
                   <th className="p-3 font-bold min-w-[160px]">الباركود</th>
-                  <th className="p-3 font-bold min-w-[220px]">{invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'}</th>
-                  <th className="p-3 font-bold min-w-[120px]">كود {invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'}</th>
+                  <th className="p-3 font-bold min-w-[220px]">{invoiceUnitMode === 'kg' ? 'نوع النمرة' : 'الخامة'}</th>
+                  <th className="p-3 font-bold min-w-[120px]">{invoiceUnitMode === 'kg' ? 'عدد الشوال' : 'كود الخامة'}</th>
                   <th className="p-3 font-bold min-w-[130px]">اللون</th>
-                  <th className="p-3 font-bold min-w-[120px]">كود اللون</th>
-                  <th className="p-3 font-bold w-24">{invoiceUnitMode === 'kg' ? 'الوزن (كج)' : 'المتر (م)'}</th>
+                  {invoiceUnitMode !== 'kg' && <th className="p-3 font-bold min-w-[120px]">كود اللون</th>}
+                  <th className="p-3 font-bold w-24">{invoiceUnitMode === 'kg' ? 'الكمية' : 'المتر (م)'}</th>
                   <th className="hidden p-3 font-bold w-24">العرض CM</th>
                   <th className="hidden p-3 font-bold w-20">GSM</th>
                   {invoiceUnitMode !== 'kg' && <th className="p-3 font-bold w-24">وزن KG</th>}
+                  {invoiceUnitMode === 'kg' && <th className="p-3 font-bold w-28">السعر</th>}
                   <th className="p-3 font-bold w-32">الإجمالي</th>
                   <th className="p-3 font-bold w-12 text-center"></th>
                 </tr>
@@ -3407,7 +3408,7 @@ export const InvoiceForm = () => {
                             type="text"
                             data-invoice-field-index={1}
                             autoComplete="off"
-                            placeholder={invoiceUnitMode === 'kg' ? 'اكتب اسم الخيط' : 'اكتب اسم الخامة'}
+                            placeholder={invoiceUnitMode === 'kg' ? 'نوع النمرة' : 'اكتب اسم الخامة'}
                             value={item.materialName}
                             onFocus={(e) => {
                               materialSuggestInputRef.current = e.currentTarget;
@@ -3522,12 +3523,27 @@ export const InvoiceForm = () => {
                       </td>
                       <td className="p-2"><input data-invoice-field-index={2} type="text" value={item.dsamNumber} onChange={(e) => updateItem(item.id, 'dsamNumber', e.target.value)} onBlur={() => warnIfDuplicateLine(item.id)} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} className={`${inputClass()} font-mono text-xs`} dir="ltr" /></td>
                       <td className="p-2"><input data-invoice-field-index={3} type="text" value={item.colorName} onChange={(e) => updateItem(item.id, 'colorName', e.target.value)} onBlur={() => warnIfDuplicateLine(item.id)} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} className={inputClass()} /></td>
-                      <td className="p-2"><input data-invoice-field-index={4} type="text" value={item.colorCode} onChange={(e) => updateItem(item.id, 'colorCode', e.target.value)} onBlur={() => warnIfDuplicateLine(item.id)} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} className={`${inputClass()} font-mono text-xs`} dir="ltr" placeholder="#000" /></td>
+                      {invoiceUnitMode !== 'kg' && (
+                        <td className="p-2"><input data-invoice-field-index={4} type="text" value={item.colorCode} onChange={(e) => updateItem(item.id, 'colorCode', e.target.value)} onBlur={() => warnIfDuplicateLine(item.id)} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} className={`${inputClass()} font-mono text-xs`} dir="ltr" placeholder="#000" /></td>
+                      )}
                       <td className="p-2"><input data-invoice-field-index={5} type="number" min="0.01" value={item.length} onChange={(e) => updateItem(item.id, 'length', e.target.value)} onBlur={(e) => { if (isSales) { void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, { field: 'length', lengthInput: e.currentTarget.value, toastOnSuccess: true, toastOnError: false }); } }} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} title={lengthError} className={inputClass(Boolean(lengthError))} /></td>
                       <td className="hidden p-2"><input type="number" min="0" value={item.widthCm} onChange={(e) => updateItem(item.id, 'widthCm', e.target.value)} className={inputClass()} /></td>
                       <td className="hidden p-2"><input type="number" min="0" value={item.gsm} onChange={(e) => updateItem(item.id, 'gsm', e.target.value)} className={inputClass()} /></td>
                       {invoiceUnitMode !== 'kg' && (
                         <td className="p-2"><input data-invoice-field-index={6} type="number" min="0" value={item.weight} onChange={(e) => updateItem(item.id, 'weight', e.target.value)} onBlur={(e) => { if (isSales) { void syncMissingRollPhysicalFromInvoiceLine(item, apiRolls, mergeRollIntoApiRolls, { field: 'weight', weightInput: e.currentTarget.value, toastOnSuccess: true, toastOnError: false }); } }} onKeyDown={(e) => handleInvoiceLineEnter(e, item)} title={weightError} className={inputClass(Boolean(weightError))} /></td>
+                      )}
+                      {invoiceUnitMode === 'kg' && (
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            min={isSales ? '0.01' : '0'}
+                            value={item.price}
+                            onChange={(e) => updateItem(item.id, 'price', e.target.value)}
+                            onKeyDown={(e) => handleInvoiceLineEnter(e, item)}
+                            title={getItemError(item, 'price')}
+                            className={inputClass(Boolean(getItemError(item, 'price')))}
+                          />
+                        </td>
                       )}
                       <td className="p-2 font-bold text-slate-700 bg-slate-50 text-center font-mono text-xs">{(numberValue(item.length) * numberValue(item.price)).toFixed(2)}</td>
                       <td className="hidden p-2"><input type="text" value={item.rollNo} onChange={(e) => updateItem(item.id, 'rollNo', e.target.value)} className={`${inputClass()} font-mono text-xs`} dir="ltr" /></td>
