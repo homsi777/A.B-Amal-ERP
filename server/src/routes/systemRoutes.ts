@@ -25,6 +25,7 @@ const userBody = z.object({
   password: z.string().min(6).optional(),
   role: z.string().min(1).default('viewer'),
   isActive: z.boolean().default(true),
+  notes: z.string().optional().default(''),
   // يُقبَل فقط من مدير المنصة (isPlatformAdmin) — غير ذلك يُتجاهَل ويُستخدم
   // company_id المستخدم المُنشئ نفسه دائماً، كما كان الحال قبل هذا الحقل.
   companyId: z.string().uuid().optional(),
@@ -332,10 +333,14 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     }
 
+    const q = req.query as { companyId?: string };
+    // لمدير المنصة فقط: عرض مستخدمي حساب آخر (فرع) دون تبديل الجلسة النشطة فعلياً.
+    const targetCompanyId = requirePlatformAdmin(req.user) && q.companyId ? q.companyId : companyId;
+
     const rows = await getPool().query(
-      `SELECT id, username, full_name, role, is_active, created_at, updated_at
+      `SELECT id, username, full_name, role, is_active, notes, created_at, updated_at
        FROM users WHERE company_id=$1 ORDER BY created_at DESC`,
-      [companyId],
+      [targetCompanyId],
     );
     return reply.send({ ok: true, data: rows.rows });
   });
@@ -355,9 +360,9 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
     const passwordHash = await bcrypt.hash(parsed.data.password, 12);
     try {
       const row = await getPool().query(
-        `INSERT INTO users(company_id, username, full_name, password_hash, role, is_active)
-         VALUES($1,$2,$3,$4,$5,$6)
-         RETURNING id, username, full_name, role, is_active, created_at`,
+        `INSERT INTO users(company_id, username, full_name, password_hash, role, is_active, notes)
+         VALUES($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id, username, full_name, role, is_active, notes, created_at`,
         [
           targetCompanyId,
           parsed.data.username.trim(),
@@ -365,6 +370,7 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
           passwordHash,
           parsed.data.role,
           parsed.data.isActive,
+          parsed.data.notes || null,
         ],
       );
       return reply.status(201).send({ ok: true, data: row.rows[0] });
@@ -390,6 +396,9 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
     const parsed = userBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
 
+    // مدير المنصة يقدر يعدّل مستخدماً بأي فرع (يعرضه أصلاً عبر ?companyId=)،
+    // غيره مقيَّد بحسابه فقط — نفس حد الأمان المتبع بباقي المسارات.
+    const isPlatformAdmin = requirePlatformAdmin(req.user);
     const passwordHash = parsed.data.password ? await bcrypt.hash(parsed.data.password, 12) : null;
     const row = await getPool().query(
       `UPDATE users
@@ -398,9 +407,10 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
            role=$5,
            is_active=$6,
            password_hash=COALESCE($7, password_hash),
+           notes=$8,
            updated_at=now()
-       WHERE id=$1 AND company_id=$2
-       RETURNING id, username, full_name, role, is_active, updated_at`,
+       WHERE id=$1 AND ($9 OR company_id=$2)
+       RETURNING id, username, full_name, role, is_active, notes, updated_at`,
       [
         id,
         companyId,
@@ -409,6 +419,8 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
         parsed.data.role,
         parsed.data.isActive,
         passwordHash,
+        parsed.data.notes || null,
+        isPlatformAdmin,
       ],
     );
 

@@ -132,9 +132,12 @@ export const SystemSettings = () => {
     password: '',
     role: 'viewer',
     isActive: true,
-    companyId: '',
+    notes: '',
   });
   const [companies, setCompanies] = useState<ApiCompany[]>([]);
+  /** الفرع المختار أعلى قسم "المستخدمين والصلاحيات" — يتحكم بكل من عرض القائمة وإنشاء مستخدم جديد. لمدير المنصة فقط؛ لغيره يبقى حساب المستخدم نفسه دائماً. */
+  const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [usersLoading, setUsersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState<ApiUser | null>(null);
   const [editUserForm, setEditUserForm] = useState({
     username: '',
@@ -142,6 +145,7 @@ export const SystemSettings = () => {
     password: '',
     role: 'viewer',
     isActive: true,
+    notes: '',
   });
   const [editUserSaving, setEditUserSaving] = useState(false);
   const [editUserError, setEditUserError] = useState('');
@@ -207,7 +211,10 @@ export const SystemSettings = () => {
     let cancelled = false;
     void fetchMe()
       .then((user) => {
-        if (!cancelled) setCurrentUser(user);
+        if (!cancelled) {
+          setCurrentUser(user);
+          setSelectedBranchId((prev) => prev || user.companyId);
+        }
       })
       .catch(() => {
         if (!cancelled) setCurrentUser(null);
@@ -319,11 +326,28 @@ export const SystemSettings = () => {
 
   const ringCls = 'focus:outline-none focus:ring-2 focus:ring-[var(--ui-accent)]';
 
+  const loadUsers = async (branchId?: string) => {
+    setUsersLoading(true);
+    try {
+      const usersRows = await listSystemUsers(branchId || undefined);
+      setUsers(usersRows);
+    } catch {
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedBranchId) return;
+    void loadUsers(currentUser?.isPlatformAdmin ? selectedBranchId : undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBranchId, currentUser?.isPlatformAdmin]);
+
   const loadSystemAdministration = async () => {
     try {
-      const [savedSettings, usersRows, permissionsOverview] = await Promise.all([
+      const [savedSettings, permissionsOverview] = await Promise.all([
         getSystemSettings().catch(() => ({})),
-        listSystemUsers().catch(() => []),
         getPermissionsOverview().catch(() => ({ roles: [], permissions: [], rolePermissions: [] })),
       ]);
 
@@ -333,7 +357,6 @@ export const SystemSettings = () => {
           Object.entries(savedSettings).filter(([key]) => key in current),
         ) as typeof defaultSettings,
       }));
-      setUsers(usersRows);
       setRoles(permissionsOverview.roles);
       setPermissions(permissionsOverview.permissions);
       setRolePermissions(permissionsOverview.rolePermissions);
@@ -399,10 +422,10 @@ export const SystemSettings = () => {
     try {
       const created = await createSystemUser({
         ...userForm,
-        companyId: currentUser?.isPlatformAdmin && userForm.companyId ? userForm.companyId : undefined,
+        companyId: currentUser?.isPlatformAdmin && selectedBranchId ? selectedBranchId : undefined,
       });
       setUsers((current) => [created, ...current]);
-      setUserForm({ username: '', fullName: '', password: '', role: userForm.role, isActive: true, companyId: '' });
+      setUserForm({ username: '', fullName: '', password: '', role: userForm.role, isActive: true, notes: '' });
       showToast({ message: 'تم إضافة المستخدم.', type: 'success' });
     } catch (error) {
       showToast({
@@ -420,6 +443,7 @@ export const SystemSettings = () => {
       password: '',
       role: user.role,
       isActive: user.is_active,
+      notes: user.notes || '',
     });
     setEditUserError('');
   };
@@ -439,6 +463,7 @@ export const SystemSettings = () => {
         fullName: editUserForm.fullName.trim(),
         role: editUserForm.role,
         isActive: editUserForm.isActive,
+        notes: editUserForm.notes.trim(),
         ...(editUserForm.password.trim() ? { password: editUserForm.password } : {}),
       });
       setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
@@ -827,11 +852,40 @@ export const SystemSettings = () => {
                   <h3 className="text-xl font-bold text-[var(--text-heading)]">المستخدمين والصلاحيات</h3>
                   <p className="text-sm text-[var(--text-muted)] mt-1">إنشاء مستخدمين وربطهم بأدوار وصلاحيات محفوظة في قاعدة البيانات.</p>
                 </div>
-                <button type="button" onClick={loadSystemAdministration} className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition text-sm font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadSystemAdministration();
+                    void loadUsers(currentUser?.isPlatformAdmin ? selectedBranchId : undefined);
+                  }}
+                  className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition text-sm font-bold"
+                >
                   <RefreshCw className="w-4 h-4" />
                   تحديث
                 </button>
               </div>
+
+              {currentUser?.isPlatformAdmin && companies.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[var(--text-heading)]">الفرع</label>
+                  <div className="inline-flex flex-wrap gap-2 p-1 bg-[var(--surface-muted-nav)] rounded-xl border border-[var(--border-default)]">
+                    {companies.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedBranchId(c.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
+                          selectedBranchId === c.id
+                            ? 'bg-[var(--ui-accent)] text-white shadow-sm'
+                            : 'text-[var(--text-heading)] hover:bg-[var(--surface-header)]'
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {currentUser?.isPlatformAdmin && (
                 <CompanyManagementPanel onCompaniesChanged={(rows) => setCompanies(rows)} />
@@ -839,34 +893,59 @@ export const SystemSettings = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-1 border border-[var(--border-default)] rounded-xl p-4 space-y-3">
-                  <div className="flex items-center gap-2 font-bold text-[var(--text-heading)]"><UserPlus className="w-5 h-5 text-[var(--ui-accent)]" /> مستخدم جديد</div>
-                  <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="اسم المستخدم" value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} />
-                  <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="الاسم الكامل" value={userForm.fullName} onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })} />
-                  <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="كلمة المرور" type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} />
-                  <select className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                    {(roles.length ? roles : [{ code: 'viewer', name: 'مشاهد' } as ApiRole]).map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
-                  </select>
-                  {currentUser?.isPlatformAdmin && (
-                    <select
-                      className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
-                      value={userForm.companyId}
-                      onChange={(e) => setUserForm({ ...userForm, companyId: e.target.value })}
-                    >
-                      <option value="">— الحساب الحالي —</option>
-                      {companies.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-                      ))}
+                  <div className="flex items-center gap-2 font-bold text-[var(--text-heading)]">
+                    <UserPlus className="w-5 h-5 text-[var(--ui-accent)]" /> مستخدم جديد
+                    {currentUser?.isPlatformAdmin && companies.length > 0 && (
+                      <span className="text-xs font-normal text-[var(--text-muted)]">
+                        — {companies.find((c) => c.id === selectedBranchId)?.name ?? ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--text-muted)]">الاسم الكامل</label>
+                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="الاسم الكامل" value={userForm.fullName} onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--text-muted)]">اسم المستخدم</label>
+                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="اسم المستخدم" value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--text-muted)]">كلمة المرور</label>
+                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="كلمة المرور" type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--text-muted)]">دور هذا الحساب</label>
+                    <select className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                      {(roles.length ? roles : [{ code: 'viewer', name: 'مشاهد' } as ApiRole]).map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
                     </select>
-                  )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--text-muted)]">ملاحظات (اختياري)</label>
+                    <textarea
+                      className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg resize-none ${ringCls}`}
+                      rows={2}
+                      placeholder="ملاحظات إن وجدت"
+                      value={userForm.notes}
+                      onChange={(e) => setUserForm({ ...userForm, notes: e.target.value })}
+                    />
+                  </div>
                   <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-heading)]">
                     <input type="checkbox" checked={userForm.isActive} onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })} className="accent-[var(--ui-accent)]" />
                     الحساب فعال
                   </label>
-                  <button type="button" onClick={handleCreateUser} className="w-full bg-[var(--ui-accent)] text-white px-4 py-2 rounded-lg font-bold hover:opacity-95 transition">إضافة المستخدم</button>
+                  <button type="button" onClick={handleCreateUser} className="w-full bg-[var(--ui-accent)] text-white px-4 py-2 rounded-lg font-bold hover:opacity-95 transition">حفظ</button>
                 </div>
 
                 <div className="lg:col-span-2 border border-[var(--border-default)] rounded-xl overflow-hidden">
-                  <div className="p-4 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] flex items-center gap-2 font-bold text-[var(--text-heading)]"><Users className="w-5 h-5 text-[var(--ui-accent)]" /> المستخدمون الحاليون</div>
+                  <div className="p-4 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] flex items-center gap-2 font-bold text-[var(--text-heading)]">
+                    <Users className="w-5 h-5 text-[var(--ui-accent)]" /> المستخدمون الحاليون
+                    {currentUser?.isPlatformAdmin && companies.length > 0 && (
+                      <span className="text-xs font-normal text-[var(--text-muted)]">
+                        — {companies.find((c) => c.id === selectedBranchId)?.name ?? ''}
+                      </span>
+                    )}
+                    {usersLoading && <RefreshCw className="w-4 h-4 animate-spin text-[var(--text-muted)]" />}
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
@@ -1259,6 +1338,13 @@ export const SystemSettings = () => {
                   <option key={role.code} value={role.code}>{role.name}</option>
                 ))}
               </select>
+              <textarea
+                className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg resize-none ${ringCls}`}
+                rows={2}
+                placeholder="ملاحظات إن وجدت"
+                value={editUserForm.notes}
+                onChange={(e) => setEditUserForm({ ...editUserForm, notes: e.target.value })}
+              />
               <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-heading)]">
                 <input
                   type="checkbox"

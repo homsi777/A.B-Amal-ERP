@@ -26,6 +26,7 @@ export interface ApiUser {
   full_name: string | null;
   role: string;
   is_active: boolean;
+  notes?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -99,8 +100,9 @@ export async function saveRolePermissions(
   });
 }
 
-export async function listSystemUsers(): Promise<ApiUser[]> {
-  const res = await apiFetch<{ ok: boolean; data: ApiUser[] }>('/api/system/users');
+export async function listSystemUsers(companyId?: string): Promise<ApiUser[]> {
+  const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  const res = await apiFetch<{ ok: boolean; data: ApiUser[] }>(`/api/system/users${qs}`);
   return res.data;
 }
 
@@ -110,6 +112,7 @@ export async function createSystemUser(payload: {
   password: string;
   role: string;
   isActive: boolean;
+  notes?: string;
   /** لمدير المنصة فقط: تحديد الحساب الذي يتبع له المستخدم الجديد. */
   companyId?: string;
 }): Promise<ApiUser> {
@@ -122,7 +125,7 @@ export async function createSystemUser(payload: {
 
 export async function updateSystemUser(
   id: string,
-  payload: { username: string; fullName: string; password?: string; role: string; isActive: boolean },
+  payload: { username: string; fullName: string; password?: string; role: string; isActive: boolean; notes?: string },
 ): Promise<ApiUser> {
   const res = await apiFetch<{ ok: boolean; data: ApiUser }>(`/api/system/users/${id}`, {
     method: 'PUT',
