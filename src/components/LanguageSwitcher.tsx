@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import {
   applyDocumentLanguage,
   LANGUAGE_STORAGE_KEY,
+  markManualLanguageOverride,
   type AppLanguage,
 } from '../i18n/constants';
 
@@ -105,6 +106,7 @@ export function LanguageSwitcher({ variant = 'default' }: LanguageSwitcherProps)
     }
     await i18n.changeLanguage(language);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    markManualLanguageOverride();
     applyDocumentLanguage(language);
     closeMenu();
   };

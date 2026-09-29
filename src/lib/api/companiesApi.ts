@@ -5,6 +5,7 @@ export type ApiCompany = {
   code: string;
   name: string;
   base_currency_code: string;
+  default_language: 'ar' | 'tr';
   is_active: boolean;
   created_at: string;
 };
@@ -18,6 +19,7 @@ export async function createCompany(payload: {
   code: string;
   name: string;
   baseCurrencyCode?: string;
+  defaultLanguage?: 'ar' | 'tr';
   adminUsername: string;
   adminPassword: string;
   adminFullName?: string;
@@ -31,7 +33,7 @@ export async function createCompany(payload: {
 
 export async function updateCompany(
   id: string,
-  payload: { name?: string; code?: string; isActive?: boolean },
+  payload: { name?: string; code?: string; isActive?: boolean; defaultLanguage?: 'ar' | 'tr' },
 ): Promise<ApiCompany> {
   const res = await apiFetch<{ ok: boolean; data: ApiCompany }>(`/api/companies/${id}`, {
     method: 'PUT',

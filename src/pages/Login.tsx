@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { loginApi, listPublicCompanies, type PublicCompanyOption } from '../lib/api/authApi';
+import { applyCompanyDefaultLanguage } from '../i18n/applyCompanyLanguage';
 import { ApiRequestError } from '../lib/api/client';
 import { BackendConnectionBadge } from '../components/BackendConnectionBadge';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
@@ -110,7 +111,8 @@ export const Login = () => {
     setError('');
     setLoading(true);
     try {
-      await loginApi(username, password, selectedCompanyId || undefined);
+      const { user } = await loginApi(username, password, selectedCompanyId || undefined);
+      void applyCompanyDefaultLanguage(user.companyDefaultLanguage);
       const requestedRedirect = searchParams.get('redirect') ?? '';
       const safeRedirect =
         requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//')

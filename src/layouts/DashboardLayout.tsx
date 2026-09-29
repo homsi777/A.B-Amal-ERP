@@ -38,6 +38,8 @@ import { CompanySwitcher } from '../components/companies/CompanySwitcher';
 import { ActiveCompanyBanner } from '../components/companies/ActiveCompanyBanner';
 import { BRAND } from '../branding';
 import { useAnchoredPopoverStyle } from '../lib/useAnchoredPopoverStyle';
+import { fetchMe } from '../lib/api/authApi';
+import { applyCompanyDefaultLanguage } from '../i18n/applyCompanyLanguage';
 
 /** أيام حتى موعد التوريد المتوقع (تاريخ محلي) */
 function daysUntilSupply(expectedDate: string): number {
@@ -538,6 +540,23 @@ const Topbar = () => {
 export const DashboardLayout = () => {
   const location = useLocation();
   const isReports = location.pathname === '/reports' || location.pathname.startsWith('/reports/');
+
+  // عند فتح التطبيق أو تحديث الصفحة (جلسة مستمرة، بدون تسجيل دخول جديد)،
+  // اضبطي لغة الواجهة حسب لغة الفرع الحالي — ما لم يكن المستخدم قد بدّل
+  // اللغة يدوياً من قبل، فحينها لا نُعيد الكتابة فوق اختياره.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMe()
+      .then((user) => {
+        if (!cancelled) void applyCompanyDefaultLanguage(user.companyDefaultLanguage);
+      })
+      .catch(() => {
+        /* غير مسجّل دخول أو فشل الطلب — لا حاجة لأي إجراء هنا */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const mainClass = isReports
     ? 'flex-1 p-0 overflow-y-auto w-full max-w-none'
     : 'flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto w-full max-w-[1600px] mx-auto';

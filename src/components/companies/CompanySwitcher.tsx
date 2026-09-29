@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Globe2, Loader2 } from 'lucide-react';
 import { fetchMe, switchCompanyApi } from '../../lib/api/authApi';
 import { listCompanies, type ApiCompany } from '../../lib/api/companiesApi';
+import { applyCompanyDefaultLanguage } from '../../i18n/applyCompanyLanguage';
 
 /**
  * يظهر فقط لمدير المنصة (isPlatformAdmin) — يسمح له بمشاهدة/العمل ضمن أي
@@ -39,7 +40,8 @@ export function CompanySwitcher() {
     if (!companyId || companyId === currentCompanyId) return;
     setSwitching(true);
     try {
-      await switchCompanyApi(companyId);
+      const user = await switchCompanyApi(companyId);
+      await applyCompanyDefaultLanguage(user.companyDefaultLanguage);
       window.location.reload();
     } catch {
       setSwitching(false);

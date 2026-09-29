@@ -26,6 +26,8 @@ export type NewCompanyInput = {
   code: string;
   name: string;
   baseCurrencyCode?: string;
+  /** لغة الواجهة الافتراضية لهذا الفرع (سوريا=ar، تركيا=tr) — تُطبَّق تلقائياً عند الدخول ما لم يبدّل المستخدم يدوياً. */
+  defaultLanguage?: 'ar' | 'tr';
 };
 
 export type NewCompanyAdminInput = {
@@ -39,6 +41,7 @@ export type ProvisionedCompany = {
   code: string;
   name: string;
   base_currency_code: string;
+  default_language: 'ar' | 'tr';
   is_active: boolean;
   created_at: string;
 };
@@ -62,10 +65,15 @@ export async function provisionCompany(
     let companyRow;
     try {
       companyRow = await client.query<ProvisionedCompany>(
-        `INSERT INTO companies (code, name, base_currency_code)
-         VALUES ($1, $2, $3)
-         RETURNING id, code, name, base_currency_code, is_active, created_at`,
-        [company.code.trim(), company.name.trim(), company.baseCurrencyCode?.trim() || 'USD'],
+        `INSERT INTO companies (code, name, base_currency_code, default_language)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, code, name, base_currency_code, default_language, is_active, created_at`,
+        [
+          company.code.trim(),
+          company.name.trim(),
+          company.baseCurrencyCode?.trim() || 'USD',
+          company.defaultLanguage === 'tr' ? 'tr' : 'ar',
+        ],
       );
     } catch (e: unknown) {
       if ((e as { code?: string }).code === '23505') {
@@ -126,7 +134,7 @@ export async function provisionCompany(
 
 export async function updateCompany(
   companyId: string,
-  patch: { name?: string; code?: string; isActive?: boolean },
+  patch: { name?: string; code?: string; isActive?: boolean; defaultLanguage?: 'ar' | 'tr' },
   actor: ProvisioningActor,
 ): Promise<ProvisionedCompany> {
   const pool = getPool();
@@ -136,10 +144,17 @@ export async function updateCompany(
        SET name = COALESCE($2, name),
            code = COALESCE($3, code),
            is_active = COALESCE($4, is_active),
+           default_language = COALESCE($5, default_language),
            updated_at = now()
        WHERE id = $1
-       RETURNING id, code, name, base_currency_code, is_active, created_at`,
-      [companyId, patch.name?.trim() || null, patch.code?.trim() || null, patch.isActive ?? null],
+       RETURNING id, code, name, base_currency_code, default_language, is_active, created_at`,
+      [
+        companyId,
+        patch.name?.trim() || null,
+        patch.code?.trim() || null,
+        patch.isActive ?? null,
+        patch.defaultLanguage ?? null,
+      ],
     );
     if (!row.rows.length) {
       throw new CompanyProvisioningError('الحساب غير موجود', 404, 'NOT_FOUND');
@@ -166,7 +181,7 @@ export async function updateCompany(
 
 export async function listCompanies(): Promise<ProvisionedCompany[]> {
   const res = await getPool().query<ProvisionedCompany>(
-    `SELECT id, code, name, base_currency_code, is_active, created_at
+    `SELECT id, code, name, base_currency_code, default_language, is_active, created_at
      FROM companies ORDER BY created_at ASC`,
   );
   return res.rows;

@@ -131,8 +131,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       fullName: user.full_name,
     });
 
-    const companyRow = await pool.query<{ code: string; name: string }>(
-      `SELECT code, name FROM companies WHERE id = $1`,
+    const companyRow = await pool.query<{ code: string; name: string; default_language: string }>(
+      `SELECT code, name, default_language FROM companies WHERE id = $1`,
       [user.company_id],
     );
 
@@ -146,6 +146,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         companyId: user.company_id,
         companyCode: companyRow.rows[0]?.code ?? '',
         companyName: companyRow.rows[0]?.name ?? '',
+        companyDefaultLanguage: companyRow.rows[0]?.default_language === 'tr' ? 'tr' : 'ar',
         homeCompanyId: user.company_id,
         role: user.role,
         permissions,
@@ -200,8 +201,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 401, ArabicErrors.unauthorized, 'UNAUTHORIZED');
     }
 
-    const companyRow = await pool.query<{ code: string; name: string; is_active: boolean }>(
-      `SELECT code, name, is_active FROM companies WHERE id = $1`,
+    const companyRow = await pool.query<{ code: string; name: string; default_language: string; is_active: boolean }>(
+      `SELECT code, name, default_language, is_active FROM companies WHERE id = $1`,
       [activeCompanyId],
     );
     if (companyRow.rows.length === 0 || !companyRow.rows[0].is_active) {
@@ -219,6 +220,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         companyId: activeCompanyId,
         companyCode: companyRow.rows[0].code,
         companyName: companyRow.rows[0].name,
+        companyDefaultLanguage: companyRow.rows[0].default_language === 'tr' ? 'tr' : 'ar',
         homeCompanyId: user.company_id,
         role: user.role,
         permissions,
@@ -257,8 +259,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const parsed = switchCompanyBodySchema.safeParse(request.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
 
-    const companyRow = await pool.query<{ id: string; code: string; name: string; is_active: boolean }>(
-      'SELECT id, code, name, is_active FROM companies WHERE id = $1',
+    const companyRow = await pool.query<{ id: string; code: string; name: string; default_language: string; is_active: boolean }>(
+      'SELECT id, code, name, default_language, is_active FROM companies WHERE id = $1',
       [parsed.data.companyId],
     );
     if (companyRow.rows.length === 0) {
@@ -308,6 +310,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         companyId: companyRow.rows[0].id,
         companyCode: companyRow.rows[0].code,
         companyName: companyRow.rows[0].name,
+        companyDefaultLanguage: companyRow.rows[0].default_language === 'tr' ? 'tr' : 'ar',
         homeCompanyId: user.company_id,
         role: user.role,
         permissions,

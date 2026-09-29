@@ -8,6 +8,8 @@ export type AuthUser = {
   companyId: string;
   companyCode: string;
   companyName: string;
+  /** لغة الواجهة الافتراضية للفرع الحالي (سوريا=ar، تركيا=tr) — تُطبَّق تلقائياً ما لم يبدّل المستخدم يدوياً. */
+  companyDefaultLanguage: 'ar' | 'tr';
   /** حساب المستخدم الأصلي في قاعدة البيانات — لا يتغيّر بتبديل الحساب. */
   homeCompanyId: string;
   role: string;

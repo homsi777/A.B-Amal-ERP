@@ -11,6 +11,7 @@ type CompanyManagementPanelProps = {
 const emptyForm = {
   code: '',
   name: '',
+  defaultLanguage: 'ar' as 'ar' | 'tr',
   adminUsername: '',
   adminPassword: '',
   adminFullName: '',
@@ -24,7 +25,7 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
   const [form, setForm] = useState(emptyForm);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingCompany, setEditingCompany] = useState<ApiCompany | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', code: '', isActive: true });
+  const [editForm, setEditForm] = useState({ name: '', code: '', isActive: true, defaultLanguage: 'ar' as 'ar' | 'tr' });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -58,6 +59,7 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
       await createCompany({
         code: form.code.trim(),
         name: form.name.trim(),
+        defaultLanguage: form.defaultLanguage,
         adminUsername: form.adminUsername.trim(),
         adminPassword: form.adminPassword,
         adminFullName: form.adminFullName.trim() || undefined,
@@ -75,7 +77,7 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
 
   const openEdit = (company: ApiCompany) => {
     setEditingCompany(company);
-    setEditForm({ name: company.name, code: company.code, isActive: company.is_active });
+    setEditForm({ name: company.name, code: company.code, isActive: company.is_active, defaultLanguage: company.default_language });
     setEditError('');
   };
 
@@ -93,6 +95,7 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
         name: editForm.name.trim(),
         code: editForm.code.trim(),
         isActive: editForm.isActive,
+        defaultLanguage: editForm.defaultLanguage,
       });
       closeEdit();
       await load();
@@ -159,6 +162,17 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-[var(--text-muted)]">لغة الواجهة الافتراضية لهذا الفرع</label>
+            <select
+              className="w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg"
+              value={form.defaultLanguage}
+              onChange={(e) => setForm({ ...form, defaultLanguage: e.target.value === 'tr' ? 'tr' : 'ar' })}
+            >
+              <option value="ar">العربية</option>
+              <option value="tr">Türkçe</option>
+            </select>
+          </div>
           <div className="pt-2 border-t border-[var(--border-subtle)] text-xs font-bold text-[var(--text-muted)]">
             أول مدير لهذا الحساب
           </div>
@@ -267,6 +281,17 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
                   value={editForm.code}
                   onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[var(--text-muted)]">لغة الواجهة الافتراضية</label>
+                <select
+                  className="w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg"
+                  value={editForm.defaultLanguage}
+                  onChange={(e) => setEditForm({ ...editForm, defaultLanguage: e.target.value === 'tr' ? 'tr' : 'ar' })}
+                >
+                  <option value="ar">العربية</option>
+                  <option value="tr">Türkçe</option>
+                </select>
               </div>
               <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-heading)]">
                 <input
