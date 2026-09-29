@@ -9,6 +9,7 @@ import {
   listActiveCompaniesPublic,
   listCompanies,
   provisionCompany,
+  updateCompany,
 } from '../services/companyProvisioningService.js';
 
 const createCompanyBody = z.object({
@@ -18,6 +19,12 @@ const createCompanyBody = z.object({
   adminUsername: z.string().trim().min(2),
   adminPassword: z.string().min(6),
   adminFullName: z.string().trim().optional(),
+});
+
+const updateCompanyBody = z.object({
+  name: z.string().trim().min(2).optional(),
+  code: z.string().trim().min(2).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const companyRoutes: FastifyPluginAsync = async (app) => {
@@ -58,6 +65,27 @@ export const companyRoutes: FastifyPluginAsync = async (app) => {
         },
       );
       return reply.status(201).send({ ok: true, data: company });
+    } catch (error) {
+      if (error instanceof CompanyProvisioningError) {
+        return sendError(reply, error.statusCode, error.message, error.code);
+      }
+      throw error;
+    }
+  });
+
+  app.put('/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePlatformAdmin(req.user)) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { id } = req.params as { id: string };
+    const parsed = updateCompanyBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+
+    try {
+      const company = await updateCompany(id, parsed.data, {
+        userId: req.user!.sub,
+        ip: clientIp(req),
+        userAgent: String(req.headers['user-agent'] || '—'),
+      });
+      return reply.send({ ok: true, data: company });
     } catch (error) {
       if (error instanceof CompanyProvisioningError) {
         return sendError(reply, error.statusCode, error.message, error.code);

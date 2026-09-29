@@ -124,6 +124,46 @@ export async function provisionCompany(
   }
 }
 
+export async function updateCompany(
+  companyId: string,
+  patch: { name?: string; code?: string; isActive?: boolean },
+  actor: ProvisioningActor,
+): Promise<ProvisionedCompany> {
+  const pool = getPool();
+  try {
+    const row = await pool.query<ProvisionedCompany>(
+      `UPDATE companies
+       SET name = COALESCE($2, name),
+           code = COALESCE($3, code),
+           is_active = COALESCE($4, is_active),
+           updated_at = now()
+       WHERE id = $1
+       RETURNING id, code, name, base_currency_code, is_active, created_at`,
+      [companyId, patch.name?.trim() || null, patch.code?.trim() || null, patch.isActive ?? null],
+    );
+    if (!row.rows.length) {
+      throw new CompanyProvisioningError('الحساب غير موجود', 404, 'NOT_FOUND');
+    }
+
+    await logPlatformAction(pool, {
+      actorUserId: actor.userId,
+      action: 'UPDATE_COMPANY',
+      fromCompanyId: null,
+      toCompanyId: companyId,
+      ip: actor.ip,
+      userAgent: actor.userAgent,
+      details: patch,
+    });
+
+    return row.rows[0];
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code === '23505') {
+      throw new CompanyProvisioningError('كود الحساب مستخدم مسبقاً', 409, 'COMPANY_CODE_DUPLICATE');
+    }
+    throw e;
+  }
+}
+
 export async function listCompanies(): Promise<ProvisionedCompany[]> {
   const res = await getPool().query<ProvisionedCompany>(
     `SELECT id, code, name, base_currency_code, is_active, created_at

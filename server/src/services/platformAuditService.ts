@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 
-export type PlatformAuditAction = 'SWITCH_COMPANY' | 'CREATE_COMPANY' | 'CREATE_USER_IN_OTHER_COMPANY';
+export type PlatformAuditAction = 'SWITCH_COMPANY' | 'CREATE_COMPANY' | 'UPDATE_COMPANY' | 'CREATE_USER_IN_OTHER_COMPANY';
 
 export type PlatformAuditEntry = {
   actorUserId: string;

@@ -28,3 +28,14 @@ export async function createCompany(payload: {
   });
   return res.data;
 }
+
+export async function updateCompany(
+  id: string,
+  payload: { name?: string; code?: string; isActive?: boolean },
+): Promise<ApiCompany> {
+  const res = await apiFetch<{ ok: boolean; data: ApiCompany }>(`/api/companies/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return res.data;
+}

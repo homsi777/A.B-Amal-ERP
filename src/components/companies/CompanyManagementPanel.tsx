@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, Loader2, Plus, RefreshCw } from 'lucide-react';
-import { createCompany, listCompanies, type ApiCompany } from '../../lib/api/companiesApi';
+import { Building2, Loader2, Pencil, Plus, RefreshCw, Save, X } from 'lucide-react';
+import { createCompany, listCompanies, updateCompany, type ApiCompany } from '../../lib/api/companiesApi';
 import { ApiRequestError } from '../../lib/api/client';
 
 type CompanyManagementPanelProps = {
@@ -23,6 +23,10 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
   const [message, setMessage] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<ApiCompany | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', code: '', isActive: true });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +70,36 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
       setMessage(error instanceof ApiRequestError ? error.message : 'تعذر إنشاء الحساب.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const openEdit = (company: ApiCompany) => {
+    setEditingCompany(company);
+    setEditForm({ name: company.name, code: company.code, isActive: company.is_active });
+    setEditError('');
+  };
+
+  const closeEdit = () => {
+    setEditingCompany(null);
+    setEditError('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCompany || !editForm.name.trim() || !editForm.code.trim()) return;
+    setEditSaving(true);
+    setEditError('');
+    try {
+      await updateCompany(editingCompany.id, {
+        name: editForm.name.trim(),
+        code: editForm.code.trim(),
+        isActive: editForm.isActive,
+      });
+      closeEdit();
+      await load();
+    } catch (error) {
+      setEditError(error instanceof ApiRequestError ? error.message : 'تعذر حفظ التعديل.');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -170,6 +204,7 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
                 <th className="p-3 text-right">الكود</th>
                 <th className="p-3 text-right">العملة الأساسية</th>
                 <th className="p-3 text-right">الحالة</th>
+                <th className="p-3 text-right w-24">إجراء</th>
               </tr>
             </thead>
             <tbody>
@@ -183,18 +218,89 @@ export function CompanyManagementPanel({ onCompaniesChanged }: CompanyManagement
                       {c.is_active ? 'فعال' : 'موقوف'}
                     </span>
                   </td>
+                  <td className="p-3">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(c)}
+                      className="inline-flex items-center gap-1.5 text-[var(--ui-accent)] hover:opacity-80 text-xs font-bold"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      تعديل
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!loading && companies.length === 0 && (
-                <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">لا توجد حسابات.</td></tr>
+                <tr><td colSpan={5} className="p-6 text-center text-[var(--text-muted)]">لا توجد حسابات.</td></tr>
               )}
               {loading && (
-                <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">جاري التحميل...</td></tr>
+                <tr><td colSpan={5} className="p-6 text-center text-[var(--text-muted)]">جاري التحميل...</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {editingCompany && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border-default)] p-5">
+              <h3 className="text-lg font-bold text-[var(--text-heading)]">تعديل الفرع</h3>
+              <button type="button" onClick={closeEdit} className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3 p-5">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[var(--text-muted)]">اسم الفرع</label>
+                <input
+                  className="w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[var(--text-muted)]">الكود</label>
+                <input
+                  className="w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg font-mono"
+                  dir="ltr"
+                  value={editForm.code}
+                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-heading)]">
+                <input
+                  type="checkbox"
+                  checked={editForm.isActive}
+                  onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                  className="accent-[var(--ui-accent)]"
+                />
+                الحساب فعال
+              </label>
+              {editError && <p className="text-sm font-bold text-rose-600">{editError}</p>}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[var(--border-default)] p-5">
+              <button
+                type="button"
+                onClick={closeEdit}
+                disabled={editSaving}
+                className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm font-bold text-[var(--text-heading)] hover:bg-[var(--surface-muted-nav)] disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={editSaving || !editForm.name.trim() || !editForm.code.trim()}
+                className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-bold text-white hover:opacity-95 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {editSaving ? 'جاري الحفظ...' : 'حفظ'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
