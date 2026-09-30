@@ -66,6 +66,7 @@ import {
 } from '../../lib/invoiceLineDuplicateIdentity';
 import type { Invoice } from '../../types';
 import { resolveDisplayMaterialCode } from '../../lib/importDisplay';
+import { useTranslation } from 'react-i18next';
 
 function stockDisplayMaterialCode(stock: Record<string, unknown>): string {
   return resolveDisplayMaterialCode({
@@ -534,6 +535,7 @@ function playWarningBeep() {
 }
 
 export const InvoiceForm = () => {
+  const { t } = useTranslation('invoices');
   const navigate = useNavigate();
   const location = useLocation();
   const { id: routeInvoiceId } = useParams<{ id: string }>();
@@ -650,7 +652,7 @@ export const InvoiceForm = () => {
                 .filter((b) => b.reason.trim())
                 .map((b) => (b.barcode ? `${b.barcode}: ${b.reason}` : b.reason))
                 .join(' · ');
-              setSalesEditBlockReason(blockText || 'حدثت حركة مخزون أو مرتجع مرتبط بهذه الفاتورة');
+              setSalesEditBlockReason(blockText || t('page.editBlockReasonSalesFallback'));
               return;
             }
             setSalesConfirmedEdit(true);
@@ -662,7 +664,7 @@ export const InvoiceForm = () => {
                 .filter((b) => b.reason.trim())
                 .map((b) => (b.barcode ? `${b.barcode}: ${b.reason}` : b.reason))
                 .join(' · ');
-              setPurchaseEditBlockReason(blockText || 'خامات مرتبطة ببيع أو حركة مخزون');
+              setPurchaseEditBlockReason(blockText || t('page.editBlockReasonPurchaseFallback'));
               return;
             }
             setPurchaseConfirmedEdit(true);
@@ -774,7 +776,7 @@ export const InvoiceForm = () => {
         if (!cancelled) {
           showToast({
             type: 'error',
-            message: e instanceof ApiRequestError ? e.message : 'تعذر تحميل الفاتورة',
+            message: e instanceof ApiRequestError ? e.message : t('page.loadFailed'),
           });
           navigate(isSales ? '/invoices/sales' : '/invoices/purchases');
         }
@@ -1074,7 +1076,7 @@ export const InvoiceForm = () => {
     : selectedParty && 'balance' in selectedParty
       ? Number(selectedParty.balance)
       : 0;
-  const balanceText = partyBalance > 0 ? 'مدين' : partyBalance < 0 ? 'دائن' : 'رصيد صفري';
+  const balanceText = partyBalance > 0 ? t('party.debtor') : partyBalance < 0 ? t('party.creditor') : t('party.zeroBalance');
   const balanceColor = partyBalance > 0 ? 'text-rose-500' : partyBalance < 0 ? 'text-emerald-500' : 'text-slate-500';
 
   const summary = useMemo(
@@ -1175,12 +1177,12 @@ export const InvoiceForm = () => {
     showToast({
       type: 'warning',
       message: scanned && !scannedAlreadyOnInvoice && existingBarcode
-        ? `لم تتم الإضافة: الرقم «${incoming.supplierBarcode || scanned}» يخص رولاً مضافاً مسبقاً بباركود ${existingBarcode}. امسح باركود اللصاقة.`
+        ? t('toast.duplicateBarcodeOtherRoll', { code: incoming.supplierBarcode || scanned, existingBarcode })
         : scannedAlreadyOnInvoice
-          ? `لم تتم الإضافة: الباركود «${incoming.supplierBarcode || scanned}» مضاف مسبقاً في الفاتورة.`
-          : 'لم تتم إضافة السطر: هذا الرول أو الباركود مضاف مسبقاً في الفاتورة.',
+          ? t('toast.duplicateBarcodeSame', { code: incoming.supplierBarcode || scanned })
+          : t('toast.duplicateLineFallback'),
     });
-    setScanMessage('لم تتم الإضافة لأن السطر مكرر بنفس الطول/الباركود.');
+    setScanMessage(t('scanBox.duplicateNotAdded'));
     setItems((prev) =>
       prev.map((line) => {
         if (line.id !== excludeLineId) return line;
@@ -1335,11 +1337,11 @@ export const InvoiceForm = () => {
           if (dead) {
             const status = String((dead as Record<string, unknown>).status ?? '');
             if (status === 'SOLD') {
-              showToast({ type: 'warning', message: 'هذا الرول مباع بالكامل وغير متاح للبيع.' });
+              showToast({ type: 'warning', message: t('toast.rollSoldOut') });
             } else if (!isRollApplicableToSalesInvoice(dead)) {
               showToast({
                 type: 'warning',
-                message: `هذا الرول غير متاح للبيع${status ? ` (الحالة: ${status})` : ''}.`,
+                message: t('toast.rollUnavailableWithStatus', { statusSuffix: status ? t('toast.statusSuffix', { status }) : '' }),
               });
             }
             return null;
@@ -1351,8 +1353,8 @@ export const InvoiceForm = () => {
           showToast({
             type: 'warning',
             message: status === 'SOLD'
-              ? 'هذا الرول مباع بالكامل وغير متاح للبيع.'
-              : `هذا الرول غير متاح للبيع${status ? ` (الحالة: ${status})` : ''}.`,
+              ? t('toast.rollSoldOut')
+              : t('toast.rollUnavailableWithStatus', { statusSuffix: status ? t('toast.statusSuffix', { status }) : '' }),
           });
           return null;
         }
@@ -1376,7 +1378,7 @@ export const InvoiceForm = () => {
   const notifySalesBarcodeLookupMiss = (raw: string) => {
     showToast({
       type: 'warning',
-      message: `الباركود «${raw}» غير موجود في المخزون أو الرول غير متاح للبيع.`,
+      message: t('toast.barcodeNotFoundOrUnavailable', { code: raw }),
     });
   };
 
@@ -1390,13 +1392,13 @@ export const InvoiceForm = () => {
         showToast({
           type: 'warning',
           message: status === 'SOLD'
-            ? 'هذا الرول مباع بالكامل وغير متاح للبيع'
-            : 'هذا الرول غير متاح للبيع',
+            ? t('toast.rollSoldOutNoPeriod')
+            : t('toast.rollUnavailableNoLength'),
         });
       } else {
         showToast({
           type: 'warning',
-          message: `هذا الرول غير متاح للبيع${status ? ` (الحالة: ${status})` : ''}`,
+          message: t('toast.rollUnavailableWithStatusNoPeriod', { statusSuffix: status ? t('toast.statusSuffix', { status }) : '' }),
         });
       }
       return false;
@@ -1411,8 +1413,7 @@ export const InvoiceForm = () => {
         queueMicrotask(() => {
           showToast({
             type: 'warning',
-            message:
-              'تنبيه: هذا السطر مكرر بنفس بيانات الرول أو الباركود. يمكنك تعديل السطر الموجود أو اختيار رول آخر.',
+            message: t('toast.duplicateStockScan'),
           });
         });
         return prev;
@@ -1453,7 +1454,7 @@ export const InvoiceForm = () => {
       queueMicrotask(() => {
         showToast({
           type: 'info',
-          message: 'هذا الرول بدون طول مسجّل في المخزون — أدخل الطول في السطر وسيُحدَّث المخزون تلقائياً.',
+          message: t('toast.rollNeedsLength'),
         });
       });
     }
@@ -1472,7 +1473,7 @@ export const InvoiceForm = () => {
       const status = String(row.status ?? '');
       showToast({
         type: 'warning',
-        message: status === 'SOLD' ? 'هذه الدفعة مباعة بالكامل وغير متاحة للبيع' : `هذه الدفعة غير متاحة للبيع${status ? ` (الحالة: ${status})` : ''}`,
+        message: status === 'SOLD' ? t('toast.lotSoldOut') : t('toast.lotUnavailableWithStatus', { statusSuffix: status ? t('toast.statusSuffix', { status }) : '' }),
       });
       return false;
     }
@@ -1738,7 +1739,7 @@ export const InvoiceForm = () => {
         const parsed = parseSupplierLabelQr(raw);
         return applyParsedScanToLine(lineId, parsed);
       }
-      showToast({ type: 'warning', message: 'QR غير مدعوم. استخدم QR المورد أو QR الرول أو باركود.' });
+      showToast({ type: 'warning', message: t('scanBox.unsupportedQr') });
       return false;
     }
 
@@ -1860,7 +1861,7 @@ export const InvoiceForm = () => {
         }
         return;
       }
-      showToast({ type: 'warning', message: 'QR غير مدعوم. استخدم QR المورد أو QR الرول أو باركود.' });
+      showToast({ type: 'warning', message: t('scanBox.unsupportedQr') });
       return;
     }
 
@@ -1914,9 +1915,9 @@ export const InvoiceForm = () => {
       if (!targetLine) return;
       const rollIdentityQr = parseRollIdentityQrPayload(raw);
       const applied = await handleScannedValueOnMaterialField(targetLine.id, raw);
-      if (applied) setScanMessage('تم تحليل QR وتعبئة السطر تلقائيًا.');
+      if (applied) setScanMessage(t('scanBox.qrParsedSuccess'));
       else if (isSales && rollIdentityQr)
-        setScanMessage('تعذر تعبئة السطر: الرول غير متاح للبيع أو غير موجود في المخزون المتاح.');
+        setScanMessage(t('scanBox.salesRollUnavailable'));
       setScanInput('');
       return;
     }
@@ -1926,23 +1927,22 @@ export const InvoiceForm = () => {
       if (!targetLine) return;
       const applied = await handleScannedValueOnMaterialField(targetLine.id, raw);
       if (applied) {
-        setScanMessage('تم تحليل الباركود وتعبئة السطر تلقائيًا.');
+        setScanMessage(t('scanBox.barcodeParsedSuccess'));
       } else {
         setScanMessage(
           isSales
-            ? 'لم يُعثر على رول متاح للبيع بهذا الرمز، أو أن الرول مباع/غير صالح للبيع.'
-            : 'لم يُعثر على رول بهذا الباركود في المخزون. تحقق من رقم الباركود أو حالة الرول.',
+            ? t('scanBox.salesRollNotFound')
+            : t('scanBox.purchaseRollNotFound'),
         );
       }
       setScanInput('');
       return;
     }
 
-    setScanMessage('تعذر تحليل القيمة. امسح QR أو باركود رقمي صالح.');
+    setScanMessage(t('scanBox.unparsable'));
   };
 
-  const groupText = (value: string) => value.trim() || 'غير محدد';
-
+  const groupText = (value: string) => value.trim() || t('misc.unknown');
   const updateGroupPrice = (materialName: string, designCode: string, _pricePerMeter: number, price: string) => {
     setItems((prev) =>
       prev.map((item) =>
@@ -1957,13 +1957,13 @@ export const InvoiceForm = () => {
 
   const SALES_METER_PRICE_MSG =
     invoiceUnitMode === 'kg'
-      ? 'لا يمكن حفظ فاتورة البيع: أدخل سعر الكيلو (يجب أن يكون أكبر من صفر) لكل سطر'
-      : 'لا يمكن حفظ فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر';
+      ? t('validation.kgPriceRequired')
+      : t('validation.meterPriceRequired');
 
   const handleImportCustomerOrder = async () => {
     const orderNo = importOrderInput.trim();
     if (!orderNo) {
-      showToast({ type: 'warning', message: 'أدخل رقم الطلبية للاستيراد' });
+      showToast({ type: 'warning', message: t('orderImport.emptyInput') });
       return;
     }
     setImportOrderBusy(true);
@@ -1972,7 +1972,7 @@ export const InvoiceForm = () => {
       if (partyId && partyId !== data.customerId) {
         showToast({
           type: 'error',
-          message: 'العميل في الفاتورة لا يطابق عميل الطلبية — غيّر العميل أو أنشئ فاتورة جديدة',
+          message: t('orderImport.customerMismatch'),
         });
         return;
       }
@@ -2014,12 +2014,12 @@ export const InvoiceForm = () => {
 
       showToast({
         type: 'success',
-        message: `تم استيراد ${importedLines.length} سطر من طلبية ${displayCustomerOrderNumber(data.orderNumber)} (المتبقي — قابل للتعديل)`,
+        message: t('orderImport.success', { count: importedLines.length, orderNo: displayCustomerOrderNumber(data.orderNumber) }),
       });
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر استيراد الطلبية',
+        message: e instanceof ApiRequestError ? e.message : t('orderImport.failed'),
       });
     } finally {
       setImportOrderBusy(false);
@@ -2039,13 +2039,13 @@ export const InvoiceForm = () => {
   const getItemError = (item: InvoiceFormItem, field: 'length' | 'weight' | 'price') => {
     const value = numberValue(item[field]);
     if (field === 'length' && value <= 0) {
-      return item.unit === 'kg' ? 'الوزن يجب أن يكون أكبر من صفر' : 'الطول يجب أن يكون أكبر من صفر';
+      return item.unit === 'kg' ? t('validation.weightRequired') : t('validation.lengthRequired');
     }
     if (field === 'price') {
-      if (value < 0) return 'السعر لا يمكن أن يكون سالبا';
-      if (isSales && value <= 0) return 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر';
+      if (value < 0) return t('validation.priceNegative');
+      if (isSales && value <= 0) return t('validation.salesPriceRequired');
     }
-    if (field === 'weight' && value < 0) return 'الوزن لا يمكن أن يكون سالبا';
+    if (field === 'weight' && value < 0) return t('validation.weightNegative');
     return '';
   };
 
@@ -2070,7 +2070,7 @@ export const InvoiceForm = () => {
     playWarningBeep();
     showToast({
       type: 'warning',
-      message: 'تنبيه: تم إدخال نفس الخامة/الباركود أكثر من مرة داخل الفاتورة',
+      message: t('toast.duplicateLineWarning'),
     });
   };
 
@@ -2139,7 +2139,7 @@ export const InvoiceForm = () => {
             prev.map((line) => (line.id === item.id ? { ...line, internalRollId: '' } : line)),
           );
           if (opts.toastOnError) {
-            showToast({ type: 'error', message: 'تعذر تحديث بيانات الرول في المخزون' });
+            showToast({ type: 'error', message: t('toast.rollUpdateFailed') });
           }
           return opts.toastOnError ? 'error' : 'noop';
         }
@@ -2178,14 +2178,14 @@ export const InvoiceForm = () => {
       if (result.applied && opts.toastOnSuccess) {
         showToast({
           type: 'success',
-          message: result.message || 'تم تحديث بيانات الرول في المخزون',
+          message: result.message || t('toast.rollUpdateSuccess'),
         });
       }
       return result.applied ? 'applied' : 'noop';
     } catch (e) {
       if (opts.toastOnError) {
         const msg =
-          e instanceof ApiRequestError ? e.message : 'تعذر تحديث بيانات الرول في المخزون';
+          e instanceof ApiRequestError ? e.message : t('toast.rollUpdateFailed');
         showToast({ type: 'error', message: msg });
       }
       return 'error';
@@ -2333,7 +2333,7 @@ export const InvoiceForm = () => {
         showToast({
           type: 'warning',
           message:
-            'لا يمكن حفظ الفاتورة: سطر مكرر بنفس هوية الرول أو الباركود أو نفس بيانات الخامة واللون والطول. ادمج الكمية أو احذف التكرار.',
+            t('validation.duplicateLinesBlock'),
         });
         return;
       }
@@ -2368,14 +2368,14 @@ export const InvoiceForm = () => {
           if (!roll) {
             showToast({
               type: 'error',
-              message: 'لا يمكن حفظ الفاتورة: يوجد رول ناقص البيانات في المخزون',
+              message: t('validation.rollDataMissing'),
             });
             return;
           }
           if (numberValue(item.length) > 0 && invoiceRollLengthMissingInInventory(roll.length_m)) {
             showToast({
               type: 'error',
-              message: 'لا يمكن حفظ الفاتورة: يوجد رول ناقص البيانات في المخزون',
+              message: t('validation.rollDataMissing'),
             });
             return;
           }
@@ -2392,7 +2392,7 @@ export const InvoiceForm = () => {
             if (qty > stockLen + 1e-4) {
               showToast({
                 type: 'warning',
-                message: 'الكمية المدخلة أكبر من المتر المتاح على الرول في المخزون',
+                message: t('validation.qtyExceedsRollStock'),
               });
               return;
             }
@@ -2408,7 +2408,7 @@ export const InvoiceForm = () => {
             if (qty > stockKg + 1e-4) {
               showToast({
                 type: 'warning',
-                message: 'الكمية المدخلة أكبر من الوزن المتاح على دفعة الخيط في المخزون',
+                message: t('validation.qtyExceedsLotStock'),
               });
               return;
             }
@@ -2473,7 +2473,7 @@ export const InvoiceForm = () => {
       const unitPrice = Math.max(0, numberValue(item.price));
       const desc =
         [item.materialName, item.dsamNumber, item.colorName].filter((p) => String(p).trim()).join(' · ') ||
-        `سطر ${index + 1}`;
+        t('misc.lineFallback', { n: index + 1 });
       return {
         fabricRollId,
         yarnLotId,
@@ -2518,7 +2518,7 @@ export const InvoiceForm = () => {
     if (!partyId || !uuidRe.test(partyId)) {
       showToast({
         type: 'warning',
-        message: 'لحفظ الفاتورة في قاعدة البيانات اختر عميلاً أو مورداً مسجّلاً في النظام (لا يمكن استخدام «نقدي سريع» الفارغ).',
+        message: t('validation.partyRequired'),
       });
       return;
     }
@@ -2529,7 +2529,7 @@ export const InvoiceForm = () => {
       if (uuidReCash.test(partyId) && !cashboxId) {
         showToast({
           type: 'warning',
-          message: 'اختر الصندوق المالي لربط الدفعة بخزينة حقيقية وتوليد السند تلقائياً على الخادم.',
+          message: t('validation.cashboxRequired'),
         });
         return;
       }
@@ -2545,19 +2545,19 @@ export const InvoiceForm = () => {
     const partyNameForVoucher =
       (selectedParty as { name?: string; company?: string })?.name ||
       (selectedParty as { company?: string })?.company ||
-      'جهة';
+      t('party.fallbackName');
 
     const warehouseLabel = warehouseNameById(warehouse, apiWarehouses);
 
     if (!warehouse || !apiWarehouses.some((w) => w.id === warehouse)) {
-      showToast({ type: 'warning', message: 'يرجى اختيار المستودع' });
+      showToast({ type: 'warning', message: t('validation.warehouseRequired') });
       return;
     }
 
     const currencyCode = String(currency || 'USD').trim().toUpperCase();
     const rate = currencyCode === 'USD' ? 1 : normalizeExchangeRate(exchangeRateToUsd);
     if (!rate) {
-      showToast({ type: 'warning', message: 'يرجى إدخال سعر صرف صحيح' });
+      showToast({ type: 'warning', message: t('validation.exchangeRateRequired') });
       return;
     }
     const subtotalUsd = round2(convertToUsd(persistedSubtotal, rate));
@@ -2671,10 +2671,10 @@ export const InvoiceForm = () => {
 
     if (editInvoiceId && status === 'final') {
       const msg = salesConfirmedEdit
-        ? 'سيتم حفظ تعديلات فاتورة البيع المؤكدة وتحديث المخزون والقيود المحاسبية. هل أنت متأكد؟'
+        ? t('confirm.editConfirmedSale')
         : purchaseConfirmedEdit
-          ? 'سيتم حفظ تعديلات فاتورة الشراء المؤكدة وتحديث المخزون والقيود. هل أنت متأكد؟'
-          : 'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟';
+          ? t('confirm.editConfirmedPurchase')
+          : t('confirm.postInvoice');
       if (!window.confirm(msg)) return;
     }
 
@@ -2691,7 +2691,7 @@ export const InvoiceForm = () => {
           });
           const newNo = created.data.invoiceNo?.trim() || '';
           if (!newNo) {
-            showToast({ type: 'error', message: 'تعذر قراءة رقم الفاتورة من الخادم' });
+            showToast({ type: 'error', message: t('toast.invoiceNoMissing') });
             return;
           }
           invoicePayload.invoiceNumber = newNo;
@@ -2729,8 +2729,8 @@ export const InvoiceForm = () => {
             type: 'success',
             message:
               status === 'draft'
-                ? `تم حفظ المسودة برقم: ${newNo}`
-                : `تم إنشاء وتأكيد الفاتورة رقم: ${newNo}`,
+                ? t('toast.draftSaved', { no: newNo })
+                : t('toast.createdAndConfirmed', { no: newNo }),
           });
         } else {
           const created = await postPurchaseInvoice({
@@ -2741,7 +2741,7 @@ export const InvoiceForm = () => {
           });
           const newNo = created.data.invoiceNo?.trim() || '';
           if (!newNo) {
-            showToast({ type: 'error', message: 'تعذر قراءة رقم الفاتورة من الخادم' });
+            showToast({ type: 'error', message: t('toast.invoiceNoMissing') });
             return;
           }
           invoicePayload.invoiceNumber = newNo;
@@ -2779,15 +2779,15 @@ export const InvoiceForm = () => {
             type: 'success',
             message:
               status === 'draft'
-                ? `تم حفظ المسودة برقم: ${newNo}`
-                : `تم إنشاء وتأكيد الفاتورة رقم: ${newNo}`,
+                ? t('toast.draftSaved', { no: newNo })
+                : t('toast.createdAndConfirmed', { no: newNo }),
           });
         }
       } else if (isSales && salesConfirmedEdit) {
         await updateSalesInvoiceConfirmed(editInvoiceId, salesPersistBodyUpdate);
         showToast({
           type: 'success',
-          message: `تم حفظ تعديلات فاتورة البيع ${trimmedInvoiceNo || ''}`.trim(),
+          message: t('toast.confirmedEditsSavedSale', { no: trimmedInvoiceNo || '' }).trim(),
         });
         navigate('/invoices/sales');
       } else if (isSales) {
@@ -2797,7 +2797,7 @@ export const InvoiceForm = () => {
         if (status === 'draft') {
           showToast({
             type: 'success',
-            message: `تم حفظ المسودة برقم: ${noAfterSave}`,
+            message: t('toast.draftSaved', { no: noAfterSave }),
           });
         }
         if (status === 'final') {
@@ -2839,14 +2839,14 @@ export const InvoiceForm = () => {
           invoiceForTelegram = savedInvoiceForActions;
           showToast({
             type: 'success',
-            message: `تم تأكيد الفاتورة رقم: ${confirmedNo}`,
+            message: t('toast.confirmed', { no: confirmedNo }),
           });
         }
       } else if (purchaseConfirmedEdit && editInvoiceId) {
         await updatePurchaseInvoiceConfirmed(editInvoiceId, purchasePersistBodyUpdate);
         showToast({
           type: 'success',
-          message: `تم حفظ تعديلات فاتورة الشراء ${trimmedInvoiceNo || ''}`.trim(),
+          message: t('toast.confirmedEditsSavedPurchase', { no: trimmedInvoiceNo || '' }).trim(),
         });
         navigate('/invoices/purchases');
       } else {
@@ -2856,7 +2856,7 @@ export const InvoiceForm = () => {
         if (status === 'draft') {
           showToast({
             type: 'success',
-            message: `تم حفظ المسودة برقم: ${noAfterSave}`,
+            message: t('toast.draftSaved', { no: noAfterSave }),
           });
         }
         if (status === 'final') {
@@ -2899,14 +2899,14 @@ export const InvoiceForm = () => {
           invoiceForTelegram = savedInvoiceForActions;
           showToast({
             type: 'success',
-            message: `تم ترحيل فاتورة الشراء رقم: ${confirmedNo}`,
+            message: t('toast.purchasePosted', { no: confirmedNo }),
           });
         }
       }
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر حفظ الفاتورة، يرجى المحاولة مرة أخرى',
+        message: e instanceof ApiRequestError ? e.message : t('toast.genericSaveError'),
       });
       return;
     }
@@ -2960,18 +2960,18 @@ export const InvoiceForm = () => {
       />
       {draftLoading && editInvoiceId ? (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-900">
-          جاري تحميل المسودة...
+          {t('page.loadingDraft')}
         </div>
       ) : null}
       {editInvoiceId && editBlocked && !draftLoading ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 space-y-3">
-          <p className="font-black">لا يمكن تعديل هذه الفاتورة</p>
+          <p className="font-black">{t('page.cannotEditTitle')}</p>
           <p className="text-sm">
             {salesEditBlockReason ||
               purchaseEditBlockReason ||
               (isSales
-                ? 'لا يمكن تعديل الفاتورة بسبب حركة مخزون أو مستند مرتبط بها.'
-                : 'لا يمكن تعديل فاتورة مؤكدة أو ملغاة من هذه الشاشة.')}
+                ? t('page.cannotEditSalesFallback')
+                : t('page.cannotEditPurchaseFallback'))}
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -2979,14 +2979,14 @@ export const InvoiceForm = () => {
               onClick={() => navigate(`/invoices/statement/${editInvoiceId}`)}
               className="rounded-lg bg-white border border-amber-300 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-amber-100"
             >
-              كشف الفاتورة
+              {t('page.viewStatement')}
             </button>
             <button
               type="button"
               onClick={() => navigate(isSales ? '/invoices/sales' : '/invoices/purchases')}
               className="rounded-lg bg-amber-800 px-4 py-2 text-sm font-bold text-white hover:bg-amber-900"
             >
-              العودة للقائمة
+              {t('page.backToList')}
             </button>
           </div>
         </div>
@@ -3046,16 +3046,16 @@ export const InvoiceForm = () => {
               {editInvoiceId
                 ? isSales
                   ? salesConfirmedEdit
-                    ? 'تعديل فاتورة بيع مؤكدة'
-                    : 'تعديل مسودة فاتورة مبيعات'
+                    ? t('page.titleEditConfirmedSale')
+                    : t('page.titleEditDraftSale')
                   : purchaseConfirmedEdit
-                    ? 'تعديل فاتورة شراء مؤكدة'
-                    : 'تعديل مسودة فاتورة مشتريات'
+                    ? t('page.titleEditConfirmedPurchase')
+                    : t('page.titleEditDraftPurchase')
                 : isSales
-                  ? 'فاتورة مبيعات جديدة'
-                  : 'فاتورة مشتريات جديدة'}
+                  ? t('page.titleNewSale')
+                  : t('page.titleNewPurchase')}
             </h2>
-            <p className="text-slate-500 mt-1">إدخال تفاصيل قطع الأقمشة وتجميعها حسب الخامة والتصميم والسعر</p>
+            <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
           </div>
         </div>
 
@@ -3065,24 +3065,24 @@ export const InvoiceForm = () => {
               type="button"
               onClick={cycleSalesInvoiceZoom}
               className="hidden lg:inline-flex bg-slate-900 text-white px-3 py-2 rounded-lg items-center hover:bg-slate-800 transition shadow-sm font-bold"
-              title="تكبير النصوص والأرقام داخل فاتورة المبيعات"
+              title={t('page.zoomTooltip')}
             >
-              الحجم ×{invoiceZoomLevel}
+              {t('page.zoomLabel', { level: invoiceZoomLevel })}
             </button>
           ) : null}
           <button onClick={() => navigate(-1)} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm font-medium">
             <X className="w-4 h-4" />
-            <span className="hidden sm:inline">إلغاء</span>
+            <span className="hidden sm:inline">{t('page.cancel')}</span>
           </button>
           {!salesConfirmedEdit && !purchaseConfirmedEdit ? (
             <button onClick={() => handleSave('draft')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition shadow-sm font-medium disabled:opacity-50">
               <FileText className="w-4 h-4" />
-              <span className="hidden sm:inline">حفظ مسودة</span>
+              <span className="hidden sm:inline">{t('page.saveDraft')}</span>
             </button>
           ) : null}
           <button onClick={() => handleSave('final')} disabled={hasHardValidationErrors || draftLoading || editBlocked} className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
             <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">{salesConfirmedEdit || purchaseConfirmedEdit ? 'حفظ التعديلات' : 'حفظ نهائي'}</span>
+            <span className="hidden sm:inline">{salesConfirmedEdit || purchaseConfirmedEdit ? t('page.saveEdits') : t('page.saveFinal')}</span>
           </button>
         </div>
       </div>
@@ -3094,32 +3094,32 @@ export const InvoiceForm = () => {
         {/* صف 1: العميل / المورد + نوع البيع (توب/متر أو كج) — الأول على الموبايل */}
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">{isSales ? 'العميل' : 'المورد'}</label>
+            <label className="text-sm font-bold text-slate-700">{isSales ? t('party.customerLabel') : t('party.supplierLabel')}</label>
             <SmartPartySearch
               options={partyOptions}
               selectedId={partyId}
               onSelect={setPartyId}
               onEnterFallback={focusNextFormControl}
-              placeholder={isSales ? 'اسم العميل أو الهاتف' : 'اسم المورد أو الهاتف'}
-              emptyLabel={isSales ? 'اختر عميلاً' : 'اختر مورداً'}
+              placeholder={isSales ? t('party.customerPlaceholder') : t('party.supplierPlaceholder')}
+              emptyLabel={isSales ? t('party.customerEmpty') : t('party.supplierEmpty')}
             />
             {partyId && selectedParty ? (
               <p className={`text-xs font-bold font-mono px-0.5 ${balanceColor}`}>
                 {partyStatementBalanceLoading
-                  ? 'جاري تحميل الرصيد...'
-                  : `الرصيد السابق: ${Math.abs(partyBalance).toFixed(2)} (${balanceText})`}
+                  ? t('party.loadingBalance')
+                  : t('party.previousBalance', { amount: Math.abs(partyBalance).toFixed(2), status: balanceText })}
               </p>
             ) : null}
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">نوع {isSales ? 'البيع' : 'الشراء'}</label>
+            <label className="text-sm font-bold text-slate-700">{t('typeField.label', { kind: isSales ? t('typeField.sale') : t('typeField.purchase') })}</label>
             <select
               value={invoiceUnitMode}
               onChange={(e) => handleInvoiceUnitModeChange(e.target.value === 'kg' ? 'kg' : 'meter')}
               className="w-full sm:w-40 bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 font-bold focus:outline-none focus:border-indigo-500"
             >
-              <option value="meter">توب / متر</option>
-              <option value="kg">وزن (كج)</option>
+              <option value="meter">{t('typeField.meterOption')}</option>
+              <option value="kg">{t('typeField.kgOption')}</option>
             </select>
           </div>
         </div>
@@ -3128,11 +3128,11 @@ export const InvoiceForm = () => {
         {isSales ? (
           <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2.5 space-y-1.5">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-xs font-bold text-violet-900 shrink-0">استيراد طلبية</span>
+              <span className="text-xs font-bold text-violet-900 shrink-0">{t('orderImport.sectionLabel')}</span>
               {linkedOrderNumber ? (
-                <span className="text-[11px] font-bold text-violet-700">· مرتبطة #{linkedOrderNumber}</span>
+                <span className="text-[11px] font-bold text-violet-700">{t('orderImport.linkedWithNumber', { number: linkedOrderNumber })}</span>
               ) : customerOrderId ? (
-                <span className="text-[11px] font-bold text-violet-700">· مرتبطة</span>
+                <span className="text-[11px] font-bold text-violet-700">{t('orderImport.linkedNoNumber')}</span>
               ) : null}
             </div>
             <div className="flex gap-2">
@@ -3149,7 +3149,7 @@ export const InvoiceForm = () => {
                     focusNextFormControl(e);
                   }
                 }}
-                placeholder="رقم الطلبية"
+                placeholder={t('orderImport.placeholder')}
                 disabled={importOrderBusy || editBlocked}
                 className="min-w-0 flex-1 bg-white border border-violet-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-violet-400 font-mono"
                 dir="ltr"
@@ -3160,11 +3160,11 @@ export const InvoiceForm = () => {
                 disabled={importOrderBusy || editBlocked}
                 className="shrink-0 bg-violet-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-bold hover:bg-violet-700 disabled:opacity-50"
               >
-                {importOrderBusy ? '…' : 'استيراد'}
+                {importOrderBusy ? '…' : t('orderImport.button')}
               </button>
             </div>
             {!linkedOrderNumber && !customerOrderId ? (
-              <p className="text-[11px] text-violet-800/80 leading-snug">المتبقي فقط — قابل للتعديل بعد الاستيراد</p>
+              <p className="text-[11px] text-violet-800/80 leading-snug">{t('orderImport.helper')}</p>
             ) : null}
           </div>
         ) : null}
@@ -3172,7 +3172,7 @@ export const InvoiceForm = () => {
         {/* صف 3: بيانات الفاتورة — شبكة 2×2 على الموبايل */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="space-y-1.5">
-            <label className="text-xs sm:text-sm font-bold text-slate-700">رقم الفاتورة</label>
+            <label className="text-xs sm:text-sm font-bold text-slate-700">{t('meta.invoiceNoLabel')}</label>
             <input
               type="text"
               value={invoiceNumber}
@@ -3186,7 +3186,7 @@ export const InvoiceForm = () => {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs sm:text-sm font-bold text-slate-700">التاريخ</label>
+            <label className="text-xs sm:text-sm font-bold text-slate-700">{t('meta.dateLabel')}</label>
             <input
               type="date"
               value={date}
@@ -3196,7 +3196,7 @@ export const InvoiceForm = () => {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs sm:text-sm font-bold text-slate-700">المستودع</label>
+            <label className="text-xs sm:text-sm font-bold text-slate-700">{t('meta.warehouseLabel')}</label>
             <select
               value={warehouse}
               onChange={(e) => setWarehouse(e.target.value)}
@@ -3205,9 +3205,9 @@ export const InvoiceForm = () => {
               className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 disabled:bg-slate-50"
             >
               {warehousesLoading ? (
-                <option value="">جاري تحميل المستودعات...</option>
+                <option value="">{t('meta.warehouseLoading')}</option>
               ) : apiWarehouses.length === 0 ? (
-                <option value="">لا مستودعات نشطة — أنشئ مستودعاً أولاً</option>
+                <option value="">{t('meta.warehouseEmpty')}</option>
               ) : (
                 apiWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
@@ -3219,7 +3219,7 @@ export const InvoiceForm = () => {
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs sm:text-sm font-bold text-slate-700">العملة</label>
+            <label className="text-xs sm:text-sm font-bold text-slate-700">{t('meta.currencyLabel')}</label>
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
@@ -3238,7 +3238,7 @@ export const InvoiceForm = () => {
         {String(currency || 'USD').trim().toUpperCase() !== 'USD' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
             <div className="space-y-1.5">
-              <label className="text-xs sm:text-sm font-bold text-slate-600">سعر الصرف مقابل الدولار</label>
+              <label className="text-xs sm:text-sm font-bold text-slate-600">{t('meta.exchangeRateLabel')}</label>
               <input
                 type="number"
                 step="0.000001"
@@ -3248,14 +3248,14 @@ export const InvoiceForm = () => {
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 font-mono text-left"
                 dir="ltr"
               />
-              <p className="text-[11px] text-slate-500">عدد وحدات العملة مقابل 1 USD</p>
+              <p className="text-[11px] text-slate-500">{t('meta.exchangeRateHelper')}</p>
             </div>
           </div>
         ) : null}
 
         {!isSales ? (
           <div className="space-y-2 max-w-md">
-            <label className="text-sm font-bold text-slate-700">رقم فاتورة المورد (اختياري)</label>
+            <label className="text-sm font-bold text-slate-700">{t('meta.supplierInvoiceNoLabel')}</label>
             <input
               type="text"
               value={supplierInvoiceNo}
@@ -3268,24 +3268,24 @@ export const InvoiceForm = () => {
         ) : null}
 
         <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700">ملاحظات الفاتورة</label>
+          <label className="text-sm font-bold text-slate-700">{t('meta.notesLabel')}</label>
           <textarea
             value={headerNotes}
             onChange={(e) => setHeaderNotes(e.target.value)}
             onKeyDown={focusNextFormControl}
             rows={2}
             className={`${inputClass()} min-h-[3rem]`}
-            placeholder="اختياري"
+            placeholder={t('meta.notesPlaceholder')}
           />
         </div>
 
         <section className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-bold text-cyan-900">مسح QR / باركود (خيار للمحاسب)</div>
+            <div className="text-sm font-bold text-cyan-900">{t('scanBox.title')}</div>
             {rollsLoading && (
               <div className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                جاري تحميل المخزون… يمكنك المسح الآن وسيتم البحث من السيرفر تلقائياً.
+                {t('scanBox.loadingStock')}
               </div>
             )}
           </div>
@@ -3300,7 +3300,7 @@ export const InvoiceForm = () => {
                   void handleDedicatedScanSubmit(e.currentTarget.value);
                 }
               }}
-              placeholder='امسح QR أو الباركود هنا ثم Enter'
+              placeholder={t('scanBox.placeholder')}
               className="flex-1 bg-white border border-cyan-300 rounded-lg px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
             />
             <button
@@ -3308,7 +3308,7 @@ export const InvoiceForm = () => {
               onClick={() => void handleDedicatedScanSubmit()}
               className="px-4 py-2 rounded-lg bg-cyan-700 text-white hover:bg-cyan-800 font-bold"
             >
-              تحليل
+              {t('scanBox.analyzeButton')}
             </button>
           </div>
           {scanMessage && <div className="text-xs font-bold text-cyan-800">{scanMessage}</div>}
@@ -3318,10 +3318,10 @@ export const InvoiceForm = () => {
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-900">أصناف الفاتورة</h3>
+            <h3 className="text-lg font-bold text-slate-900">{t('table.sectionTitle')}</h3>
             <div className="flex flex-wrap items-center gap-2">
               <button onClick={handleAddItem} className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1 transition">
-                <Plus className="w-4 h-4" /> إضافة صنف
+                <Plus className="w-4 h-4" /> {t('table.addItem')}
               </button>
             </div>
           </div>
@@ -3331,17 +3331,17 @@ export const InvoiceForm = () => {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 border border-slate-200">
                   <th className="p-3 font-bold w-12 text-center">#</th>
-                  <th className="p-3 font-bold min-w-[160px]">الباركود</th>
-                  <th className="p-3 font-bold min-w-[220px]">{invoiceUnitMode === 'kg' ? 'نوع النمرة' : 'الخامة'}</th>
-                  <th className="p-3 font-bold min-w-[120px]">{invoiceUnitMode === 'kg' ? 'عدد الشوال' : 'كود الخامة'}</th>
-                  <th className="p-3 font-bold min-w-[130px]">اللون</th>
-                  {invoiceUnitMode !== 'kg' && <th className="p-3 font-bold min-w-[120px]">كود اللون</th>}
-                  <th className="p-3 font-bold w-24">{invoiceUnitMode === 'kg' ? 'الكمية' : 'المتر (م)'}</th>
-                  <th className="hidden p-3 font-bold w-24">العرض CM</th>
+                  <th className="p-3 font-bold min-w-[160px]">{t('table.colBarcode')}</th>
+                  <th className="p-3 font-bold min-w-[220px]">{invoiceUnitMode === 'kg' ? t('table.colYarnType') : t('table.colMaterial')}</th>
+                  <th className="p-3 font-bold min-w-[120px]">{invoiceUnitMode === 'kg' ? t('table.colSackCount') : t('table.colMaterialCode')}</th>
+                  <th className="p-3 font-bold min-w-[130px]">{t('table.colColor')}</th>
+                  {invoiceUnitMode !== 'kg' && <th className="p-3 font-bold min-w-[120px]">{t('table.colColorCode')}</th>}
+                  <th className="p-3 font-bold w-24">{invoiceUnitMode === 'kg' ? t('table.colQuantityKg') : t('table.colQuantityMeter')}</th>
+                  <th className="hidden p-3 font-bold w-24">{t('table.colWidthCm')}</th>
                   <th className="hidden p-3 font-bold w-20">GSM</th>
-                  {invoiceUnitMode !== 'kg' && <th className="p-3 font-bold w-24">وزن KG</th>}
-                  {invoiceUnitMode === 'kg' && <th className="p-3 font-bold w-28">السعر</th>}
-                  <th className="p-3 font-bold w-32">الإجمالي</th>
+                  {invoiceUnitMode !== 'kg' && <th className="p-3 font-bold w-24">{t('table.colWeightKg')}</th>}
+                  {invoiceUnitMode === 'kg' && <th className="p-3 font-bold w-28">{t('table.colPrice')}</th>}
+                  <th className="p-3 font-bold w-32">{t('table.colTotal')}</th>
                   <th className="p-3 font-bold w-12 text-center"></th>
                 </tr>
               </thead>
@@ -3359,7 +3359,7 @@ export const InvoiceForm = () => {
                             type="text"
                             data-invoice-field-index={0}
                             autoComplete="off"
-                            placeholder="امسح الباركود هنا"
+                            placeholder={t('table.barcodePlaceholder')}
                             value={item.supplierBarcode}
                             onChange={(e) => {
                               const raw = e.target.value || '';
@@ -3408,7 +3408,7 @@ export const InvoiceForm = () => {
                             type="text"
                             data-invoice-field-index={1}
                             autoComplete="off"
-                            placeholder={invoiceUnitMode === 'kg' ? 'نوع النمرة' : 'اكتب اسم الخامة'}
+                            placeholder={invoiceUnitMode === 'kg' ? t('table.yarnTypePlaceholder') : t('table.materialPlaceholder')}
                             value={item.materialName}
                             onFocus={(e) => {
                               materialSuggestInputRef.current = e.currentTarget;
@@ -3558,10 +3558,10 @@ export const InvoiceForm = () => {
               </tbody>
               <tfoot className="bg-slate-50 font-bold border-t border-slate-300 text-slate-700">
                 <tr>
-                  <td colSpan={6} className="p-3 text-left">المجموع:</td>
+                  <td colSpan={6} className="p-3 text-left">{t('table.footerTotal')}</td>
                   <td className="p-3 font-mono">{summary.totals.totalMeters.toFixed(2)}</td>
                   <td colSpan={2}></td>
-                  <td className="p-3 font-mono">{summary.totals.totalKg.toFixed(2)} كغ</td>
+                  <td className="p-3 font-mono">{t('table.footerKgSuffix', { value: summary.totals.totalKg.toFixed(2) })}</td>
                   <td className="p-3 font-mono text-indigo-700">{money(totalAmount, currency)}</td>
                   <td></td>
                 </tr>
@@ -3574,9 +3574,9 @@ export const InvoiceForm = () => {
           <button type="button" onClick={() => setSummaryOpen(!summaryOpen)} className="w-full flex items-center justify-between px-5 py-4 text-right">
             <div>
               <h3 className="text-lg font-bold text-slate-900">
-                ملخص تفنيد الفاتورة حسب {invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'}
+                {invoiceUnitMode === 'kg' ? t('summary.titleByYarn') : t('summary.titleByMaterial')}
               </h3>
-              <p className="text-sm text-slate-500">يتحدث مباشرة حسب {invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة'} والتصميم والسعر</p>
+              <p className="text-sm text-slate-500">{invoiceUnitMode === 'kg' ? t('summary.subtitleByYarn') : t('summary.subtitleByMaterial')}</p>
             </div>
             {summaryOpen ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
           </button>
@@ -3587,14 +3587,14 @@ export const InvoiceForm = () => {
                 <table className="w-full text-sm text-right">
                   <thead className="bg-slate-100 text-slate-600">
                     <tr>
-                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'الخيط' : 'الخامة / القماش'}</th>
-                      <th className="p-3">كود التصميم</th>
-                      <th className="p-3">عدد الألوان</th>
-                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'عدد الدفعات' : 'عدد الرولات'}</th>
-                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'إجمالي الوزن (كج)' : 'إجمالي الأمتار'}</th>
-                      <th className="p-3">{invoiceUnitMode === 'kg' ? 'سعر الكيلو' : 'سعر المتر'}</th>
-                      <th className="p-3">الإجمالي</th>
-                      {invoiceUnitMode !== 'kg' && <th className="p-3">إجمالي الوزن</th>}
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? t('summary.colYarn') : t('summary.colMaterialFabric')}</th>
+                      <th className="p-3">{t('summary.colDesignCode')}</th>
+                      <th className="p-3">{t('summary.colColorCount')}</th>
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? t('summary.colBatchCount') : t('summary.colRollCount')}</th>
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? t('summary.colTotalWeightKg') : t('summary.colTotalMeters')}</th>
+                      <th className="p-3">{invoiceUnitMode === 'kg' ? t('summary.colPricePerKilo') : t('summary.colPricePerMeter')}</th>
+                      <th className="p-3">{t('summary.colTotal')}</th>
+                      {invoiceUnitMode !== 'kg' && <th className="p-3">{t('summary.colTotalWeight')}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -3608,7 +3608,7 @@ export const InvoiceForm = () => {
                         <td className="p-3">
                           {(() => {
                             const summaryPriceError =
-                              isSales && group.pricePerMeter <= 0 ? 'سعر البيع مطلوب ويجب أن يكون أكبر من صفر' : '';
+                              isSales && group.pricePerMeter <= 0 ? t('summary.priceRequired') : '';
                             return (
                               <input
                                 type="number"
@@ -3644,17 +3644,17 @@ export const InvoiceForm = () => {
                 </table>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <SummaryStat label={invoiceUnitMode === 'kg' ? 'إجمالي الدفعات' : 'إجمالي الرولات'} value={summary.totals.rollCount.toString()} />
+                <SummaryStat label={invoiceUnitMode === 'kg' ? t('summary.statTotalBatches') : t('summary.statTotalRolls')} value={summary.totals.rollCount.toString()} />
                 {invoiceUnitMode === 'kg' ? (
-                  <SummaryStat label="إجمالي الوزن (كج)" value={summary.totals.totalKg.toFixed(2)} />
+                  <SummaryStat label={t('summary.statTotalWeightKg')} value={summary.totals.totalKg.toFixed(2)} />
                 ) : (
                   <>
-                    <SummaryStat label="إجمالي الأمتار" value={summary.totals.totalMeters.toFixed(2)} />
-                    <SummaryStat label="إجمالي الوزن" value={summary.totals.totalKg.toFixed(2)} />
+                    <SummaryStat label={t('summary.statTotalMeters')} value={summary.totals.totalMeters.toFixed(2)} />
+                    <SummaryStat label={t('summary.statTotalWeight')} value={summary.totals.totalKg.toFixed(2)} />
                   </>
                 )}
-                <SummaryStat label={`إجمالي ${currency}`} value={money(summary.totals.totalAmount, currency)} />
-                <SummaryStat label="عدد المجموعات" value={summary.totals.groupCount.toString()} />
+                <SummaryStat label={t('summary.statTotalCurrency', { currency })} value={money(summary.totals.totalAmount, currency)} />
+                <SummaryStat label={t('summary.statGroupCount')} value={summary.totals.groupCount.toString()} />
               </div>
             </div>
           )}
@@ -3664,19 +3664,19 @@ export const InvoiceForm = () => {
 
         <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col md:flex-row gap-8 justify-between items-start">
           <div className="w-full md:w-2/3 space-y-4">
-            <h4 className="font-bold text-slate-900 border-b border-slate-200 pb-2">طريقة الدفع والحساب</h4>
+            <h4 className="font-bold text-slate-900 border-b border-slate-200 pb-2">{t('payment.sectionTitle')}</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">نوع البيع</label>
+                <label className="text-sm font-bold text-slate-700">{t('payment.saleTypeLabel')}</label>
                 <select value={saleType} onChange={(e) => setSaleType(e.target.value)} onKeyDown={focusNextFormControl} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500">
-                  <option value="cash">نقدي</option>
-                  <option value="credit">آجل</option>
+                  <option value="cash">{t('payment.cashOption')}</option>
+                  <option value="credit">{t('payment.creditOption')}</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">اختيار صندوق مالي (من الخادم)</label>
+                <label className="text-sm font-bold text-slate-700">{t('payment.cashboxLabel')}</label>
                 <select value={cashboxId} onChange={(e) => setCashboxId(e.target.value)} onKeyDown={focusNextFormControl} className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500">
-                  <option value="">-- اختر الصندوق --</option>
+                  <option value="">{t('payment.cashboxPlaceholder')}</option>
                   {cashboxOptions.map((box) => (
                     <option key={box.id} value={box.id}>
                       {box.name} ({box.code})
@@ -3684,12 +3684,12 @@ export const InvoiceForm = () => {
                   ))}
                 </select>
                 {cashboxOptions.length === 0 && (
-                  <p className="text-xs text-amber-700">لا صناديق من الخادم — أنشئ صندوقاً من إعدادات الخزينة أو شغّل البذرة.</p>
+                  <p className="text-xs text-amber-700">{t('payment.cashboxEmpty')}</p>
                 )}
               </div>
               {saleType === 'credit' && (
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">الدفعة النقدية المقدمة</label>
+                  <label className="text-sm font-bold text-slate-700">{t('payment.advancePaymentLabel')}</label>
                   <input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} onKeyDown={focusNextFormControl} placeholder="0.00" className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500" />
                 </div>
               )}
@@ -3698,15 +3698,15 @@ export const InvoiceForm = () => {
 
           <div className="w-full md:w-1/3 bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
             <div className="flex justify-between items-center text-sm mb-2 border-b border-slate-100 pb-2">
-              <span className="text-slate-600">إجمالي المواد</span>
+              <span className="text-slate-600">{t('payment.materialsTotalLabel')}</span>
               <span className="font-bold font-mono">{money(totalAmount, currency)}</span>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500">قيمة الحسم الممنوح</label>
+              <label className="text-xs font-bold text-slate-500">{t('payment.discountLabel')}</label>
               <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onKeyDown={focusNextFormControl} placeholder="0.00" className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-slate-900 focus:outline-none focus:border-indigo-500 text-left font-mono" dir="ltr" />
             </div>
             <div className="space-y-1 pt-3 border-t border-slate-100">
-              <label className="text-xs font-bold text-indigo-700">الإجمالي النهائي للمطالبة</label>
+              <label className="text-xs font-bold text-indigo-700">{t('payment.finalTotalLabel')}</label>
               <div className="w-full bg-indigo-50 border border-indigo-200 rounded px-3 py-2 text-indigo-900 font-bold text-lg text-left font-mono" dir="ltr">
                 {money(finalTotalAmount, currency)}
               </div>

@@ -1,4 +1,6 @@
 {
+  "closeMenu": "إغلاق القائمة",
+  "openMenu": "فتح القائمة",
   "home": "الرئيسية",
   "inventory": "المخزون",
   "inventory.createItem": "إنشاء مادة جديدة",

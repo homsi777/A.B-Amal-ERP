@@ -1,4 +1,6 @@
 {
+  "closeMenu": "Menüyü kapat",
+  "openMenu": "Menüyü aç",
   "home": "Ana Sayfa",
   "inventory": "Stok",
   "inventory.createItem": "Yeni Malzeme Oluştur",
