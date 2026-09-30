@@ -1,0 +1,17 @@
+{
+  "documentStatus.dash": "—",
+  "documentStatus.draft": "Taslak",
+  "documentStatus.confirmed": "Onaylandı",
+  "documentStatus.voided": "İptal Edildi",
+  "documentStatus.active": "Aktif",
+  "documentStatus.inactive": "Pasif",
+  "documentStatus.completed": "Tamamlandı",
+  "documentStatus.pending": "Beklemede",
+  "documentStatus.partial": "Kısmen Ödendi",
+  "documentStatus.paid": "Ödendi",
+  "documentStatus.unpaid": "Ödenmedi",
+
+  "paymentStatusTable.paid": "Ödendi",
+  "paymentStatusTable.partial": "Kısmi",
+  "paymentStatusTable.unpaid": "Ödenmedi"
+}

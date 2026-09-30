@@ -5,11 +5,13 @@ import arDashboard from '../locales/ar/dashboard.json';
 import arLogin from '../locales/ar/login.json';
 import arNav from '../locales/ar/nav.json';
 import arInvoices from '../locales/ar/invoices.json';
+import arTerminology from '../locales/ar/terminology.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
 import trNav from '../locales/tr/nav.json';
 import trInvoices from '../locales/tr/invoices.json';
+import trTerminology from '../locales/tr/terminology.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -23,6 +25,7 @@ void i18n.use(initReactI18next).init({
       login: arLogin,
       nav: arNav,
       invoices: arInvoices,
+      terminology: arTerminology,
     },
     tr: {
       common: trCommon,
@@ -30,12 +33,13 @@ void i18n.use(initReactI18next).init({
       login: trLogin,
       nav: trNav,
       invoices: trInvoices,
+      terminology: trTerminology,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology'],
   interpolation: {
     escapeValue: false,
   },

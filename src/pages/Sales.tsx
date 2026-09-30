@@ -18,10 +18,12 @@ import { useToast } from '../components/NonBlockingToast';
 import { ApiRequestError } from '../lib/api/client';
 import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
 import { sendTelegramSalesInvoiceById } from '../lib/telegramSendById';
+import { useTranslation } from 'react-i18next';
 
 type DocFilter = '' | 'DRAFT' | 'CONFIRMED' | 'VOIDED';
 
 export const Sales = () => {
+  const { t } = useTranslation('invoices');
   const { showToast } = useToast();
   const { customers } = useStore();
   const [salesInvoices, setSalesInvoices] = useState<ListedSaleInvoice[]>([]);
@@ -46,7 +48,7 @@ export const Sales = () => {
       });
       setSalesInvoices(res.rows.map((row) => mapSalesListRowToInvoice(row as Record<string, unknown>)));
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'تعذر تحميل الفواتير');
+      setLoadError(e instanceof Error ? e.message : t('list.loadFailed'));
       setSalesInvoices([]);
     } finally {
       setLoading(false);
@@ -54,10 +56,10 @@ export const Sales = () => {
   }, [search, documentStatus]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       void refresh();
     }, 320);
-    return () => window.clearTimeout(t);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export const Sales = () => {
 
   const runConfirm = async (id: string, cashboxId?: string | null) => {
     await confirmSalesInvoice(id, cashboxId ? { cashboxId } : {});
-    showToast({ type: 'success', message: 'تم تأكيد فاتورة المبيعات' });
+    showToast({ type: 'success', message: t('list.confirmedSuccessSale') });
     setConfirmTargetId(null);
     setConfirmCashboxId('');
     void refresh();
@@ -87,7 +89,7 @@ export const Sales = () => {
   const handleConfirm = async (id: string) => {
     if (
       !window.confirm(
-        'سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟',
+        t('list.confirmPostInvoice'),
       )
     ) {
       return;
@@ -103,7 +105,7 @@ export const Sales = () => {
         } else {
           showToast({
             type: 'warning',
-            message: 'اختر الصندوق المالي لربط الدفعة بخزينة حقيقية وتوليد السند تلقائياً على الخادم.',
+            message: t('list.cashboxNeeded'),
           });
         }
         return;
@@ -112,7 +114,7 @@ export const Sales = () => {
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر تأكيد الفاتورة',
+        message: e instanceof ApiRequestError ? e.message : t('list.confirmFailed'),
       });
     } finally {
       setConfirmBusy(false);
@@ -124,7 +126,7 @@ export const Sales = () => {
     if (!confirmCashboxId) {
       showToast({
         type: 'warning',
-        message: 'اختر الصندوق المالي لربط الدفعة بخزينة حقيقية وتوليد السند تلقائياً على الخادم.',
+        message: t('list.cashboxNeeded'),
       });
       return;
     }
@@ -134,7 +136,7 @@ export const Sales = () => {
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر تأكيد الفاتورة',
+        message: e instanceof ApiRequestError ? e.message : t('list.confirmFailed'),
       });
     } finally {
       setConfirmBusy(false);
@@ -144,19 +146,19 @@ export const Sales = () => {
   const handleDeleteDraft = async (id: string) => {
     if (
       !window.confirm(
-        'سيتم حذف المسودة فقط ولن يؤثر ذلك على المخزون أو الحسابات. هل تريد المتابعة؟',
+        t('list.confirmDeleteDraft'),
       )
     ) {
       return;
     }
     try {
       await deleteSalesInvoice(id);
-      showToast({ type: 'success', message: 'تم حذف المسودة' });
+      showToast({ type: 'success', message: t('list.draftDeleted') });
       void refresh();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر حذف المسودة',
+        message: e instanceof ApiRequestError ? e.message : t('list.deleteDraftFailed'),
       });
     }
   };
@@ -164,19 +166,19 @@ export const Sales = () => {
   const handleVoid = async (id: string) => {
     if (
       !window.confirm(
-        'سيتم إلغاء الفاتورة المؤكدة وعكس أثرها على المخزون والقيود المحاسبية قدر الإمكان. هل أنت متأكد؟',
+        t('list.confirmVoid'),
       )
     ) {
       return;
     }
     try {
       await voidSalesInvoice(id);
-      showToast({ type: 'success', message: 'تم إلغاء الفاتورة' });
+      showToast({ type: 'success', message: t('list.voided') });
       void refresh();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر إلغاء الفاتورة',
+        message: e instanceof ApiRequestError ? e.message : t('list.voidFailed'),
       });
     }
   };
@@ -185,11 +187,11 @@ export const Sales = () => {
     setTelegramBusyId(invoiceId);
     try {
       await sendTelegramSalesInvoiceById(invoiceId, partyName);
-      showToast({ type: 'success', message: 'تم إرسال الفاتورة إلى تيليغرام.' });
+      showToast({ type: 'success', message: t('list.telegramSent') });
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'تعذر إرسال الفاتورة إلى تيليغرام',
+        message: e instanceof Error ? e.message : t('list.telegramFailed'),
       });
     } finally {
       setTelegramBusyId(null);
@@ -200,15 +202,15 @@ export const Sales = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">المبيعات</h2>
-          <p className="text-slate-500 mt-1">إدارة فواتير المبيعات</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('list.salesTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('list.salesSubtitle')}</p>
         </div>
         <Link
           to="/invoices/sales/new"
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition"
         >
           <Plus className="w-4 h-4" />
-          <span>فاتورة مبيعات جديدة</span>
+          <span>{t('list.newSaleInvoice')}</span>
         </Link>
       </div>
 
@@ -218,7 +220,7 @@ export const Sales = () => {
             <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
             <input
               type="text"
-              placeholder="بحث برقم الفاتورة، أو اسم العميل..."
+              placeholder={t('list.searchSalesPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
@@ -226,16 +228,16 @@ export const Sales = () => {
           </div>
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm">
             <Filter className="w-4 h-4 text-slate-500" />
-            <label className="text-sm font-bold text-slate-700 whitespace-nowrap">حالة المستند</label>
+            <label className="text-sm font-bold text-slate-700 whitespace-nowrap">{t('list.documentStatusLabel')}</label>
             <select
               value={documentStatus}
               onChange={(e) => setDocumentStatus(e.target.value as DocFilter)}
               className="text-sm font-medium text-slate-800 bg-transparent border-none outline-none cursor-pointer"
             >
-              <option value="">الكل</option>
-              <option value="DRAFT">مسودة</option>
-              <option value="CONFIRMED">مؤكدة</option>
-              <option value="VOIDED">ملغاة</option>
+              <option value="">{t('list.all')}</option>
+              <option value="DRAFT">{t('terminology:documentStatus.draft')}</option>
+              <option value="CONFIRMED">{t('terminology:documentStatus.confirmed')}</option>
+              <option value="VOIDED">{t('terminology:documentStatus.voided')}</option>
             </select>
           </div>
         </div>
@@ -244,20 +246,20 @@ export const Sales = () => {
             <div className="px-6 py-3 text-sm text-rose-700 bg-rose-50 border-b border-rose-100">{loadError}</div>
           )}
           {loading && !loadError ? (
-            <div className="px-6 py-12 text-center text-slate-500">جاري تحميل الفواتير...</div>
+            <div className="px-6 py-12 text-center text-slate-500">{t('list.loading')}</div>
           ) : (
             <table className="w-full text-right text-sm">
               <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4">رقم الفاتورة</th>
-                  <th className="px-6 py-4">التاريخ</th>
-                  <th className="px-6 py-4">العميل</th>
-                  <th className="px-6 py-4">الإجمالي ($)</th>
-                  <th className="px-6 py-4">المدفوع ($)</th>
-                  <th className="px-6 py-4">المتبقي ($)</th>
-                  <th className="px-6 py-4">حالة المستند</th>
-                  <th className="px-4 py-4 whitespace-nowrap">حالة الدفع</th>
-                  <th className="px-6 py-4">الإجراءات</th>
+                  <th className="px-6 py-4">{t('list.colInvoiceNo')}</th>
+                  <th className="px-6 py-4">{t('list.colDate')}</th>
+                  <th className="px-6 py-4">{t('list.colCustomer')}</th>
+                  <th className="px-6 py-4">{t('list.colTotal')}</th>
+                  <th className="px-6 py-4">{t('list.colPaid')}</th>
+                  <th className="px-6 py-4">{t('list.colRemaining')}</th>
+                  <th className="px-6 py-4">{t('list.colDocumentStatus')}</th>
+                  <th className="px-4 py-4 whitespace-nowrap">{t('list.colPaymentStatus')}</th>
+                  <th className="px-6 py-4">{t('list.colActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -314,13 +316,13 @@ export const Sales = () => {
                                 to={`/invoices/statement/${invoice.id}`}
                                 className="text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition text-xs"
                               >
-                                كشف المسودة
+                                {t('list.draftStatement')}
                               </Link>
                               <Link
                                 to={`/invoices/sales/${invoice.id}/edit`}
                                 className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
                               >
-                                تعديل
+                                {t('list.edit')}
                               </Link>
                               <button
                                 type="button"
@@ -328,14 +330,14 @@ export const Sales = () => {
                                 onClick={() => void handleConfirm(invoice.id)}
                                 className="text-white font-medium bg-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-700 transition text-xs disabled:opacity-50"
                               >
-                                تأكيد
+                                {t('list.confirmAction')}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void handleDeleteDraft(invoice.id)}
                                 className="text-rose-800 font-medium bg-rose-50 px-2 py-1 rounded-lg hover:bg-rose-100 transition text-xs"
                               >
-                                حذف المسودة
+                                {t('list.deleteDraft')}
                               </button>
                             </>
                           ) : null}
@@ -344,7 +346,7 @@ export const Sales = () => {
                               to={`/invoices/statement/${invoice.id}`}
                               className="text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition text-xs"
                             >
-                              كشف الفاتورة
+                              {t('list.invoiceStatement')}
                             </Link>
                           ) : null}
                           {doc === 'CONFIRMED' ? (
@@ -353,11 +355,11 @@ export const Sales = () => {
                                 to={`/invoices/sales/${invoice.id}/edit`}
                                 className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
                               >
-                                تعديل
+                                {t('list.edit')}
                               </Link>
                               <TelegramSendButton
                                 size="compact"
-                                label="تيليغرام"
+                                label={t('list.telegram')}
                                 busy={telegramBusyId === invoice.id}
                                 onClick={() => void handleSendTelegram(invoice.id, partyName)}
                               />
@@ -366,7 +368,7 @@ export const Sales = () => {
                                 onClick={() => void handleVoid(invoice.id)}
                                 className="text-slate-800 font-medium bg-slate-100 px-2 py-1 rounded-lg hover:bg-slate-200 transition text-xs"
                               >
-                                إلغاء
+                                {t('list.void')}
                               </button>
                             </>
                           ) : null}
@@ -378,7 +380,7 @@ export const Sales = () => {
                 {salesInvoices.length === 0 && !loading && (
                   <tr>
                     <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
-                      لا يوجد فواتير مبيعات في الخادم ضمن البحث الحالي.
+                      {t('list.emptySales')}
                     </td>
                   </tr>
                 )}
@@ -391,16 +393,16 @@ export const Sales = () => {
       {confirmTargetId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl space-y-4" dir="rtl">
-            <h3 className="text-lg font-bold text-slate-900">اختيار صندوق مالي للدفعة</h3>
+            <h3 className="text-lg font-bold text-slate-900">{t('list.cashboxModalTitle')}</h3>
             <p className="text-sm text-slate-600">
-              الفاتورة تحتوي دفعة نقدية. اختر الصندوق لربط القبض وتوليد السند تلقائياً عند التأكيد.
+              {t('list.cashboxModalBody')}
             </p>
             <select
               value={confirmCashboxId}
               onChange={(e) => setConfirmCashboxId(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-indigo-500"
             >
-              <option value="">-- اختر الصندوق --</option>
+              <option value="">{t('payment.cashboxPlaceholder')}</option>
               {cashboxOptions.map((box) => (
                 <option key={box.id} value={box.id}>
                   {box.name} ({box.code})
@@ -408,7 +410,7 @@ export const Sales = () => {
               ))}
             </select>
             {cashboxOptions.length === 0 && (
-              <p className="text-xs text-amber-700">لا صناديق من الخادم — أنشئ صندوقاً من إعدادات الخزينة.</p>
+              <p className="text-xs text-amber-700">{t('list.cashboxEmptyShort')}</p>
             )}
             <div className="flex gap-2 justify-end">
               <button
@@ -419,7 +421,7 @@ export const Sales = () => {
                 }}
                 className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium"
               >
-                إلغاء
+                {t('page.cancel')}
               </button>
               <button
                 type="button"
@@ -427,7 +429,7 @@ export const Sales = () => {
                 onClick={() => void handleConfirmWithCashbox()}
                 className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-medium disabled:opacity-50"
               >
-                تأكيد الفاتورة
+                {t('list.confirmInvoiceButton')}
               </button>
             </div>
           </div>

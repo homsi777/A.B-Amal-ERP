@@ -4,6 +4,7 @@
  */
 
 import type { Invoice } from '../../types';
+import i18n from '../../i18n/config';
 
 /** Labels for print / on-screen invoice statement (كشف الفاتورة). */
 export const AR_INVOICE_STATEMENT = {
@@ -72,26 +73,26 @@ export function arInvoicePaymentStatusCode(status: Invoice['status']): string {
 
 /** نسخة مضغوطة لجداول الفواتير — تمنع التكدس في عمود حالة الدفع */
 export function arInvoicePaymentStatusTable(status: Invoice['status']): string {
-  if (status === 'paid') return 'مدفوع';
-  if (status === 'partial') return 'جزئي';
-  return 'غير\u00A0مدفوع';
+  if (status === 'paid') return i18n.t('paymentStatusTable.paid', { ns: 'terminology' });
+  if (status === 'partial') return i18n.t('paymentStatusTable.partial', { ns: 'terminology' });
+  return i18n.t('paymentStatusTable.unpaid', { ns: 'terminology' });
 }
 
 /** Document lifecycle status from backend enums (uppercase). */
 export function arDocumentStatus(status: string | null | undefined): string {
-  if (!status) return '—';
+  if (!status) return i18n.t('documentStatus.dash', { ns: 'terminology' });
   const s = status.toUpperCase();
-  if (s === 'DRAFT') return 'مسودة';
-  if (s === 'CONFIRMED') return 'مؤكدة';
-  if (s === 'VOID' || s === 'VOIDED') return 'ملغاة';
-  if (s === 'CANCELLED' || s === 'CANCELED') return 'ملغاة';
-  if (s === 'ACTIVE') return 'فعّال';
-  if (s === 'INACTIVE') return 'غير فعّال';
-  if (s === 'COMPLETED') return 'مكتمل';
-  if (s === 'PENDING') return 'قيد الانتظار';
-  if (s === 'PARTIAL') return 'مدفوع جزئياً';
-  if (s === 'PAID') return 'مدفوع';
-  if (s === 'UNPAID') return 'غير مدفوع';
+  if (s === 'DRAFT') return i18n.t('documentStatus.draft', { ns: 'terminology' });
+  if (s === 'CONFIRMED') return i18n.t('documentStatus.confirmed', { ns: 'terminology' });
+  if (s === 'VOID' || s === 'VOIDED') return i18n.t('documentStatus.voided', { ns: 'terminology' });
+  if (s === 'CANCELLED' || s === 'CANCELED') return i18n.t('documentStatus.voided', { ns: 'terminology' });
+  if (s === 'ACTIVE') return i18n.t('documentStatus.active', { ns: 'terminology' });
+  if (s === 'INACTIVE') return i18n.t('documentStatus.inactive', { ns: 'terminology' });
+  if (s === 'COMPLETED') return i18n.t('documentStatus.completed', { ns: 'terminology' });
+  if (s === 'PENDING') return i18n.t('documentStatus.pending', { ns: 'terminology' });
+  if (s === 'PARTIAL') return i18n.t('documentStatus.partial', { ns: 'terminology' });
+  if (s === 'PAID') return i18n.t('documentStatus.paid', { ns: 'terminology' });
+  if (s === 'UNPAID') return i18n.t('documentStatus.unpaid', { ns: 'terminology' });
   return status;
 }
 

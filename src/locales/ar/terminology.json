@@ -1,0 +1,17 @@
+{
+  "documentStatus.dash": "—",
+  "documentStatus.draft": "مسودة",
+  "documentStatus.confirmed": "مؤكدة",
+  "documentStatus.voided": "ملغاة",
+  "documentStatus.active": "فعّال",
+  "documentStatus.inactive": "غير فعّال",
+  "documentStatus.completed": "مكتمل",
+  "documentStatus.pending": "قيد الانتظار",
+  "documentStatus.partial": "مدفوع جزئياً",
+  "documentStatus.paid": "مدفوع",
+  "documentStatus.unpaid": "غير مدفوع",
+
+  "paymentStatusTable.paid": "مدفوع",
+  "paymentStatusTable.partial": "جزئي",
+  "paymentStatusTable.unpaid": "غير مدفوع"
+}

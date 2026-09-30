@@ -27,6 +27,7 @@ import { useToast } from '../components/NonBlockingToast';
 import { ApiRequestError } from '../lib/api/client';
 import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
 import { sendTelegramPurchaseInvoiceById } from '../lib/telegramSendById';
+import { useTranslation } from 'react-i18next';
 
 const SCAN_DEBOUNCE_MS = 300;
 /** Minimum normalized length to auto-fire after debounce (warehouse scanners). */
@@ -36,6 +37,7 @@ type ScanFeedback = { tone: 'success' | 'warn' | 'error'; text: string } | null;
 type DocFilter = '' | 'DRAFT' | 'CONFIRMED' | 'VOIDED' | 'ALL';
 
 export const Purchases = () => {
+  const { t } = useTranslation('invoices');
   const { showToast } = useToast();
   const { suppliers, importConfirmedPurchaseInvoice } = useStore();
   const [purchaseInvoices, setPurchaseInvoices] = useState<ListedPurchaseInvoice[]>([]);
@@ -64,7 +66,7 @@ export const Purchases = () => {
       });
       setPurchaseInvoices(res.rows.map((row) => mapPurchaseListRowToInvoice(row as Record<string, unknown>)));
     } catch (e) {
-      setPiError(e instanceof Error ? e.message : 'تعذر تحميل فواتير الشراء');
+      setPiError(e instanceof Error ? e.message : t('list.purchaseLoadFailed'));
       setPurchaseInvoices([]);
     } finally {
       setPiLoading(false);
@@ -74,29 +76,29 @@ export const Purchases = () => {
   const payStatus = (inv: ListedPurchaseInvoice) => inv.paymentStatus ?? inv.status;
 
   const handleConfirmPurchase = async (id: string) => {
-    if (!window.confirm('سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟')) return;
+    if (!window.confirm(t('list.confirmPostInvoice'))) return;
     try {
       await confirmPurchaseInvoice(id, {});
-      showToast({ type: 'success', message: 'تم تأكيد فاتورة الشراء' });
+      showToast({ type: 'success', message: t('list.confirmedSuccessPurchase') });
       void refreshPurchaseList();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر تأكيد الفاتورة',
+        message: e instanceof ApiRequestError ? e.message : t('list.confirmFailedPurchase'),
       });
     }
   };
 
   const handleDeletePurchaseDraft = async (id: string) => {
-    if (!window.confirm('سيتم حذف المسودة فقط ولن يؤثر ذلك على المخزون أو الحسابات. هل تريد المتابعة؟')) return;
+    if (!window.confirm(t('list.confirmDeleteDraft'))) return;
     try {
       await deletePurchaseInvoice(id);
-      showToast({ type: 'success', message: 'تم حذف المسودة' });
+      showToast({ type: 'success', message: t('list.draftDeleted') });
       void refreshPurchaseList();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر حذف المسودة',
+        message: e instanceof ApiRequestError ? e.message : t('list.deleteDraftFailed'),
       });
     }
   };
@@ -104,7 +106,7 @@ export const Purchases = () => {
   const handlePurgeVoided = async (id: string, invoiceNo: string) => {
     if (
       !window.confirm(
-        `حذف نهائي للفاتورة ${invoiceNo}؟\n\nلن تظهر في القائمة أو التقارير. للفواتير الملغaة (تجارب) فقط.`,
+        t('list.purgeConfirm', { invoiceNo }),
       )
     ) {
       return;
@@ -113,13 +115,13 @@ export const Purchases = () => {
       const res = await purgeVoidedPurchaseInvoice(id);
       showToast({
         type: 'success',
-        message: `تم حذف الفاتورة ${res.data.invoiceNo} نهائياً`,
+        message: t('list.purgeSuccess', { no: res.data.invoiceNo }),
       });
       void refreshPurchaseList();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر الحذف النهائي',
+        message: e instanceof ApiRequestError ? e.message : t('list.purgeFailed'),
       });
     }
   };
@@ -127,19 +129,19 @@ export const Purchases = () => {
   const handleVoidPurchase = async (id: string) => {
     if (
       !window.confirm(
-        'سيتم إلغاء الفاتورة المؤكدة وعكس المخزون والذمم والقيود. لا يمكن الإلغاء إذا بُيعت خامات منها. هل أنت متأكد؟',
+        t('list.confirmVoidPurchase'),
       )
     ) {
       return;
     }
     try {
       await voidPurchaseInvoice(id);
-      showToast({ type: 'success', message: 'تم إلغاء الفاتورة' });
+      showToast({ type: 'success', message: t('list.voided') });
       void refreshPurchaseList();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر إلغاء الفاتورة',
+        message: e instanceof ApiRequestError ? e.message : t('list.voidFailed'),
       });
     }
   };
@@ -148,11 +150,11 @@ export const Purchases = () => {
     setTelegramBusyId(invoiceId);
     try {
       await sendTelegramPurchaseInvoiceById(invoiceId, partyName);
-      showToast({ type: 'success', message: 'تم إرسال الفاتورة إلى تيليغرام.' });
+      showToast({ type: 'success', message: t('list.telegramSent') });
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'تعذر إرسال الفاتورة إلى تيليغرام',
+        message: e instanceof Error ? e.message : t('list.telegramFailed'),
       });
     } finally {
       setTelegramBusyId(null);
@@ -160,8 +162,8 @@ export const Purchases = () => {
   };
 
   useEffect(() => {
-    const t = window.setTimeout(() => void refreshPurchaseList(), 320);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => void refreshPurchaseList(), 320);
+    return () => window.clearTimeout(timer);
   }, [refreshPurchaseList]);
 
   const confirmedCount = importPreview?.rolls.filter((roll) => roll.confirmed).length || 0;
@@ -185,8 +187,8 @@ export const Purchases = () => {
 
   useEffect(() => {
     if (!importPreview) return;
-    const t = window.setTimeout(() => refocusScanInput(), 120);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => refocusScanInput(), 120);
+    return () => window.clearTimeout(timer);
   }, [importPreview, refocusScanInput]);
 
   useEffect(
@@ -216,7 +218,7 @@ export const Purchases = () => {
       setTimeout(() => scanInputRef.current?.focus(), 80);
     } catch (error) {
       console.error('Purchase invoice Excel import failed', error);
-      showToast({ type: 'error', message: 'تعذر قراءة ملف فاتورة الشراء. تأكد أن الملف Excel صالح.' });
+      showToast({ type: 'error', message: t('import.readFailed') });
     } finally {
       setIsImporting(false);
     }
@@ -236,7 +238,7 @@ export const Purchases = () => {
       if (!target) {
         setScanFeedback({
           tone: 'error',
-          text: 'لم يتم العثور على باركود مطابق ضمن هذه الدفعة',
+          text: t('import.noBarcodeMatch'),
         });
         setScanValue('');
         refocusScanInput();
@@ -244,7 +246,7 @@ export const Purchases = () => {
       }
 
       if (target.confirmed) {
-        setScanFeedback({ tone: 'warn', text: 'هذا الثوب مؤكد مسبقاً' });
+        setScanFeedback({ tone: 'warn', text: t('import.alreadyConfirmed') });
         setScanValue('');
         refocusScanInput();
         return;
@@ -258,7 +260,7 @@ export const Purchases = () => {
       setImportPreview(next);
       setScanFeedback({
         tone: 'success',
-        text: `تم تأكيد الثوب: ${target.barcode}`,
+        text: t('import.confirmedRoll', { barcode: target.barcode }),
       });
       setScanValue('');
       refocusScanInput();
@@ -299,12 +301,12 @@ export const Purchases = () => {
   const handleCommitAllWithoutVerification = () => {
     if (!importPreview) return;
     if (!importPreview.rolls.length) {
-      showToast({ type: 'warning', message: 'لا توجد أتواب قابلة للاستيراد داخل الملف.' });
+      showToast({ type: 'warning', message: t('import.noRollsToImport') });
       return;
     }
 
     const ok = window.confirm(
-      `سيتم استيراد كل الأتواب (${importPreview.rolls.length}) بدون توثيق بالباركود. استخدم هذا الخيار فقط بناء على طلب صاحب المشروع. هل تريد المتابعة؟`,
+      t('import.confirmImportAllNoVerify', { count: importPreview.rolls.length }),
     );
     if (!ok) return;
 
@@ -347,12 +349,12 @@ export const Purchases = () => {
     if (!importPreview) return;
     const confirmedRolls = importPreview.rolls.filter((roll) => roll.confirmed);
     if (!confirmedRolls.length) {
-      showToast({ type: 'warning', message: 'لا يوجد أي طوب مؤكد بالباركود حتى الآن.' });
+      showToast({ type: 'warning', message: t('import.noConfirmedYet') });
       return;
     }
 
     if (confirmedRolls.length < importPreview.rolls.length) {
-      const ok = window.confirm(`تم تأكيد ${confirmedRolls.length} من أصل ${importPreview.rolls.length}. هل تريد ترحيل المؤكد فقط وترك ${importPreview.rolls.length - confirmedRolls.length} غير مؤكد؟`);
+      const ok = window.confirm(t('import.confirmPartial', { confirmed: confirmedRolls.length, total: importPreview.rolls.length, remaining: importPreview.rolls.length - confirmedRolls.length }));
       if (!ok) return;
     }
 
@@ -392,8 +394,8 @@ export const Purchases = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">فواتير الشراء</h2>
-          <p className="text-slate-500 mt-1">إدارة فواتير المشتريات من الموردين</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('list.purchasesTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('list.purchasesSubtitle')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {false && <RepairVoidedPurchaseRollsButton />}
@@ -402,21 +404,21 @@ export const Purchases = () => {
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition font-medium text-sm"
           >
             <History className="w-4 h-4" />
-            <span>سجل استيراد فواتير الشراء</span>
+            <span>{t('import.historyLink')}</span>
           </Link>
           <Link
             to="/purchases/import-excel"
             className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition font-medium text-sm"
           >
             <FileUp className="w-4 h-4" />
-            <span>استيراد فاتورة شراء</span>
+            <span>{t('import.excelLink')}</span>
           </Link>
           <Link
             to="/invoices/purchases/new"
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition font-medium text-sm"
           >
             <Plus className="w-4 h-4" />
-            <span>فاتورة مشتريات جديدة</span>
+            <span>{t('list.newPurchaseInvoice')}</span>
           </Link>
         </div>
       </div>
@@ -427,7 +429,7 @@ export const Purchases = () => {
             <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
             <input 
               type="text" 
-              placeholder="بحث برقم الفاتورة، أو اسم المورد..." 
+              placeholder={t('list.searchPurchasesPlaceholder')} 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
@@ -435,17 +437,17 @@ export const Purchases = () => {
           </div>
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm">
             <Filter className="w-4 h-4 text-slate-500" />
-            <label className="text-sm font-bold text-slate-700 whitespace-nowrap">حالة المستند</label>
+            <label className="text-sm font-bold text-slate-700 whitespace-nowrap">{t('list.documentStatusLabel')}</label>
             <select
               value={documentStatus}
               onChange={(e) => setDocumentStatus(e.target.value as DocFilter)}
               className="text-sm font-medium text-slate-800 bg-transparent border-none outline-none cursor-pointer"
             >
-              <option value="">بدون ملغاة</option>
-              <option value="ALL">الكل (يشمل الملغاة)</option>
-              <option value="DRAFT">مسودة</option>
-              <option value="CONFIRMED">مؤكدة</option>
-              <option value="VOIDED">ملغاة فقط</option>
+              <option value="">{t('list.docStatusNoVoided')}</option>
+              <option value="ALL">{t('list.docStatusAllIncludingVoided')}</option>
+              <option value="DRAFT">{t('terminology:documentStatus.draft')}</option>
+              <option value="CONFIRMED">{t('terminology:documentStatus.confirmed')}</option>
+              <option value="VOIDED">{t('list.docStatusVoidedOnly')}</option>
             </select>
           </div>
         </div>
@@ -454,20 +456,20 @@ export const Purchases = () => {
             <div className="px-6 py-3 text-sm text-rose-700 bg-rose-50 border-b border-rose-100">{piError}</div>
           )}
           {piLoading && !piError ? (
-            <div className="px-6 py-12 text-center text-slate-500">جاري تحميل فواتير الشراء...</div>
+            <div className="px-6 py-12 text-center text-slate-500">{t('list.loading')}</div>
           ) : (
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
               <tr>
-                <th className="px-6 py-4">رقم الفاتورة</th>
-                <th className="px-6 py-4">التاريخ</th>
-                <th className="px-6 py-4">المورد</th>
-                <th className="px-6 py-4">الإجمالي ($)</th>
-                <th className="px-6 py-4">المدفوع ($)</th>
-                <th className="px-6 py-4">المتبقي ($)</th>
-                <th className="px-6 py-4">حالة المستند</th>
-                <th className="px-4 py-4 whitespace-nowrap">حالة الدفع</th>
-                <th className="px-6 py-4">الإجراءات</th>
+                <th className="px-6 py-4">{t('list.colInvoiceNo')}</th>
+                <th className="px-6 py-4">{t('list.colDate')}</th>
+                <th className="px-6 py-4">{t('list.colSupplier')}</th>
+                <th className="px-6 py-4">{t('list.colTotal')}</th>
+                <th className="px-6 py-4">{t('list.colPaid')}</th>
+                <th className="px-6 py-4">{t('list.colRemaining')}</th>
+                <th className="px-6 py-4">{t('list.colDocumentStatus')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('list.colPaymentStatus')}</th>
+                <th className="px-6 py-4">{t('list.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -522,21 +524,21 @@ export const Purchases = () => {
                               to={`/invoices/purchases/${invoice.id}/edit`}
                               className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
                             >
-                              متابعة المسودة
+                              {t('list.purchaseDraftContinue')}
                             </Link>
                             <button
                               type="button"
                               onClick={() => void handleConfirmPurchase(invoice.id)}
                               className="text-white font-medium bg-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-700 transition text-xs"
                             >
-                              تأكيد
+                              {t('list.confirmAction')}
                             </button>
                             <button
                               type="button"
                               onClick={() => void handleDeletePurchaseDraft(invoice.id)}
                               className="text-rose-800 font-medium bg-rose-50 px-2 py-1 rounded-lg hover:bg-rose-100 transition text-xs"
                             >
-                              حذف المسودة
+                              {t('list.deleteDraft')}
                             </button>
                           </>
                         ) : null}
@@ -546,14 +548,14 @@ export const Purchases = () => {
                               to={`/invoices/statement/${invoice.id}`}
                               className="text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition text-xs"
                             >
-                              كشف الفاتورة
+                              {t('list.invoiceStatement')}
                             </Link>
                             <button
                               type="button"
                               onClick={() => void handlePurgeVoided(invoice.id, displayStoredInvoiceNo(invoice.invoiceNumber))}
                               className="text-rose-800 font-medium bg-rose-50 px-2 py-1 rounded-lg hover:bg-rose-100 transition text-xs"
                             >
-                              حذف نهائي
+                              {t('list.purgeFinal')}
                             </button>
                           </>
                         ) : null}
@@ -562,7 +564,7 @@ export const Purchases = () => {
                             to={`/invoices/statement/${invoice.id}`}
                             className="text-indigo-600 hover:text-indigo-800 font-medium bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition text-xs"
                           >
-                            كشف الفاتورة
+                            {t('list.invoiceStatement')}
                           </Link>
                         ) : null}
                         {doc === 'CONFIRMED' ? (
@@ -571,11 +573,11 @@ export const Purchases = () => {
                               to={`/invoices/purchases/${invoice.id}/edit`}
                               className="text-amber-800 hover:text-amber-950 font-medium bg-amber-50 px-2 py-1 rounded-lg hover:bg-amber-100 transition text-xs"
                             >
-                              تعديل
+                              {t('list.edit')}
                             </Link>
                             <TelegramSendButton
                               size="compact"
-                              label="تيليغرام"
+                              label={t('list.telegram')}
                               busy={telegramBusyId === invoice.id}
                               onClick={() => void handleSendTelegram(invoice.id, partyName)}
                             />
@@ -584,7 +586,7 @@ export const Purchases = () => {
                               onClick={() => void handleVoidPurchase(invoice.id)}
                               className="text-slate-800 font-medium bg-slate-100 px-2 py-1 rounded-lg hover:bg-slate-200 transition text-xs"
                             >
-                              إلغاء
+                              {t('list.void')}
                             </button>
                           </>
                         ) : null}
@@ -595,7 +597,7 @@ export const Purchases = () => {
               })}
               {purchaseInvoices.length === 0 && !piLoading && (
                  <tr>
-                 <td colSpan={9} className="px-6 py-12 text-center text-slate-500">لا يوجد فواتير شراء في الخادم ضمن البحث الحالي.</td>
+                 <td colSpan={9} className="px-6 py-12 text-center text-slate-500">{t('list.emptyPurchases')}</td>
                </tr>
               )}
             </tbody>
@@ -609,8 +611,8 @@ export const Purchases = () => {
           <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-xl font-black text-slate-900">تأكيد استلام فاتورة الشراء من Excel</h3>
-                <p className="text-sm text-slate-500 mt-1">{importPreview.fileName} · الشيت: {importPreview.sheetName}</p>
+                <h3 className="text-xl font-black text-slate-900">{t('import.modalTitle')}</h3>
+                <p className="text-sm text-slate-500 mt-1">{importPreview.fileName} {t('import.sheetLabel', { sheet: importPreview.sheetName })}</p>
               </div>
               <button
                 type="button"
@@ -626,14 +628,14 @@ export const Purchases = () => {
 
             <div className="p-5 space-y-4 overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <ImportStat title="إجمالي الأتواب" value={totalImportedCount} color="slate" />
-                <ImportStat title="تم تأكيده" value={confirmedCount} color="emerald" />
-                <ImportStat title="غير مؤكد" value={remainingCount} color={remainingCount ? 'rose' : 'emerald'} />
-                <ImportStat title="الأمتار المؤكدة" value={confirmedMeters.toFixed(2)} color="indigo" />
+                <ImportStat title={t('import.statTotalRolls')} value={totalImportedCount} color="slate" />
+                <ImportStat title={t('import.statConfirmed')} value={confirmedCount} color="emerald" />
+                <ImportStat title={t('import.statUnconfirmed')} value={remainingCount} color={remainingCount ? 'rose' : 'emerald'} />
+                <ImportStat title={t('import.statConfirmedMeters')} value={confirmedMeters.toFixed(2)} color="indigo" />
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <label className="block text-sm font-bold text-slate-700 mb-2">بحث / تأكيد عن طريق رقم الباركود</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2">{t('import.searchLabel')}</label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <Search className="w-5 h-5 absolute right-3 top-2.5 text-slate-400" />
@@ -642,7 +644,7 @@ export const Purchases = () => {
                       value={scanValue}
                       onChange={(e) => handleScanChange(e.target.value)}
                       onKeyDown={handleScanKeyDown}
-                      placeholder="امسح الباركود — يُؤكَّد تلقائياً (أو Enter)"
+                      placeholder={t('import.scanPlaceholder')}
                       autoComplete="off"
                       spellCheck={false}
                       className="w-full pr-10 pl-4 py-2 border border-slate-300 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -654,7 +656,7 @@ export const Purchases = () => {
                     onClick={() => confirmBarcode(scanValue)}
                     className="px-5 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700"
                   >
-                    تأكيد
+                    {t('import.confirmButton')}
                   </button>
                 </div>
                 {scanFeedback && (
@@ -694,7 +696,7 @@ export const Purchases = () => {
 
             <div className="px-5 py-4 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm font-bold text-slate-700">
-                تم تأكيد {confirmedCount} من أصل {totalImportedCount} · بقي {remainingCount} غير مؤكد
+                {t('import.footerSummary', { confirmed: confirmedCount, total: totalImportedCount, remaining: remainingCount })}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -705,17 +707,17 @@ export const Purchases = () => {
                   }}
                   className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
                 >
-                  إلغاء الاستيراد
+                  {t('import.cancelImport')}
                 </button>
                 <button
                   type="button"
                   onClick={handleCommitAllWithoutVerification}
                   className="px-5 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 font-bold"
                 >
-                  استيراد الكل بدون توثيق
+                  {t('import.commitAllNoVerify')}
                 </button>
                 <button onClick={handleCommitImport} className="px-5 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-bold">
-                  تأكيد وترحيل المؤكد
+                  {t('import.commitConfirmed')}
                 </button>
               </div>
             </div>
@@ -743,6 +745,7 @@ function ImportStat({ title, value, color }: { title: string; value: string | nu
 }
 
 function ImportedRollCard({ roll }: { roll: ImportedPurchaseRoll }) {
+  const { t } = useTranslation('invoices');
   return (
     <div className={`rounded-xl border p-4 transition ${roll.confirmed ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-200' : 'bg-white border-slate-200'}`}>
       <div className="flex items-start justify-between gap-3">
@@ -755,9 +758,9 @@ function ImportedRollCard({ roll }: { roll: ImportedPurchaseRoll }) {
       <div className={`mt-3 rounded-lg border px-3 py-2 font-mono text-sm font-bold ${roll.confirmed ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-700'}`} dir="ltr">
         {roll.barcode}
       </div>
-      <div className="mt-3 text-sm font-bold text-slate-700">{roll.meters.toFixed(2)} متر</div>
+      <div className="mt-3 text-sm font-bold text-slate-700">{roll.meters.toFixed(2)} {t('import.metersUnit')}</div>
       <div className={`mt-2 text-xs font-black ${roll.confirmed ? 'text-emerald-700' : 'text-rose-600'}`}>
-        {roll.confirmed ? 'تم تأكيد الاستلام' : 'بانتظار المسح'}
+        {roll.confirmed ? t('import.receivedConfirmed') : t('import.awaitingScan')}
       </div>
     </div>
   );
