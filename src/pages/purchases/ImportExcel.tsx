@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Upload, ArrowRight, CheckCircle2, AlertTriangle, XCircle,
   RefreshCw, ChevronDown, FileSpreadsheet, Package, Eye, Tags,
@@ -17,13 +18,13 @@ import { useToast } from '../../components/NonBlockingToast';
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
-const ROW_STATUS_LABEL: Record<RowStatus, string> = {
-  PENDING: 'جاري',
-  VALID:   'صالح',
-  WARNING: 'تحذير',
-  ERROR:   'خطأ',
-  IMPORTED:'مستورد',
-  SKIPPED: 'متخطى',
+const ROW_STATUS_KEY: Record<RowStatus, string> = {
+  PENDING: 'rowStatus.pending',
+  VALID:   'rowStatus.valid',
+  WARNING: 'rowStatus.warning',
+  ERROR:   'rowStatus.error',
+  IMPORTED:'rowStatus.imported',
+  SKIPPED: 'rowStatus.skipped',
 };
 const ROW_STATUS_COLOR: Record<RowStatus, string> = {
   PENDING: 'bg-slate-100 text-slate-600',
@@ -34,19 +35,23 @@ const ROW_STATUS_COLOR: Record<RowStatus, string> = {
   SKIPPED: 'bg-slate-100 text-slate-400',
 };
 
-const RowStatusBadge = ({ status }: { status: RowStatus }) => (
-  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${ROW_STATUS_COLOR[status] ?? ''}`}>
-    {ROW_STATUS_LABEL[status] ?? status}
-  </span>
-);
+const RowStatusBadge = ({ status }: { status: RowStatus }) => {
+  const { t } = useTranslation('purchaseImport');
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${ROW_STATUS_COLOR[status] ?? ''}`}>
+      {ROW_STATUS_KEY[status] ? t(ROW_STATUS_KEY[status]) : status}
+    </span>
+  );
+};
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 const Steps = ({ current }: { current: 1 | 2 | 3 }) => {
+  const { t } = useTranslation('purchaseImport');
   const steps = [
-    { n: 1, label: 'رفع الملف' },
-    { n: 2, label: 'مراجعة البيانات' },
-    { n: 3, label: 'تأكيد الاستيراد' },
+    { n: 1, label: t('steps.uploadFile') },
+    { n: 2, label: t('steps.reviewData') },
+    { n: 3, label: t('steps.confirmImport') },
   ];
   return (
     <div className="flex items-center gap-0">
@@ -128,6 +133,7 @@ const batchToPreviewSummary = (batch: PurchaseImportBatchDto): ImportPreviewSumm
 };
 
 export const ImportExcel = () => {
+  const { t } = useTranslation('purchaseImport');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
@@ -225,17 +231,17 @@ export const ImportExcel = () => {
 
     const loadExistingBatch = async () => {
       setResumeLoading(true);
-      setImportMessage('جاري فتح الدفعة المعلّقة...');
+      setImportMessage(t('status.openingPendingBatch'));
       try {
         const batch = await getImportBatch(resumeBatchId);
         if (cancelled) return;
         if (batch.status === 'CONFIRMED') {
-          showToast({ type: 'warning', message: 'هذه الدفعة مؤكدة مسبقاً ولا تحتاج توثيق استلام.' });
+          showToast({ type: 'warning', message: t('toast.batchAlreadyConfirmed') });
           navigate('/purchases/import-batches');
           return;
         }
         if (batch.status === 'CANCELLED') {
-          showToast({ type: 'error', message: 'هذه الدفعة ملغاة ولا يمكن استكمالها.' });
+          showToast({ type: 'error', message: t('toast.batchCancelled') });
           navigate('/purchases/import-batches');
           return;
         }
@@ -264,7 +270,7 @@ export const ImportExcel = () => {
         setTimeout(() => scanInputRef.current?.focus(), 0);
       } catch (e: unknown) {
         if (!cancelled) {
-          showToast({ type: 'error', message: (e as { message?: string }).message ?? 'تعذر فتح الدفعة المعلّقة' });
+          showToast({ type: 'error', message: (e as { message?: string }).message ?? t('toast.openBatchFailed') });
           navigate('/purchases/import-batches');
         }
       } finally {
@@ -286,20 +292,20 @@ export const ImportExcel = () => {
   };
 
   const handleUpload = async () => {
-    if (!supplierId) return showToast({ type: 'error', message: 'يرجى اختيار المورد' });
-    if (!warehouseId) return showToast({ type: 'error', message: 'يرجى اختيار المستودع' });
-    if (!invoiceDate) return showToast({ type: 'error', message: 'يرجى تحديد تاريخ الفاتورة' });
-    if (!selectedFile) return showToast({ type: 'error', message: 'يرجى اختيار ملف Excel' });
+    if (!supplierId) return showToast({ type: 'error', message: t('toast.chooseSupplier') });
+    if (!warehouseId) return showToast({ type: 'error', message: t('toast.chooseWarehouse') });
+    if (!invoiceDate) return showToast({ type: 'error', message: t('toast.specifyInvoiceDate') });
+    if (!selectedFile) return showToast({ type: 'error', message: t('toast.chooseExcelFile') });
     const ccy = currencyCode.trim().toUpperCase();
-    if (ccy && ccy.length !== 3) return showToast({ type: 'error', message: 'رمز العملة غير صالح' });
+    if (ccy && ccy.length !== 3) return showToast({ type: 'error', message: t('toast.invalidCurrencyCode') });
     if (exchangeRateToUsd.trim()) {
       const v = Number(exchangeRateToUsd);
-      if (!Number.isFinite(v) || v <= 0) return showToast({ type: 'error', message: 'سعر الصرف غير صالح' });
+      if (!Number.isFinite(v) || v <= 0) return showToast({ type: 'error', message: t('toast.invalidExchangeRate') });
     }
     setUploading(true);
-    setImportMessage('جارٍ قراءة ملف Excel...');
+    setImportMessage(t('status.readingExcel'));
     try {
-      window.setTimeout(() => setImportMessage((msg) => msg || 'جارٍ تحليل الصفوف...'), 300);
+      window.setTimeout(() => setImportMessage((msg) => msg || t('status.analyzingRows')), 300);
       const result = await previewPurchaseExcelImport(selectedFile, {
         supplierId,
         warehouseId,
@@ -321,9 +327,9 @@ export const ImportExcel = () => {
       setRowsFilter('');
       setStep(2);
       setImportMessage('');
-      showToast({ type: 'success', message: 'تم تحميل الملف بنجاح' });
+      showToast({ type: 'success', message: t('toast.fileUploadedSuccess') });
     } catch (e: unknown) {
-      showToast({ type: 'error', message: (e as { message?: string }).message ?? 'تعذر استيراد ملف Excel' });
+      showToast({ type: 'error', message: (e as { message?: string }).message ?? t('toast.fileImportFailed') });
     } finally {
       setImportMessage('');
       setUploading(false);
@@ -346,15 +352,15 @@ export const ImportExcel = () => {
   const handleConfirm = async () => {
     if (!preview) return;
     setConfirming(true);
-    setImportMessage('جارٍ تأكيد الاستيراد وإنشاء الأتواب في المخزون...');
+    setImportMessage(t('status.confirmingImport'));
     try {
       const result = await confirmImportBatch(preview.batchId, { allowWarnings });
       setConfirmResult(result);
       setStep(3);
       setImportMessage('');
-      showToast({ type: 'success', message: 'تم استيراد فاتورة الشراء بنجاح' });
+      showToast({ type: 'success', message: t('toast.importConfirmedSuccess') });
     } catch (e: unknown) {
-      showToast({ type: 'error', message: (e as { message?: string }).message ?? 'تعذر تأكيد الاستيراد' });
+      showToast({ type: 'error', message: (e as { message?: string }).message ?? t('toast.importConfirmFailed') });
     } finally {
       setImportMessage('');
       setConfirming(false);
@@ -371,12 +377,12 @@ export const ImportExcel = () => {
       setVerificationTotal(res.verificationTotal);
       setVerificationVerified(res.verificationVerified);
       if (res.didVerify) {
-        showToast({ type: 'success', message: `تم توثيق الباركود: ${res.barcode}` });
+        showToast({ type: 'success', message: t('toast.barcodeVerified', { barcode: res.barcode }) });
       } else {
-        showToast({ type: 'warning', message: `هذا الباركود موثَّق مسبقاً: ${res.barcode}` });
+        showToast({ type: 'warning', message: t('toast.barcodeAlreadyVerified', { barcode: res.barcode }) });
       }
     } catch (e: unknown) {
-      showToast({ type: 'error', message: (e as { message?: string }).message ?? 'تعذر توثيق الباركود' });
+      showToast({ type: 'error', message: (e as { message?: string }).message ?? t('toast.barcodeVerifyFailed') });
     } finally {
       setScanBusy(false);
       setScanValue('');
@@ -416,7 +422,7 @@ export const ImportExcel = () => {
       {resumeLoading && (
         <div className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl px-4 py-3 text-sm font-bold flex items-center gap-2">
           <RefreshCw className="w-4 h-4 animate-spin" />
-          جاري فتح فاتورة الشراء المعلّقة...
+          {t('status.openingPendingInvoice')}
         </div>
       )}
 
@@ -427,13 +433,13 @@ export const ImportExcel = () => {
             <ArrowRight className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">استيراد فاتورة شراء من Excel</h2>
-            <p className="text-slate-500 mt-1">رفع، مراجعة، وتأكيد — الأتواب تُضاف لـ PostgreSQL فقط بعد التأكيد</p>
+            <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+            <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
           </div>
         </div>
         <Link to="/purchases/import-batches" className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition text-sm font-medium">
           <FileSpreadsheet className="w-4 h-4" />
-          سجل الاستيرادات
+          {t('page.importLog')}
         </Link>
       </div>
 
@@ -448,66 +454,66 @@ export const ImportExcel = () => {
           <div className="p-5 bg-slate-50 border-b border-slate-200">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <Upload className="w-5 h-5 text-indigo-600" />
-              إعدادات الاستيراد
+              {t('step1.sectionTitle')}
             </h3>
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">المورد <span className="text-rose-500">*</span></label>
+              <label className="text-sm font-bold text-slate-700">{t('step1.supplierLabel')} <span className="text-rose-500">*</span></label>
               <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className={inputCls}>
-                <option value="">— اختر المورد —</option>
+                <option value="">{t('step1.chooseSupplier')}</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">المستودع <span className="text-rose-500">*</span></label>
+              <label className="text-sm font-bold text-slate-700">{t('step1.warehouseLabel')} <span className="text-rose-500">*</span></label>
               <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className={inputCls}>
-                <option value="">— اختر المستودع —</option>
+                <option value="">{t('step1.chooseWarehouse')}</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">الموقع الافتراضي</label>
+              <label className="text-sm font-bold text-slate-700">{t('step1.defaultLocationLabel')}</label>
               <select value={locationId} onChange={e => setLocationId(e.target.value)} className={inputCls}>
-                <option value="">— بدون موقع —</option>
+                <option value="">{t('step1.noLocationOption')}</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">تاريخ الفاتورة <span className="text-rose-500">*</span></label>
+              <label className="text-sm font-bold text-slate-700">{t('step1.invoiceDateLabel')} <span className="text-rose-500">*</span></label>
               <input type="date" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className={inputCls} dir="ltr" />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">رقم فاتورة الشراء</label>
-              <input type="text" value={purchaseInvoiceNo} onChange={e => setPurchaseInvoiceNo(e.target.value)} placeholder="اختياري (سيتم توليد رقم تلقائياً إذا تركته فارغاً)" className={inputCls} dir="ltr" />
+              <label className="text-sm font-bold text-slate-700">{t('step1.purchaseInvoiceNoLabel')}</label>
+              <input type="text" value={purchaseInvoiceNo} onChange={e => setPurchaseInvoiceNo(e.target.value)} placeholder={t('step1.purchaseInvoiceNoPlaceholder')} className={inputCls} dir="ltr" />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">العملة</label>
+              <label className="text-sm font-bold text-slate-700">{t('step1.currencyLabel')}</label>
               <input type="text" value={currencyCode} onChange={e => setCurrencyCode(e.target.value.toUpperCase())} placeholder="USD / EUR / TRY" maxLength={3} className={inputCls} dir="ltr" />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">سعر الصرف مقابل الدولار</label>
-              <input type="number" value={exchangeRateToUsd} onChange={e => setExchangeRateToUsd(e.target.value)} placeholder="اختياري (يُستخدم عند العملة غير USD)" className={inputCls} dir="ltr" step="0.000001" min="0" />
+              <label className="text-sm font-bold text-slate-700">{t('step1.exchangeRateLabel')}</label>
+              <input type="number" value={exchangeRateToUsd} onChange={e => setExchangeRateToUsd(e.target.value)} placeholder={t('step1.exchangeRatePlaceholder')} className={inputCls} dir="ltr" step="0.000001" min="0" />
             </div>
 
             <div className="space-y-1.5 col-span-full md:col-span-2">
-              <label className="text-sm font-bold text-slate-700">ملاحظات</label>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="اختياري" className={inputCls} />
+              <label className="text-sm font-bold text-slate-700">{t('step1.notesLabel')}</label>
+              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('step1.notesPlaceholder')} className={inputCls} />
             </div>
 
             <div className="space-y-1.5 col-span-full md:col-span-2">
-              <label className="text-sm font-bold text-slate-700">وضع الاستيراد</label>
+              <label className="text-sm font-bold text-slate-700">{t('step1.importModeLabel')}</label>
               <div className="grid grid-cols-2 gap-3">
                 {([
-                  ['MATCH_ONLY', 'مطابقة فقط', 'استيراد الخامات الموجودة فقط — رفض الجديدة'],
-                  ['CREATE_MISSING_MASTER_DATA', 'إنشاء التعريفات الناقصة', 'إنشاء الخامات والألوان الجديدة تلقائياً'],
+                  ['MATCH_ONLY', t('step1.modeMatchOnlyLabel'), t('step1.modeMatchOnlyDesc')],
+                  ['CREATE_MISSING_MASTER_DATA', t('step1.modeCreateMissingLabel'), t('step1.modeCreateMissingDesc')],
                 ] as const).map(([val, label, desc]) => (
                   <button
                     key={val}
@@ -528,7 +534,7 @@ export const ImportExcel = () => {
             </div>
 
             <div className="col-span-full space-y-1.5">
-              <label className="text-sm font-bold text-slate-700">ملف Excel <span className="text-rose-500">*</span></label>
+              <label className="text-sm font-bold text-slate-700">{t('step1.excelFileLabel')} <span className="text-rose-500">*</span></label>
               <div className={`relative border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer
                 ${selectedFile ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30'}`}
                 onClick={() => document.getElementById('excel-file-input')?.click()}
@@ -545,8 +551,8 @@ export const ImportExcel = () => {
                 ) : (
                   <>
                     <Upload className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                    <p className="font-bold text-slate-600">اضغط لاختيار ملف Excel</p>
-                    <p className="text-sm text-slate-400 mt-1">.xlsx أو .xls — الحد الأقصى 5000 صف</p>
+                    <p className="font-bold text-slate-600">{t('step1.chooseFileCta')}</p>
+                    <p className="text-sm text-slate-400 mt-1">{t('step1.fileFormatsHint')}</p>
                   </>
                 )}
               </div>
@@ -559,7 +565,7 @@ export const ImportExcel = () => {
                 className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition disabled:opacity-50 text-sm"
               >
                 {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {uploading ? 'جاري التحليل...' : 'رفع وتحليل الملف'}
+                {uploading ? t('step1.analyzing') : t('step1.uploadAndAnalyze')}
               </button>
               {importMessage && (
                 <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
@@ -576,28 +582,28 @@ export const ImportExcel = () => {
         <div className="space-y-5">
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            <SummaryCard label="إجمالي الصفوف" value={preview.rowCount} color="slate" />
-            <SummaryCard label="صالح" value={preview.validCount} color="emerald" />
-            <SummaryCard label="تحذيرات" value={preview.warnCount} color="amber" />
-            <SummaryCard label="أخطاء" value={preview.errorCount} color="rose" />
-            <SummaryCard label="إجمالي الأمتار" value={preview.totalLengthM.toFixed(2)} color="indigo" />
+            <SummaryCard label={t('step2.totalRows')} value={preview.rowCount} color="slate" />
+            <SummaryCard label={t('step2.valid')} value={preview.validCount} color="emerald" />
+            <SummaryCard label={t('step2.warnings')} value={preview.warnCount} color="amber" />
+            <SummaryCard label={t('step2.errors')} value={preview.errorCount} color="rose" />
+            <SummaryCard label={t('step2.totalMeters')} value={preview.totalLengthM.toFixed(2)} color="indigo" />
             {!!preview.totalLengthYard && (
-              <SummaryCard label="إجمالي اليارد" value={preview.totalLengthYard.toFixed(2)} color="indigo" />
+              <SummaryCard label={t('step2.totalYards')} value={preview.totalLengthYard.toFixed(2)} color="indigo" />
             )}
             {!!preview.distinctMaterialsCount && (
-              <SummaryCard label="عدد الخامات" value={preview.distinctMaterialsCount} color="slate" />
+              <SummaryCard label={t('step2.materialsCount')} value={preview.distinctMaterialsCount} color="slate" />
             )}
             {!!preview.subtotalAmount && preview.subtotalAmount > 0 && (
-              <SummaryCard label="إجمالي التكلفة" value={preview.subtotalAmount.toFixed(2)} color="slate" />
+              <SummaryCard label={t('step2.totalCost')} value={preview.subtotalAmount.toFixed(2)} color="slate" />
             )}
-            <SummaryCard label="وزن فعلي (كجم)" value={preview.totalActualWeightKg.toFixed(2)} color="indigo" />
-            <SummaryCard label="وزن محسوب (كجم)" value={preview.totalCalculatedWeightKg.toFixed(2)} color="slate" />
+            <SummaryCard label={t('step2.actualWeightKg')} value={preview.totalActualWeightKg.toFixed(2)} color="indigo" />
+            <SummaryCard label={t('step2.calculatedWeightKg')} value={preview.totalCalculatedWeightKg.toFixed(2)} color="slate" />
           </div>
 
           {/* Detected columns */}
           {preview.detectedColumns.length > 0 && (
             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-              <p className="text-sm font-bold text-indigo-700 mb-2">الأعمدة المكتشفة تلقائياً:</p>
+              <p className="text-sm font-bold text-indigo-700 mb-2">{t('step2.detectedColumnsLabel')}</p>
               <div className="flex flex-wrap gap-2">
                 {preview.detectedColumns.map(c => (
                   <span key={c.col} className="bg-white border border-indigo-200 rounded px-2 py-1 text-xs text-indigo-700">
@@ -613,10 +619,10 @@ export const ImportExcel = () => {
             <div className="border-b border-slate-200 flex items-center justify-between px-4">
               <div className="flex">
                 {([
-                  ['', 'الكل'],
-                  ['VALID', 'صالح'],
-                  ['WARNING', 'تحذيرات'],
-                  ['ERROR', 'أخطاء'],
+                  ['', t('step2.filterAll')],
+                  ['VALID', t('step2.filterValid')],
+                  ['WARNING', t('step2.filterWarnings')],
+                  ['ERROR', t('step2.filterErrors')],
                 ] as [RowStatus | '', string][]).map(([val, label]) => (
                   <button
                     key={val}
@@ -643,17 +649,17 @@ export const ImportExcel = () => {
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">#</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500">الحالة</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500">الخامة</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">كود الخامة</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500">اللون</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">رقم الثوب</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500">الباركود</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">طول (م)</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">عرض (سم)</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500">{t('step2.colStatus')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500">{t('step2.colMaterial')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">{t('step2.colMaterialCode')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500">{t('step2.colColor')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">{t('step2.colRollNo')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500">{t('step2.colBarcode')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">{t('step2.colLengthM')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">{t('step2.colWidthCm')}</th>
                     <th className="text-right py-2 px-3 font-bold text-slate-500">GSM</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">وزن فعلي</th>
-                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">تحذيرات / أخطاء</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">{t('step2.colActualWeight')}</th>
+                    <th className="text-right py-2 px-3 font-bold text-slate-500 whitespace-nowrap">{t('step2.colWarningsErrors')}</th>
                     <th className="text-right py-2 px-3 font-bold text-slate-500"></th>
                   </tr>
                 </thead>
@@ -683,7 +689,7 @@ export const ImportExcel = () => {
                           <td className="py-2 px-3 font-mono text-slate-600">
                             {nd.barcode != null && String(nd.barcode).trim() !== ''
                               ? String(nd.barcode)
-                              : <em className="text-amber-600">تلقائي</em>}
+                              : <em className="text-amber-600">{t('step2.autoBarcode')}</em>}
                           </td>
                           <td className="py-2 px-3 font-mono font-bold text-slate-800">{formatImportNumber(nd.lengthM)}</td>
                           <td className="py-2 px-3 font-mono text-slate-600">{formatImportNumber(nd.widthCm, 1)}</td>
@@ -703,7 +709,7 @@ export const ImportExcel = () => {
                               </div>
                             ))}
                             {row.warnings.length > 2 && (
-                              <p className="text-amber-500 text-xs">+{row.warnings.length - 2} تحذير</p>
+                              <p className="text-amber-500 text-xs">{t('step2.moreWarnings', { count: row.warnings.length - 2 })}</p>
                             )}
                           </td>
                           <td className="py-2 px-3">
@@ -734,7 +740,7 @@ export const ImportExcel = () => {
                   })}
                   {rows.length === 0 && !rowsLoading && (
                     <tr>
-                      <td colSpan={12} className="py-8 text-center text-slate-400 text-sm">لا توجد صفوف</td>
+                      <td colSpan={12} className="py-8 text-center text-slate-400 text-sm">{t('step2.noRows')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -744,11 +750,11 @@ export const ImportExcel = () => {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="p-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
-                <span>إجمالي: {rowsTotal} صف</span>
+                <span>{t('step2.totalRowsFooter', { count: rowsTotal })}</span>
                 <div className="flex gap-1">
-                  <button onClick={() => handlePageChange(rowsPage - 1)} disabled={rowsPage <= 1} className="px-2 py-1 border rounded hover:bg-slate-50 disabled:opacity-40">السابق</button>
+                  <button onClick={() => handlePageChange(rowsPage - 1)} disabled={rowsPage <= 1} className="px-2 py-1 border rounded hover:bg-slate-50 disabled:opacity-40">{t('step2.prev')}</button>
                   <span className="px-2 py-1 bg-indigo-50 text-indigo-700 font-bold rounded">{rowsPage}/{totalPages}</span>
-                  <button onClick={() => handlePageChange(rowsPage + 1)} disabled={rowsPage >= totalPages} className="px-2 py-1 border rounded hover:bg-slate-50 disabled:opacity-40">التالي</button>
+                  <button onClick={() => handlePageChange(rowsPage + 1)} disabled={rowsPage >= totalPages} className="px-2 py-1 border rounded hover:bg-slate-50 disabled:opacity-40">{t('step2.next')}</button>
                 </div>
               </div>
             )}
@@ -760,11 +766,11 @@ export const ImportExcel = () => {
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
-                    <p className="text-sm font-bold text-slate-800">توثيق الفاتورة بالمسح (اختياري)</p>
-                    <p className="text-xs text-slate-500 mt-0.5">امسح باركود كل ثوب لتوثيق الاستلام قبل التأكيد</p>
+                    <p className="text-sm font-bold text-slate-800">{t('step2.scanVerifyTitle')}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{t('step2.scanVerifyDesc')}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">التوثيق:</span>
+                    <span className="text-xs text-slate-500">{t('step2.verificationLabel')}</span>
                     <span className="px-3 py-1 rounded-lg bg-white border border-slate-200 font-mono text-slate-800">
                       {verificationTotal}/{verificationVerified}
                     </span>
@@ -779,8 +785,8 @@ export const ImportExcel = () => {
                       verificationMode === 'SCAN' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    <p className="font-bold text-sm text-slate-800">توثيق بالمسح</p>
-                    <p className="text-xs text-slate-500 mt-0.5">يتطلب مسح الباركود قبل التأكيد (مع إمكانية التأكيد على أي حال)</p>
+                    <p className="font-bold text-sm text-slate-800">{t('step2.scanModeTitle')}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{t('step2.scanModeDesc')}</p>
                   </button>
                   <button
                     type="button"
@@ -789,8 +795,8 @@ export const ImportExcel = () => {
                       verificationMode === 'NONE' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    <p className="font-bold text-sm text-slate-800">تأكيد على أي حال</p>
-                    <p className="text-xs text-slate-500 mt-0.5">استيراد بدون توثيق بالمسح</p>
+                    <p className="font-bold text-sm text-slate-800">{t('step2.confirmAnywayModeTitle')}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{t('step2.confirmAnywayModeDesc')}</p>
                   </button>
                 </div>
 
@@ -807,7 +813,7 @@ export const ImportExcel = () => {
                           void runScanVerify(scanValue);
                         }
                       }}
-                      placeholder="امسح الباركود هنا..."
+                      placeholder={t('step2.scanPlaceholder')}
                       className="w-full md:w-96 p-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono"
                       dir="ltr"
                       inputMode="numeric"
@@ -819,14 +825,14 @@ export const ImportExcel = () => {
                       onClick={() => { if (scanTimerRef.current) clearTimeout(scanTimerRef.current); void runScanVerify(scanValue); }}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition disabled:opacity-50"
                     >
-                      {scanBusy ? 'جاري التوثيق...' : 'توثيق'}
+                      {scanBusy ? t('step2.verifying') : t('step2.verifyButton')}
                     </button>
                     <button
                       type="button"
                       onClick={() => scanInputRef.current?.focus()}
                       className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition text-sm font-medium"
                     >
-                      تركيز خانة المسح
+                      {t('step2.focusScanField')}
                     </button>
                   </div>
                 )}
@@ -836,7 +842,7 @@ export const ImportExcel = () => {
             {preview.errorCount > 0 && (
               <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-4 flex items-center gap-3 text-rose-700">
                 <XCircle className="w-5 h-5 shrink-0" />
-                <p className="text-sm font-bold">يوجد {preview.errorCount} صف بها أخطاء. يجب إصلاح الملف قبل التأكيد.</p>
+                <p className="text-sm font-bold">{t('step2.errorsBlock', { count: preview.errorCount })}</p>
               </div>
             )}
 
@@ -849,24 +855,24 @@ export const ImportExcel = () => {
                   className="w-4 h-4 rounded text-amber-600"
                 />
                 <p className="text-sm font-bold text-amber-800">
-                  أوافق على استيراد الصفوف التي تحتوي تحذيرات ({preview.warnCount} صف)
+                  {t('step2.allowWarningsLabel', { count: preview.warnCount })}
                 </p>
               </label>
             )}
 
             <div className="flex items-center justify-between flex-wrap gap-3">
               <button onClick={handleCancel} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition text-sm font-medium">
-                إلغاء الدفعة
+                {t('step2.cancelBatch')}
               </button>
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition text-sm">
-                  رجوع
+                  {t('step2.back')}
                 </button>
                 <Link
                   to="/purchases/import-batches"
                   className="px-5 py-2.5 rounded-xl font-bold border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition text-sm"
                 >
-                  حفظ كمعلّقة حتى الاستلام
+                  {t('step2.saveAsPending')}
                 </Link>
                 <button
                   onClick={handleConfirm}
@@ -879,9 +885,9 @@ export const ImportExcel = () => {
                   className="bg-emerald-600 text-white px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition disabled:opacity-50 text-sm"
                 >
                   {confirming ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  {confirming ? 'جاري الاستيراد...' : (verificationMode === 'SCAN'
-                    ? 'تأكيد بعد اكتمال التوثيق'
-                    : `تأكيد استيراد ${preview.validCount + (allowWarnings ? preview.warnCount : 0)} ثوب`)}
+                  {confirming ? t('step2.importing') : (verificationMode === 'SCAN'
+                    ? t('step2.confirmAfterVerification')
+                    : t('step2.confirmImportCount', { count: preview.validCount + (allowWarnings ? preview.warnCount : 0) }))}
                 </button>
                 {importMessage && (
                   <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
@@ -894,7 +900,7 @@ export const ImportExcel = () => {
                     disabled={confirming || preview.errorCount > 0 || (preview.warnCount > 0 && !allowWarnings && preview.validCount === 0)}
                     className="px-5 py-2.5 rounded-xl font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition disabled:opacity-50 text-sm"
                   >
-                    تأكيد على أي حال
+                    {t('step2.confirmAnyway')}
                   </button>
                 )}
               </div>
@@ -910,15 +916,15 @@ export const ImportExcel = () => {
             <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-8 h-8 text-emerald-600" />
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">تم الاستيراد بنجاح!</h3>
-            <p className="text-slate-500">تم إضافة الأتواب إلى مخزون PostgreSQL</p>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">{t('step3.successTitle')}</h3>
+            <p className="text-slate-500">{t('step3.successSubtitle')}</p>
           </div>
           <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <SummaryCard label="أتواب مُنشأة" value={confirmResult.createdRolls} color="emerald" />
-            <SummaryCard label="إجمالي الأمتار" value={confirmResult.totalLengthM.toFixed(2)} color="indigo" />
-            <SummaryCard label="وزن إجمالي (كجم)" value={confirmResult.totalActualWeightKg.toFixed(2)} color="indigo" />
-            <SummaryCard label="خامات جديدة" value={confirmResult.createdItems} color={confirmResult.createdItems > 0 ? 'amber' : 'slate'} />
-            <SummaryCard label="ألوان جديدة" value={confirmResult.createdColors} color={confirmResult.createdColors > 0 ? 'amber' : 'slate'} />
+            <SummaryCard label={t('step3.createdRolls')} value={confirmResult.createdRolls} color="emerald" />
+            <SummaryCard label={t('step3.totalMeters')} value={confirmResult.totalLengthM.toFixed(2)} color="indigo" />
+            <SummaryCard label={t('step3.totalWeight')} value={confirmResult.totalActualWeightKg.toFixed(2)} color="indigo" />
+            <SummaryCard label={t('step3.newMaterials')} value={confirmResult.createdItems} color={confirmResult.createdItems > 0 ? 'amber' : 'slate'} />
+            <SummaryCard label={t('step3.newColors')} value={confirmResult.createdColors} color={confirmResult.createdColors > 0 ? 'amber' : 'slate'} />
           </div>
           <div className="p-6 border-t border-slate-100 flex justify-center gap-4 flex-wrap">
             <Link
@@ -926,7 +932,7 @@ export const ImportExcel = () => {
               className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition"
             >
               <Package className="w-5 h-5" />
-              عرض المخزون
+              {t('step3.viewInventory')}
             </Link>
             {!!confirmResult.createdPurchaseInvoiceId && (
               <Link
@@ -934,7 +940,7 @@ export const ImportExcel = () => {
                 className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-50 transition"
               >
                 <Eye className="w-5 h-5" />
-                عرض فاتورة الشراء
+                {t('step3.viewPurchaseInvoice')}
               </Link>
             )}
             <Link
@@ -942,7 +948,7 @@ export const ImportExcel = () => {
               className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-50 transition"
             >
               <Eye className="w-5 h-5" />
-              سجل الاستيرادات
+              {t('step3.importLog')}
             </Link>
             {preview && (
               <Link
@@ -950,7 +956,7 @@ export const ImportExcel = () => {
                 className="flex items-center gap-2 bg-amber-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-600 transition"
               >
                 <Tags className="w-5 h-5" />
-                طباعة لصاقات الدفعة
+                {t('step3.printBatchLabels')}
               </Link>
             )}
             <button
@@ -958,7 +964,7 @@ export const ImportExcel = () => {
               className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-50 transition"
             >
               <Upload className="w-5 h-5" />
-              استيراد ملف جديد
+              {t('step3.importNewFile')}
             </button>
           </div>
         </div>
