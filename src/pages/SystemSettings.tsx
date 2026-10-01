@@ -52,27 +52,28 @@ import { listCompanies, type ApiCompany } from '../lib/api/companiesApi';
 import { CompanyManagementPanel } from '../components/companies/CompanyManagementPanel';
 import { listExchangeRates, updateExchangeRate, type ExchangeRateDto, type SupportedCurrencyCode } from '../lib/api/exchangeRatesApi';
 import { useToast } from '../components/NonBlockingToast';
+import { useTranslation } from 'react-i18next';
 
 type SettingsSectionId = 'company' | 'general' | 'desktop' | 'invoice' | 'users' | 'mail' | 'ai' | 'activation' | 'companies' | 'backup' | 'themes' | 'stub' | 'activeDevices';
 
 type NavRow = {
   navKey: string;
   section: SettingsSectionId;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
 };
 
 const NAV_ITEMS: NavRow[] = [
-  { navKey: 'company', section: 'company', label: 'بيانات المنشأة', icon: Building2 },
-  { navKey: 'general', section: 'general', label: 'الإعدادات العامة', icon: Settings },
-  { navKey: 'desktop', section: 'desktop', label: 'تطبيق سطح المكتب', icon: Monitor },
-  { navKey: 'invoice', section: 'invoice', label: 'الفوترة والضرائب', icon: Receipt },
-  { navKey: 'users',   section: 'users',   label: 'المستخدمين والصلاحيات', icon: ShieldCheck },
-  { navKey: 'activeDevices', section: 'activeDevices', label: 'الأجهزة النشطة', icon: Wifi },
-  { navKey: 'mail',    section: 'mail',    label: 'إعدادات المراسلة', icon: Mail },
-  { navKey: 'ai',      section: 'ai',      label: 'مساعد CLOTEX', icon: Bot },
-  { navKey: 'backup',  section: 'backup',  label: 'قواعد البيانات (النسخ الاحتياطي)', icon: Database },
-  { navKey: 'themes',  section: 'themes',  label: 'الثيمات و عرض', icon: Sparkles },
+  { navKey: 'company', section: 'company', labelKey: 'nav.company', icon: Building2 },
+  { navKey: 'general', section: 'general', labelKey: 'nav.general', icon: Settings },
+  { navKey: 'desktop', section: 'desktop', labelKey: 'nav.desktop', icon: Monitor },
+  { navKey: 'invoice', section: 'invoice', labelKey: 'nav.invoice', icon: Receipt },
+  { navKey: 'users',   section: 'users',   labelKey: 'nav.users', icon: ShieldCheck },
+  { navKey: 'activeDevices', section: 'activeDevices', labelKey: 'nav.activeDevices', icon: Wifi },
+  { navKey: 'mail',    section: 'mail',    labelKey: 'nav.mail', icon: Mail },
+  { navKey: 'ai',      section: 'ai',      labelKey: 'nav.ai', icon: Bot },
+  { navKey: 'backup',  section: 'backup',  labelKey: 'nav.backup', icon: Database },
+  { navKey: 'themes',  section: 'themes',  labelKey: 'nav.themes', icon: Sparkles },
 ];
 
 const VALID_NAV_KEYS = [...NAV_ITEMS.map((row) => row.navKey), 'activation'];
@@ -114,6 +115,7 @@ const defaultSettings = {
 };
 
 export const SystemSettings = () => {
+  const { t } = useTranslation('settings');
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const tabParam = searchParams.get('tab');
@@ -197,7 +199,7 @@ export const SystemSettings = () => {
           ),
         );
       } catch (e) {
-        if (!cancelled) showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر تحميل أسعار الصرف' });
+        if (!cancelled) showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.exchangeRatesLoadFailed') });
       } finally {
         if (!cancelled) setExchangeRatesLoading(false);
       }
@@ -241,19 +243,19 @@ export const SystemSettings = () => {
 
   const handlePurgeBusinessData = async () => {
     if (currentUser?.role !== 'admin') {
-      showToast({ type: 'error', message: 'هذا الإجراء متاح لمدير النظام فقط.' });
+      showToast({ type: 'error', message: t('toast.purgeAdminOnly') });
       return;
     }
     if (!purgeAcknowledged) {
-      showToast({ type: 'warning', message: 'يجب تأكيد فهمك للتحذير أولاً.' });
+      showToast({ type: 'warning', message: t('toast.purgeNeedsAck') });
       return;
     }
     if (purgeConfirmPhrase.trim() !== 'مسح البيانات') {
-      showToast({ type: 'warning', message: 'اكتب «مسح البيانات» بالضبط للتأكيد.' });
+      showToast({ type: 'warning', message: t('toast.purgeNeedsExactPhrase') });
       return;
     }
     if (!purgePassword.trim()) {
-      showToast({ type: 'warning', message: 'أدخل كلمة مرور حسابك الحالي.' });
+      showToast({ type: 'warning', message: t('toast.purgeNeedsPassword') });
       return;
     }
 
@@ -266,13 +268,13 @@ export const SystemSettings = () => {
       const totalRows = Object.values(summary.tables).reduce((sum, count) => sum + count, 0);
       showToast({
         type: 'success',
-        message: `تم مسح بيانات الأعمال (${totalRows} سجل). يُنصح بإعادة تحميل الصفحة.`,
+        message: t('toast.purgeSuccess', { count: totalRows }),
       });
       setPurgeAcknowledged(false);
       setPurgeConfirmPhrase('');
       setPurgePassword('');
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر مسح بيانات الأعمال' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.purgeFailed') });
     } finally {
       setPurgeLoading(false);
     }
@@ -285,12 +287,12 @@ export const SystemSettings = () => {
       const sizeMb = (result.sizeBytes / (1024 * 1024)).toFixed(2);
       showToast({
         type: 'success',
-        message: `تم تنزيل النسخة الاحتياطية (${result.fileName} — ${sizeMb} م.ب). احفظها في ملفات الهاتف أو أرسلها لنفسك.`,
+        message: t('toast.backupDownloaded', { fileName: result.fileName, sizeMb }),
       });
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'تعذر تنزيل النسخة الاحتياطية',
+        message: e instanceof Error ? e.message : t('toast.backupFailed'),
       });
     } finally {
       setBackupDownloadLoading(false);
@@ -301,11 +303,11 @@ export const SystemSettings = () => {
     const draft = exchangeRatesDraft[currencyCode];
     const rate = Number(String(draft?.rate ?? '').replace(/,/g, '').trim());
     if (!Number.isFinite(rate) || rate <= 0) {
-      showToast({ type: 'warning', message: 'يرجى إدخال سعر صرف صحيح' });
+      showToast({ type: 'warning', message: t('toast.exchangeRateInvalid') });
       return;
     }
     if (currencyCode === 'USD' && Math.abs(rate - 1) > 1e-9) {
-      showToast({ type: 'warning', message: 'لا يمكن تغيير سعر صرف الدولار عن 1' });
+      showToast({ type: 'warning', message: t('toast.exchangeRateUsdFixed') });
       return;
     }
     setExchangeRatesSaving((prev) => ({ ...prev, [currencyCode]: true }));
@@ -316,9 +318,9 @@ export const SystemSettings = () => {
         ...prev,
         [currencyCode]: { rate: String(res.data.exchange_rate_to_usd), isActive: Boolean(res.data.is_active) },
       }));
-      showToast({ type: 'success', message: 'تم حفظ سعر الصرف بنجاح' });
+      showToast({ type: 'success', message: t('toast.exchangeRateSaved') });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر حفظ سعر الصرف' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.exchangeRateSaveFailed') });
     } finally {
       setExchangeRatesSaving((prev) => ({ ...prev, [currencyCode]: false }));
     }
@@ -364,7 +366,7 @@ export const SystemSettings = () => {
         setSelectedRole(permissionsOverview.roles[0].code);
       }
     } catch {
-      setSettingsStatus('تعذر تحميل إعدادات الخادم. يمكن متابعة ضبط الواجهة محليا.');
+      setSettingsStatus(t('status.loadSettingsFailed'));
     }
   };
 
@@ -388,15 +390,15 @@ export const SystemSettings = () => {
   };
 
   const handleSaveAll = async () => {
-    setSettingsStatus('جاري حفظ الإعدادات...');
+    setSettingsStatus(t('status.saving'));
     try {
       await Promise.all(
         Object.entries(settingsValues).map(([key, value]) => saveSystemSetting(key, value as Record<string, unknown>)),
       );
-      setSettingsStatus('تم حفظ الإعدادات في قاعدة البيانات.');
+      setSettingsStatus(t('status.saved'));
     } catch {
       localStorage.setItem('fabric_erp_system_settings_draft', JSON.stringify(settingsValues));
-      setSettingsStatus('تعذر الحفظ في قاعدة البيانات، وتم الاحتفاظ بنسخة محلية مؤقتة.');
+      setSettingsStatus(t('status.saveFailedLocal'));
     }
   };
 
@@ -426,10 +428,10 @@ export const SystemSettings = () => {
       });
       setUsers((current) => [created, ...current]);
       setUserForm({ username: '', fullName: '', password: '', role: userForm.role, isActive: true, notes: '' });
-      showToast({ message: 'تم إضافة المستخدم.', type: 'success' });
+      showToast({ message: t('toast.userCreated'), type: 'success' });
     } catch (error) {
       showToast({
-        message: error instanceof Error ? error.message : 'تعذر إضافة المستخدم.',
+        message: error instanceof Error ? error.message : t('toast.userCreateFailed'),
         type: 'error',
       });
     }
@@ -467,10 +469,10 @@ export const SystemSettings = () => {
         ...(editUserForm.password.trim() ? { password: editUserForm.password } : {}),
       });
       setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
-      showToast({ message: 'تم تحديث المستخدم.', type: 'success' });
+      showToast({ message: t('toast.userUpdated'), type: 'success' });
       closeEditUser();
     } catch (error) {
-      setEditUserError(error instanceof Error ? error.message : 'تعذر تحديث المستخدم.');
+      setEditUserError(error instanceof Error ? error.message : t('toast.userUpdateFailed'));
     } finally {
       setEditUserSaving(false);
     }
@@ -510,8 +512,8 @@ export const SystemSettings = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[var(--text-heading)]">إعدادات النظام</h2>
-          <p className="text-[var(--text-muted)] mt-1">إدارة الإعدادات العامة والتفضيلات والصلاحيات</p>
+          <h2 className="text-2xl font-bold text-[var(--text-heading)]">{t('page.title')}</h2>
+          <p className="text-[var(--text-muted)] mt-1">{t('page.subtitle')}</p>
         </div>
         <button
           type="button"
@@ -519,7 +521,7 @@ export const SystemSettings = () => {
           className="bg-[var(--ui-accent)] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:opacity-95 transition shadow-sm font-medium"
         >
           <Save className="w-4 h-4" />
-          <span>حفظ كافة التغييرات</span>
+          <span>{t('page.saveAll')}</span>
         </button>
       </div>
       {settingsStatus && (
@@ -549,7 +551,7 @@ export const SystemSettings = () => {
                       className={`w-5 h-5 shrink-0 ${isActive ? 'text-[var(--ui-accent)]' : 'text-[var(--text-muted)]'}`}
                     />
                     <span className={`font-medium ${isActive ? 'font-bold text-[var(--ui-accent)]' : 'text-[var(--text-heading)]'}`}>
-                      {item.label}
+                      {t(item.labelKey)}
                     </span>
                   </button>
                 </li>
@@ -569,7 +571,7 @@ export const SystemSettings = () => {
                   className={`w-5 h-5 shrink-0 ${activeNavKey === 'activation' ? 'text-[var(--ui-accent)]' : 'text-[var(--text-muted)]'}`}
                 />
                 <span className={`font-medium ${activeNavKey === 'activation' ? 'font-bold text-[var(--ui-accent)]' : 'text-[var(--text-heading)]'}`}>
-                  تفعيل النظام
+                  {t('nav.activation')}
                 </span>
               </button>
             </li>
@@ -592,37 +594,37 @@ export const SystemSettings = () => {
           {activeSection === 'stub' && (
             <div className="bg-[var(--surface-header)] border border-[var(--border-default)] rounded-xl shadow-sm p-10 text-center space-y-4">
               <Construction className="w-14 h-14 mx-auto text-[var(--text-muted)] opacity-70" />
-              <h3 className="text-xl font-bold text-[var(--text-heading)]">قسم قيد الإعداد</h3>
+              <h3 className="text-xl font-bold text-[var(--text-heading)]">{t('stub.title')}</h3>
               <p className="text-[var(--text-muted)] max-w-md mx-auto leading-relaxed">
-                هذا القسم سيُفعَّل لاحقاً ضمن خطة التطوير. استخدم «الثيمات و عرض» لتخصيص المظهر الآن.
+                {t('stub.body', { themesLabel: t('nav.themes') })}
               </p>
             </div>
           )}
 
           {activeSection === 'general' && (
             <SettingsPanel
-              title="الإعدادات العامة"
-              description="تشغيل النظام اليومي، اللغة، المخزون، وسلوك الحفظ."
+              title={t('general.title')}
+              description={t('general.description')}
               rows={[
-                { label: 'اللغة الافتراضية', type: 'select', value: settingsValues.general.language, options: [['ar-SY', 'العربية'], ['en-US', 'English']], onChange: (value) => updateSetting('general', 'language', value) },
-                { label: 'المنطقة الزمنية', type: 'text', value: settingsValues.general.timezone, onChange: (value) => updateSetting('general', 'timezone', value) },
-                { label: 'حد التنبيه للمخزون المنخفض', type: 'number', value: settingsValues.general.lowStockThreshold, onChange: (value) => updateSetting('general', 'lowStockThreshold', value) },
-                { label: 'حفظ المسودات تلقائيا', type: 'checkbox', value: settingsValues.general.autoSaveDrafts, onChange: (value) => updateSetting('general', 'autoSaveDrafts', value) },
-                { label: 'إلزام تحديد المستودع في البيع', type: 'checkbox', value: settingsValues.general.requireWarehouseOnSales, onChange: (value) => updateSetting('general', 'requireWarehouseOnSales', value) },
+                { label: t('general.defaultLanguage'), type: 'select', value: settingsValues.general.language, options: [['ar-SY', t('general.arabic')], ['en-US', 'English']], onChange: (value) => updateSetting('general', 'language', value) },
+                { label: t('general.timezone'), type: 'text', value: settingsValues.general.timezone, onChange: (value) => updateSetting('general', 'timezone', value) },
+                { label: t('general.lowStockThreshold'), type: 'number', value: settingsValues.general.lowStockThreshold, onChange: (value) => updateSetting('general', 'lowStockThreshold', value) },
+                { label: t('general.autoSaveDrafts'), type: 'checkbox', value: settingsValues.general.autoSaveDrafts, onChange: (value) => updateSetting('general', 'autoSaveDrafts', value) },
+                { label: t('general.requireWarehouseOnSale'), type: 'checkbox', value: settingsValues.general.requireWarehouseOnSales, onChange: (value) => updateSetting('general', 'requireWarehouseOnSales', value) },
               ]}
             />
           )}
 
           {activeSection === 'invoice' && (
             <SettingsPanel
-              title="الفوترة والضرائب"
-              description="أرقام الفواتير، الضريبة، QR، وسياسات المخزون أثناء الفوترة."
+              title={t('invoice.title')}
+              description={t('invoice.description')}
               rows={[
-                { label: 'بادئة فواتير البيع', type: 'text', value: settingsValues.invoice.invoicePrefix, onChange: (value) => updateSetting('invoice', 'invoicePrefix', value) },
-                { label: 'بادئة فواتير الشراء', type: 'text', value: settingsValues.invoice.purchasePrefix, onChange: (value) => updateSetting('invoice', 'purchasePrefix', value) },
-                { label: 'نسبة الضريبة %', type: 'number', value: settingsValues.invoice.vatRate, onChange: (value) => updateSetting('invoice', 'vatRate', value) },
-                { label: 'إظهار QR على الفاتورة', type: 'checkbox', value: settingsValues.invoice.showQrOnInvoice, onChange: (value) => updateSetting('invoice', 'showQrOnInvoice', value) },
-                { label: 'السماح بالبيع على مخزون سالب', type: 'checkbox', value: settingsValues.invoice.allowNegativeStock, onChange: (value) => updateSetting('invoice', 'allowNegativeStock', value) },
+                { label: t('invoice.salesPrefix'), type: 'text', value: settingsValues.invoice.invoicePrefix, onChange: (value) => updateSetting('invoice', 'invoicePrefix', value) },
+                { label: t('invoice.purchasePrefix'), type: 'text', value: settingsValues.invoice.purchasePrefix, onChange: (value) => updateSetting('invoice', 'purchasePrefix', value) },
+                { label: t('invoice.taxRate'), type: 'number', value: settingsValues.invoice.vatRate, onChange: (value) => updateSetting('invoice', 'vatRate', value) },
+                { label: t('invoice.showQr'), type: 'checkbox', value: settingsValues.invoice.showQrOnInvoice, onChange: (value) => updateSetting('invoice', 'showQrOnInvoice', value) },
+                { label: t('invoice.allowNegativeStock'), type: 'checkbox', value: settingsValues.invoice.allowNegativeStock, onChange: (value) => updateSetting('invoice', 'allowNegativeStock', value) },
               ]}
             />
           )}
@@ -752,13 +754,13 @@ export const SystemSettings = () => {
           {activeSection === 'backup' && (
             <div className="space-y-6">
               <SettingsPanel
-                title="قواعد البيانات والنسخ الاحتياطي"
-                description="سياسة النسخ الاحتياطي والاحتفاظ بدون عرض كلمات مرور أو مفاتيح اتصال."
+                title={t('backup.title')}
+                description={t('backup.description')}
                 rows={[
-                  { label: 'تفعيل النسخ الاحتياطي التلقائي', type: 'checkbox', value: settingsValues.backup.autoBackup, onChange: (value) => updateSetting('backup', 'autoBackup', value) },
-                  { label: 'وقت النسخ اليومي', type: 'text', value: settingsValues.backup.backupTime, onChange: (value) => updateSetting('backup', 'backupTime', value) },
-                  { label: 'مدة الاحتفاظ بالأيام', type: 'number', value: settingsValues.backup.retentionDays, onChange: (value) => updateSetting('backup', 'retentionDays', value) },
-                  { label: 'مسار النسخ المحلي', type: 'text', value: settingsValues.backup.backupPath, onChange: (value) => updateSetting('backup', 'backupPath', value) },
+                  { label: t('backup.autoBackup'), type: 'checkbox', value: settingsValues.backup.autoBackup, onChange: (value) => updateSetting('backup', 'autoBackup', value) },
+                  { label: t('backup.dailyTime'), type: 'text', value: settingsValues.backup.backupTime, onChange: (value) => updateSetting('backup', 'backupTime', value) },
+                  { label: t('backup.retentionDays'), type: 'number', value: settingsValues.backup.retentionDays, onChange: (value) => updateSetting('backup', 'retentionDays', value) },
+                  { label: t('backup.localPath'), type: 'text', value: settingsValues.backup.backupPath, onChange: (value) => updateSetting('backup', 'backupPath', value) },
                 ]}
               />
 
@@ -766,10 +768,10 @@ export const SystemSettings = () => {
                 <div className="flex items-start gap-3">
                   <Download className="w-6 h-6 text-[var(--ui-accent)] shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-xl font-bold text-[var(--text-heading)]">حفظ نسخة احتياطية على هذا الجهاز</h3>
+                    <h3 className="text-xl font-bold text-[var(--text-heading)]">{t('backup.manualTitle')}</h3>
                     <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
-                      ينشئ نسخة من قاعدة البيانات ثم يحمّلها إلى هاتفك أو جهازك (متصفح الجوال أو الكمبيوتر).
-                      على الهاتف اختر «حفظ في الملفات» أو أرسل الملف إلى واتساب/بريدك للحفظ الآمن.
+                      {t('backup.manualBody')}
+
                     </p>
                   </div>
                 </div>
@@ -780,7 +782,7 @@ export const SystemSettings = () => {
                   className="inline-flex items-center justify-center gap-2 bg-[var(--ui-accent)] text-white px-5 py-2.5 rounded-lg font-bold hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
                   <Download className="w-4 h-4" />
-                  {backupDownloadLoading ? 'جاري إنشاء وتنزيل النسخة...' : 'تنزيل نسخة احتياطية الآن'}
+                  {backupDownloadLoading ? t('backup.downloading') : t('backup.downloadNow')}
                 </button>
               </div>
 
@@ -789,12 +791,12 @@ export const SystemSettings = () => {
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
                     <div>
-                      <h3 className="text-xl font-bold text-red-700 dark:text-red-400">منطقة خطرة — مسح بيانات الأعمال</h3>
+                      <h3 className="text-xl font-bold text-red-700 dark:text-red-400">{t('purge.title')}</h3>
                       <p className="text-sm text-[var(--text-muted)] mt-2 leading-relaxed">
-                        يحذف هذا الإجراء الأقمشة والمخزون والفواتير والعملاء والموردين والسندات وحركات الصندوق والقيود المحاسبية المرتبطة بها،
-                        وسجل الكارتيلات (الملصقات وأنواع الألياف).
-                        يُبقي المستخدمين والمستودعات الفارغة وإعدادات النظام والرواتب وقالب اللصاقات.
-                        <strong className="block mt-2 text-red-700 dark:text-red-400">لا يمكن التراجع عن هذا الإجراء — خذ نسخة احتياطية أولاً.</strong>
+                        {t('purge.explanation')}
+
+
+                        <strong className="block mt-2 text-red-700 dark:text-red-400">{t('purge.irreversible')}</strong>
                       </p>
                     </div>
                   </div>
@@ -806,12 +808,12 @@ export const SystemSettings = () => {
                       onChange={(e) => setPurgeAcknowledged(e.target.checked)}
                       className="accent-red-600 mt-1"
                     />
-                    <span>أفهم أن جميع بيانات الأعمال ستُحذف نهائياً وأنني أخذت نسخة احتياطية أو أتحمل المسؤولية.</span>
+                    <span>{t('purge.ack')}</span>
                   </label>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">اكتب «مسح البيانات» للتأكيد</label>
+                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">{t('purge.typeConfirmLabel', { phrase: 'مسح البيانات' })}</label>
                       <input
                         className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
                         value={purgeConfirmPhrase}
@@ -821,7 +823,7 @@ export const SystemSettings = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">كلمة مرور حسابك الحالي</label>
+                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">{t('purge.passwordLabel')}</label>
                       <input
                         type="password"
                         className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
@@ -838,7 +840,7 @@ export const SystemSettings = () => {
                     onClick={() => void handlePurgeBusinessData()}
                     className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
-                    {purgeLoading ? 'جاري المسح...' : 'مسح بيانات الأعمال نهائياً'}
+                    {purgeLoading ? t('purge.purging') : t('purge.purgeButton')}
                   </button>
                 </div>
               )}
@@ -849,8 +851,8 @@ export const SystemSettings = () => {
             <div className="bg-[var(--surface-header)] border border-[var(--border-default)] rounded-xl shadow-sm p-6 transition-colors space-y-6">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <h3 className="text-xl font-bold text-[var(--text-heading)]">المستخدمين والصلاحيات</h3>
-                  <p className="text-sm text-[var(--text-muted)] mt-1">إنشاء مستخدمين وربطهم بأدوار وصلاحيات محفوظة في قاعدة البيانات.</p>
+                  <h3 className="text-xl font-bold text-[var(--text-heading)]">{t('users.title')}</h3>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">{t('users.description')}</p>
                 </div>
                 <button
                   type="button"
@@ -861,13 +863,13 @@ export const SystemSettings = () => {
                   className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition text-sm font-bold"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  تحديث
+                  {t('users.refresh')}
                 </button>
               </div>
 
               {currentUser?.isPlatformAdmin && companies.length > 0 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-[var(--text-heading)]">الفرع</label>
+                  <label className="text-sm font-bold text-[var(--text-heading)]">{t('users.branchLabel')}</label>
                   <div className="inline-flex flex-wrap gap-2 p-1 bg-[var(--surface-muted-nav)] rounded-xl border border-[var(--border-default)]">
                     {companies.map((c) => (
                       <button
@@ -894,7 +896,7 @@ export const SystemSettings = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-1 border border-[var(--border-default)] rounded-xl p-4 space-y-3">
                   <div className="flex items-center gap-2 font-bold text-[var(--text-heading)]">
-                    <UserPlus className="w-5 h-5 text-[var(--ui-accent)]" /> مستخدم جديد
+                    <UserPlus className="w-5 h-5 text-[var(--ui-accent)]" /> {t('users.newUserTitle')}
                     {currentUser?.isPlatformAdmin && companies.length > 0 && (
                       <span className="text-xs font-normal text-[var(--text-muted)]">
                         — {companies.find((c) => c.id === selectedBranchId)?.name ?? ''}
@@ -902,43 +904,43 @@ export const SystemSettings = () => {
                     )}
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-[var(--text-muted)]">الاسم الكامل</label>
-                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="الاسم الكامل" value={userForm.fullName} onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })} />
+                    <label className="text-xs font-bold text-[var(--text-muted)]">{t('users.fullNameLabel')}</label>
+                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder={t('users.fullNamePlaceholder')} value={userForm.fullName} onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-[var(--text-muted)]">اسم المستخدم</label>
-                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="اسم المستخدم" value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} />
+                    <label className="text-xs font-bold text-[var(--text-muted)]">{t('users.usernameLabel')}</label>
+                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder={t('users.usernamePlaceholder')} value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-[var(--text-muted)]">كلمة المرور</label>
-                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder="كلمة المرور" type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} />
+                    <label className="text-xs font-bold text-[var(--text-muted)]">{t('users.passwordLabel')}</label>
+                    <input className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} placeholder={t('users.passwordPlaceholder')} type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-[var(--text-muted)]">دور هذا الحساب</label>
+                    <label className="text-xs font-bold text-[var(--text-muted)]">{t('users.roleLabel')}</label>
                     <select className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                      {(roles.length ? roles : [{ code: 'viewer', name: 'مشاهد' } as ApiRole]).map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
+                      {(roles.length ? roles : [{ code: 'viewer', name: t('users.viewerFallback') } as ApiRole]).map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-[var(--text-muted)]">ملاحظات (اختياري)</label>
+                    <label className="text-xs font-bold text-[var(--text-muted)]">{t('users.notesLabel')}</label>
                     <textarea
                       className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg resize-none ${ringCls}`}
                       rows={2}
-                      placeholder="ملاحظات إن وجدت"
+                      placeholder={t('users.notesPlaceholder')}
                       value={userForm.notes}
                       onChange={(e) => setUserForm({ ...userForm, notes: e.target.value })}
                     />
                   </div>
                   <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-heading)]">
                     <input type="checkbox" checked={userForm.isActive} onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })} className="accent-[var(--ui-accent)]" />
-                    الحساب فعال
+                    {t('users.accountActive')}
                   </label>
-                  <button type="button" onClick={handleCreateUser} className="w-full bg-[var(--ui-accent)] text-white px-4 py-2 rounded-lg font-bold hover:opacity-95 transition">حفظ</button>
+                  <button type="button" onClick={handleCreateUser} className="w-full bg-[var(--ui-accent)] text-white px-4 py-2 rounded-lg font-bold hover:opacity-95 transition">{t('users.save')}</button>
                 </div>
 
                 <div className="lg:col-span-2 border border-[var(--border-default)] rounded-xl overflow-hidden">
                   <div className="p-4 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] flex items-center gap-2 font-bold text-[var(--text-heading)]">
-                    <Users className="w-5 h-5 text-[var(--ui-accent)]" /> المستخدمون الحاليون
+                    <Users className="w-5 h-5 text-[var(--ui-accent)]" /> {t('users.currentUsersTitle')}
                     {currentUser?.isPlatformAdmin && companies.length > 0 && (
                       <span className="text-xs font-normal text-[var(--text-muted)]">
                         — {companies.find((c) => c.id === selectedBranchId)?.name ?? ''}
@@ -950,10 +952,10 @@ export const SystemSettings = () => {
                     <table className="w-full text-sm">
                       <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
                         <tr>
-                          <th className="p-3 text-right">المستخدم</th>
-                          <th className="p-3 text-right">الدور</th>
-                          <th className="p-3 text-right">الحالة</th>
-                          <th className="p-3 text-right w-24">إجراء</th>
+                          <th className="p-3 text-right">{t('users.colUser')}</th>
+                          <th className="p-3 text-right">{t('users.colRole')}</th>
+                          <th className="p-3 text-right">{t('users.colStatus')}</th>
+                          <th className="p-3 text-right w-24">{t('users.colAction')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -961,21 +963,21 @@ export const SystemSettings = () => {
                           <tr key={user.id} className="border-t border-[var(--border-subtle)]">
                             <td className="p-3 font-bold text-[var(--text-heading)]">{user.full_name || user.username}<div className="text-xs text-[var(--text-muted)] font-mono">{user.username}</div></td>
                             <td className="p-3 text-[var(--text-heading)]">{roles.find((role) => role.code === user.role)?.name || user.role}</td>
-                            <td className="p-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${user.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{user.is_active ? 'فعال' : 'موقوف'}</span></td>
+                            <td className="p-3"><span className={`px-2 py-1 rounded-full text-xs font-bold ${user.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{user.is_active ? t('users.statusActive') : t('users.statusStopped')}</span></td>
                             <td className="p-3">
                               <button
                                 type="button"
-                                title="تعديل المستخدم"
+                                title={t('users.editUserTooltip')}
                                 onClick={() => openEditUser(user)}
                                 className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-default)] px-2.5 py-1.5 text-xs font-bold text-[var(--text-heading)] hover:bg-[var(--surface-muted-nav)] transition"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
-                                تعديل
+                                {t('users.edit')}
                               </button>
                             </td>
                           </tr>
                         ))}
-                        {users.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">لا توجد بيانات مستخدمين محملة.</td></tr>}
+                        {users.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">{t('users.noUsersLoaded')}</td></tr>}
                       </tbody>
                     </table>
                   </div>
@@ -985,12 +987,12 @@ export const SystemSettings = () => {
               {currentUser?.isPlatformAdmin && (
               <div className="border border-[var(--border-default)] rounded-xl p-4 space-y-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 font-bold text-[var(--text-heading)]"><KeyRound className="w-5 h-5 text-[var(--ui-accent)]" /> صلاحيات الدور</div>
+                  <div className="flex items-center gap-2 font-bold text-[var(--text-heading)]"><KeyRound className="w-5 h-5 text-[var(--ui-accent)]" /> {t('users.rolePermissionsTitle')}</div>
                   <select className={`p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`} value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
                     {roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
                   </select>
                 </div>
-                <p className="text-xs text-[var(--text-muted)]">عدّلي الصلاحيات بالنقر على المربعات — يُحفظ التعديل مباشرة. تعديل الأدوار عام لكل الحسابات، لذا متاح لمدير المنصة فقط.</p>
+                <p className="text-xs text-[var(--text-muted)]">{t('users.rolePermissionsHelp')}</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {permissions.map((permission) => (
                     <label key={permission.code} className="flex items-center justify-between gap-3 p-3 border border-[var(--border-default)] rounded-lg hover:bg-[var(--surface-muted-nav)] cursor-pointer">
@@ -998,7 +1000,7 @@ export const SystemSettings = () => {
                       <input type="checkbox" checked={rolePermissionSet.has(permission.code)} onChange={() => toggleRolePermission(permission.code)} className="accent-[var(--ui-accent)] w-4 h-4" />
                     </label>
                   ))}
-                  {permissions.length === 0 && <p className="text-[var(--text-muted)] text-sm">لا توجد صلاحيات محملة من الخادم.</p>}
+                  {permissions.length === 0 && <p className="text-[var(--text-muted)] text-sm">{t('users.noPermissionsLoaded')}</p>}
                 </div>
               </div>
               )}
@@ -1013,19 +1015,19 @@ export const SystemSettings = () => {
 
           {activeSection === 'company' && (
             <div className="bg-[var(--surface-header)] border border-[var(--border-default)] rounded-xl shadow-sm p-6 transition-colors">
-              <h3 className="text-xl font-bold text-[var(--text-heading)] mb-6">المعلومات الأساسية للمنشأة</h3>
+              <h3 className="text-xl font-bold text-[var(--text-heading)] mb-6">{t('company.basicInfoTitle')}</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--text-heading)]">اسم المنشأة الواجهة العربية</label>
+                  <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.nameArLabel')}</label>
                   <input
                     type="text"
-                    defaultValue="مؤسسة الخياطة الذهبية"
+                    defaultValue={t('company.mockNameAr')}
                     className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg shadow-sm ${ringCls}`}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--text-heading)]">الاسم باللغة الإنجليزية (يظهر في الفواتير)</label>
+                  <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.nameEnLabel')}</label>
                   <input
                     type="text"
                     defaultValue="Golden Tailor Est."
@@ -1035,7 +1037,7 @@ export const SystemSettings = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--text-heading)]">الرقم الضريبي (VAT)</label>
+                  <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.vatLabel')}</label>
                   <input
                     type="text"
                     defaultValue="310023456789003"
@@ -1044,7 +1046,7 @@ export const SystemSettings = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--text-heading)]">السجل التجاري (CR)</label>
+                  <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.crLabel')}</label>
                   <input
                     type="text"
                     defaultValue="1010123456"
@@ -1054,16 +1056,16 @@ export const SystemSettings = () => {
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-medium text-[var(--text-heading)]">العنوان التفصيلي</label>
+                  <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.addressLabel')}</label>
                   <textarea
                     rows={2}
-                    defaultValue="الملز، شارع جرير، مبنى رقم 45، الرياض، المملكة العربية السعودية"
+                    defaultValue={t('company.mockAddress')}
                     className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg shadow-sm ${ringCls}`}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--text-heading)]">البريد الإلكتروني للشركة</label>
+                  <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.emailLabel')}</label>
                   <input
                     type="email"
                     defaultValue="info@goldentailor.com"
@@ -1072,7 +1074,7 @@ export const SystemSettings = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--text-heading)]">الموقع الإلكتروني</label>
+                  <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.websiteLabel')}</label>
                   <input
                     type="url"
                     defaultValue="www.goldentailor.com"
@@ -1085,35 +1087,35 @@ export const SystemSettings = () => {
               <hr className="my-8 border-[var(--border-subtle)]" />
 
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-[var(--text-heading)]">إعدادات العملات</h3>
+                <h3 className="text-xl font-bold text-[var(--text-heading)]">{t('company.currencySettingsTitle')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[var(--text-heading)]">العملة الأساسية للمشروع</label>
+                    <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.baseCurrencyLabel')}</label>
                     <select
                       className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg shadow-sm font-bold text-[var(--text-heading)] ${ringCls}`}
                       value="USD"
                       disabled
                     >
-                      <option value="USD">دولار أمريكي (USD) - $</option>
+                      <option value="USD">{t('company.usdOption')}</option>
                     </select>
                     <p className="text-xs text-[var(--text-muted)] mt-1">
-                      يتم تقييم المخزون وتسجيل الحسابات الختامية بهذه العملة.
+                      {t('company.baseCurrencyHelp')}
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[var(--text-heading)]">العملات الثانوية (للفوترة والقبض)</label>
+                    <label className="block text-sm font-medium text-[var(--text-heading)]">{t('company.secondaryCurrenciesLabel')}</label>
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 p-2.5 border border-[var(--border-default)] rounded-lg hover:bg-[var(--surface-muted-nav)] cursor-pointer">
                         <input type="checkbox" defaultChecked className={`w-4 h-4 rounded border-[var(--border-default)] accent-[var(--ui-accent)] ${ringCls}`} />
-                        <span className="font-medium text-[var(--text-heading)]">ليرة تركية (TRY) - ₺</span>
+                        <span className="font-medium text-[var(--text-heading)]">{t('company.tryOption')}</span>
                       </label>
                       <label className="flex items-center gap-2 p-2.5 border border-[var(--border-default)] rounded-lg hover:bg-[var(--surface-muted-nav)] cursor-pointer">
                         <input type="checkbox" defaultChecked className={`w-4 h-4 rounded border-[var(--border-default)] accent-[var(--ui-accent)] ${ringCls}`} />
-                        <span className="font-medium text-[var(--text-heading)]">ليرة سورية (SYP) - ل.س</span>
+                        <span className="font-medium text-[var(--text-heading)]">{t('company.sypOption')}</span>
                       </label>
                       <label className="flex items-center gap-2 p-2.5 border border-[var(--border-default)] rounded-lg hover:bg-[var(--surface-muted-nav)] cursor-pointer">
                         <input type="checkbox" defaultChecked className={`w-4 h-4 rounded border-[var(--border-default)] accent-[var(--ui-accent)] ${ringCls}`} />
-                        <span className="font-medium text-[var(--text-heading)]">جنيه مصري (EGP) - ج.م</span>
+                        <span className="font-medium text-[var(--text-heading)]">{t('company.egpOption')}</span>
                       </label>
                     </div>
                   </div>
@@ -1122,21 +1124,21 @@ export const SystemSettings = () => {
                 <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-sm overflow-hidden">
                   <div className="p-4 border-b border-[var(--border-default)] bg-[var(--surface-muted-nav)] flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <h4 className="font-bold text-[var(--text-heading)]">أسعار الصرف</h4>
-                      <p className="text-xs text-[var(--text-muted)] mt-1">سعر الصرف يعني عدد وحدات العملة مقابل 1 دولار أمريكي.</p>
+                      <h4 className="font-bold text-[var(--text-heading)]">{t('company.exchangeRatesTitle')}</h4>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">{t('company.exchangeRatesHelp')}</p>
                     </div>
                     <div className="text-xs text-[var(--text-muted)]">
-                      مثال: إذا كان 1 دولار = 15000 ليرة سورية، أدخل 15000
+                      {t('company.exchangeRatesExample')}
                     </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-right text-sm">
                       <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
                         <tr>
-                          <th className="px-4 py-3 font-semibold">العملة</th>
-                          <th className="px-4 py-3 font-semibold">سعر الصرف مقابل الدولار</th>
-                          <th className="px-4 py-3 font-semibold">الحالة</th>
-                          <th className="px-4 py-3 font-semibold">آخر تحديث</th>
+                          <th className="px-4 py-3 font-semibold">{t('company.colCurrency')}</th>
+                          <th className="px-4 py-3 font-semibold">{t('company.colRate')}</th>
+                          <th className="px-4 py-3 font-semibold">{t('company.colStatus')}</th>
+                          <th className="px-4 py-3 font-semibold">{t('company.colUpdatedAt')}</th>
                           <th className="px-4 py-3 font-semibold"></th>
                         </tr>
                       </thead>
@@ -1144,13 +1146,13 @@ export const SystemSettings = () => {
                         {exchangeRatesLoading ? (
                           <tr>
                             <td colSpan={5} className="px-4 py-6 text-center text-[var(--text-muted)]">
-                              جاري تحميل أسعار الصرف...
+                              {t('company.ratesLoading')}
                             </td>
                           </tr>
                         ) : exchangeRates.length === 0 ? (
                           <tr>
                             <td colSpan={5} className="px-4 py-6 text-center text-[var(--text-muted)]">
-                              لا توجد أسعار صرف
+                              {t('company.ratesEmpty')}
                             </td>
                           </tr>
                         ) : (
@@ -1161,7 +1163,7 @@ export const SystemSettings = () => {
                               <tr key={row.currency_code} className="hover:bg-[var(--surface-muted-nav)]">
                                 <td className="px-4 py-3 font-semibold text-[var(--text-heading)]">
                                   {row.currency_name_ar} ({row.currency_code})
-                                  {row.is_base && <span className="text-xs text-[var(--text-muted)] mr-2">— العملة الرئيسية</span>}
+                                  {row.is_base && <span className="text-xs text-[var(--text-muted)] mr-2">— {t('company.baseCurrencyBadge')}</span>}
                                 </td>
                                 <td className="px-4 py-3">
                                   <input
@@ -1194,7 +1196,7 @@ export const SystemSettings = () => {
                                       }
                                       className={`w-4 h-4 rounded border-[var(--border-default)] accent-[var(--ui-accent)] ${ringCls}`}
                                     />
-                                    <span className="text-sm text-[var(--text-heading)]">{(row.currency_code === 'USD' ? true : draft.isActive) ? 'نشط' : 'موقوف'}</span>
+                                    <span className="text-sm text-[var(--text-heading)]">{(row.currency_code === 'USD' ? true : draft.isActive) ? t('company.rateActive') : t('company.rateStopped')}</span>
                                   </label>
                                 </td>
                                 <td className="px-4 py-3 text-xs text-[var(--text-muted)] font-mono" dir="ltr">
@@ -1208,7 +1210,7 @@ export const SystemSettings = () => {
                                     className="bg-[var(--ui-accent)] text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:opacity-90 transition shadow-sm font-medium disabled:opacity-60"
                                   >
                                     <Save className="w-4 h-4" />
-                                    <span>{saving ? '...' : 'حفظ'}</span>
+                                    <span>{saving ? '...' : t('company.saveRow')}</span>
                                   </button>
                                 </td>
                               </tr>
@@ -1224,20 +1226,20 @@ export const SystemSettings = () => {
               <hr className="my-8 border-[var(--border-subtle)]" />
 
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-[var(--text-heading)]">شعار المنشأة</h3>
+                <h3 className="text-xl font-bold text-[var(--text-heading)]">{t('company.logoTitle')}</h3>
                 <div className="flex items-center gap-6 flex-wrap">
                   <div className="w-24 h-24 bg-[var(--surface-muted-nav)] border border-[var(--border-default)] rounded-xl flex items-center justify-center overflow-hidden shadow-sm">
-                    <div className="text-[var(--text-muted)] font-bold text-center text-xs">لا يوجد شعار</div>
+                    <div className="text-[var(--text-muted)] font-bold text-center text-xs">{t('company.noLogo')}</div>
                   </div>
                   <div className="space-y-2">
                     <button
                       type="button"
                       className="bg-[var(--surface-header)] border border-[var(--ui-accent-border)] text-[var(--ui-accent)] px-4 py-2 rounded-lg font-medium hover:bg-[var(--ui-accent-soft-bg)] transition shadow-sm"
                     >
-                      رفع شعار جديد
+                      {t('company.uploadLogo')}
                     </button>
                     <p className="text-sm text-[var(--text-muted)]">
-                      يُفضل استخدام صورة شفافة بصيغة PNG أو WEBP بأبعاد 500×500 بكسل كحد أقصى.
+                      {t('company.logoHelp')}
                     </p>
                   </div>
                 </div>
@@ -1246,9 +1248,9 @@ export const SystemSettings = () => {
               <hr className="my-8 border-[var(--border-subtle)]" />
 
               <div className="space-y-6 overflow-hidden">
-                <h3 className="text-xl font-bold text-[var(--text-heading)]">معاينة طباعة لصاقة الباركود (10سم عرض × 8سم ارتفاع)</h3>
+                <h3 className="text-xl font-bold text-[var(--text-heading)]">{t('company.labelPreviewTitle')}</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-4">
-                  هذه معاينة تقريبية لكيفية ظهور اللصاقة عند الطباعة من شاشة إضافة صنف جديد.
+                  {t('company.labelPreviewHelp')}
                 </p>
 
                 <div className="bg-[var(--surface-muted-nav)] p-8 rounded-xl border border-[var(--border-default)] flex justify-center items-center overflow-x-auto">
@@ -1263,26 +1265,26 @@ export const SystemSettings = () => {
                     }}
                   >
                     <div className="text-center font-bold text-lg mb-2 border-b-2 border-[var(--text-heading)] pb-1 text-[var(--text-heading)]">
-                      اسم الخامة (مثال توضيحي)
+                      {t('company.labelPreviewItemName')}
                     </div>
                     <div className="flex justify-between mb-2 font-bold text-base text-[var(--text-heading)]">
-                      <span>كود الخامة:</span>
+                      <span>{t('company.labelPreviewCode')}</span>
                       <span>101-TEX</span>
                     </div>
                     <div className="flex justify-between mb-2 font-bold text-base text-[var(--text-heading)]">
-                      <span>لون الخامة:</span>
-                      <span>أحمر</span>
+                      <span>{t('company.labelPreviewColorField')}</span>
+                      <span>{t('company.labelPreviewColorValue')}</span>
                     </div>
                     <div className="flex justify-between mb-2 font-bold text-base text-[var(--text-heading)]">
-                      <span>كود اللون:</span>
+                      <span>{t('company.labelPreviewColorCodeField')}</span>
                       <span>#FF0000</span>
                     </div>
                     <div className="flex justify-between mb-2 font-bold text-base text-[var(--text-heading)]">
-                      <span>الطول:</span>
-                      <span>150 متر</span>
+                      <span>{t('company.labelPreviewLengthField')}</span>
+                      <span>{t('company.labelPreviewLengthValue')}</span>
                     </div>
                     <div className="flex justify-between mb-2 font-bold text-base text-[var(--text-heading)]">
-                      <span>الوزن:</span>
+                      <span>{t('company.labelPreviewWeightField')}</span>
                       <span>25.50 KG</span>
                     </div>
 
@@ -1290,7 +1292,7 @@ export const SystemSettings = () => {
                       <div className="font-mono text-2xl tracking-widest mt-2" style={{ fontFamily: 'monospace' }}>
                         *ABC-123456*
                       </div>
-                      <div className="text-xs mt-1 text-[var(--text-heading)]">الباركود: ABC-123456</div>
+                      <div className="text-xs mt-1 text-[var(--text-heading)]">{t('company.labelPreviewBarcodeCaption')}</div>
                     </div>
                   </div>
                 </div>
@@ -1304,7 +1306,7 @@ export const SystemSettings = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl" role="dialog" aria-modal="true">
           <div className="w-full max-w-md rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-xl">
             <div className="flex items-center justify-between border-b border-[var(--border-default)] p-5">
-              <h3 className="text-lg font-bold text-[var(--text-heading)]">تعديل مستخدم</h3>
+              <h3 className="text-lg font-bold text-[var(--text-heading)]">{t('editUserModal.title')}</h3>
               <button type="button" onClick={closeEditUser} className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--surface-muted-nav)]">
                 <X className="w-5 h-5" />
               </button>
@@ -1312,19 +1314,19 @@ export const SystemSettings = () => {
             <div className="space-y-3 p-5">
               <input
                 className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
-                placeholder="اسم المستخدم"
+                placeholder={t('editUserModal.usernamePlaceholder')}
                 value={editUserForm.username}
                 onChange={(e) => setEditUserForm({ ...editUserForm, username: e.target.value })}
               />
               <input
                 className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
-                placeholder="الاسم الكامل"
+                placeholder={t('editUserModal.fullNamePlaceholder')}
                 value={editUserForm.fullName}
                 onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })}
               />
               <input
                 className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
-                placeholder="كلمة مرور جديدة (اتركها فارغة بدون تغيير)"
+                placeholder={t('editUserModal.passwordPlaceholder')}
                 type="password"
                 value={editUserForm.password}
                 onChange={(e) => setEditUserForm({ ...editUserForm, password: e.target.value })}
@@ -1334,14 +1336,14 @@ export const SystemSettings = () => {
                 value={editUserForm.role}
                 onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
               >
-                {(roles.length ? roles : [{ code: 'viewer', name: 'مشاهد' } as ApiRole]).map((role) => (
+                {(roles.length ? roles : [{ code: 'viewer', name: t('users.viewerFallback') } as ApiRole]).map((role) => (
                   <option key={role.code} value={role.code}>{role.name}</option>
                 ))}
               </select>
               <textarea
                 className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg resize-none ${ringCls}`}
                 rows={2}
-                placeholder="ملاحظات إن وجدت"
+                placeholder={t('editUserModal.notesPlaceholder')}
                 value={editUserForm.notes}
                 onChange={(e) => setEditUserForm({ ...editUserForm, notes: e.target.value })}
               />
@@ -1352,7 +1354,7 @@ export const SystemSettings = () => {
                   onChange={(e) => setEditUserForm({ ...editUserForm, isActive: e.target.checked })}
                   className="accent-[var(--ui-accent)]"
                 />
-                الحساب فعال
+                {t('editUserModal.accountActive')}
               </label>
               {editUserError && <p className="text-sm font-bold text-rose-600">{editUserError}</p>}
             </div>
@@ -1363,7 +1365,7 @@ export const SystemSettings = () => {
                 disabled={editUserSaving}
                 className="rounded-lg border border-[var(--border-default)] px-4 py-2 text-sm font-bold text-[var(--text-heading)] hover:bg-[var(--surface-muted-nav)] disabled:opacity-50"
               >
-                إلغاء
+                {t('editUserModal.cancel')}
               </button>
               <button
                 type="button"
@@ -1372,7 +1374,7 @@ export const SystemSettings = () => {
                 className="inline-flex items-center gap-2 rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-bold text-white hover:opacity-95 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                {editUserSaving ? 'جاري الحفظ...' : 'حفظ التعديل'}
+                {editUserSaving ? t('editUserModal.saving') : t('editUserModal.save')}
               </button>
             </div>
           </div>
