@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n/config';
 import { useStore } from '../../store/useStore';
 import { ArrowUpCircle, FileText, Printer, Download, Calendar, MessageCircle, X, CreditCard, Banknote, Filter, Loader2, Percent } from 'lucide-react';
 import { format } from 'date-fns';
@@ -34,14 +36,16 @@ import type { Customer, Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
 import { SmartPartySearch } from '../../components/SmartPartySearch';
 
-const PRESET_LABELS: Record<StatementPreset, string> = {
-  manual: 'اختيار يدوي للعميل',
-  highest_debt: 'أكثر عميل عليه دين (أكبر ذمة)',
-  most_payments: 'أكثر عميل سدّد دفعات (في الفترة)',
-  top_buyer_fabric: 'أكثر عميل اشترى خامة محددة',
-};
+function getPresetLabel(key: StatementPreset): string {
+  return i18n.t(`customerStatement:presets.${key}`);
+}
+
+function displayDebitCredit(value: 'مدين' | 'دائن'): string {
+  return value === 'مدين' ? i18n.t('customerStatement:labels.debit') : i18n.t('customerStatement:labels.credit');
+}
 
 export const CustomerStatement = () => {
+  const { t } = useTranslation('customerStatement');
   const { showToast } = useToast();
   const { customers, invoices, inventory, transactions } = useStore();
   const navigate = useNavigate();
@@ -204,7 +208,7 @@ export const CustomerStatement = () => {
     }
     if (row.sourceType === 'RETURN_INVOICE') {
       navigate('/invoices/returns');
-      showToast({ type: 'warning', message: `تم فتح صفحة المرتجعات. رقم المستند: ${row.documentNo}` });
+      showToast({ type: 'warning', message: t('toast.openedReturnsPage', { documentNo: row.documentNo }) });
     }
   };
 
@@ -263,7 +267,7 @@ export const CustomerStatement = () => {
         if (!cancelled) {
           console.error('[CustomerStatement] FAILED to load sale invoice details:', e);
           setDbSaleInvoicesFromApi([]);
-          showToast({ type: 'warning', message: 'تعذر تحميل تفاصيل الفواتير. التفاصيل لن تظهر في PDF.' });
+          showToast({ type: 'warning', message: t('toast.loadInvoiceDetailsFailed') });
         }
       }
     })();
@@ -290,7 +294,7 @@ export const CustomerStatement = () => {
       } catch (e) {
         if (cancelled) return;
         setAccountStatement(null);
-        setAccountStatementError(e instanceof Error ? e.message : 'تعذر تحميل كشف الحساب من الخادم');
+        setAccountStatementError(e instanceof Error ? e.message : t('toast.loadStatementFailed'));
       } finally {
         if (!cancelled) setAccountStatementLoading(false);
       }
@@ -403,14 +407,14 @@ export const CustomerStatement = () => {
     if (preset === 'manual') return null;
     const name = selectedCustomer?.name ?? '';
     if (preset === 'highest_debt') {
-      return `تم ضبط العميل وفق أكبر رصيد ذمة حالياً: ${name}`;
+      return t('banner.highestDebt', { name });
     }
     if (preset === 'most_payments') {
-      return `تم ضبط العميل وفق أكبر مجموع قبض ذمم في الفترة (مع احتياطي من كل الفترات إن لزم): ${name}`;
+      return t('banner.mostPayments', { name });
     }
     if (preset === 'top_buyer_fabric') {
-      if (!fabricPresetKey.trim()) return 'اختر نوع الخامة أو كود التصميم من القائمة لتحديد أكثر عميل شراءً.';
-      return `تم ضبط العميل وفق أكبر مشتريات للخامة «${fabricPresetKey}» ضمن الفترة: ${name}`;
+      if (!fabricPresetKey.trim()) return t('banner.topBuyerFabricPrompt');
+      return t('banner.topBuyerFabricResult', { fabric: fabricPresetKey, name });
     }
     return null;
   }, [preset, selectedCustomer?.name, fabricPresetKey]);
@@ -643,7 +647,7 @@ export const CustomerStatement = () => {
           ? rows.filter((row) => Math.abs(row.balance) >= 0.005)
           : rows;
       if (!exportRows.length) {
-        showToast({ type: 'warning', message: 'لا توجد ذمم غير صفرية للتصدير ضمن العملاء النشطين.' });
+        showToast({ type: 'warning', message: t('toast.noDuesToExport') });
         return;
       }
       const fileSuffix = mode === 'non-zero' ? 'ذمم_فقط' : 'شامل';
@@ -656,11 +660,11 @@ export const CustomerStatement = () => {
         type: 'success',
         message:
           mode === 'non-zero'
-            ? `تم تصدير ${exportRows.length.toLocaleString('ar')} عميل بذمم غير صفرية.`
-            : 'تم تصدير ذمم العملاء PDF بنجاح.',
+            ? t('toast.duesExportedNonZero', { count: exportRows.length })
+            : t('toast.duesExportedAll'),
       });
     } catch (error) {
-      showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر تصدير ذمم العملاء PDF.' });
+      showToast({ type: 'error', message: error instanceof Error ? error.message : t('toast.duesExportFailed') });
     } finally {
       setCustomerDuesExporting(false);
     }
@@ -691,7 +695,7 @@ export const CustomerStatement = () => {
       }
 
       if (!selectedCustomer || fabricItems.length === 0) {
-        showToast({ type: 'warning', message: 'الرجاء تحميل البيانات أولاً' });
+        showToast({ type: 'warning', message: t('toast.loadDataFirst') });
         return;
       }
       await exportToPDF({
@@ -709,7 +713,7 @@ export const CustomerStatement = () => {
         hideFinancialColumns
       });
     } catch {
-      showToast({ type: 'error', message: 'حدث خطأ في إنشاء PDF. حاول مرة أخرى.' });
+      showToast({ type: 'error', message: t('toast.pdfGenericError') });
     }
   };
 
@@ -777,7 +781,7 @@ export const CustomerStatement = () => {
 
   const handleShareWhatsApp = () => {
     if (!selectedCustomer || fabricItems.length === 0) {
-      showToast({ type: 'warning', message: 'الرجاء تحميل بيانات الكشف أولاً' });
+      showToast({ type: 'warning', message: t('toast.loadStatementDataFirst') });
       return;
     }
 
@@ -837,12 +841,12 @@ export const CustomerStatement = () => {
           pdfHtml,
           fileName: `customer-account-statement-${accountStatement.customer.id}-${fromDate}-${toDate}.pdf`,
         });
-        showToast({ type: 'success', message: 'تم إرسال كشف الحساب إلى تيليغرام.' });
+        showToast({ type: 'success', message: t('toast.telegramSent') });
         return;
       }
 
       if (!selectedCustomer || fabricItems.length === 0) {
-        showToast({ type: 'warning', message: 'الرجاء تحميل بيانات الكشف أولاً' });
+        showToast({ type: 'warning', message: t('toast.loadStatementDataFirst') });
         return;
       }
 
@@ -871,9 +875,9 @@ export const CustomerStatement = () => {
         pdfHtml,
         fileName: `customer-statement-${selectedCustomer.id}-${fromDate}-${toDate}.pdf`,
       });
-      showToast({ type: 'success', message: 'تم إرسال كشف الحساب إلى تيليغرام.' });
+      showToast({ type: 'success', message: t('toast.telegramSent') });
     } catch (error) {
-      showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر إرسال كشف الحساب إلى تيليغرام' });
+      showToast({ type: 'error', message: error instanceof Error ? error.message : t('toast.telegramSendFailed') });
     }
   };
 
@@ -888,26 +892,26 @@ export const CustomerStatement = () => {
 
   const submitReceivePayment = async () => {
     if (!selectedCustomerId) {
-      showToast({ type: 'warning', message: 'اختر عميلاً أولاً' });
+      showToast({ type: 'warning', message: t('toast.chooseCustomerFirst') });
       return;
     }
     const amount = Number(String(payAmount).replace(/,/g, ''));
     if (!amount || Number.isNaN(amount) || amount <= 0) {
-      showToast({ type: 'warning', message: 'أدخل مبلغاً صحيحاً أكبر من صفر' });
+      showToast({ type: 'warning', message: t('toast.invalidAmount') });
       return;
     }
     const uuidRe =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRe.test(selectedCustomerId)) {
-      showToast({ type: 'warning', message: 'لا يمكن تسجيل السند إلا لعملاء مسجلين على الخادم (معرّف UUID). استورد/sync العملاء من قاعدة البيانات.' });
+      showToast({ type: 'warning', message: t('toast.voucherNeedsRegisteredCustomer') });
       return;
     }
     if (!payCashboxId) {
-      showToast({ type: 'warning', message: 'اختر صندوقاً مرتبطاً بالخادم لتسجيل السند في الخزينة.' });
+      showToast({ type: 'warning', message: t('toast.chooseCashboxForVoucher') });
       return;
     }
     if (!uuidRe.test(payCashboxId)) {
-      showToast({ type: 'error', message: 'معرّف الصندوق غير صالح — أعد تحميل الصفحة أو راجع إعدادات الصناديق.' });
+      showToast({ type: 'error', message: t('toast.invalidCashboxId') });
       return;
     }
     const cur = cashboxes.find((x) => x.id === payCashboxId)?.currency_code ?? 'USD';
@@ -929,12 +933,12 @@ export const CustomerStatement = () => {
         type: 'success',
         message:
           paymentMode === 'payment'
-            ? 'تم تسجيل سند الصرف وتأكيده في الصندوق على الخادم.'
-            : 'تم تسجيل سند القبض وتأكيده في الصندوق على الخادم.',
+            ? t('toast.paymentVoucherRecorded')
+            : t('toast.receiptVoucherRecorded'),
       });
       setVoucherRefreshTick((n) => n + 1);
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر إنشاء أو تأكيد السند' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.voucherCreateFailed') });
       return;
     }
     closePaymentModal();
@@ -952,24 +956,24 @@ export const CustomerStatement = () => {
 
   const submitCustomerDiscount = async () => {
     if (!selectedCustomerId) {
-      showToast({ type: 'warning', message: 'اختر عميلاً أولاً' });
+      showToast({ type: 'warning', message: t('toast.chooseCustomerFirst') });
       return;
     }
     const uuidRe =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRe.test(selectedCustomerId)) {
-      showToast({ type: 'warning', message: 'لا يمكن تسجيل الحسم إلا لعملاء مسجلين على الخادم.' });
+      showToast({ type: 'warning', message: t('toast.discountNeedsRegisteredCustomer') });
       return;
     }
     const amount = Number(String(discountAmount).replace(/,/g, ''));
     if (!amount || Number.isNaN(amount) || amount <= 0) {
-      showToast({ type: 'warning', message: 'أدخل مبلغ حسم صحيحاً أكبر من صفر' });
+      showToast({ type: 'warning', message: t('toast.invalidDiscountAmount') });
       return;
     }
     const currencyCode = discountCurrency.trim().toUpperCase() || 'USD';
     const rate = currencyCode === 'USD' ? 1 : Number(discountExchangeRate);
     if (currencyCode !== 'USD' && (!Number.isFinite(rate) || rate <= 0)) {
-      showToast({ type: 'warning', message: 'أدخل سعر صرف صحيحاً' });
+      showToast({ type: 'warning', message: t('toast.invalidExchangeRate') });
       return;
     }
     const description = discountDescription.trim() || `حسم منحة — ${selectedCustomer?.name ?? 'عميل'}`;
@@ -986,14 +990,14 @@ export const CustomerStatement = () => {
       });
       showToast({
         type: 'success',
-        message: `تم تسجيل ${created.discount_no} وترحيله محاسبياً — سيظهر في كشف الحساب.`,
+        message: t('toast.discountRecorded', { discountNo: created.discount_no }),
       });
       setVoucherRefreshTick((n) => n + 1);
       closeDiscountModal();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر تسجيل حسم العميل',
+        message: e instanceof ApiRequestError ? e.message : t('toast.discountRecordFailed'),
       });
     } finally {
       setDiscountBusy(false);
@@ -1006,7 +1010,7 @@ export const CustomerStatement = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <A4PreviewModal
         open={printPreviewOpen}
-        title="طباعة كشف حساب A4"
+        title={t('print.a4Title')}
         html={statementPrintHtml}
         pageSize="A4"
         orientation="portrait"
@@ -1017,13 +1021,13 @@ export const CustomerStatement = () => {
       />
          <div className="flex justify-between items-end">
          <div>
-           <h2 className="text-2xl font-bold text-slate-900">كشف حساب عميل</h2>
-           <p className="text-slate-500 mt-1">عرض الحركات والخامات المباعة مع الأرصدة الدائنة والمدينة</p>
+           <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+           <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
          </div>
          <div className="flex gap-2">
            <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium" onClick={() => setPrintPreviewOpen(true)}>
              <Printer className="w-4 h-4" />
-             <span>طباعة / PDF</span>
+             <span>{t('toolbar.printPdf')}</span>
            </button>
            <button
              type="button"
@@ -1032,7 +1036,7 @@ export const CustomerStatement = () => {
              onClick={() => setCustomerDuesExportChoiceOpen(true)}
            >
              {customerDuesExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-             <span>تصدير ذمم عملاء PDF</span>
+             <span>{t('toolbar.exportDuesPdf')}</span>
            </button>
            <button
              type="button"
@@ -1040,7 +1044,7 @@ export const CustomerStatement = () => {
              onClick={() => setBatchExportOpen(true)}
            >
              <Download className="w-4 h-4" />
-             <span>تصدير جماعي</span>
+             <span>{t('toolbar.batchExport')}</span>
            </button>
            <button
              type="button"
@@ -1051,15 +1055,15 @@ export const CustomerStatement = () => {
                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
              }`}
            >
-             <span>{hideFinancialColumns ? 'إظهار المبالغ' : 'إخفاء المبالغ'}</span>
+             <span>{hideFinancialColumns ? t('toolbar.showAmounts') : t('toolbar.hideAmounts')}</span>
            </button>
            <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition shadow-sm font-medium" onClick={handleShareWhatsApp}>
              <MessageCircle className="w-4 h-4" />
-             <span>مشاركة واتساب</span>
+             <span>{t('toolbar.shareWhatsApp')}</span>
            </button>
            <button className="bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-sky-700 transition shadow-sm font-medium" onClick={() => void handleSendTelegram()}>
              <MessageCircle className="w-4 h-4" />
-             <span>إرسال تيليغرام</span>
+             <span>{t('toolbar.sendTelegram')}</span>
            </button>
            <button
              type="button"
@@ -1070,7 +1074,7 @@ export const CustomerStatement = () => {
              className="bg-gradient-to-r from-emerald-500/20 to-emerald-500/0 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-500/30 transition shadow-sm font-medium border border-emerald-500/50 text-emerald-600"
            >
              <Banknote className="w-4 h-4" />
-             <span>استلام دفعة</span>
+             <span>{t('toolbar.receivePayment')}</span>
            </button>
            <button
              type="button"
@@ -1081,7 +1085,7 @@ export const CustomerStatement = () => {
              className="bg-gradient-to-r from-rose-500/20 to-rose-500/0 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-500/30 transition shadow-sm font-medium border border-rose-500/50 text-rose-600"
            >
              <ArrowUpCircle className="w-4 h-4" />
-             <span>سند دفع</span>
+             <span>{t('toolbar.paymentVoucher')}</span>
            </button>
            <button
              type="button"
@@ -1090,7 +1094,7 @@ export const CustomerStatement = () => {
              className="bg-gradient-to-r from-violet-500/20 to-violet-500/0 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-violet-500/30 transition shadow-sm font-medium border border-violet-500/50 text-violet-700 disabled:opacity-40"
            >
              <Percent className="w-4 h-4" />
-             <span>حسم عميل</span>
+             <span>{t('toolbar.customerDiscount')}</span>
            </button>
          </div>
        </div>
@@ -1099,12 +1103,12 @@ export const CustomerStatement = () => {
          <div className="p-4 border-b border-slate-200 bg-slate-50">
            <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
              <div className="space-y-1 w-full lg:w-auto lg:flex-1 min-w-[220px]">
-               <label className="block text-xs font-bold text-slate-600">اختر العميل</label>
+               <label className="block text-xs font-bold text-slate-600">{t('filters.chooseCustomerLabel')}</label>
                <SmartPartySearch
                  options={customerOptions}
                  selectedId={selectedCustomerId}
-                 placeholder="اكتب أول حرف أو رقم هاتف العميل"
-                 emptyLabel="اكتب للبحث ثم اختر العميل من النتائج"
+                 placeholder={t('filters.customerSearchPlaceholder')}
+                 emptyLabel={t('filters.customerEmptyLabel')}
                  onSelect={(id) => {
                    setPreset('manual');
                    setDateAutoRange(true);
@@ -1115,30 +1119,30 @@ export const CustomerStatement = () => {
              <div className="space-y-1 w-full lg:w-auto lg:flex-1 min-w-[220px]">
                <label className="flex items-center gap-1 text-xs font-bold text-slate-600">
                  <Filter className="w-4 h-4 text-indigo-500" />
-                 فلترة حسب
+                 {t('filters.filterByLabel')}
                </label>
                <select
                  value={preset}
                  onChange={(e) => setPreset(e.target.value as StatementPreset)}
                  className="w-full px-3 py-2 bg-white border border-indigo-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm text-slate-800 font-medium text-sm"
-                 title="يحدِّد العميل تلقائياً من البيانات المحفوظة؛ الفترة الزمنية تؤثر على «السداد» و«الخامة»."
+                 title={t('filters.filterBySelectTitle')}
                >
-                 {(Object.keys(PRESET_LABELS) as StatementPreset[]).map((key) => (
+                 {(['manual', 'highest_debt', 'most_payments', 'top_buyer_fabric'] as StatementPreset[]).map((key) => (
                    <option key={key} value={key}>
-                     {PRESET_LABELS[key]}
+                     {getPresetLabel(key)}
                    </option>
                  ))}
                </select>
              </div>
              {preset === 'top_buyer_fabric' && (
                <div className="space-y-1 w-full lg:w-auto lg:flex-1 min-w-[220px]">
-                 <label className="block text-xs font-bold text-slate-600">نوع الخامة / كود التصميم</label>
+                 <label className="block text-xs font-bold text-slate-600">{t('filters.fabricTypeLabel')}</label>
                  <select
                    value={fabricPresetKey}
                    onChange={(e) => setFabricPresetKey(e.target.value)}
                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm text-sm"
                  >
-                   <option value="">— اختر خامة من القائمة —</option>
+                   <option value="">{t('filters.chooseFabricOption')}</option>
                    {fabricOptions.map((name) => (
                      <option key={name} value={name}>
                        {name}
@@ -1148,7 +1152,7 @@ export const CustomerStatement = () => {
                </div>
              )}
              <div className="space-y-1 w-full lg:w-auto min-w-[200px]">
-               <label className="block text-xs font-bold text-slate-600">تاريخ من</label>
+               <label className="block text-xs font-bold text-slate-600">{t('filters.fromDateLabel')}</label>
                <div className="relative">
                  <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
                  <input
@@ -1163,7 +1167,7 @@ export const CustomerStatement = () => {
                </div>
              </div>
              <div className="space-y-1 w-full lg:w-auto min-w-[200px]">
-               <label className="block text-xs font-bold text-slate-600">تاريخ إلى</label>
+               <label className="block text-xs font-bold text-slate-600">{t('filters.toDateLabel')}</label>
                <div className="relative">
                  <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
                  <input
@@ -1195,7 +1199,7 @@ export const CustomerStatement = () => {
                  </div>
                  <div>
                    <h3 className="text-xl font-bold text-slate-900">{selectedCustomer.name}</h3>
-                   <p className="text-slate-500">جوال: {selectedCustomer.phone} | {selectedCustomer.address}</p>
+                   <p className="text-slate-500">{t('customerCard.phoneAddressLabel', { phone: selectedCustomer.phone, address: selectedCustomer.address })}</p>
                  </div>
                </div>
                
@@ -1203,38 +1207,38 @@ export const CustomerStatement = () => {
                 <div className="w-full lg:w-auto">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     <div className="border border-slate-200 bg-slate-50 px-3 py-2 rounded-lg">
-                      <div className="text-[10px] font-bold text-slate-500 whitespace-nowrap">رصيد الفواتير (محلي)</div>
+                      <div className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{t('balanceCards.invoiceBalanceLocal')}</div>
                       <div className={`mt-0.5 text-xs font-bold whitespace-nowrap ${balance.color === 'indigo' ? 'text-indigo-700' : 'text-emerald-700'}`}>
                         {balance.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}{' '}
                         <span className="text-[10px] font-normal text-slate-500">{statementCurrency}</span>{' '}
-                        <span className="text-[10px] font-normal text-slate-500">({balance.type})</span>
+                        <span className="text-[10px] font-normal text-slate-500">({displayDebitCredit(balance.type)})</span>
                       </div>
                     </div>
 
                     <div className="border border-slate-200 bg-slate-50 px-3 py-2 rounded-lg">
-                      <div className="text-[10px] font-bold text-slate-500 whitespace-nowrap">السندات (على الخادم ضمن الفترة)</div>
+                      <div className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{t('balanceCards.vouchersServerPeriod')}</div>
                       <div className="mt-0.5 text-xs font-bold text-slate-800 whitespace-nowrap">
-                        قبض {voucherSummary.receipts.toLocaleString(undefined, { minimumFractionDigits: 2 })} — صرف{' '}
-                        {voucherSummary.payments.toLocaleString(undefined, { minimumFractionDigits: 2 })} — صافٍ{' '}
-                        {voucherSummary.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {t('balanceCards.receiptsPaymentsNet', { receipts: voucherSummary.receipts.toLocaleString(undefined, { minimumFractionDigits: 2 }), payments: voucherSummary.payments.toLocaleString(undefined, { minimumFractionDigits: 2 }), net: voucherSummary.net.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}
+
+
                       </div>
                     </div>
 
                     <div className="border border-slate-200 bg-slate-50 px-3 py-2 rounded-lg">
-                      <div className="text-[10px] font-bold text-slate-500 whitespace-nowrap">الرصيد بعد السندات (تقديري)</div>
+                      <div className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{t('balanceCards.balanceAfterVouchers')}</div>
                       <div className={`mt-0.5 text-xs font-bold whitespace-nowrap ${balanceCombined.color === 'indigo' ? 'text-indigo-700' : 'text-emerald-700'}`}>
                         {balanceCombined.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}{' '}
-                        <span className="text-[10px] font-normal text-slate-500">({balanceCombined.type})</span>
+                        <span className="text-[10px] font-normal text-slate-500">({displayDebitCredit(balanceCombined.type)})</span>
                       </div>
                     </div>
                   </div>
-                  {vouchersLoading && <div className="mt-1 text-[11px] text-slate-400">جاري تحميل السندات…</div>}
+                  {vouchersLoading && <div className="mt-1 text-[11px] text-slate-400">{t('balanceCards.loadingVouchers')}</div>}
                 </div>
                )}
             </div>
 
             <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-blue-50">
-                <h4 className="text-lg font-bold text-slate-900 mb-4">📊 ملخص الكشف</h4>
+                <h4 className="text-lg font-bold text-slate-900 mb-4">{t('summary.title')}</h4>
 
                 <div
                   className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
@@ -1244,23 +1248,23 @@ export const CustomerStatement = () => {
                   {!hideFinancialColumns && accountFinancialSummary && (
                     <>
                       <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي المدين</p>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalDebit')}</p>
                         <p className="text-2xl font-bold text-blue-700">
                           {accountFinancialSummary.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-1">{statementCurrency} — فواتير ومستحقات</p>
+                        <p className="text-[11px] text-slate-400 mt-1">{t('summary.invoicesDuesSuffix', { currency: statementCurrency })}</p>
                       </div>
 
                       <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي الدائن</p>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalCredit')}</p>
                         <p className="text-2xl font-bold text-emerald-600">
                           {accountFinancialSummary.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-1">{statementCurrency} — قبض ومرتجعات وحسومات</p>
+                        <p className="text-[11px] text-slate-400 mt-1">{t('summary.receiptsReturnsDiscountsSuffix', { currency: statementCurrency })}</p>
                       </div>
 
                       <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">آخر دفعة</p>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.lastPayment')}</p>
                         {accountFinancialSummary.lastPayment ? (
                           <>
                             <p className="text-2xl font-bold text-violet-600">
@@ -1273,7 +1277,7 @@ export const CustomerStatement = () => {
                         ) : (
                           <>
                             <p className="text-2xl font-bold text-slate-300">—</p>
-                            <p className="text-[11px] text-slate-400 mt-1">لا توجد دفعات قبض ضمن الفترة</p>
+                            <p className="text-[11px] text-slate-400 mt-1">{t('summary.noReceiptsInPeriod')}</p>
                           </>
                         )}
                       </div>
@@ -1290,7 +1294,7 @@ export const CustomerStatement = () => {
                             accountFinancialSummary.closingType === 'مدين' ? 'text-indigo-600' : 'text-emerald-600'
                           }`}
                         >
-                          الرصيد النهائي ({accountFinancialSummary.closingType})
+                          {t('summary.finalBalance', { type: displayDebitCredit(accountFinancialSummary.closingType) })}
                         </p>
                         <p
                           className={`text-2xl font-bold ${
@@ -1299,21 +1303,21 @@ export const CustomerStatement = () => {
                         >
                           {accountFinancialSummary.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-1">{statementCurrency} — من كشف الحساب (الخادم)</p>
+                        <p className="text-[11px] text-slate-400 mt-1">{t('summary.fromServerStatementSuffix', { currency: statementCurrency })}</p>
                       </div>
                     </>
                   )}
 
                   <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي الأمتار</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalMeters')}</p>
                     <p className="text-2xl font-bold text-blue-600">{totals.totalQuantity.toLocaleString()}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">م — من فواتير البيع ضمن الفترة</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{t('summary.metersFromSalesSuffix')}</p>
                   </div>
 
                   <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي الأتواب</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalRolls')}</p>
                     <p className="text-2xl font-bold text-violet-600">{totals.totalRolls.toLocaleString()}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">بكر — من فواتير البيع ضمن الفترة</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{t('summary.rollsFromSalesSuffix')}</p>
                   </div>
                 </div>
             </div>
@@ -1323,10 +1327,10 @@ export const CustomerStatement = () => {
         <div className="border-t border-slate-200 bg-white">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-bold text-slate-800">كشف حساب (حركات مالية - الخادم)</h4>
-              <p className="text-[11px] text-slate-500 mt-1">فواتير + سندات + مرتجعات + حسومات — مبني على قاعدة البيانات</p>
+              <h4 className="text-sm font-bold text-slate-800">{t('statementTable.title')}</h4>
+              <p className="text-[11px] text-slate-500 mt-1">{t('statementTable.subtitle')}</p>
             </div>
-            {accountStatementLoading && <span className="text-xs text-slate-400">جاري التحميل…</span>}
+            {accountStatementLoading && <span className="text-xs text-slate-400">{t('statementTable.loading')}</span>}
           </div>
 
           {accountStatementError && (
@@ -1337,21 +1341,21 @@ export const CustomerStatement = () => {
             <table className="w-full text-right text-sm">
               <thead className="bg-slate-700 text-slate-100 font-medium">
                 <tr>
-                  <th className="px-4 py-3">التاريخ</th>
-                  <th className="px-4 py-3">النوع</th>
-                  <th className="px-4 py-3">الرقم</th>
-                  <th className="px-4 py-3">البيان</th>
-                  <th className="px-4 py-3">المبلغ (بالعملة)</th>
-                  <th className="px-4 py-3">مدين ({statementCurrency})</th>
-                  <th className="px-4 py-3">دائن ({statementCurrency})</th>
-                  <th className="px-4 py-3">الرصيد ({statementCurrency})</th>
+                  <th className="px-4 py-3">{t('statementTable.colDate')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colType')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colNumber')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colStatement')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colAmountCurrency')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colDebit', { currency: statementCurrency })}</th>
+                  <th className="px-4 py-3">{t('statementTable.colCredit', { currency: statementCurrency })}</th>
+                  <th className="px-4 py-3">{t('statementTable.colBalance', { currency: statementCurrency })}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {!accountStatementDisplayRows.length ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-slate-500 bg-white">
-                      لا توجد حركات ضمن الفترة المحددة
+                      {t('statementTable.noMovements')}
                     </td>
                   </tr>
                 ) : (
@@ -1377,14 +1381,14 @@ export const CustomerStatement = () => {
                               <>
                                 {row.fabric.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {statementCurrency}
                                 <span className={`block text-xs ${discountRow ? 'text-red-600' : 'text-slate-600'}`}>
-                                  {row.fabric.totalQuantity.toLocaleString('ar')} م × {row.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  {row.fabric.totalQuantity.toLocaleString('ar')} {t('statementTable.meterAbbr')} × {row.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </span>
                               </>
                             )
                           : row.debit > 0
-                            ? `مدين: ${row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${statementCurrency}`
+                            ? t('statementTable.debitCell', { amount: row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: statementCurrency })
                             : row.credit > 0
-                              ? `دائن: ${row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${statementCurrency}`
+                              ? t('statementTable.creditCell', { amount: row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: statementCurrency })
                               : `— ${statementCurrency}`}
                       </td>
                       <td className={`${cellBase} font-mono ${discountRow ? '' : 'text-blue-800'}`}>
@@ -1406,10 +1410,10 @@ export const CustomerStatement = () => {
 
           {accountStatement && (
             <div className="px-4 py-3 border-t border-slate-200 bg-white text-xs text-slate-600 flex flex-wrap gap-4">
-              <span>الرصيد الافتتاحي ({statementCurrency}): {accountStatement.openingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              <span>إجمالي المدين ({statementCurrency}): {accountStatement.totals.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              <span>إجمالي الدائن ({statementCurrency}): {accountStatement.totals.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              <span>الرصيد النهائي ({statementCurrency}): {accountStatement.totals.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>{t('statementTable.openingBalance', { currency: statementCurrency, amount: accountStatement.openingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
+              <span>{t('statementTable.totalDebit', { currency: statementCurrency, amount: accountStatement.totals.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
+              <span>{t('statementTable.totalCredit', { currency: statementCurrency, amount: accountStatement.totals.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
+              <span>{t('statementTable.finalBalance', { currency: statementCurrency, amount: accountStatement.totals.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
             </div>
           )}
         </div>
@@ -1418,24 +1422,24 @@ export const CustomerStatement = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-4 py-4 whitespace-nowrap">التاريخ</th>
-                <th className="px-4 py-4 whitespace-nowrap">المرجع</th>
-                <th className="px-4 py-4 whitespace-nowrap">اسم الخامة</th>
-                <th className="px-4 py-4 whitespace-nowrap">كود الخامة</th>
-                <th className="px-4 py-4 whitespace-nowrap">عدد الأتواب</th>
-                <th className="px-4 py-4 whitespace-nowrap">الكمية</th>
-                <th className="px-4 py-4 whitespace-nowrap">الوحدة</th>
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">السعر الواحد</th>}
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">المجموع</th>}
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">الدفعات</th>}
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">الباقي عليه</th>}
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colDate')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colReference')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colFabricName')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colFabricCode')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colRollsCount')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colQuantity')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colUnit')}</th>
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colUnitPrice')}</th>}
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colTotal')}</th>}
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colPayments')}</th>}
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colRemaining')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {fabricItems.length === 0 ? (
                 <tr>
                   <td colSpan={hideFinancialColumns ? 7 : 11} className="px-4 py-8 text-center text-slate-500 bg-white">
-                    لا توجد أسطر في الفترة — سجّل فواتير مبيعات لهذا العميل في النظام المحلي أو اضبط نطاق التواريخ.
+                    {t('itemsTable.noLines')}
                   </td>
                 </tr>
               ) : (
@@ -1462,19 +1466,19 @@ export const CustomerStatement = () => {
         {selectedCustomer && partyVouchers.length > 0 && (
           <div className="border-t border-slate-200 bg-white">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-              <h4 className="text-sm font-bold text-slate-800">سندات قبض وصرف مؤكدة (الخادم) — الفترة</h4>
-              <p className="text-[11px] text-slate-500 mt-1">مرتبطة بصناديق النظام وتظهر في شجرة الحسابات ودفتر اليومية التشغيلي.</p>
+              <h4 className="text-sm font-bold text-slate-800">{t('vouchersTable.title')}</h4>
+              <p className="text-[11px] text-slate-500 mt-1">{t('vouchersTable.subtitle')}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-right text-sm">
                 <thead className="bg-slate-700 text-slate-100 font-medium">
                   <tr>
-                    <th className="px-4 py-3">التاريخ</th>
-                    <th className="px-4 py-3">السند</th>
-                    <th className="px-4 py-3">النوع</th>
-                    <th className="px-4 py-3">الصندوق</th>
-                    <th className="px-4 py-3">المبلغ</th>
-                    <th className="px-4 py-3">البيان</th>
+                    <th className="px-4 py-3">{t('vouchersTable.colDate')}</th>
+                    <th className="px-4 py-3">{t('vouchersTable.colVoucher')}</th>
+                    <th className="px-4 py-3">{t('vouchersTable.colType')}</th>
+                    <th className="px-4 py-3">{t('vouchersTable.colCashbox')}</th>
+                    <th className="px-4 py-3">{t('vouchersTable.colAmount')}</th>
+                    <th className="px-4 py-3">{t('vouchersTable.colStatement')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1484,9 +1488,9 @@ export const CustomerStatement = () => {
                       <td className="px-4 py-3 font-mono text-xs">{v.voucher_no}</td>
                       <td className="px-4 py-3">
                         {v.voucher_type === 'RECEIPT' ? (
-                          <span className="text-emerald-700 font-semibold">قبض</span>
+                          <span className="text-emerald-700 font-semibold">{t('vouchersTable.receiptBadge')}</span>
                         ) : (
-                          <span className="text-rose-700 font-semibold">صرف</span>
+                          <span className="text-rose-700 font-semibold">{t('vouchersTable.paymentBadge')}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{v.cashbox_name ?? '—'}</td>
@@ -1520,7 +1524,7 @@ export const CustomerStatement = () => {
               type="button"
               onClick={closePaymentModal}
               className="absolute left-4 top-4 rounded-lg p-1.5 text-slate-500 hover:bg-white/80 hover:text-slate-800 transition"
-              aria-label="إغلاق"
+              aria-label={t('common.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -1528,22 +1532,22 @@ export const CustomerStatement = () => {
             <div className={`border-b px-6 pb-4 pt-6 pr-14 ${isPaymentMode ? 'border-rose-500/20' : 'border-emerald-500/20'}`}>
               <h3 className={`text-xl font-bold flex items-center gap-2 ${isPaymentMode ? 'text-rose-900' : 'text-emerald-900'}`}>
                 <FileText className={`w-6 h-6 ${isPaymentMode ? 'text-rose-600' : 'text-emerald-600'}`} />
-                {isPaymentMode ? 'سند دفع لعميل' : 'استلام دفعة من عميل'}
+                {isPaymentMode ? t('paymentModal.titlePayment') : t('paymentModal.titleReceipt')}
               </h3>
               <p className={`text-sm mt-1 ${isPaymentMode ? 'text-rose-800/80' : 'text-emerald-800/80'}`}>
-                {isPaymentMode ? 'تسجيل مبلغ مدفوع للعميل من الصندوق وربطه بكشف حسابه.' : 'تسجيل سند قبض وربطه بالعميل الحالي وتخفيض ذمته المدينة.'}
+                {isPaymentMode ? t('paymentModal.descPayment') : t('paymentModal.descReceipt')}
               </p>
             </div>
 
             <div className="space-y-5 p-6">
               <div className="rounded-xl bg-white/70 p-4 border border-emerald-200/60 shadow-inner">
-                <p className="text-xs font-semibold text-slate-500 mb-1">العميل</p>
+                <p className="text-xs font-semibold text-slate-500 mb-1">{t('paymentModal.customerLabel')}</p>
                 <p className="text-lg font-bold text-slate-900">{selectedCustomer?.name ?? '—'}</p>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">{isPaymentMode ? `المبلغ المدفوع (${paymentFormCurrency})` : `المبلغ المستلم (${paymentFormCurrency})`}</label>
+                  <label className="block text-sm font-medium text-slate-700">{isPaymentMode ? t('paymentModal.amountPaidLabel', { currency: paymentFormCurrency }) : t('paymentModal.amountReceivedLabel', { currency: paymentFormCurrency })}</label>
                   <input
                     type="number"
                     min={0}
@@ -1559,7 +1563,7 @@ export const CustomerStatement = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">تاريخ القيد</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('paymentModal.entryDateLabel')}</label>
                   <input
                     type="date"
                     value={payDate}
@@ -1574,7 +1578,7 @@ export const CustomerStatement = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">{isPaymentMode ? 'الصندوق / البنك المصروف منه' : 'الصندوق / البنك المستلم'}</label>
+                <label className="block text-sm font-medium text-slate-700">{isPaymentMode ? t('paymentModal.cashboxFromLabel') : t('paymentModal.cashboxToLabel')}</label>
                 <div className="relative">
                   <CreditCard className={`pointer-events-none absolute right-3 top-2.5 h-5 w-5 ${isPaymentMode ? 'text-rose-500/70' : 'text-emerald-500/70'}`} />
                   <select
@@ -1586,7 +1590,7 @@ export const CustomerStatement = () => {
                         : 'border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400/40'
                     }`}
                   >
-                    <option value="">— اختر صندوقاً —</option>
+                    <option value="">{t('paymentModal.chooseCashbox')}</option>
                     {cashboxes.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name} ({b.code}) — {b.currency_code}
@@ -1594,18 +1598,18 @@ export const CustomerStatement = () => {
                     ))}
                   </select>
                   {cashboxes.length === 0 && (
-                    <p className="text-xs text-amber-700 mt-1">لا توجد صناديق من الخادم — أنشئ صندوقاً أولاً.</p>
+                    <p className="text-xs text-amber-700 mt-1">{t('paymentModal.noCashboxesWarning')}</p>
                   )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">البيان (اختياري)</label>
+                <label className="block text-sm font-medium text-slate-700">{t('paymentModal.statementLabel')}</label>
                 <input
                   type="text"
                   value={payNote}
                   onChange={(e) => setPayNote(e.target.value)}
-                  placeholder={isPaymentMode ? 'مثال: سند دفع للعميل أو تسوية مالية...' : 'مثال: دفعة على حساب كشف أو رقم فاتورة...'}
+                  placeholder={isPaymentMode ? t('paymentModal.placeholderPayment') : t('paymentModal.placeholderReceipt')}
                   className={`w-full rounded-lg border bg-white/90 px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 ${
                     isPaymentMode
                       ? 'border-rose-200 focus:border-rose-400 focus:ring-rose-400/40'
@@ -1624,14 +1628,14 @@ export const CustomerStatement = () => {
                       : 'bg-emerald-600 shadow-emerald-700/25 hover:bg-emerald-700'
                   }`}
                 >
-                  حفظ وتسجيل القيد
+                  {t('paymentModal.saveAndRecord')}
                 </button>
                 <button
                   type="button"
                   onClick={closePaymentModal}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -1647,7 +1651,7 @@ export const CustomerStatement = () => {
               onClick={closeDiscountModal}
               disabled={discountBusy}
               className="absolute left-4 top-4 rounded-lg p-1.5 text-slate-500 hover:bg-white/80 hover:text-slate-800 transition"
-              aria-label="إغلاق"
+              aria-label={t('common.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -1655,20 +1659,20 @@ export const CustomerStatement = () => {
             <div className="border-b border-violet-500/20 px-6 pb-4 pt-6 pr-14">
               <h3 className="text-xl font-bold text-violet-900 flex items-center gap-2">
                 <Percent className="w-6 h-6 text-violet-600" />
-                حسم عميل (سند حسم)
+                {t('discountModal.title')}
               </h3>
               <p className="text-sm mt-1 text-violet-800/80">
-                يُخفّض ذمة العميل ويُرحّل محاسبياً (حساب حسم ← ذمم مدينة) — يظهر كسطر في كشف الحساب.
+                {t('discountModal.description')}
               </p>
             </div>
 
             <div className="space-y-5 p-6">
               <div className="rounded-xl bg-white/70 p-4 border border-violet-200/60 shadow-inner">
-                <p className="text-xs font-semibold text-slate-500 mb-1">العميل</p>
+                <p className="text-xs font-semibold text-slate-500 mb-1">{t('discountModal.customerLabel')}</p>
                 <p className="text-lg font-bold text-slate-900">{selectedCustomer?.name ?? '—'}</p>
                 {customerClosingBalance != null && (
                   <p className="text-sm text-slate-600 mt-2">
-                    الرصيد الحالي:{' '}
+                    {t('discountModal.currentBalance')}{' '}
                     <span className="font-bold text-indigo-700">
                       {customerClosingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
                     </span>
@@ -1678,7 +1682,7 @@ export const CustomerStatement = () => {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">مبلغ الحسم</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('discountModal.amountLabel')}</label>
                   <input
                     type="number"
                     min={0}
@@ -1690,7 +1694,7 @@ export const CustomerStatement = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">تاريخ الحسم</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('discountModal.dateLabel')}</label>
                   <input
                     type="date"
                     value={discountDate}
@@ -1702,21 +1706,21 @@ export const CustomerStatement = () => {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">العملة</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('discountModal.currencyLabel')}</label>
                   <select
                     value={discountCurrency}
                     onChange={(e) => setDiscountCurrency(e.target.value)}
                     className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
                   >
-                    <option value="USD">USD — دولار</option>
-                    <option value="SYP">SYP — ليرة</option>
-                    <option value="TRY">TRY — ليرة تركية</option>
-                    <option value="SAR">SAR — ريال</option>
+                    <option value="USD">{t('discountModal.usdOption')}</option>
+                    <option value="SYP">{t('discountModal.sypOption')}</option>
+                    <option value="TRY">{t('discountModal.tryOption')}</option>
+                    <option value="SAR">{t('discountModal.sarOption')}</option>
                   </select>
                 </div>
                 {discountCurrency !== 'USD' ? (
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">سعر الصرف (مقابل 1 USD)</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('discountModal.exchangeRateLabel')}</label>
                     <input
                       type="number"
                       min={0}
@@ -1731,18 +1735,18 @@ export const CustomerStatement = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">سبب الحسم (يظهر في الكشف)</label>
+                <label className="block text-sm font-medium text-slate-700">{t('discountModal.reasonLabel')}</label>
                 <input
                   type="text"
                   value={discountDescription}
                   onChange={(e) => setDiscountDescription(e.target.value)}
-                  placeholder="مثال: حسم تسوية، حسم ولاء، اتفاق إدارة..."
+                  placeholder={t('discountModal.reasonPlaceholder')}
                   className="w-full rounded-lg border border-violet-200 bg-white/90 px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:border-violet-400 focus:ring-violet-400/40"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">ملاحظات داخلية (اختياري)</label>
+                <label className="block text-sm font-medium text-slate-700">{t('discountModal.notesLabel')}</label>
                 <input
                   type="text"
                   value={discountNotes}
@@ -1758,7 +1762,7 @@ export const CustomerStatement = () => {
                   onClick={() => void submitCustomerDiscount()}
                   className="flex-1 min-w-[140px] rounded-xl px-4 py-3 font-semibold text-white shadow-lg transition bg-violet-600 shadow-violet-700/25 hover:bg-violet-700 disabled:opacity-60"
                 >
-                  {discountBusy ? 'جاري التسجيل...' : 'تسجيل الحسم وترحيله'}
+                  {discountBusy ? t('discountModal.saving') : t('discountModal.saveAndPost')}
                 </button>
                 <button
                   type="button"
@@ -1766,7 +1770,7 @@ export const CustomerStatement = () => {
                   disabled={discountBusy}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -1778,19 +1782,19 @@ export const CustomerStatement = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <h3 className="text-lg font-bold text-slate-900">تصدير ذمم العملاء</h3>
+              <h3 className="text-lg font-bold text-slate-900">{t('duesExportModal.title')}</h3>
               <button
                 type="button"
                 onClick={() => setCustomerDuesExportChoiceOpen(false)}
                 disabled={customerDuesExporting}
                 className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
-                aria-label="إغلاق"
+                aria-label={t('common.close')}
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="space-y-3 p-6">
-              <p className="text-sm text-slate-600">اختر نوع التصدير المطلوب:</p>
+              <p className="text-sm text-slate-600">{t('duesExportModal.chooseType')}</p>
               <button
                 type="button"
                 disabled={customerDuesExporting}
@@ -1799,8 +1803,8 @@ export const CustomerStatement = () => {
               >
                 <Download className="h-5 w-5 shrink-0 text-slate-500" />
                 <div>
-                  <div className="font-bold text-slate-900">تصدير شامل</div>
-                  <div className="text-sm text-slate-500">يشمل جميع العملاء النشطين حتى من رصيدهم صفر</div>
+                  <div className="font-bold text-slate-900">{t('duesExportModal.fullExport')}</div>
+                  <div className="text-sm text-slate-500">{t('duesExportModal.fullExportDesc')}</div>
                 </div>
               </button>
               <button
@@ -1811,8 +1815,8 @@ export const CustomerStatement = () => {
               >
                 <Download className="h-5 w-5 shrink-0 text-indigo-600" />
                 <div>
-                  <div className="font-bold text-indigo-900">تصدير فقط ذمم</div>
-                  <div className="text-sm text-indigo-700">يستبعد العملاء الذين ليس عليهم أي ذمة (رصيد صفر)</div>
+                  <div className="font-bold text-indigo-900">{t('duesExportModal.duesOnlyExport')}</div>
+                  <div className="text-sm text-indigo-700">{t('duesExportModal.duesOnlyExportDesc')}</div>
                 </div>
               </button>
             </div>

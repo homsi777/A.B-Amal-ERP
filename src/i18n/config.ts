@@ -11,6 +11,7 @@ import arSettings from '../locales/ar/settings.json';
 import arCustomers from '../locales/ar/customers.json';
 import arCreateItem from '../locales/ar/createItem.json';
 import arReturns from '../locales/ar/returns.json';
+import arCustomerStatement from '../locales/ar/customerStatement.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -22,6 +23,7 @@ import trSettings from '../locales/tr/settings.json';
 import trCustomers from '../locales/tr/customers.json';
 import trCreateItem from '../locales/tr/createItem.json';
 import trReturns from '../locales/tr/returns.json';
+import trCustomerStatement from '../locales/tr/customerStatement.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -41,6 +43,7 @@ void i18n.use(initReactI18next).init({
       customers: arCustomers,
       createItem: arCreateItem,
       returns: arReturns,
+      customerStatement: arCustomerStatement,
     },
     tr: {
       common: trCommon,
@@ -54,12 +57,13 @@ void i18n.use(initReactI18next).init({
       customers: trCustomers,
       createItem: trCreateItem,
       returns: trReturns,
+      customerStatement: trCustomerStatement,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement'],
   interpolation: {
     escapeValue: false,
   },
