@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Filter, Plus, ArrowLeftRight, Loader2, Eye, Pencil, Ban, Printer, Share2 } from 'lucide-react';
 import {
   listReturns,
@@ -31,18 +32,19 @@ import { renderInvoiceStatementA4Html } from '../lib/printing/renderInvoiceState
 import { A4PreviewModal } from '../components/printing/A4PreviewModal';
 import { TelegramSendButton } from '../components/telegram/TelegramSendButton';
 import { sendTelegramDocument } from '../lib/api/telegramApi';
+import i18n from '../i18n/config';
 
-function labelReturnType(t: string) {
-  if (t === 'SALES_RETURN') return 'مرتجع مبيعات';
-  if (t === 'PURCHASE_RETURN') return 'مرتجع مشتريات';
-  return t;
+function labelReturnType(type: string) {
+  if (type === 'SALES_RETURN') return i18n.t('returns:labels.salesReturn');
+  if (type === 'PURCHASE_RETURN') return i18n.t('returns:labels.purchaseReturn');
+  return type;
 }
 
 function labelSettlement(s: string) {
-  if (s === 'CREDIT_BALANCE') return 'تخفيض ذمة / رصيد دائن';
-  if (s === 'NO_FINANCIAL_EFFECT') return 'بدون أثر مالي';
-  if (s === 'CASH_REFUND') return 'رد نقدي (غير مفعّل)';
-  if (s === 'MIXED') return 'مختلط (غير مفعّل)';
+  if (s === 'CREDIT_BALANCE') return i18n.t('returns:labels.settlementCreditBalance');
+  if (s === 'NO_FINANCIAL_EFFECT') return i18n.t('returns:labels.settlementNoEffect');
+  if (s === 'CASH_REFUND') return i18n.t('returns:labels.settlementCashRefund');
+  if (s === 'MIXED') return i18n.t('returns:labels.settlementMixed');
   return s;
 }
 
@@ -62,7 +64,9 @@ function originalInvoiceLabel(r: ReturnInvoice): string {
 }
 
 function returnDocumentTitle(returnType: ReturnType): string {
-  return returnType === 'SALES_RETURN' ? 'فاتورة مرتجع مبيعات' : 'فاتورة مرتجع مشتريات';
+  return returnType === 'SALES_RETURN'
+    ? i18n.t('returns:labels.salesReturnInvoiceTitle')
+    : i18n.t('returns:labels.purchaseReturnInvoiceTitle');
 }
 
 function mapReturnToPrintableInvoice(detail: ReturnInvoiceDetail): Invoice {
@@ -109,6 +113,7 @@ function mapReturnToPrintableInvoice(detail: ReturnInvoiceDetail): Invoice {
 }
 
 export const ReturnInvoices = () => {
+  const { t } = useTranslation('returns');
   const { showToast } = useToast();
   const [rows, setRows] = useState<ReturnInvoice[]>([]);
   const [total, setTotal] = useState(0);
@@ -185,7 +190,7 @@ export const ReturnInvoices = () => {
       setRows(res.data);
       setTotal(res.total);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل المرتجعات');
+      setError(e instanceof ApiRequestError ? e.message : t('errors.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -282,11 +287,11 @@ export const ReturnInvoices = () => {
     if (!modalOpen || linkMode !== 'linked') return;
     if (formReturnType === 'SALES_RETURN' && originalSalesInvoiceId) {
       void loadSourceInvoice('sales', originalSalesInvoiceId).catch(() => {
-        showToast({ type: 'error', message: 'تعذر تحميل فاتورة البيع' });
+        showToast({ type: 'error', message: t('errors.loadSalesInvoiceFailed') });
       });
     } else if (formReturnType === 'PURCHASE_RETURN' && originalPurchaseInvoiceId) {
       void loadSourceInvoice('purchase', originalPurchaseInvoiceId).catch(() => {
-        showToast({ type: 'error', message: 'تعذر تحميل فاتورة الشراء' });
+        showToast({ type: 'error', message: t('errors.loadPurchaseInvoiceFailed') });
       });
     } else {
       setSourceLines([]);
@@ -310,12 +315,12 @@ export const ReturnInvoices = () => {
             if (qty <= 0) return null;
             const maxU = maxQtyInUnit(ln);
             if (qty > maxU + 1e-6) {
-              throw new Error(`الكمية للسطر ${ln.line_no} تتجاوز المتاح`);
+              throw new Error(t('errors.lineQtyExceedsAvailable', { lineNo: ln.line_no }));
             }
             const u = ln.unit === 'yard' ? 'yard' : 'meter';
             const up = Number(ln.unit_price) || 0;
             return {
-              description: ln.description || 'بند مرتجع',
+              description: ln.description || t('labels.defaultLineDescription'),
               quantity: qty,
               unitPrice: up,
               unit: u,
@@ -334,12 +339,12 @@ export const ReturnInvoices = () => {
             if (qty <= 0) return null;
             const maxU = maxQtyInUnit(ln);
             if (qty > maxU + 1e-6) {
-              throw new Error(`الكمية للسطر ${ln.line_no} تتجاوز المتاح`);
+              throw new Error(t('errors.lineQtyExceedsAvailable', { lineNo: ln.line_no }));
             }
             const u = ln.unit === 'yard' ? 'yard' : 'meter';
             const up = Number(ln.unit_price) || 0;
             return {
-              description: ln.description || 'بند مرتجع',
+              description: ln.description || t('labels.defaultLineDescription'),
               quantity: qty,
               unitPrice: up,
               unit: u,
@@ -351,7 +356,7 @@ export const ReturnInvoices = () => {
           })
           .filter(Boolean) as ReturnLineInput[];
       }
-      if (!lines.length) throw new Error('أدخل كمية إرجاع لسطر واحد على الأقل');
+      if (!lines.length) throw new Error(t('errors.atLeastOneLineQty'));
     } else {
       lines = unlinkedLines
         .filter((l) => l.description.trim())
@@ -362,7 +367,7 @@ export const ReturnInvoices = () => {
           unit: l.unit,
           fabricRollId: l.rollId.trim() || null,
         }));
-      if (!lines.length) throw new Error('أضف بنداً واحداً على الأقل بوصف واضح');
+      if (!lines.length) throw new Error(t('errors.atLeastOneLineDescription'));
     }
 
     return {
@@ -448,7 +453,7 @@ export const ReturnInvoices = () => {
         );
       }
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر تحميل المسودة' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('errors.loadDraftFailed') });
       setModalOpen(false);
     }
   };
@@ -459,7 +464,7 @@ export const ReturnInvoices = () => {
     try {
       const rate = formCurrencyCode === 'USD' ? 1 : normalizeExchangeRate(formExchangeRateToUsd);
       if (formCurrencyCode !== 'USD' && rate <= 0) {
-        showToast({ type: 'error', message: 'يرجى إدخال سعر صرف صحيح' });
+        showToast({ type: 'error', message: t('errors.invalidExchangeRate') });
         setSaving(false);
         return;
       }
@@ -468,24 +473,24 @@ export const ReturnInvoices = () => {
         await updateReturn(editId, payload);
         if (alsoConfirm) {
           await confirmReturn(editId);
-          showToast({ type: 'success', message: 'تم التحديث والتأكيد' });
+          showToast({ type: 'success', message: t('toast.updatedAndConfirmed') });
         } else {
-          showToast({ type: 'success', message: 'تم تحديث المسودة' });
+          showToast({ type: 'success', message: t('toast.draftUpdated') });
         }
       } else {
         const cr = await createReturn(payload);
         if (alsoConfirm && cr.data?.id) {
           await confirmReturn(cr.data.id);
-          showToast({ type: 'success', message: 'تم الحفظ والتأكيد' });
+          showToast({ type: 'success', message: t('toast.savedAndConfirmed') });
         } else {
-          showToast({ type: 'success', message: 'تم حفظ المسودة' });
+          showToast({ type: 'success', message: t('toast.draftSaved') });
         }
       }
       setModalOpen(false);
       resetCreateForm();
       await load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : e instanceof ApiRequestError ? e.message : 'فشل الحفظ';
+      const msg = e instanceof Error ? e.message : e instanceof ApiRequestError ? e.message : t('errors.saveFailed');
       setError(msg);
       showToast({ type: 'error', message: msg });
     } finally {
@@ -496,11 +501,11 @@ export const ReturnInvoices = () => {
   const onConfirm = async (id: string) => {
     try {
       await confirmReturn(id);
-      showToast({ type: 'success', message: 'تم تأكيد المرتجع بنجاح' });
+      showToast({ type: 'success', message: t('toast.confirmedSuccess') });
       await load();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : 'فشل التأكيد');
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'فشل التأكيد' });
+      setError(e instanceof ApiRequestError ? e.message : t('errors.confirmFailed'));
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('errors.confirmFailed') });
     }
   };
 
@@ -513,7 +518,7 @@ export const ReturnInvoices = () => {
       const res = await getReturn(id);
       setDetail(res.data);
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر التحميل' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('errors.loadFailedGeneric') });
       setDetailOpen(false);
     } finally {
       setDetailLoading(false);
@@ -523,18 +528,18 @@ export const ReturnInvoices = () => {
   const buildReturnInvoiceHtml = () => {
     if (!detail) return '';
     const printable = mapReturnToPrintableInvoice(detail);
-    const partyName = detail.customer_name || detail.supplier_name || 'جهة المرتجع';
+    const partyName = detail.customer_name || detail.supplier_name || t('labels.returnPartyFallback');
     const reference = originalInvoiceLabel(detail);
     const reason = detail.reason?.trim();
     return renderInvoiceStatementA4Html({
       invoice: printable,
       partyName,
       title: returnDocumentTitle(detail.return_type),
-      subtitle: `مرجع الفاتورة الأصلية: ${reference}${reason ? ` — السبب: ${reason}` : ''}`,
+      subtitle: t('labels.printSubtitle', { reference, reasonSuffix: reason ? t('labels.printSubtitleReasonSuffix', { reason }) : '' }),
       invoiceTypeLabel: labelReturnType(detail.return_type),
-      partyLabel: detail.return_type === 'SALES_RETURN' ? 'اسم العميل' : 'اسم المورد',
+      partyLabel: detail.return_type === 'SALES_RETURN' ? t('labels.customerName') : t('labels.supplierName'),
       isDraft: detail.status === 'DRAFT',
-      draftLabel: 'مسودة مرتجع غير مؤكدة',
+      draftLabel: t('labels.draftUnconfirmed'),
     });
   };
 
@@ -588,11 +593,11 @@ export const ReturnInvoices = () => {
         caption: `${title} PDF`,
         eventType: 'RETURN_INVOICE',
       });
-      showToast({ type: 'success', message: 'تم إرسال فاتورة المرتجع إلى تيليغرام.' });
+      showToast({ type: 'success', message: t('toast.telegramSent') });
     } catch (error) {
       showToast({
         type: 'error',
-        message: error instanceof Error ? error.message : 'تعذر إرسال فاتورة المرتجع إلى تيليغرام.',
+        message: error instanceof Error ? error.message : t('errors.sendTelegramFailed'),
       });
     } finally {
       setTelegramBusy(false);
@@ -604,14 +609,14 @@ export const ReturnInvoices = () => {
     setCancelSaving(true);
     try {
       await cancelReturn(cancelId, cancelReason.trim() || null);
-      showToast({ type: 'success', message: 'تم إلغاء المرتجع وعكس الأثر المحاسبي والمخزني' });
+      showToast({ type: 'success', message: t('toast.cancelledSuccess') });
       setCancelOpen(false);
       setCancelId(null);
       setCancelReason('');
       await load();
       if (detail?.id === cancelId) setDetailOpen(false);
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'فشل الإلغاء' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('errors.cancelFailed') });
     } finally {
       setCancelSaving(false);
     }
@@ -621,8 +626,8 @@ export const ReturnInvoices = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">فواتير المرتجعات</h2>
-          <p className="text-slate-500 mt-1">ربط بالفاتورة الأصلية، ضبط الكميات، تأكيد وإلغاء محاسبي</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+          <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
         </div>
         <button
           type="button"
@@ -630,7 +635,7 @@ export const ReturnInvoices = () => {
           className="bg-rose-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-700 transition shadow-sm font-medium"
         >
           <Plus className="w-4 h-4" />
-          <span>مرتجع جديد</span>
+          <span>{t('page.newReturn')}</span>
         </button>
       </div>
 
@@ -644,7 +649,7 @@ export const ReturnInvoices = () => {
             <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
             <input
               type="text"
-              placeholder="بحث برقم المرتجع أو الفاتورة..."
+              placeholder={t('filters.searchPlaceholder')}
               value={listSearch}
               onChange={(e) => setListSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void load()}
@@ -659,9 +664,9 @@ export const ReturnInvoices = () => {
             }}
             className="border border-slate-200 rounded-lg px-3 py-2 bg-white"
           >
-            <option value="">كل الأنواع</option>
-            <option value="SALES_RETURN">مرتجع مبيعات</option>
-            <option value="PURCHASE_RETURN">مرتجع مشتريات</option>
+            <option value="">{t('filters.allTypes')}</option>
+            <option value="SALES_RETURN">{t('labels.salesReturn')}</option>
+            <option value="PURCHASE_RETURN">{t('labels.purchaseReturn')}</option>
           </select>
           <select
             value={listStatus}
@@ -671,10 +676,10 @@ export const ReturnInvoices = () => {
             }}
             className="border border-slate-200 rounded-lg px-3 py-2 bg-white"
           >
-            <option value="">كل الحالات</option>
-            <option value="DRAFT">مسودة</option>
-            <option value="CONFIRMED">مؤكد</option>
-            <option value="CANCELLED">ملغى</option>
+            <option value="">{t('filters.allStatuses')}</option>
+            <option value="DRAFT">{t('filters.statusDraft')}</option>
+            <option value="CONFIRMED">{t('filters.statusConfirmed')}</option>
+            <option value="CANCELLED">{t('filters.statusCancelled')}</option>
           </select>
           <input
             type="date"
@@ -700,21 +705,21 @@ export const ReturnInvoices = () => {
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700"
           >
             <Filter className="w-4 h-4" />
-            تطبيق
+            {t('filters.apply')}
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-4 py-3">رقم المرتجع</th>
-                <th className="px-4 py-3">التاريخ</th>
-                <th className="px-4 py-3">النوع</th>
-                <th className="px-4 py-3">الفاتورة الأصلية</th>
-                <th className="px-4 py-3">العميل / المورد</th>
-                <th className="px-4 py-3">الإجمالي</th>
-                <th className="px-4 py-3">الحالة</th>
-                <th className="px-4 py-3">إجراءات</th>
+                <th className="px-4 py-3">{t('table.colReturnNo')}</th>
+                <th className="px-4 py-3">{t('table.colDate')}</th>
+                <th className="px-4 py-3">{t('table.colType')}</th>
+                <th className="px-4 py-3">{t('table.colOriginalInvoice')}</th>
+                <th className="px-4 py-3">{t('table.colCustomerSupplier')}</th>
+                <th className="px-4 py-3">{t('table.colTotal')}</th>
+                <th className="px-4 py-3">{t('table.colStatus')}</th>
+                <th className="px-4 py-3">{t('table.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -722,13 +727,13 @@ export const ReturnInvoices = () => {
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
-                    جاري التحميل...
+                    {t('table.loading')}
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
-                    لا توجد مرتجعات
+                    {t('table.noReturns')}
                   </td>
                 </tr>
               ) : (
@@ -755,7 +760,7 @@ export const ReturnInvoices = () => {
                         type="button"
                         onClick={() => void openDetail(invoice.id)}
                         className="text-slate-600 hover:text-indigo-600 inline-flex items-center gap-1"
-                        title="تفاصيل"
+                        title={t('table.detailsTitle')}
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -773,7 +778,7 @@ export const ReturnInvoices = () => {
                             onClick={() => void onConfirm(invoice.id)}
                             className="text-indigo-600 font-medium hover:underline"
                           >
-                            تأكيد
+                            {t('table.confirm')}
                           </button>
                         </>
                       )}
@@ -788,10 +793,10 @@ export const ReturnInvoices = () => {
                           className="text-rose-700 hover:underline inline-flex items-center gap-1"
                         >
                           <Ban className="w-4 h-4" />
-                          إلغاء
+                          {t('table.cancel')}
                         </button>
                       )}
-                      <button type="button" disabled className="text-slate-300 cursor-not-allowed" title="الطباعة لاحقاً">
+                      <button type="button" disabled className="text-slate-300 cursor-not-allowed" title={t('table.printLaterTitle')}>
                         <Printer className="w-4 h-4" />
                       </button>
                     </td>
@@ -804,7 +809,7 @@ export const ReturnInvoices = () => {
         {total > 20 && (
           <div className="p-3 border-t border-slate-100 flex justify-between items-center text-sm text-slate-600">
             <span>
-              الصفحة {listPage} — إجمالي {total}
+              {t('pagination.pageOf', { page: listPage, total })}
             </span>
             <div className="flex gap-2">
               <button
@@ -813,7 +818,7 @@ export const ReturnInvoices = () => {
                 className="px-3 py-1 border rounded disabled:opacity-40"
                 onClick={() => setListPage((p) => Math.max(1, p - 1))}
               >
-                السابق
+                {t('pagination.prev')}
               </button>
               <button
                 type="button"
@@ -821,7 +826,7 @@ export const ReturnInvoices = () => {
                 className="px-3 py-1 border rounded disabled:opacity-40"
                 onClick={() => setListPage((p) => p + 1)}
               >
-                التالي
+                {t('pagination.next')}
               </button>
             </div>
           </div>
@@ -832,7 +837,7 @@ export const ReturnInvoices = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 space-y-4 border border-slate-200 my-8">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-slate-900">تفاصيل المرتجع</h3>
+              <h3 className="text-lg font-bold text-slate-900">{t('detail.title')}</h3>
               <button type="button" className="text-slate-500 hover:text-slate-800" onClick={() => setDetailOpen(false)}>
                 ✕
               </button>
@@ -840,7 +845,7 @@ export const ReturnInvoices = () => {
             {detailLoading || !detail ? (
               <div className="py-12 text-center text-slate-500">
                 <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
-                جاري التحميل...
+                {t('detail.loading')}
               </div>
             ) : (
               <>
@@ -850,52 +855,52 @@ export const ReturnInvoices = () => {
                       size="compact"
                       busy={telegramBusy}
                       onClick={sendReturnTelegram}
-                      label="تيليغرام"
+                      label={t('detail.telegramLabel')}
                     />
                   )}
                   <button type="button" onClick={shareReturnWhatsApp} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
-                    <Share2 className="h-4 w-4" /> مشاركة واتساب
+                    <Share2 className="h-4 w-4" /> {t('detail.shareWhatsApp')}
                   </button>
                   <button type="button" onClick={() => setReturnPreviewOpen(true)} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700">
-                    <Printer className="h-4 w-4" /> فاتورة المرتجع
+                    <Printer className="h-4 w-4" /> {t('detail.returnInvoiceButton')}
                   </button>
                 </div>
                 <dl className="grid grid-cols-2 gap-2 text-sm">
-                  <dt className="text-slate-500">الرقم</dt>
+                  <dt className="text-slate-500">{t('detail.number')}</dt>
                   <dd className="font-mono font-semibold">{detail.return_no}</dd>
-                  <dt className="text-slate-500">النوع</dt>
+                  <dt className="text-slate-500">{t('detail.type')}</dt>
                   <dd>{labelReturnType(detail.return_type)}</dd>
-                  <dt className="text-slate-500">الحالة</dt>
+                  <dt className="text-slate-500">{t('detail.status')}</dt>
                   <dd>{arDocumentStatus(detail.status)}</dd>
-                  <dt className="text-slate-500">الفاتورة الأصلية</dt>
+                  <dt className="text-slate-500">{t('detail.originalInvoice')}</dt>
                   <dd className="font-mono">{originalInvoiceLabel(detail)}</dd>
-                  <dt className="text-slate-500">التسوية</dt>
+                  <dt className="text-slate-500">{t('detail.settlement')}</dt>
                   <dd>{labelSettlement(detail.settlement_type || 'CREDIT_BALANCE')}</dd>
-                  <dt className="text-slate-500">سبب المرتجع</dt>
+                  <dt className="text-slate-500">{t('detail.returnReason')}</dt>
                   <dd>{detail.reason || '—'}</dd>
                   <dt className="text-slate-500">posted_at</dt>
                   <dd>{detail.posted_at ? new Date(detail.posted_at).toLocaleString() : '—'}</dd>
-                  <dt className="text-slate-500">إلغاء</dt>
+                  <dt className="text-slate-500">{t('detail.cancel')}</dt>
                   <dd>
                     {detail.cancelled_at
                       ? `${new Date(detail.cancelled_at).toLocaleString()} — ${detail.cancellation_reason || ''}`
                       : '—'}
                   </dd>
-                  <dt className="text-slate-500">قيد GL</dt>
+                  <dt className="text-slate-500">{t('detail.glEntry')}</dt>
                   <dd className="font-mono text-xs">
                     {detail.gl_journal
                       ? `${detail.gl_journal.entry_no} (${detail.gl_journal.entry_date})`
-                      : 'لا يوجد (مثلاً بدون أثر مالي أو لم يُنشر)'}
+                      : t('detail.glNone')}
                   </dd>
                 </dl>
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-100">
                       <tr>
-                        <th className="px-2 py-2 text-right">البند</th>
-                        <th className="px-2 py-2">كمية</th>
-                        <th className="px-2 py-2">سعر</th>
-                        <th className="px-2 py-2">الإجمالي</th>
+                        <th className="px-2 py-2 text-right">{t('detail.colItem')}</th>
+                        <th className="px-2 py-2">{t('detail.colQty')}</th>
+                        <th className="px-2 py-2">{t('detail.colPrice')}</th>
+                        <th className="px-2 py-2">{t('detail.colTotal')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -920,32 +925,31 @@ export const ReturnInvoices = () => {
 
       <A4PreviewModal
         open={returnPreviewOpen && Boolean(detail)}
-        title={detail ? returnDocumentTitle(detail.return_type) : 'فاتورة مرتجع'}
+        title={detail ? returnDocumentTitle(detail.return_type) : t('labels.genericReturnInvoice')}
         html={buildReturnInvoiceHtml()}
         pageSize="A4"
         fixedPageLayout
-        defaultFileName={detail ? `${returnDocumentTitle(detail.return_type)}_${detail.return_no}` : 'فاتورة_مرتجع'}
+        defaultFileName={detail ? `${returnDocumentTitle(detail.return_type)}_${detail.return_no}` : t('labels.genericReturnInvoiceFileName')}
         onClose={() => setReturnPreviewOpen(false)}
       />
 
       {cancelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-rose-100">
-            <h3 className="text-lg font-bold text-rose-800">إلغاء مرتجع مؤكد</h3>
+            <h3 className="text-lg font-bold text-rose-800">{t('cancelModal.title')}</h3>
             <p className="text-sm text-slate-700 leading-relaxed">
-              سيتم عكس حركة المخزون (إن وُجدت) وعكس قيد اليومية RETURN_INVOICE_REVERSAL. لا يمكن التراجع عن هذا الإجراء
-              بسهولة.
+              {t('cancelModal.warning')}
             </p>
-            <label className="block text-sm font-medium text-slate-700">سبب الإلغاء</label>
+            <label className="block text-sm font-medium text-slate-700">{t('cancelModal.reasonLabel')}</label>
             <textarea
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm min-h-[80px]"
-              placeholder="سبب الإلغاء..."
+              placeholder={t('cancelModal.reasonPlaceholder')}
             />
             <div className="flex gap-2 justify-end">
               <button type="button" className="px-4 py-2 border rounded-lg" onClick={() => setCancelOpen(false)}>
-                رجوع
+                {t('cancelModal.back')}
               </button>
               <button
                 type="button"
@@ -953,7 +957,7 @@ export const ReturnInvoices = () => {
                 onClick={() => void submitCancel()}
                 className="px-4 py-2 rounded-lg bg-rose-600 text-white disabled:opacity-50"
               >
-                {cancelSaving ? 'جاري...' : 'تأكيد الإلغاء'}
+                {cancelSaving ? t('cancelModal.confirming') : t('cancelModal.confirmCancel')}
               </button>
             </div>
           </div>
@@ -964,7 +968,7 @@ export const ReturnInvoices = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full border border-slate-200 max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 shrink-0">
-              <h3 className="text-lg font-bold text-slate-900">{editId ? 'تعديل مسودة مرتجع' : 'مرتجع جديد'}</h3>
+              <h3 className="text-lg font-bold text-slate-900">{editId ? t('formModal.editTitle') : t('formModal.newTitle')}</h3>
               <button
                 type="button"
                 className="text-slate-500 hover:text-slate-800"
@@ -978,7 +982,7 @@ export const ReturnInvoices = () => {
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">نوع المرتجع</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.returnTypeLabel')}</label>
                 <select
                   value={formReturnType}
                   onChange={(e) => {
@@ -989,27 +993,27 @@ export const ReturnInvoices = () => {
                   disabled={!!editId}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 disabled:bg-slate-100"
                 >
-                  <option value="SALES_RETURN">مرتجع مبيعات</option>
-                  <option value="PURCHASE_RETURN">مرتجع مشتريات</option>
+                  <option value="SALES_RETURN">{t('labels.salesReturn')}</option>
+                  <option value="PURCHASE_RETURN">{t('labels.purchaseReturn')}</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">ربط بفاتورة أصلية</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.linkModeLabel')}</label>
                 <select
                   value={linkMode}
                   onChange={(e) => setLinkMode(e.target.value as 'linked' | 'unlinked')}
                   disabled={!!editId}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 disabled:bg-slate-100"
                 >
-                  <option value="linked">مرتبط (مُوصى به)</option>
-                  <option value="unlinked">غير مرتبط — أخطر محاسبياً</option>
+                  <option value="linked">{t('formModal.linkModeLinked')}</option>
+                  <option value="unlinked">{t('formModal.linkModeUnlinked')}</option>
                 </select>
               </div>
             </div>
 
             {formReturnType === 'SALES_RETURN' ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">العميل</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.customerLabel')}</label>
                 <select
                   value={formCustomerId}
                   onChange={(e) => {
@@ -1019,7 +1023,7 @@ export const ReturnInvoices = () => {
                   disabled={!!editId}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 disabled:bg-slate-100"
                 >
-                  <option value="">— اختر عميلاً —</option>
+                  <option value="">{t('formModal.chooseCustomer')}</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -1029,7 +1033,7 @@ export const ReturnInvoices = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">المورد</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.supplierLabel')}</label>
                 <select
                   value={formSupplierId}
                   onChange={(e) => {
@@ -1039,7 +1043,7 @@ export const ReturnInvoices = () => {
                   disabled={!!editId}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 disabled:bg-slate-100"
                 >
-                  <option value="">— اختر مورداً —</option>
+                  <option value="">{t('formModal.chooseSupplier')}</option>
                   {suppliers.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -1051,14 +1055,14 @@ export const ReturnInvoices = () => {
 
             {linkMode === 'linked' && formReturnType === 'SALES_RETURN' && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">فاتورة البيع المؤكدة</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.confirmedSalesInvoiceLabel')}</label>
                 <select
                   value={originalSalesInvoiceId}
                   onChange={(e) => setOriginalSalesInvoiceId(e.target.value)}
                   disabled={!!editId}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm disabled:bg-slate-100"
                 >
-                  <option value="">— اختر فاتورة —</option>
+                  <option value="">{t('formModal.chooseInvoice')}</option>
                   {eligibleSalesOpts.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.invoice_no} — {o.invoice_date}
@@ -1070,14 +1074,14 @@ export const ReturnInvoices = () => {
 
             {linkMode === 'linked' && formReturnType === 'PURCHASE_RETURN' && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">فاتورة الشراء المؤكدة</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.confirmedPurchaseInvoiceLabel')}</label>
                 <select
                   value={originalPurchaseInvoiceId}
                   onChange={(e) => setOriginalPurchaseInvoiceId(e.target.value)}
                   disabled={!!editId}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm disabled:bg-slate-100"
                 >
-                  <option value="">— اختر فاتورة —</option>
+                  <option value="">{t('formModal.chooseInvoice')}</option>
                   {eligiblePurchaseOpts.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.invoice_no} — {o.invoice_date}
@@ -1093,13 +1097,13 @@ export const ReturnInvoices = () => {
                   <thead className="bg-slate-100">
                     <tr>
                       <th className="px-2 py-2">#</th>
-                      <th className="px-2 py-2">الصنف / الرول</th>
-                      <th className="px-2 py-2">متاح</th>
-                      <th className="px-2 py-2">مرتجع سابق (م)</th>
-                      <th className="px-2 py-2">كمية الإرجاع</th>
-                      <th className="px-2 py-2">سعر</th>
-                      <th className="px-2 py-2">توب</th>
-                      <th className="px-2 py-2">سبب السطر</th>
+                      <th className="px-2 py-2">{t('lineTable.colItemRoll')}</th>
+                      <th className="px-2 py-2">{t('lineTable.colAvailable')}</th>
+                      <th className="px-2 py-2">{t('lineTable.colPreviouslyReturned')}</th>
+                      <th className="px-2 py-2">{t('lineTable.colReturnQty')}</th>
+                      <th className="px-2 py-2">{t('lineTable.colPrice')}</th>
+                      <th className="px-2 py-2">{t('lineTable.colRoll')}</th>
+                      <th className="px-2 py-2">{t('lineTable.colLineReason')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1116,7 +1120,7 @@ export const ReturnInvoices = () => {
                             </div>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap">
-                            {maxU.toFixed(3)} {ln.unit === 'yard' ? 'yd' : 'م'}
+                            {maxU.toFixed(3)} {ln.unit === 'yard' ? 'yd' : t('lineTable.meterAbbr')}
                           </td>
                           <td className="px-2 py-2">{ln.returned_meters.toFixed(3)}</td>
                           <td className="px-2 py-2">
@@ -1139,7 +1143,7 @@ export const ReturnInvoices = () => {
                           <td className="px-2 py-2">
                             <input
                               className="w-28 border rounded px-1 font-mono text-[10px]"
-                              placeholder="UUID توب"
+                              placeholder={t('lineTable.rollPlaceholder')}
                               value={st.rollId}
                               onChange={(e) =>
                                 setLineReturns((prev) => ({
@@ -1174,7 +1178,7 @@ export const ReturnInvoices = () => {
                 {unlinkedLines.map((row, idx) => (
                   <div key={row.id} className="grid grid-cols-12 gap-2 items-end border-b pb-2">
                     <div className="col-span-4">
-                      <label className="text-xs text-slate-500">البيان</label>
+                      <label className="text-xs text-slate-500">{t('unlinkedTable.descriptionLabel')}</label>
                       <input
                         className="w-full border rounded px-2 py-1 text-sm"
                         value={row.description}
@@ -1185,7 +1189,7 @@ export const ReturnInvoices = () => {
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs text-slate-500">كمية</label>
+                      <label className="text-xs text-slate-500">{t('unlinkedTable.qtyLabel')}</label>
                       <input
                         type="number"
                         className="w-full border rounded px-2 py-1 text-sm"
@@ -1197,7 +1201,7 @@ export const ReturnInvoices = () => {
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs text-slate-500">سعر</label>
+                      <label className="text-xs text-slate-500">{t('unlinkedTable.priceLabel')}</label>
                       <input
                         type="number"
                         className="w-full border rounded px-2 py-1 text-sm"
@@ -1209,7 +1213,7 @@ export const ReturnInvoices = () => {
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs text-slate-500">وحدة</label>
+                      <label className="text-xs text-slate-500">{t('unlinkedTable.unitLabel')}</label>
                       <select
                         className="w-full border rounded px-1 py-1 text-sm"
                         value={row.unit}
@@ -1218,12 +1222,12 @@ export const ReturnInvoices = () => {
                           setUnlinkedLines((prev) => prev.map((x) => (x.id === row.id ? { ...x, unit: v } : x)));
                         }}
                       >
-                        <option value="meter">متر</option>
-                        <option value="yard">ياردة</option>
+                        <option value="meter">{t('unlinkedTable.unitMeter')}</option>
+                        <option value="yard">{t('unlinkedTable.unitYard')}</option>
                       </select>
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs text-slate-500">توب</label>
+                      <label className="text-xs text-slate-500">{t('unlinkedTable.rollLabel')}</label>
                       <input
                         className="w-full border rounded px-1 py-1 font-mono text-[10px]"
                         placeholder="UUID"
@@ -1240,7 +1244,7 @@ export const ReturnInvoices = () => {
                         className="text-rose-600 text-xs col-span-12"
                         onClick={() => setUnlinkedLines((prev) => prev.filter((x) => x.id !== row.id))}
                       >
-                        حذف السطر
+                        {t('unlinkedTable.deleteLine')}
                       </button>
                     )}
                   </div>
@@ -1255,14 +1259,14 @@ export const ReturnInvoices = () => {
                     ])
                   }
                 >
-                  + سطر
+                  + {t('unlinkedTable.addLine')}
                 </button>
               </div>
             )}
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">العملة</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.currencyLabel')}</label>
                 <select
                   value={formCurrencyCode}
                   onChange={(e) => setFormCurrencyCode(e.target.value as SupportedCurrencyCode)}
@@ -1277,7 +1281,7 @@ export const ReturnInvoices = () => {
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">سعر الصرف ↔ USD</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.exchangeRateLabel')}</label>
                 <input
                   value={formExchangeRateToUsd}
                   onChange={(e) => setFormExchangeRateToUsd(e.target.value)}
@@ -1286,7 +1290,7 @@ export const ReturnInvoices = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">خصم</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.discountLabel')}</label>
                 <input
                   type="number"
                   value={formDiscount}
@@ -1295,7 +1299,7 @@ export const ReturnInvoices = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">ضريبة</label>
+                <label className="text-sm font-medium text-slate-700">{t('formModal.taxLabel')}</label>
                 <input
                   type="number"
                   value={formTax}
@@ -1306,21 +1310,21 @@ export const ReturnInvoices = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">نوع التسوية</label>
+              <label className="text-sm font-medium text-slate-700">{t('formModal.settlementTypeLabel')}</label>
               <select
                 value={formSettlement}
                 onChange={(e) => setFormSettlement(e.target.value as SettlementType)}
                 className="w-full border rounded-lg px-3 py-2"
               >
-                <option value="CREDIT_BALANCE">تخفيض ذمة / رصيد دائن</option>
+                <option value="CREDIT_BALANCE">{t('labels.settlementCreditBalance')}</option>
               </select>
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
-                خيار «بدون أثر مالي» مؤجّل من الواجهة (V4): يُدار عبر الـ API فقط بعد الحاجة، مع قيود مخزون على الخادم.
+                {t('formModal.settlementNoEffectHint')}
               </p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">سبب عام للمرتجع</label>
+              <label className="text-sm font-medium text-slate-700">{t('formModal.generalReasonLabel')}</label>
               <textarea
                 value={formReason}
                 onChange={(e) => setFormReason(e.target.value)}
@@ -1328,7 +1332,7 @@ export const ReturnInvoices = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">ملاحظات</label>
+              <label className="text-sm font-medium text-slate-700">{t('formModal.notesLabel')}</label>
               <textarea
                 value={formNotes}
                 onChange={(e) => setFormNotes(e.target.value)}
@@ -1338,14 +1342,14 @@ export const ReturnInvoices = () => {
 
             {draftTotal != null && (
               <p className="text-sm font-semibold text-slate-800">
-                إجمالي المسودة (تقريبي): {draftTotal.toFixed(2)} {formCurrencyCode}
+                {t('formModal.draftTotalApprox', { total: draftTotal.toFixed(2), currency: formCurrencyCode })}
               </p>
             )}
             </div>
 
             <div className="flex flex-wrap gap-2 justify-end px-6 py-4 border-t border-slate-200 shrink-0">
               <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-lg border border-slate-200">
-                إلغاء
+                {t('formModal.cancel')}
               </button>
               <button
                 type="button"
@@ -1353,7 +1357,7 @@ export const ReturnInvoices = () => {
                 onClick={() => void submitSave(false)}
                 className="px-4 py-2 rounded-lg bg-rose-600 text-white disabled:opacity-50"
               >
-                {saving ? 'جاري...' : editId ? 'حفظ التعديلات' : 'حفظ مسودة'}
+                {saving ? t('formModal.saving') : editId ? t('formModal.saveChanges') : t('formModal.saveDraft')}
               </button>
               {!editId && (
                 <button
@@ -1362,7 +1366,7 @@ export const ReturnInvoices = () => {
                   onClick={() => void submitSave(true)}
                   className="px-4 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-50"
                 >
-                  حفظ وتأكيد
+                  {t('formModal.saveAndConfirm')}
                 </button>
               )}
             </div>
@@ -1372,8 +1376,7 @@ export const ReturnInvoices = () => {
 
       <p className="text-xs text-slate-500 flex items-center gap-2">
         <ArrowLeftRight className="w-4 h-4" />
-        المرتجع المرتبط بفاتورة يُتحقق من الكميات على الخادم. إلغاء المؤكد فقط يعكس المخزون والقيد. المرتجع غير المرتبط
-        يتطلب ضبط التوب بعناية للمخزون.
+        {t('footer.hint')}
       </p>
     </div>
   );
