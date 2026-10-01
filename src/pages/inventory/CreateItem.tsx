@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Save, FileText, ArrowRight, ScanLine, ImagePlus, Upload, X, Printer } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -121,6 +122,7 @@ function normalizeSevenDigitBarcode(value: string): string {
 }
 
 export const CreateItem = () => {
+  const { t } = useTranslation('createItem');
   const { addFabric, updateFabric, inventory, warehouses } = useStore();
   const navigate = useNavigate();
   const { id } = useParams();
@@ -254,7 +256,7 @@ export const CreateItem = () => {
         setCategoryApiTree(t);
         setTreeLoadErr('');
       })
-      .catch(() => setTreeLoadErr('تعذر تحميل شجرة التصنيفات من الخادم.'))
+      .catch(() => setTreeLoadErr(t('errors.categoryTreeLoadFailed')))
       .finally(() => setTreeLoading(false));
   }, []);
 
@@ -324,8 +326,8 @@ export const CreateItem = () => {
   const lengthEquivalentText = useMemo(() => {
     const value = Number(length);
     if (!Number.isFinite(value) || value <= 0) return '';
-    if (lengthType === 'meter') return `${(value * 1.09361).toFixed(2)} ياردة`;
-    return `${(value * 0.9144).toFixed(2)} متر`;
+    if (lengthType === 'meter') return `${(value * 1.09361).toFixed(2)} ${t('units.yard')}`;
+    return `${(value * 0.9144).toFixed(2)} ${t('units.meter')}`;
   }, [length, lengthType]);
 
   const printLabel = async (input: AdHocLabelInput) => {
@@ -338,34 +340,34 @@ export const CreateItem = () => {
     setPrintWarning('');
 
     if (!name?.trim()) {
-      setSaveError('اسم الخامة مطلوب.');
+      setSaveError(t('errors.nameRequired'));
       return;
     }
 
     if (isEditMode) {
       if (!fabricCode?.trim()) {
-        setSaveError('كود الخامة مطلوب في وضع التعديل.');
+        setSaveError(t('errors.fabricCodeRequiredEdit'));
         return;
       }
     } else {
       if (!catL1Id || !catL2Id) {
-        setSaveError('يرجى اختيار اسم الخامة وكود الخامة من شجرة التصنيفات.');
+        setSaveError(t('errors.selectNameAndCode'));
         return;
       }
       if (!warehouseId) {
-        setSaveError('المستودع مطلوب.');
+        setSaveError(t('errors.warehouseRequired'));
         return;
       }
       if (length === '' || Number(length) < 0) {
-        setSaveError('الطول مطلوب ويجب أن يكون رقماً صحيحاً.');
+        setSaveError(t('errors.lengthRequired'));
         return;
       }
       if (rollWidth === '' || Number(rollWidth) <= 0) {
-        setSaveError('عرض التوب مطلوب ويجب أن يكون أكبر من صفر.');
+        setSaveError(t('errors.rollWidthRequired'));
         return;
       }
       if (weightMultiplier === '' || Number(weightMultiplier) <= 0) {
-        setSaveError('وزن المتر المربع (GSM) مطلوب ويجب أن يكون أكبر من صفر.');
+        setSaveError(t('errors.gsmRequired'));
         return;
       }
     }
@@ -421,7 +423,7 @@ export const CreateItem = () => {
       if (isEditMode && editingItem) {
         if (!getApiBaseUrl() || !getStoredToken()) {
           updateFabric(editingItem.id, payload);
-          setSuccessMessage(`تم تعديل المادة "${name}" محلياً.`);
+          setSuccessMessage(t('toast.editedLocally', { name }));
           setSaving(false);
           return;
         }
@@ -448,7 +450,7 @@ export const CreateItem = () => {
         }
         const apiItem = listed.find((item) => item.id === resolved.item.id);
         if (!apiItem) {
-          setSaveError('لم يُعثر على سجل خامة مطابق للهوية الأصلية. أوقِف الحفظ لتجنب تعديل سجل خاطئ.');
+          setSaveError(t('errors.identityNotFound'));
           setSaving(false);
           return;
         }
@@ -463,7 +465,7 @@ export const CreateItem = () => {
           supplier_id: apiItem.supplier_id,
         });
         updateFabric(editingItem.id, payload);
-        setSuccessMessage(`تم تعديل المادة "${name}" وحفظها في قاعدة البيانات`);
+        setSuccessMessage(t('toast.editedSaved', { name }));
         setSaving(false);
         setTimeout(() => navigate('/inventory'), 900);
         return;
@@ -471,12 +473,12 @@ export const CreateItem = () => {
 
       /* ─── إنشاء ثوب جديد من مسار التصنيف الثلاثي ─── */
       if (!getApiBaseUrl() || !getStoredToken()) {
-        setSaveError('يجب الاتصال بالخادم لحفظ المادة في PostgreSQL.');
+        setSaveError(t('errors.needsServerConnection'));
         setSaving(false);
         return;
       }
       if (!selectedWarehouse) {
-        setSaveError('لا يوجد مستودع نشط.');
+        setSaveError(t('errors.noActiveWarehouse'));
         setSaving(false);
         return;
       }
@@ -667,7 +669,7 @@ export const CreateItem = () => {
 
       addFabric(payload);
 
-      setSuccessMessage('تم حفظ المادة بنجاح');
+      setSuccessMessage(t('toast.savedSuccess'));
       setTimeout(() => setSuccessMessage(''), 5000);
       setLastSavedPrintInput(printInput);
 
@@ -677,12 +679,12 @@ export const CreateItem = () => {
           && window.fabricApp?.isElectron
           && !settings?.defaultLabelPrinterName
         ) {
-          setPrintWarning('لم يتم تحديد طابعة لصاقات افتراضية — سيُفتح حوار الطباعة أو راجع إعدادات المكتب.');
+          setPrintWarning(t('toast.noDefaultPrinter'));
         }
         try {
           await printLabel(printInput);
         } catch {
-          setSaveError('تم الحفظ، لكن تعذرت الطباعة التلقائية. استخدم زر طباعة اللصاقة.');
+          setSaveError(t('errors.printFailedAfterSave'));
         }
       }
 
@@ -708,9 +710,9 @@ export const CreateItem = () => {
       if (lengthInputRef.current) lengthInputRef.current.focus();
     } catch (error) {
       if (error instanceof ApiRequestError && error.statusCode === 409) {
-        setSaveError('هذا الباركود موجود مسبقاً.');
+        setSaveError(t('errors.barcodeExists'));
       } else {
-        setSaveError((error as { message?: string }).message ?? 'تعذر حفظ المادة في قاعدة البيانات.');
+        setSaveError((error as { message?: string }).message ?? t('errors.saveFailedGeneric'));
       }
     } finally {
       setSaving(false);
@@ -764,8 +766,8 @@ export const CreateItem = () => {
             <ArrowRight className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">إنشاء مادة جديدة</h2>
-            <p className="text-slate-500 mt-1">إضافة خامة جديدة إلى قسم المخزون</p>
+            <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+            <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -774,7 +776,7 @@ export const CreateItem = () => {
             onClick={() => navigate('/inventory')}
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition shadow-sm font-medium"
           >
-            إلغاء
+            {t('page.cancel')}
           </button>
           <button 
             onClick={handleSave}
@@ -782,7 +784,7 @@ export const CreateItem = () => {
             className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? 'جاري الحفظ...' : 'حفظ المادة'}</span>
+            <span>{saving ? t('page.saving') : t('page.saveItem')}</span>
           </button>
         </div>
       </div>
@@ -798,7 +800,7 @@ export const CreateItem = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-200 flex items-center gap-2 bg-slate-50">
            <FileText className="w-5 h-5 text-indigo-600" />
-           <h3 className="font-bold text-slate-800 text-lg">بيانات الخامة</h3>
+           <h3 className="font-bold text-slate-800 text-lg">{t('page.dataSectionTitle')}</h3>
         </div>
         
         <div className="p-8">
@@ -807,7 +809,7 @@ export const CreateItem = () => {
             {/* Right Side Cards (RTL) / Quick inputs */}
             <div className="lg:w-1/3 flex flex-col gap-6 order-1">
               <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-6 shadow-sm">
-                 <label className="block text-lg font-bold text-indigo-900 mb-4">الطول النهائي ({lengthType === 'yard' ? 'ياردة' : 'متر'})</label>
+                 <label className="block text-lg font-bold text-indigo-900 mb-4">{t('lengthCard.title', { unit: lengthType === 'yard' ? t('units.yard') : t('units.meter') })}</label>
                   <input 
                     id="length"
                     ref={lengthInputRef}
@@ -823,20 +825,20 @@ export const CreateItem = () => {
                   />
                   {lengthEquivalentText ? (
                     <div className="mt-3 text-center text-xs font-bold text-indigo-500">
-                      يعادل تقريباً {lengthEquivalentText}
+                      {t('lengthCard.approxEquals', { value: lengthEquivalentText })}
                     </div>
                   ) : null}
               </div>
 
               <div className={`border-2 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4 transition-colors cursor-pointer select-none ${autoPrint ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200'}`} onClick={() => setAutoPrint(!autoPrint)}>
                  <div className="flex flex-col">
-                   <label className={`text-base font-bold cursor-pointer ${autoPrint ? 'text-emerald-800' : 'text-slate-600'}`}>طباعة اللصاقة تلقائياً</label>
+                   <label className={`text-base font-bold cursor-pointer ${autoPrint ? 'text-emerald-800' : 'text-slate-600'}`}>{t('autoPrint.label')}</label>
                    <span className={`text-xs mt-1 ${autoPrint ? 'text-emerald-600' : 'text-slate-400'}`}>
                      {autoPrint
                        ? (settings?.silentLabelPrintingEnabled && settings?.defaultLabelPrinterName
-                           ? `طباعة صامتة فوراً → ${settings.defaultLabelPrinterName}`
-                           : 'سيُفتح حوار الطابعة — اضبطي طابعة افتراضية في الإعدادات')
-                       : 'عند الحفظ أو ضغط Enter'}
+                           ? t('autoPrint.silentNow', { printer: settings.defaultLabelPrinterName })
+                           : t('autoPrint.willOpenDialog'))
+                       : t('autoPrint.onSaveOrEnter')}
                    </span>
                  </div>
                  
@@ -848,13 +850,13 @@ export const CreateItem = () => {
                    aria-checked={autoPrint}
                    onClick={(e) => { e.stopPropagation(); setAutoPrint(!autoPrint); }}
                  >
-                   <span className="sr-only">تفعيل الطباعة التلقائية</span>
+                   <span className="sr-only">{t('autoPrint.srToggle')}</span>
                    <span aria-hidden="true" className={`pointer-events-none absolute h-6 w-6 rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out ${autoPrint ? '-translate-x-3' : 'translate-x-3'}`} />
                  </button>
               </div>
 
 <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-6 shadow-sm">
-                  <label className="block text-lg font-bold text-emerald-900 mb-4">الوزن النهائي (KG)</label>
+                  <label className="block text-lg font-bold text-emerald-900 mb-4">{t('weightCard.title')}</label>
                   <input 
                     id="weight"
                     type="number" 
@@ -869,7 +871,7 @@ export const CreateItem = () => {
                </div>
 
                <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
-                  <label className="text-sm font-bold text-slate-700 whitespace-nowrap">وزن المتر/الياردة (غرام):</label>
+                  <label className="text-sm font-bold text-slate-700 whitespace-nowrap">{t('weightMultiplier.label')}</label>
                   <input 
                     id="weight-multiplier"
                     type="number" 
@@ -885,7 +887,7 @@ export const CreateItem = () => {
                </div>
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm text-slate-600 space-y-3">
-                <p>💡 <b>تلميح:</b> يمكنك تعديل الأرقام أعلاه والضغط على <b>Enter</b> للحفظ مباشرة وإضافة القطعة التالية بنفس المواصفات.</p>
+                <p>💡 <b>{t('hint.tipLabel')}</b> {t('hint.bodyBeforeEnter')} <b>Enter</b> {t('hint.bodyAfterEnter')}</p>
                 <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700">
                   <input
                     type="checkbox"
@@ -893,7 +895,7 @@ export const CreateItem = () => {
                     onChange={(e) => setRetainFieldsPersist(e.target.checked)}
                     className="w-3.5 h-3.5 rounded text-indigo-600"
                   />
-                  الاحتفاظ بالبيانات لإضافة ثوب آخر
+                  {t('retainFields.label')}
                 </label>
               </div>
               
@@ -907,7 +909,7 @@ export const CreateItem = () => {
                       className="mx-auto bg-white border border-emerald-300 text-emerald-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-50 transition shadow-sm text-sm"
                     >
                       <Printer className="w-4 h-4" />
-                      <span>طباعة اللصاقة الآن</span>
+                      <span>{t('printNow.label')}</span>
                     </button>
                   )}
                 </div>
@@ -931,7 +933,7 @@ export const CreateItem = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               <div className="space-y-3">
-                <label className="block text-sm font-bold text-slate-700">الباركود</label>
+                <label className="block text-sm font-bold text-slate-700">{t('form.barcodeLabel')}</label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -945,7 +947,7 @@ export const CreateItem = () => {
                       maxLength={7}
                       inputMode="numeric"
                       onKeyDown={e => enterToNext(e, 'lot-number')}
-                      placeholder="امسح الباركود أو أدخل الرقم..." 
+                      placeholder={t('form.barcodePlaceholder')} 
                       className="w-full pr-10 pl-4 py-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm font-mono text-left" 
                       dir="ltr"
                     />
@@ -954,29 +956,29 @@ export const CreateItem = () => {
                     onClick={generateBarcode}
                     type="button"
                     className="px-4 py-2 bg-slate-100 text-slate-700 font-bold border border-slate-300 rounded-lg hover:bg-slate-200 transition whitespace-nowrap shadow-sm text-sm"
-                    title="توليد رقم باركود عشوائي"
+                    title={t('form.generateBarcodeTitle')}
                   >
-                    توليد
+                    {t('form.generate')}
                   </button>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <label className="block text-sm font-bold text-slate-700">اللوت</label>
+                <label className="block text-sm font-bold text-slate-700">{t('form.lotLabel')}</label>
                 <input
                   id="lot-number"
                   type="text"
                   value={lotNumber}
                   onChange={e => setLotNumber(e.target.value)}
                   onKeyDown={e => enterToNext(e, 'warehouse')}
-                  placeholder="اكتب رقم اللوت إن وجد"
+                  placeholder={t('form.lotPlaceholder')}
                   className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm font-mono text-left"
                   dir="ltr"
                 />
               </div>
 
               <div className="space-y-3">
-                <label className="block text-sm font-bold text-slate-700">المستودع / مكان التخزين</label>
+                <label className="block text-sm font-bold text-slate-700">{t('form.warehouseLabel')}</label>
                 <select 
                   id="warehouse"
                   onKeyDown={e => enterToNext(e, "name")}
@@ -984,7 +986,7 @@ export const CreateItem = () => {
                   onChange={e => setWarehouseId(e.target.value)}
                   className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm" 
                 >
-                  {activeWarehouses.length === 0 && <option value="" disabled>عدم تحديد / لا يوجد مستودعات نشطة</option>}
+                  {activeWarehouses.length === 0 && <option value="" disabled>{t('form.noActiveWarehouseOption')}</option>}
                   {activeWarehouses.map(wh => (
                     <option key={wh.id} value={wh.id}>{wh.name} ({wh.location})</option>
                   ))}
@@ -992,14 +994,14 @@ export const CreateItem = () => {
               </div>
 
               <div className="space-y-3 md:col-span-2">
-                <label className="block text-sm font-bold text-slate-700">اسم الخامة</label>
+                <label className="block text-sm font-bold text-slate-700">{t('form.materialNameLabel')}</label>
                   <input 
                     id="name"
                     onKeyDown={e => enterToNext(e, "fabric-code")}
                     type="text" 
                     value={name}
                     onChange={e => handleMaterialNameChange(e.target.value)}
-                    placeholder="اكتب اسم الخامة وسيتم اقتراح الأكواد والألوان المرتبطة" 
+                    placeholder={t('form.materialNamePlaceholder')} 
                     className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm" 
                   />
                   {!isEditMode && name.trim() && !catL1Id && materialNameSuggestions.length > 0 ? (
@@ -1018,12 +1020,12 @@ export const CreateItem = () => {
                   ) : null}
                   {!isEditMode && name.trim() && !catL1Id ? (
                     <p className="text-xs text-amber-700">
-                      اختر اسم خامة من الاقتراحات حتى يقرأ النظام كود الخامة من شجرة التصنيفات. اللون وكود اللون اختياريان.
+                      {t('form.chooseFromSuggestionsHint')}
                     </p>
                   ) : null}
                   {!isEditMode && catL1Id ? (
                     <p className="text-xs text-emerald-700 font-bold">
-                      تم ربط اسم الخامة بشجرة التصنيفات.
+                      {t('form.linkedToTreeHint')}
                     </p>
                   ) : null}
                 </div>
@@ -1035,15 +1037,15 @@ export const CreateItem = () => {
                   ) : null}
                   {!treeLoading && categoryApiTree.length === 0 ? (
                     <p className="text-xs text-amber-800 md:col-span-2">
-                      لا توجد تصنيفات بعد.{' '}
+                      {t('form.noCategoriesYet')}{' '}
                       <Link to="/inventory/categories" className="font-bold text-indigo-700 underline">
-                        تصنيفات الأقمشة
+                        {t('form.categoriesLink')}
                       </Link>
                     </p>
                   ) : null}
 
                   <div className="space-y-3">
-                    <label className="block text-sm font-bold text-slate-700">كود الخامة</label>
+                    <label className="block text-sm font-bold text-slate-700">{t('form.materialCodeLabel')}</label>
                     <select
                       id="fabric-code"
                       onKeyDown={e => enterToNext(e, 'color-name')}
@@ -1056,7 +1058,7 @@ export const CreateItem = () => {
                       disabled={!catL1Id || level2Options.length === 0}
                       className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm font-mono"
                     >
-                      <option value="">-- اختر كود الخامة --</option>
+                      <option value="">{t('form.selectMaterialCodePlaceholder')}</option>
                       {level2Options.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.code}
@@ -1066,7 +1068,7 @@ export const CreateItem = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <label className="block text-sm font-bold text-slate-700">لون الخامة <span className="text-slate-400 font-normal">(اختياري)</span></label>
+                    <label className="block text-sm font-bold text-slate-700">{t('form.materialColorLabel')} <span className="text-slate-400 font-normal">{t('form.optional')}</span></label>
                     <select
                       id="color-name"
                       onKeyDown={e => enterToNext(e, 'color-code')}
@@ -1078,7 +1080,7 @@ export const CreateItem = () => {
                       disabled={!catL2Id}
                       className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm disabled:opacity-50"
                     >
-                      <option value="">-- بدون لون --</option>
+                      <option value="">{t('form.noColorOption')}</option>
                       {level3Options.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -1088,7 +1090,7 @@ export const CreateItem = () => {
                   </div>
 
                   <div className="space-y-3 md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700">كود اللون <span className="text-slate-400 font-normal">(اختياري)</span></label>
+                    <label className="block text-sm font-bold text-slate-700">{t('form.colorCodeLabel')} <span className="text-slate-400 font-normal">{t('form.optional')}</span></label>
                     <div className="flex gap-3 items-stretch">
                       <div
                         className="w-14 h-[50px] shrink-0 rounded-lg border border-slate-300 shadow-sm self-center"
@@ -1104,7 +1106,7 @@ export const CreateItem = () => {
                         className="min-h-[50px] flex-1 p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm font-mono text-left disabled:opacity-50"
                         dir="ltr"
                       >
-                        <option value="">-- بدون كود لون --</option>
+                        <option value="">{t('form.noColorCodeOption')}</option>
                         {level4Options.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.code}
@@ -1119,7 +1121,7 @@ export const CreateItem = () => {
               {isEditMode && (
                 <>
                   <div className="space-y-3">
-                    <label className="block text-sm font-bold text-slate-700">كود الخامة (مرجعي)</label>
+                    <label className="block text-sm font-bold text-slate-700">{t('form.materialCodeRefLabel')}</label>
                     <input
                       type="text"
                       value={fabricCode}
@@ -1129,7 +1131,7 @@ export const CreateItem = () => {
                     />
                   </div>
                   <div className="space-y-3">
-                    <label className="block text-sm font-bold text-slate-700">لون الخامة (مرجعي)</label>
+                    <label className="block text-sm font-bold text-slate-700">{t('form.materialColorRefLabel')}</label>
                     <input
                       type="text"
                       value={colorName}
@@ -1138,7 +1140,7 @@ export const CreateItem = () => {
                     />
                   </div>
                   <div className="space-y-3 md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700">كود اللون (مرجعي)</label>
+                    <label className="block text-sm font-bold text-slate-700">{t('form.colorCodeRefLabel')}</label>
                     <input
                       type="text"
                       value={colorCode}
@@ -1151,35 +1153,35 @@ export const CreateItem = () => {
               )}
 
               <div className="space-y-3">
-              <label className="block text-sm font-bold text-slate-700">نوع الطول</label>
+              <label className="block text-sm font-bold text-slate-700">{t('form.lengthTypeLabel')}</label>
               <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setLengthType('meter')}
                   className={`flex-1 py-2 text-sm font-bold rounded-md transition ${lengthType === 'meter' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  متر
+                  {t('units.meter')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setLengthType('yard')}
                   className={`flex-1 py-2 text-sm font-bold rounded-md transition ${lengthType === 'yard' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  ياردة
+                  {t('units.yard')}
                 </button>
               </div>
             </div>
 
                 <div className="space-y-3">
                   <label className="block flex justify-between items-center text-sm font-bold text-slate-700">
-                    <span>عرض التوب</span>
+                    <span>{t('form.rollWidthLabel')}</span>
                     <select 
                       value={widthUnit} 
                       onChange={(e) => setWidthUnit(e.target.value as 'inch' | 'cm')}
                       className="text-xs border border-slate-300 rounded px-2 py-1 bg-slate-50 focus:outline-none"
                     >
-                      <option value="cm">سم</option>
-                      <option value="inch">إنش</option>
+                      <option value="cm">{t('units.cm')}</option>
+                      <option value="inch">{t('units.inch')}</option>
                     </select>
                   </label>
 <input 
@@ -1189,14 +1191,14 @@ export const CreateItem = () => {
                      value={rollWidth}
                      onChange={e => setRollWidth(e.target.value === '' ? '' : Number(e.target.value))}
                      onWheel={e => e.currentTarget.blur()}
-                     placeholder={`مثال: ${widthUnit === 'inch' ? '58' : '150'}`} 
+                     placeholder={t('form.rollWidthPlaceholder', { value: widthUnit === 'inch' ? '58' : '150' })} 
                      className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm font-mono text-left" 
                      dir="ltr"
                    />
                 </div>
 
 <div className="space-y-3">
-                   <label className="block text-sm font-bold text-slate-700">سعر التكلفة</label>
+                   <label className="block text-sm font-bold text-slate-700">{t('form.costPriceLabel')}</label>
                    <div className="relative">
                      <input 
                        id="cost-price"
@@ -1214,7 +1216,7 @@ export const CreateItem = () => {
                  </div>
 
                  <div className="space-y-3">
-                   <label className="block text-sm font-bold text-slate-700">سعر البيع</label>
+                   <label className="block text-sm font-bold text-slate-700">{t('form.sellingPriceLabel')}</label>
                    <div className="relative">
                      <input 
                        id="selling-price"
@@ -1253,6 +1255,7 @@ const ItemImageControl = ({
   onImageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
 }) => {
+  const { t } = useTranslation('createItem');
   if (!enabled) {
     return (
       <aside data-testid="item-image-toggle" className="xl:fixed xl:left-6 xl:top-28 xl:w-56 xl:z-20 bg-white border border-slate-200 rounded-xl shadow-sm p-3">
@@ -1262,8 +1265,8 @@ const ItemImageControl = ({
               <ImagePlus className="w-4 h-4 text-slate-500" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-bold text-slate-800 truncate">صورة المادة</span>
-              <span className="block text-[11px] text-slate-500 truncate">إظهار إضافة صورة</span>
+              <span className="block text-sm font-bold text-slate-800 truncate">{t('imageControl.title')}</span>
+              <span className="block text-[11px] text-slate-500 truncate">{t('imageControl.showToggle')}</span>
             </span>
           </span>
           <input
@@ -1282,7 +1285,7 @@ const ItemImageControl = ({
     <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
         <ImagePlus className="w-5 h-5 text-indigo-600" />
-        <h3 className="font-bold text-slate-900">صورة المادة</h3>
+        <h3 className="font-bold text-slate-900">{t('imageControl.title')}</h3>
       </div>
       <div className="flex items-center gap-2">
         <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer select-none">
@@ -1292,14 +1295,14 @@ const ItemImageControl = ({
             onChange={(event) => onToggle(event.target.checked)}
             className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500"
           />
-          إظهار
+          {t('imageControl.show')}
         </label>
       {imageUrl && (
         <button
           type="button"
           onClick={onClear}
           className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
-          title="إزالة الصورة"
+          title={t('imageControl.removeTitle')}
         >
           <X className="w-4 h-4" />
         </button>
@@ -1310,12 +1313,12 @@ const ItemImageControl = ({
       <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
       <div className="aspect-square rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden hover:border-indigo-300 hover:bg-indigo-50/40 transition">
         {imageUrl ? (
-          <img src={imageUrl} alt="صورة المادة" className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={t('imageControl.altText')} className="w-full h-full object-cover" />
         ) : (
           <div className="text-center px-5">
             <Upload className="w-9 h-9 text-slate-400 mx-auto mb-3" />
-            <p className="font-bold text-slate-700">إضافة صورة</p>
-            <p className="text-xs text-slate-500 mt-1">PNG أو JPG أو WEBP</p>
+            <p className="font-bold text-slate-700">{t('imageControl.addImage')}</p>
+            <p className="text-xs text-slate-500 mt-1">{t('imageControl.formatsHint')}</p>
           </div>
         )}
       </div>
