@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Calendar, Check, Download, FileUp, Loader2, Pencil, Plus, Printer, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   type ApiCustomer,
@@ -31,6 +32,7 @@ const emptyForm = (): CustomerPayload => ({
 });
 
 export const Customers = () => {
+  const { t } = useTranslation('customers');
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [customers, setCustomers] = useState<ApiCustomer[]>([]);
@@ -84,7 +86,7 @@ export const Customers = () => {
       setCustomers(res.data);
       setTotal(res.total);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'خطأ في تحميل البيانات');
+      setError(e instanceof Error ? e.message : t('errors.loadFailed'));
     } finally { setLoading(false); }
   }, [search, statusFilter, page]);
 
@@ -148,7 +150,7 @@ export const Customers = () => {
       else { await createCustomer(form); }
       closeModal(); load();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'فشل الحفظ');
+      setSaveError(e instanceof Error ? e.message : t('errors.saveFailed'));
     } finally { setSaving(false); }
   };
 
@@ -169,7 +171,7 @@ export const Customers = () => {
       const preview = await previewCustomerPurge(customer.id);
       setDeletePreview(preview);
     } catch (e) {
-      setDeleteError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل معاينة الحذف');
+      setDeleteError(e instanceof ApiRequestError ? e.message : t('errors.deletePreviewFailed'));
     } finally {
       setDeletePreviewLoading(false);
     }
@@ -186,18 +188,18 @@ export const Customers = () => {
   const handleDeleteCustomer = async () => {
     if (!deleteTarget || !deletePreview) return;
     if (deleteConfirmName.trim() !== deleteTarget.name.trim()) {
-      setDeleteError('اكتب اسم العميل بالكامل للتأكيد.');
+      setDeleteError(t('errors.confirmNameRequired'));
       return;
     }
     setDeleteBusy(true);
     setDeleteError(null);
     try {
       await deleteCustomerAccount(deleteTarget.id);
-      showToast({ type: 'success', message: `تم حذف العميل "${deleteTarget.name}" وجميع مستنداته بعد العكس المحاسبي.` });
+      showToast({ type: 'success', message: t('toast.deleteSuccess', { name: deleteTarget.name }) });
       closeDeleteModal();
       void load();
     } catch (e) {
-      setDeleteError(e instanceof ApiRequestError ? e.message : 'تعذر حذف العميل');
+      setDeleteError(e instanceof ApiRequestError ? e.message : t('errors.deleteFailed'));
     } finally {
       setDeleteBusy(false);
     }
@@ -302,7 +304,7 @@ export const Customers = () => {
       const enabled = res.data.filter((c) => c.telegram_enabled || c.telegram_chat_id).map((c) => c.id);
       setTelegramSelectedIds(new Set(enabled));
     } catch (e) {
-      setTelegramStatus(e instanceof Error ? e.message : 'تعذر تحميل العملاء للإرسال');
+      setTelegramStatus(e instanceof Error ? e.message : t('telegram.loadCustomersFailed'));
     }
   };
 
@@ -331,7 +333,7 @@ export const Customers = () => {
         setTelegramSelectedIds(new Set());
         setTelegramStatus('');
       } else {
-        setTelegramStatus('حدد العملاء المرتبطين بتيليغرام من الجدول ثم اختر التصدير والإرسال.');
+        setTelegramStatus(t('telegram.hintSelect'));
       }
       return next;
     });
@@ -340,26 +342,26 @@ export const Customers = () => {
   const sendSelectedCustomerStatements = async () => {
     const selected = customers.filter((c) => telegramSelectedIds.has(c.id) && hasTelegramLink(c));
     if (!selected.length) {
-      setTelegramStatus('اختر عميلاً واحداً على الأقل.');
+      setTelegramStatus(t('telegram.selectAtLeastOne'));
       return;
     }
     if (!window.fabricApp?.pickPdfFolder || !window.fabricApp?.printToPdf) {
-      setTelegramStatus('التصدير الجماعي إلى مجلد يحتاج تشغيل التطبيق عبر Electron.');
+      setTelegramStatus(t('telegram.needsElectron'));
       return;
     }
     const folderPath = await window.fabricApp.pickPdfFolder();
     if (!folderPath) {
-      setTelegramStatus('تم إلغاء اختيار مجلد التصدير.');
+      setTelegramStatus(t('telegram.folderCancelled'));
       return;
     }
     setTelegramBusy(true);
-    setTelegramStatus('بدء تجهيز ملفات PDF...');
+    setTelegramStatus(t('telegram.preparingStart'));
     try {
       let exported = 0;
       let sent = 0;
       for (let i = 0; i < selected.length; i += 1) {
         const customer = selected[i];
-        setTelegramStatus(`${i + 1} / ${selected.length} - تجهيز كشف ${customer.name}`);
+        setTelegramStatus(t('telegram.preparingProgress', { index: i + 1, total: selected.length, name: customer.name }));
         const res = await getCustomerStatement(customer.id, {
           fromDate: telegramFromDate,
           toDate: telegramToDate,
@@ -394,7 +396,7 @@ export const Customers = () => {
           margins: { top: 6, right: 6, bottom: 6, left: 6 },
         });
         if (!pdfResult.ok) {
-          throw new Error(pdfResult.error || `تعذر حفظ PDF للعميل ${partyName}`);
+          throw new Error(pdfResult.error || t('telegram.pdfSaveFailed', { name: partyName }));
         }
         exported += 1;
         await sendTelegramAccountStatementPdf({
@@ -415,9 +417,9 @@ export const Customers = () => {
         });
         sent += 1;
       }
-      setTelegramStatus('تم إرسال الكشوفات المحددة إلى تيليغرام ونسخة المدير حسب الصلاحيات.');
+      setTelegramStatus(t('telegram.sentSuccess'));
     } catch (e) {
-      setTelegramStatus(e instanceof Error ? e.message : 'تعذر إرسال كشوف العملاء إلى تيليغرام');
+      setTelegramStatus(e instanceof Error ? e.message : t('telegram.sendFailed'));
     } finally {
       setTelegramBusy(false);
     }
@@ -435,7 +437,7 @@ export const Customers = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <A4PreviewModal
         open={isA4PreviewOpen}
-        title="معاينة كشف ذمم العملاء A4"
+        title={t('page.title')}
         html={renderCustomersReminderHtml()}
         pageSize="A4"
         defaultFileName={`ذمم_العملاء_${reminderDate}.pdf`}
@@ -445,8 +447,8 @@ export const Customers = () => {
       />
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">العملاء</h2>
-          <p className="text-slate-500 mt-1">إدارة بيانات العملاء — مُتصل بـ PostgreSQL</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+          <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
@@ -456,7 +458,7 @@ export const Customers = () => {
               value={reminderDate}
               onChange={(e) => setReminderDate(e.target.value)}
               className="pr-9 pl-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              title="تاريخ التذكير"
+              title={t('toolbar.reminderDateTitle')}
             />
           </div>
           <button
@@ -464,14 +466,14 @@ export const Customers = () => {
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition"
           >
             <Download className="w-4 h-4" />
-            <span>تصدير PDF</span>
+            <span>{t('toolbar.exportPdf')}</span>
           </button>
           <button
             onClick={handlePrintCustomersA4}
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition"
           >
             <Printer className="w-4 h-4" />
-            <span>طباعة A4</span>
+            <span>{t('toolbar.printA4')}</span>
           </button>
           <button
             onClick={toggleTelegramSelectionMode}
@@ -480,7 +482,7 @@ export const Customers = () => {
             }`}
           >
             <Send className="w-4 h-4" />
-            <span>إرسال كشوف تيليغرام</span>
+            <span>{t('toolbar.sendTelegramStatements')}</span>
             {telegramSelectedIds.size > 0 && <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">{telegramSelectedIds.size}</span>}
           </button>
           <button
@@ -488,13 +490,13 @@ export const Customers = () => {
             className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition"
           >
             <FileUp className="w-4 h-4" />
-            <span>استيراد كشف عميل</span>
+            <span>{t('toolbar.importStatement')}</span>
           </button>
           <button onClick={load} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
             <RefreshCw className="w-4 h-4" />
           </button>
           <button onClick={openAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition">
-            <Plus className="w-4 h-4" /><span>إضافة عميل</span>
+            <Plus className="w-4 h-4" /><span>{t('toolbar.addCustomer')}</span>
           </button>
         </div>
       </div>
@@ -503,9 +505,9 @@ export const Customers = () => {
         <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-black text-slate-900">تحديد عملاء لتصدير كشف حساب PDF وإرساله</h3>
+              <h3 className="text-base font-black text-slate-900">{t('telegramBar.title')}</h3>
               <p className="mt-1 text-sm text-slate-600">
-                سيتم التعامل فقط مع العملاء المرتبطين بتيليغرام، وكل عميل يستلم ملفه الخاص فقط، مع حفظ نسخة PDF في المجلد الذي تختاره.
+                {t('telegramBar.description')}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -514,14 +516,14 @@ export const Customers = () => {
                 value={telegramFromDate}
                 onChange={(e) => setTelegramFromDate(e.target.value)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                title="من تاريخ"
+                title={t('telegramBar.fromDateTitle')}
               />
               <input
                 type="date"
                 value={telegramToDate}
                 onChange={(e) => setTelegramToDate(e.target.value)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                title="إلى تاريخ"
+                title={t('telegramBar.toDateTitle')}
               />
               <button
                 type="button"
@@ -530,14 +532,14 @@ export const Customers = () => {
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 {telegramBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                تصدير وإرسال المحدد ({telegramSelectedIds.size})
+                {t('telegramBar.exportSend', { count: telegramSelectedIds.size })}
               </button>
               <button
                 type="button"
                 onClick={() => setTelegramSelectedIds(new Set())}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-                إلغاء التحديد
+                {t('telegramBar.cancelSelection')}
               </button>
             </div>
           </div>
@@ -558,8 +560,8 @@ export const Customers = () => {
           <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <div>
-                <h3 className="text-lg font-black text-slate-900">إرسال كشوف العملاء إلى تيليغرام</h3>
-                <p className="mt-1 text-sm text-slate-500">اختر العملاء، وسيتم إنشاء PDF لكل عميل وإرساله للعميل المرتبط ونسخة المدير حسب صلاحيات تيليغرام.</p>
+                <h3 className="text-lg font-black text-slate-900">{t('telegramModal.title')}</h3>
+                <p className="mt-1 text-sm text-slate-500">{t('telegramModal.description')}</p>
               </div>
               <button onClick={() => setIsTelegramExportOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                 <X className="h-5 w-5" />
@@ -572,7 +574,7 @@ export const Customers = () => {
                 <input
                   value={telegramSearch}
                   onChange={(e) => setTelegramSearch(e.target.value)}
-                  placeholder="بحث باسم العميل أو الكود أو Chat ID..."
+                  placeholder={t('telegramModal.searchPlaceholder')}
                   className="w-full rounded-xl border border-slate-200 bg-white py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -581,34 +583,34 @@ export const Customers = () => {
                 value={telegramFromDate}
                 onChange={(e) => setTelegramFromDate(e.target.value)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                title="من تاريخ"
+                title={t('telegramBar.fromDateTitle')}
               />
               <input
                 type="date"
                 value={telegramToDate}
                 onChange={(e) => setTelegramToDate(e.target.value)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                title="إلى تاريخ"
+                title={t('telegramBar.toDateTitle')}
               />
             </div>
 
             <div className="max-h-[430px] overflow-auto px-6 py-4">
               <div className="mb-3 flex items-center justify-between text-sm">
-                <span className="font-bold text-slate-700">المحدد: {telegramSelectedIds.size}</span>
+                <span className="font-bold text-slate-700">{t('telegramModal.selectedCount', { count: telegramSelectedIds.size })}</span>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setTelegramSelectedIds(new Set(filteredTelegramCustomers.map((c) => c.id)))}
                     className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold text-slate-700 hover:bg-slate-50"
                   >
-                    تحديد الظاهر
+                    {t('telegramModal.selectVisible')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setTelegramSelectedIds(new Set())}
                     className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold text-slate-700 hover:bg-slate-50"
                   >
-                    إلغاء التحديد
+                    {t('telegramModal.cancelSelection')}
                   </button>
                 </div>
               </div>
@@ -627,17 +629,17 @@ export const Customers = () => {
                         />
                         <span>
                           <span className="block font-black text-slate-900">{customer.name}</span>
-                          <span className="text-xs text-slate-500">{customer.code} | {customer.phone || 'لا يوجد هاتف'}</span>
+                          <span className="text-xs text-slate-500">{customer.code} | {customer.phone || t('telegramModal.noPhone')}</span>
                         </span>
                       </span>
                       <span className={`rounded-full px-3 py-1 text-xs font-bold ${enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {enabled ? 'مرتبط تيليغرام' : 'سيذهب للمدير فقط إذا لا يوجد ربط'}
+                        {enabled ? t('telegramModal.linked') : t('telegramModal.willGoToAdminOnly')}
                       </span>
                     </label>
                   );
                 })}
                 {!filteredTelegramCustomers.length && (
-                  <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-500">لا توجد نتائج.</div>
+                  <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-500">{t('telegramModal.noResults')}</div>
                 )}
               </div>
             </div>
@@ -650,7 +652,7 @@ export const Customers = () => {
                   onClick={() => setIsTelegramExportOpen(false)}
                   className="rounded-xl bg-slate-100 px-4 py-2 font-bold text-slate-700 hover:bg-slate-200"
                 >
-                  إغلاق
+                  {t('telegramModal.close')}
                 </button>
                 <button
                   type="button"
@@ -659,7 +661,7 @@ export const Customers = () => {
                   className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2 font-bold text-white hover:bg-sky-700 disabled:opacity-60"
                 >
                   {telegramBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  إرسال PDF
+                  {t('telegramModal.sendPdf')}
                 </button>
               </div>
             </div>
@@ -671,15 +673,15 @@ export const Customers = () => {
         <div className="p-4 border-b border-slate-200 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-            <input type="text" placeholder="بحث بالاسم أو الكود أو الهاتف..." value={search}
+            <input type="text" placeholder={t('table.searchPlaceholder')} value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as typeof statusFilter); setPage(1); }}
             className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="all">كل الحالات</option>
-            <option value="active">نشط</option>
-            <option value="inactive">غير نشط</option>
+            <option value="all">{t('table.statusAll')}</option>
+            <option value="active">{t('table.statusActive')}</option>
+            <option value="inactive">{t('table.statusInactive')}</option>
           </select>
         </div>
 
@@ -689,23 +691,23 @@ export const Customers = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
               <tr>
-                {telegramSelectionMode && <th className="px-4 py-3">تحديد</th>}
-                <th className="px-4 py-3">الكود</th>
-                <th className="px-4 py-3">الاسم</th>
-                <th className="px-4 py-3">مجموع</th>
-                <th className="px-4 py-3">دائن</th>
-                <th className="px-4 py-3">مدين</th>
-                <th className="px-4 py-3">متبقي</th>
-                <th className="px-4 py-3">نوع العملة</th>
-                <th className="px-4 py-3">ملاحظة</th>
-                <th className="px-4 py-3">إجراءات</th>
+                {telegramSelectionMode && <th className="px-4 py-3">{t('table.colSelect')}</th>}
+                <th className="px-4 py-3">{t('table.colCode')}</th>
+                <th className="px-4 py-3">{t('table.colName')}</th>
+                <th className="px-4 py-3">{t('table.colTotal')}</th>
+                <th className="px-4 py-3">{t('table.colCredit')}</th>
+                <th className="px-4 py-3">{t('table.colDebit')}</th>
+                <th className="px-4 py-3">{t('table.colRemaining')}</th>
+                <th className="px-4 py-3">{t('table.colCurrency')}</th>
+                <th className="px-4 py-3">{t('table.colNotes')}</th>
+                <th className="px-4 py-3">{t('table.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr><td colSpan={telegramSelectionMode ? 10 : 9} className="px-4 py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
               ) : customers.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">لا يوجد عملاء.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">{t('table.noCustomers')}</td></tr>
               ) : customers.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50/50">
                   {(() => {
@@ -719,7 +721,7 @@ export const Customers = () => {
                               disabled={!hasTelegramLink(c)}
                               checked={telegramSelectedIds.has(c.id)}
                               onChange={() => toggleTelegramCustomer(c.id)}
-                              title={hasTelegramLink(c) ? 'تحديد العميل للتصدير' : 'هذا العميل غير مرتبط بتيليغرام'}
+                              title={hasTelegramLink(c) ? t('table.selectForExportTitle') : t('table.notLinkedTitle')}
                               className="h-4 w-4 accent-emerald-600 disabled:opacity-30"
                             />
                           </td>
@@ -736,33 +738,33 @@ export const Customers = () => {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => navigate(`/customers/statement?customerId=${encodeURIComponent(c.id)}`)}
-                              title="دخول إلى كشف الحساب"
+                              title={t('table.statementActionTitle')}
                               className="px-2 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
                             >
-                              كشفه
+                              {t('table.statementAction')}
                             </button>
-                            <button onClick={() => openEdit(c)} title="تعديل" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                            <button onClick={() => openEdit(c)} title={t('table.editActionTitle')} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => void handleToggle(c.id)}
-                              title={c.is_active ? 'تعطيل الحساب' : 'تفعيل الحساب'}
+                              title={c.is_active ? t('table.disableAccountTitle') : t('table.enableAccountTitle')}
                               className={`px-2 py-1 text-xs font-bold rounded-lg transition ${
                                 c.is_active
                                   ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
                                   : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
                               }`}
                             >
-                              {c.is_active ? 'تعطيل' : 'تفعيل'}
+                              {c.is_active ? t('table.disable') : t('table.enable')}
                             </button>
                             <button
                               type="button"
                               onClick={() => void openDeleteModal(c)}
-                              title="حذف العميل وكل مستنداته (عكس محاسبي)"
+                              title={t('table.deleteActionTitle')}
                               className="px-2 py-1 text-xs font-bold rounded-lg transition text-rose-700 bg-rose-50 hover:bg-rose-100 inline-flex items-center gap-1"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              حذف
+                              {t('table.delete')}
                             </button>
                           </div>
                         </td>
@@ -777,13 +779,13 @@ export const Customers = () => {
 
         {totalPages > 1 && (
           <div className="p-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-600">
-            <span>{total} عميل إجمالاً</span>
+            <span>{t('pagination.totalCustomers', { count: total })}</span>
             <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">السابق</button>
+                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">{t('pagination.prev')}</button>
               <span className="px-3 py-1.5">{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">التالي</button>
+                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">{t('pagination.next')}</button>
             </div>
           </div>
         )}
@@ -793,49 +795,49 @@ export const Customers = () => {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-lg">{editTarget ? 'تعديل عميل' : 'إضافة عميل جديد'}</h3>
+              <h3 className="font-bold text-lg">{editTarget ? t('modal.editTitle') : t('modal.addTitle')}</h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
               {saveError && <p className="text-sm text-rose-600 bg-rose-50 p-2 rounded-lg">{saveError}</p>}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الاسم *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.nameLabel')}</label>
                   <input required type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} onKeyDown={focusNextFormControl}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الكود</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.codeLabel')}</label>
                   <input type="text" value={form.code || ''} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} onKeyDown={focusNextFormControl}
-                    placeholder="تلقائي إذا تُرك فارغاً"
+                    placeholder={t('modal.codePlaceholder')}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الهاتف</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.phoneLabel')}</label>
                   <input type="text" value={form.phone || ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} onKeyDown={focusNextFormControl}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">البريد الإلكتروني</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.emailLabel')}</label>
                   <input type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} onKeyDown={focusNextFormControl}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">العنوان</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.addressLabel')}</label>
                 <input type="text" value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} onKeyDown={focusNextFormControl}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">ملاحظات</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.notesLabel')}</label>
                 <textarea rows={2} value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" />
               </div>
               <div className="border border-sky-100 bg-sky-50/40 rounded-xl p-3 space-y-3">
                 <label className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
-                  <span>تفعيل إرسال تيليغرام لهذا العميل</span>
+                  <span>{t('modal.telegramEnableLabel')}</span>
                   <input
                     type="checkbox"
                     checked={Boolean(form.telegramEnabled)}
@@ -856,7 +858,7 @@ export const Customers = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">اسم تيليغرام</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('modal.telegramNameLabel')}</label>
                     <input
                       type="text"
                       value={form.telegramLabel || ''}
@@ -868,10 +870,10 @@ export const Customers = () => {
                 </div>
               </div>
               <div className="pt-2 flex justify-end gap-3">
-                <button type="button" onClick={closeModal} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm">إلغاء</button>
+                <button type="button" onClick={closeModal} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm">{t('modal.cancel')}</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2 disabled:opacity-60">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {editTarget ? 'حفظ التعديلات' : 'إضافة العميل'}
+                  {editTarget ? t('modal.saveEdit') : t('modal.saveAdd')}
                 </button>
               </div>
             </form>
@@ -884,7 +886,7 @@ export const Customers = () => {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden border border-rose-200">
             <div className="px-6 py-4 border-b border-rose-100 bg-rose-50 flex justify-between items-start gap-3">
               <div>
-                <h3 className="font-bold text-lg text-rose-900">حذف عميل نهائياً</h3>
+                <h3 className="font-bold text-lg text-rose-900">{t('deleteModal.title')}</h3>
                 <p className="text-sm text-rose-800 mt-1">
                   {deleteTarget.name} — <span className="font-mono">{deleteTarget.code}</span>
                 </p>
@@ -897,23 +899,23 @@ export const Customers = () => {
               {deletePreviewLoading ? (
                 <div className="py-8 text-center text-slate-500">
                   <Loader2 className="w-6 h-6 animate-spin inline ml-2" />
-                  جاري تحليل مستندات العميل...
+                  {t('deleteModal.analyzing')}
                 </div>
               ) : deletePreview ? (
                 <>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
                     <p>
-                      فواتير مؤكدة: <strong>{deletePreview.counts.salesInvoicesConfirmed}</strong> — مسودة:{' '}
-                      <strong>{deletePreview.counts.salesInvoicesDraft}</strong> — ملغاة:{' '}
+                      {t('deleteModal.confirmedInvoices')} <strong>{deletePreview.counts.salesInvoicesConfirmed}</strong> — {t('deleteModal.draft')}{' '}
+                      <strong>{deletePreview.counts.salesInvoicesDraft}</strong> — {t('deleteModal.voided')}{' '}
                       <strong>{deletePreview.counts.salesInvoicesVoided}</strong>
                     </p>
                     <p>
-                      سندات نشطة: <strong>{deletePreview.counts.vouchersActive}</strong> — مرتجعات:{' '}
-                      <strong>{deletePreview.counts.returnInvoicesActive}</strong> — طلبيات:{' '}
+                      {t('deleteModal.activeVouchers')} <strong>{deletePreview.counts.vouchersActive}</strong> — {t('deleteModal.returns')}{' '}
+                      <strong>{deletePreview.counts.returnInvoicesActive}</strong> — {t('deleteModal.orders')}{' '}
                       <strong>{deletePreview.counts.customerOrders}</strong>
                     </p>
                     <p>
-                      الرصيد الحالي: <strong>{deletePreview.closingBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+                      {t('deleteModal.currentBalance')} <strong>{deletePreview.closingBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
                     </p>
                   </div>
                   <ul className="text-sm text-slate-700 space-y-1.5 list-disc pr-5">
@@ -923,7 +925,7 @@ export const Customers = () => {
                   </ul>
                   <label className="block space-y-1.5">
                     <span className="text-xs font-bold text-slate-700">
-                      للتأكيد اكتب اسم العميل بالكامل: <span className="text-rose-700">{deleteTarget.name}</span>
+                      {t('deleteModal.confirmTypeName')} <span className="text-rose-700">{deleteTarget.name}</span>
                     </span>
                     <input
                       type="text"
@@ -945,7 +947,7 @@ export const Customers = () => {
                   disabled={deleteBusy}
                   className="px-4 py-2 border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
                 >
-                  إلغاء
+                  {t('deleteModal.cancel')}
                 </button>
                 <button
                   type="button"
@@ -954,7 +956,7 @@ export const Customers = () => {
                   className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700 disabled:opacity-50 inline-flex items-center gap-2"
                 >
                   {deleteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  حذف نهائي
+                  {t('deleteModal.deleteFinal')}
                 </button>
               </div>
             </div>
