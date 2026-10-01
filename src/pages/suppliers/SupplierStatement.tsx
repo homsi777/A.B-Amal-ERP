@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore } from '../../store/useStore';
 import { ArrowUpCircle, Calendar, CreditCard, Download, FileText, Loader2, MessageCircle, Printer, X } from 'lucide-react';
 import { format } from 'date-fns';
@@ -41,6 +42,7 @@ interface SupplierFabricItem {
 }
 
 export const SupplierStatement = () => {
+  const { t } = useTranslation('supplierStatement');
   const { showToast } = useToast();
   const { suppliers, invoices } = useStore();
   const navigate = useNavigate();
@@ -153,7 +155,7 @@ export const SupplierStatement = () => {
     }
     if (row.sourceType === 'RETURN_INVOICE') {
       navigate('/invoices/returns');
-      showToast({ type: 'warning', message: `تم فتح صفحة المرتجعات. رقم المستند: ${row.documentNo}` });
+      showToast({ type: 'warning', message: t('toast.openedReturnsPage', { documentNo: row.documentNo }) });
     }
   };
 
@@ -226,7 +228,7 @@ export const SupplierStatement = () => {
       } catch (e) {
         if (cancelled) return;
         setAccountStatement(null);
-        setAccountStatementError(e instanceof Error ? e.message : 'تعذر تحميل كشف الحساب من الخادم');
+        setAccountStatementError(e instanceof Error ? e.message : t('toast.loadStatementFailed'));
       } finally {
         if (!cancelled) setAccountStatementLoading(false);
       }
@@ -309,6 +311,9 @@ export const SupplierStatement = () => {
     ? { amount: totals.totalRemaining, type: 'دائن للمورد' as const, color: 'rose' }
     : { amount: Math.abs(totals.totalRemaining), type: 'مدين لنا' as const, color: 'emerald' };
 
+  const displaySupplierBalanceType = (value: 'دائن للمورد' | 'مدين لنا'): string =>
+    value === 'دائن للمورد' ? t('labels.creditToSupplier') : t('labels.debitToUs');
+
   const handleExportPDF = async () => {
     try {
       if (accountStatement?.supplier) {
@@ -330,7 +335,7 @@ export const SupplierStatement = () => {
       }
 
       if (!selectedSupplier || visibleItems.length === 0) {
-        showToast({ type: 'warning', message: 'الرجاء تحميل بيانات الكشف أو اختيار مورد لديه فواتير شراء ضمن الفترة' });
+        showToast({ type: 'warning', message: t('toast.loadDataOrChooseSupplier') });
         return;
       }
       await exportSupplierStatementToPDF({
@@ -348,7 +353,7 @@ export const SupplierStatement = () => {
         hideFinancialColumns
       });
     } catch {
-      showToast({ type: 'error', message: 'حدث خطأ في إنشاء PDF. حاول مرة أخرى.' });
+      showToast({ type: 'error', message: t('toast.pdfGenericError') });
     }
   };
 
@@ -566,9 +571,9 @@ export const SupplierStatement = () => {
         }),
       );
       await exportPdfFromHtmlString(renderSupplierDuesPdfHtml(rows), `ذمم_الموردين_${toDate}`, { orientation: 'portrait' });
-      showToast({ type: 'success', message: 'تم تصدير ذمم الموردين PDF بنجاح.' });
+      showToast({ type: 'success', message: t('toast.duesExportedSuccess') });
     } catch (error) {
-      showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر تصدير ذمم الموردين PDF.' });
+      showToast({ type: 'error', message: error instanceof Error ? error.message : t('toast.duesExportFailed') });
     } finally {
       setSupplierDuesExporting(false);
     }
@@ -576,7 +581,7 @@ export const SupplierStatement = () => {
 
   const handleShareWhatsApp = () => {
     if (!selectedSupplier || visibleItems.length === 0) {
-      showToast({ type: 'warning', message: 'الرجاء تحميل بيانات الكشف أولاً' });
+      showToast({ type: 'warning', message: t('toast.loadStatementDataFirst') });
       return;
     }
 
@@ -636,12 +641,12 @@ export const SupplierStatement = () => {
           pdfHtml,
           fileName: `supplier-account-statement-${accountStatement.supplier.id}-${fromDate}-${toDate}.pdf`,
         });
-        showToast({ type: 'success', message: 'تم إرسال كشف الحساب إلى تيليغرام.' });
+        showToast({ type: 'success', message: t('toast.telegramSent') });
         return;
       }
 
       if (!selectedSupplier || visibleItems.length === 0) {
-        showToast({ type: 'warning', message: 'الرجاء تحميل بيانات الكشف أولاً' });
+        showToast({ type: 'warning', message: t('toast.loadStatementDataFirst') });
         return;
       }
       const pdfHtml = renderSupplierStatementPdfHtml({
@@ -669,28 +674,28 @@ export const SupplierStatement = () => {
         pdfHtml,
         fileName: `supplier-statement-${selectedSupplier.id}-${fromDate}-${toDate}.pdf`,
       });
-      showToast({ type: 'success', message: 'تم إرسال كشف الحساب إلى تيليغرام.' });
+      showToast({ type: 'success', message: t('toast.telegramSent') });
     } catch (error) {
-      showToast({ type: 'error', message: error instanceof Error ? error.message : 'تعذر إرسال كشف الحساب إلى تيليغرام' });
+      showToast({ type: 'error', message: error instanceof Error ? error.message : t('toast.telegramSendFailed') });
     }
   };
 
   const submitSupplierPaymentOut = async () => {
     if (!selectedSupplierId) {
-      showToast({ type: 'warning', message: 'اختر مورداً أولاً' });
+      showToast({ type: 'warning', message: t('toast.chooseSupplierFirst') });
       return;
     }
     const amount = Number(String(payOutAmount).replace(/,/g, ''));
     if (!amount || Number.isNaN(amount) || amount <= 0) {
-      showToast({ type: 'warning', message: 'أدخل مبلغاً صحيحاً أكبر من صفر' });
+      showToast({ type: 'warning', message: t('toast.invalidAmount') });
       return;
     }
     if (!isUuid(selectedSupplierId)) {
-      showToast({ type: 'warning', message: 'لا يمكن تسجيل السند إلا لموردين مسجلين على الخادم (معرّف UUID).' });
+      showToast({ type: 'warning', message: t('toast.voucherNeedsRegisteredSupplier') });
       return;
     }
     if (!payCashboxId || !isUuid(payCashboxId)) {
-      showToast({ type: 'warning', message: 'اختر صندوقاً مرتبطاً بالخادم لتسجيل السند في الخزينة.' });
+      showToast({ type: 'warning', message: t('toast.chooseCashboxForVoucher') });
       return;
     }
     const cur = cashboxes.find((x) => x.id === payCashboxId)?.currency_code ?? 'USD';
@@ -708,11 +713,11 @@ export const SupplierStatement = () => {
         description: descParts.length ? descParts.join(' — ') : null,
       });
       await confirmVoucher(created.data.id);
-      showToast({ type: 'success', message: 'تم تسجيل سند الدفع وتأكيده في الصندوق على الخادم.' });
+      showToast({ type: 'success', message: t('toast.paymentVoucherRecorded') });
       setStatementRefreshTick((n) => n + 1);
       resetPaymentOutModal();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر إنشاء أو تأكيد السند' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.voucherCreateFailed') });
     }
   };
 
@@ -720,7 +725,7 @@ export const SupplierStatement = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <A4PreviewModal
         open={printPreviewOpen}
-        title="طباعة كشف حساب A4"
+        title={t('print.a4Title')}
         html={buildStatementPrintHtml()}
         pageSize="A4"
         defaultFileName={statementPrintFileName}
@@ -730,13 +735,13 @@ export const SupplierStatement = () => {
       />
          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
          <div>
-           <h2 className="text-2xl font-bold text-slate-900">كشف حساب مورد</h2>
-           <p className="text-slate-500 mt-1">عرض الخامات والأطوال التي اشترتها الشركة من المورد مع السداد والرصيد المتبقي</p>
+           <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+           <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
          </div>
          <div className="flex flex-wrap gap-2">
            <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium" onClick={() => setPrintPreviewOpen(true)}>
              <Printer className="w-4 h-4" />
-             <span>طباعة / PDF</span>
+             <span>{t('toolbar.printPdf')}</span>
            </button>
            <button
              type="button"
@@ -745,7 +750,7 @@ export const SupplierStatement = () => {
              onClick={() => void handleExportSupplierDuesPDF()}
            >
              {supplierDuesExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-             <span>تصدير ذمم موردين PDF</span>
+             <span>{t('toolbar.exportDuesPdf')}</span>
            </button>
            <button
              type="button"
@@ -753,7 +758,7 @@ export const SupplierStatement = () => {
              onClick={() => setBatchExportOpen(true)}
            >
              <Download className="w-4 h-4" />
-             <span>تصدير جماعي</span>
+             <span>{t('toolbar.batchExport')}</span>
            </button>
            <button
              type="button"
@@ -764,15 +769,15 @@ export const SupplierStatement = () => {
                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
              }`}
            >
-             <span>{hideFinancialColumns ? 'إظهار المبالغ' : 'إخفاء المبالغ'}</span>
+             <span>{hideFinancialColumns ? t('toolbar.showAmounts') : t('toolbar.hideAmounts')}</span>
            </button>
            <button className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition shadow-sm font-medium" onClick={handleShareWhatsApp}>
              <MessageCircle className="w-4 h-4" />
-             <span>مشاركة واتساب</span>
+             <span>{t('toolbar.shareWhatsApp')}</span>
            </button>
            <button className="bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-sky-700 transition shadow-sm font-medium" onClick={() => void handleSendTelegram()}>
              <MessageCircle className="w-4 h-4" />
-             <span>إرسال تيليغرام</span>
+             <span>{t('toolbar.sendTelegram')}</span>
            </button>
            <button
              type="button"
@@ -780,7 +785,7 @@ export const SupplierStatement = () => {
              className="bg-gradient-to-r from-rose-500/20 to-rose-500/0 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-500/30 transition shadow-sm font-medium border border-rose-500/50 text-rose-600"
            >
              <ArrowUpCircle className="w-4 h-4 shrink-0" />
-             <span>سند دفع</span>
+             <span>{t('toolbar.paymentVoucher')}</span>
            </button>
          </div>
        </div>
@@ -788,7 +793,7 @@ export const SupplierStatement = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap lg:flex-nowrap items-end gap-3">
           <div className="space-y-1 w-full lg:w-auto lg:flex-1 min-w-[220px]">
-            <label className="block text-xs font-bold text-slate-600">اختر المورد</label>
+            <label className="block text-xs font-bold text-slate-600">{t('filters.chooseSupplierLabel')}</label>
             <select
               value={selectedSupplierId}
               onChange={(event) => {
@@ -797,14 +802,14 @@ export const SupplierStatement = () => {
               }}
               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm text-sm"
             >
-              <option value="">— اختر المورد —</option>
+              <option value="">{t('filters.chooseSupplierOption')}</option>
               {supplierOptions.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>{supplier.name} ({supplier.company})</option>
               ))}
             </select>
           </div>
           <div className="space-y-1 w-full lg:w-auto min-w-[200px]">
-            <label className="block text-xs font-bold text-slate-600">تاريخ من</label>
+            <label className="block text-xs font-bold text-slate-600">{t('filters.fromDateLabel')}</label>
             <div className="relative">
               <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               <input
@@ -819,7 +824,7 @@ export const SupplierStatement = () => {
             </div>
           </div>
           <div className="space-y-1 w-full lg:w-auto min-w-[200px]">
-            <label className="block text-xs font-bold text-slate-600">تاريخ إلى</label>
+            <label className="block text-xs font-bold text-slate-600">{t('filters.toDateLabel')}</label>
             <div className="relative">
               <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               <input
@@ -844,48 +849,48 @@ export const SupplierStatement = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">{selectedSupplier.company}</h3>
-                  <p className="text-slate-500">ممثل الشركة: {selectedSupplier.name} | رقم الاتصال: {selectedSupplier.phone}</p>
+                  <p className="text-slate-500">{t('supplierCard.repAndPhone', { name: selectedSupplier.name, phone: selectedSupplier.phone })}</p>
                 </div>
               </div>
 
               {!hideFinancialColumns && <div className="text-left">
-                <p className="text-sm text-slate-500 mb-1">الرصيد النهائي للمشتريات</p>
+                <p className="text-sm text-slate-500 mb-1">{t('supplierCard.finalPurchaseBalance')}</p>
                 <p className={`text-3xl font-bold ${balance.color === 'rose' ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {balance.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   <span className="text-sm font-normal text-slate-500 mx-1">$</span>
-                  <span className={`text-xs ${balance.color === 'rose' ? 'text-rose-600' : 'text-emerald-600'}`}>({balance.type})</span>
+                  <span className={`text-xs ${balance.color === 'rose' ? 'text-rose-600' : 'text-emerald-600'}`}>({displaySupplierBalanceType(balance.type)})</span>
                 </p>
               </div>}
             </div>
 
             {visibleItems.length > 0 && (
               <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-rose-50">
-                <h4 className="text-lg font-bold text-slate-900 mb-4">ملخص الكشف</h4>
+                <h4 className="text-lg font-bold text-slate-900 mb-4">{t('summary.title')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                   <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">عدد الخامات</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.itemCount')}</p>
                     <p className="text-2xl font-bold text-indigo-600">{totals.itemCount}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">عدد الأسطر في الكشف</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{t('summary.lineCountSuffix')}</p>
                   </div>
                   <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">مجموع الأتواب</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalRolls')}</p>
                     <p className="text-2xl font-bold text-violet-600">{totals.totalRolls.toLocaleString()}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">مجموع البكر لكل خامة</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{t('summary.rollsPerItemSuffix')}</p>
                   </div>
                   <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">مجموع الكميات</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalQuantity')}</p>
                     <p className="text-2xl font-bold text-blue-600">{totals.totalQuantity.toLocaleString()}</p>
                   </div>
                   {!hideFinancialColumns && <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي المشتريات</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalPurchases')}</p>
                     <p className="text-2xl font-bold text-rose-600">{totals.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
                   </div>}
                   {!hideFinancialColumns && <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:shadow-md transition">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">إجمالي السداد</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{t('summary.totalPayments')}</p>
                     <p className="text-2xl font-bold text-emerald-600">{totals.totalPayments.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
                   </div>}
                   {!hideFinancialColumns && <div className={`bg-white rounded-lg p-4 border-2 shadow-sm hover:shadow-md transition ${balance.color === 'rose' ? 'border-rose-300 bg-rose-50' : 'border-emerald-300 bg-emerald-50'}`}>
-                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${balance.color === 'rose' ? 'text-rose-600' : 'text-emerald-600'}`}>الرصيد ({balance.type})</p>
+                    <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${balance.color === 'rose' ? 'text-rose-600' : 'text-emerald-600'}`}>{t('summary.balanceWithType', { type: displaySupplierBalanceType(balance.type) })}</p>
                     <p className={`text-2xl font-bold ${balance.color === 'rose' ? 'text-rose-600' : 'text-emerald-600'}`}>{balance.amount.toLocaleString(undefined, { minimumFractionDigits: 0 })}</p>
                   </div>}
                 </div>
@@ -898,24 +903,24 @@ export const SupplierStatement = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-4 py-4 whitespace-nowrap">التاريخ</th>
-                <th className="px-4 py-4 whitespace-nowrap">المرجع</th>
-                <th className="px-4 py-4 whitespace-nowrap">اسم الخامة</th>
-                <th className="px-4 py-4 whitespace-nowrap">كود الخامة</th>
-                <th className="px-4 py-4 whitespace-nowrap">عدد الأتواب</th>
-                <th className="px-4 py-4 whitespace-nowrap">الكمية / الطول</th>
-                <th className="px-4 py-4 whitespace-nowrap">الوحدة</th>
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">السعر الواحد</th>}
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">المجموع</th>}
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">السداد</th>}
-                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">الباقي للمورد</th>}
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colDate')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colReference')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colFabricName')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colFabricCode')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colRollsCount')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colQuantity')}</th>
+                <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colUnit')}</th>
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colUnitPrice')}</th>}
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colTotal')}</th>}
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colPayments')}</th>}
+                {!hideFinancialColumns && <th className="px-4 py-4 whitespace-nowrap">{t('itemsTable.colRemaining')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {visibleItems.length === 0 ? (
                 <tr>
                   <td colSpan={hideFinancialColumns ? 7 : 11} className="px-4 py-8 text-center text-slate-500 bg-white">
-                    لا توجد مشتريات خامات ضمن فترة الكشف — سجّل فواتير شراء لهذا المورد في النظام المحلي أو وسّع نطاق التواريخ.
+                    {t('itemsTable.noPurchases')}
                   </td>
                 </tr>
               ) : (
@@ -942,10 +947,10 @@ export const SupplierStatement = () => {
         <div className="border-t border-slate-200 bg-white">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-bold text-slate-800">كشف حساب (حركات مالية - الخادم)</h4>
-              <p className="text-[11px] text-slate-500 mt-1">فواتير + سندات + مرتجعات — مبني على قاعدة البيانات</p>
+              <h4 className="text-sm font-bold text-slate-800">{t('statementTable.title')}</h4>
+              <p className="text-[11px] text-slate-500 mt-1">{t('statementTable.subtitle')}</p>
             </div>
-            {accountStatementLoading && <span className="text-xs text-slate-400">جاري التحميل…</span>}
+            {accountStatementLoading && <span className="text-xs text-slate-400">{t('statementTable.loading')}</span>}
           </div>
 
           {accountStatementError && (
@@ -956,21 +961,21 @@ export const SupplierStatement = () => {
             <table className="w-full text-right text-sm">
               <thead className="bg-slate-700 text-slate-100 font-medium">
                 <tr>
-                  <th className="px-4 py-3">التاريخ</th>
-                  <th className="px-4 py-3">النوع</th>
-                  <th className="px-4 py-3">الرقم</th>
-                  <th className="px-4 py-3">البيان</th>
-                  <th className="px-4 py-3">المبلغ (بالعملة)</th>
-                  <th className="px-4 py-3">مدين (USD)</th>
-                  <th className="px-4 py-3">دائن (USD)</th>
-                  <th className="px-4 py-3">الرصيد (USD)</th>
+                  <th className="px-4 py-3">{t('statementTable.colDate')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colType')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colNumber')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colStatement')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colAmountCurrency')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colDebitUsd')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colCreditUsd')}</th>
+                  <th className="px-4 py-3">{t('statementTable.colBalanceUsd')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {!accountStatement?.rows?.length ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-slate-500 bg-white">
-                      لا توجد حركات ضمن الفترة المحددة
+                      {t('statementTable.noMovements')}
                     </td>
                   </tr>
                 ) : (
@@ -983,7 +988,7 @@ export const SupplierStatement = () => {
                           type="button"
                           onClick={() => openAccountStatementSource(row)}
                           className="text-indigo-700 hover:underline"
-                          title="فتح المستند"
+                          title={t('statementTable.openDocumentTitle')}
                         >
                           {row.documentNo}
                         </button>
@@ -993,9 +998,9 @@ export const SupplierStatement = () => {
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-700">
                         {row.debitOriginal && row.debitOriginal !== 0
-                          ? `مدين: ${row.debitOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${row.currency}`
+                          ? t('statementTable.debitCell', { amount: row.debitOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: row.currency })
                           : row.creditOriginal && row.creditOriginal !== 0
-                            ? `دائن: ${row.creditOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${row.currency}`
+                            ? t('statementTable.creditCell', { amount: row.creditOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: row.currency })
                             : `— ${row.currency}`}
                       </td>
                       <td className="px-4 py-3 font-mono text-blue-700">
@@ -1016,10 +1021,10 @@ export const SupplierStatement = () => {
 
           {accountStatement && (
             <div className="px-4 py-3 border-t border-slate-200 bg-white text-xs text-slate-600 flex flex-wrap gap-4">
-              <span>الرصيد الافتتاحي (USD): {accountStatement.openingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              <span>إجمالي المدين (USD): {accountStatement.totals.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              <span>إجمالي الدائن (USD): {accountStatement.totals.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              <span>الرصيد النهائي (USD): {accountStatement.totals.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>{t('statementTable.openingBalance', { amount: accountStatement.openingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
+              <span>{t('statementTable.totalDebit', { amount: accountStatement.totals.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
+              <span>{t('statementTable.totalCredit', { amount: accountStatement.totals.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
+              <span>{t('statementTable.finalBalance', { amount: accountStatement.totals.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }) })}</span>
             </div>
           )}
         </div>
@@ -1032,26 +1037,26 @@ export const SupplierStatement = () => {
               type="button"
               onClick={resetPaymentOutModal}
               className="absolute left-4 top-4 rounded-lg p-1.5 text-slate-500 hover:bg-white/80 hover:text-slate-800 transition"
-              aria-label="إغلاق"
+              aria-label={t('common.close')}
             >
               <X className="w-5 h-5" />
             </button>
             <div className="border-b border-rose-500/20 px-6 pb-4 pt-6 pr-14">
               <h3 className="text-xl font-bold text-rose-900 flex items-center gap-2">
                 <FileText className="w-6 h-6 text-rose-600" />
-                سند دفع لمورد
+                {t('paymentModal.title')}
               </h3>
-              <p className="text-sm text-rose-800/80 mt-1">تسجيل مبلغ دفعناه للمورد لتسوية جزء من ذمتنا الدائنة.</p>
+              <p className="text-sm text-rose-800/80 mt-1">{t('paymentModal.description')}</p>
             </div>
             <div className="space-y-5 p-6">
               <div className="rounded-xl bg-white/70 p-4 border border-rose-200/60 shadow-inner">
-                <p className="text-xs font-semibold text-slate-500 mb-1">المورد</p>
+                <p className="text-xs font-semibold text-slate-500 mb-1">{t('paymentModal.supplierLabel')}</p>
                 <p className="text-lg font-bold text-slate-900">{selectedSupplier?.company ?? '—'}</p>
                 <p className="text-sm text-slate-600">{selectedSupplier?.name}</p>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">المبلغ المدفوع ($)</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('paymentModal.amountPaidLabel')}</label>
                   <input
                     type="number"
                     min={0}
@@ -1063,7 +1068,7 @@ export const SupplierStatement = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">تاريخ القيد</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('paymentModal.entryDateLabel')}</label>
                   <input
                     type="date"
                     value={payOutDate}
@@ -1073,7 +1078,7 @@ export const SupplierStatement = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">الصندوق / البنك المصروف منه</label>
+                <label className="block text-sm font-medium text-slate-700">{t('paymentModal.cashboxFromLabel')}</label>
                 <div className="relative">
                   <CreditCard className="pointer-events-none absolute right-3 top-2.5 h-5 w-5 text-rose-500/70" />
                   <select
@@ -1081,7 +1086,7 @@ export const SupplierStatement = () => {
                     onChange={(e) => setPayCashboxId(e.target.value)}
                     className="w-full rounded-lg border border-rose-200 bg-white/90 py-2.5 pr-10 pl-3 shadow-sm focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400/40"
                   >
-                    <option value="">— اختر صندوقاً —</option>
+                    <option value="">{t('paymentModal.chooseCashbox')}</option>
                     {cashboxes.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name} ({b.code}) — {b.currency_code}
@@ -1089,17 +1094,17 @@ export const SupplierStatement = () => {
                     ))}
                   </select>
                   {cashboxes.length === 0 && (
-                    <p className="text-xs text-amber-700 mt-1">لا توجد صناديق من الخادم — أنشئ صندوقاً أولاً.</p>
+                    <p className="text-xs text-amber-700 mt-1">{t('paymentModal.noCashboxesWarning')}</p>
                   )}
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">البيان (اختياري)</label>
+                <label className="block text-sm font-medium text-slate-700">{t('paymentModal.statementLabel')}</label>
                 <input
                   type="text"
                   value={payOutNote}
                   onChange={(e) => setPayOutNote(e.target.value)}
-                  placeholder="سبب الدفع أو رقم فاتورة الشراء..."
+                  placeholder={t('paymentModal.statementPlaceholder')}
                   className="w-full rounded-lg border border-rose-200 bg-white/90 px-3 py-2.5 shadow-sm focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400/40"
                 />
               </div>
@@ -1109,14 +1114,14 @@ export const SupplierStatement = () => {
                   onClick={() => void submitSupplierPaymentOut()}
                   className="flex-1 min-w-[140px] rounded-xl bg-rose-600 px-4 py-3 font-semibold text-white shadow-lg shadow-rose-700/25 transition hover:bg-rose-700"
                 >
-                  حفظ وتسجيل القيد
+                  {t('paymentModal.saveAndRecord')}
                 </button>
                 <button
                   type="button"
                   onClick={resetPaymentOutModal}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
