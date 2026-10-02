@@ -8,7 +8,8 @@ export type RollStatus =
   | 'SOLD'
   | 'DAMAGED'
   | 'TRANSFERRED'
-  | 'INACTIVE';
+  | 'INACTIVE'
+  | 'AT_EXTERNAL_JOB';
 
 export interface FabricRollDto {
   id: string;

@@ -37,6 +37,7 @@ import { reportRoutes } from './routes/reportRoutes.js';
 import { financeRoutes } from './routes/financeRoutes.js';
 import { salesInvoiceRoutes } from './routes/salesInvoiceRoutes.js';
 import { purchaseInvoiceRoutes } from './routes/purchaseInvoiceRoutes.js';
+import { externalJobRoutes } from './routes/externalJobRoutes.js';
 import { customerOrderRoutes } from './routes/customerOrderRoutes.js';
 import { financialAuditRoutes } from './routes/financialAuditRoutes.js';
 import { documentPdfRoutes } from './routes/documentPdfRoutes.js';
@@ -151,6 +152,7 @@ export async function buildApp() {
   await app.register(financeRoutes, { prefix: '/api/finance' });
   await app.register(salesInvoiceRoutes, { prefix: '/api/sales-invoices' });
   await app.register(purchaseInvoiceRoutes, { prefix: '/api/purchase-invoices' });
+  await app.register(externalJobRoutes, { prefix: '/api/external-jobs' });
   await app.register(customerOrderRoutes, { prefix: '/api/customer-orders' });
   await app.register(financialAuditRoutes, { prefix: '/api/financial-audit' });
   await app.register(documentPdfRoutes, { prefix: '/api/documents' });

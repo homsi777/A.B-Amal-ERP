@@ -4,6 +4,7 @@
   "rollStatus.sold": "Satıldı",
   "rollStatus.damaged": "Hasarlı",
   "rollStatus.transferred": "Transfer Edildi",
+  "rollStatus.atExternalJob": "Harici İşte",
   "rollStatus.inactive": "Pasif",
 
   "scope.available": "Satışa Uygun",

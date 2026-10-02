@@ -125,6 +125,7 @@ const Topbar = () => {
       subItems: [
         { labelKey: 'invoices.sales', to: '/invoices/sales' },
         { labelKey: 'invoices.purchases', to: '/invoices/purchases' },
+        { labelKey: 'invoices.externalJobs', to: '/purchases/external-jobs' },
         { labelKey: 'invoices.exchange', to: '/invoices/exchange' },
         { labelKey: 'invoices.returns', to: '/invoices/returns' },
         { labelKey: 'invoices.statement', to: '/invoices/statement' },

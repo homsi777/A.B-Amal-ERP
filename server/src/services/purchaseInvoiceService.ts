@@ -162,7 +162,7 @@ async function findOrCreateYarnItem(
   }
 }
 
-async function findOrCreateColor(
+export async function findOrCreateColor(
   client: PoolClient,
   companyId: string,
   colorName: string,

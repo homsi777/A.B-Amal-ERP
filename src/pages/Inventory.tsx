@@ -52,11 +52,12 @@ function useStatusLabels(): Record<RollStatus, string> {
     DAMAGED: t('rollStatus.damaged'),
     TRANSFERRED: t('rollStatus.transferred'),
     INACTIVE: t('rollStatus.inactive'),
+    AT_EXTERNAL_JOB: t('rollStatus.atExternalJob'),
   };
 }
 
 const ALL_STATUSES: RollStatus[] = [
-  'AVAILABLE', 'RESERVED', 'SOLD', 'DAMAGED', 'TRANSFERRED', 'INACTIVE',
+  'AVAILABLE', 'RESERVED', 'SOLD', 'DAMAGED', 'TRANSFERRED', 'INACTIVE', 'AT_EXTERNAL_JOB',
 ];
 
 /** عرض المخزون: افتراضيًا «متاح للبيع» فقط؛ «الكل» يُظهر الأرشيف والمباع. */

@@ -16,7 +16,8 @@ type SequentialDocumentKind =
   | 'PAYMENT_VOUCHER'
   | 'ACCOUNT_STATEMENT'
   | 'CUSTOMER_DISCOUNT'
-  | 'OPERATING_EXPENSE';
+  | 'OPERATING_EXPENSE'
+  | 'EXTERNAL_JOB';
 
 const SEQUENTIAL_DOCUMENTS: Record<
   SequentialDocumentKind,
@@ -30,6 +31,7 @@ const SEQUENTIAL_DOCUMENTS: Record<
   ACCOUNT_STATEMENT: { prefix: '', width: 10, table: 'journal_entries', column: 'entry_no', lockKey: 'ACCOUNT_STATEMENT' },
   CUSTOMER_DISCOUNT: { prefix: 'CD', width: 6, table: 'customer_discounts', column: 'discount_no' },
   OPERATING_EXPENSE: { prefix: 'EX', width: 6, table: 'operating_expenses', column: 'expense_no' },
+  EXTERNAL_JOB: { prefix: 'EJ', width: 7, table: 'external_jobs', column: 'job_no' },
 };
 
 /** أرقام طلبيات العملاء — أرقام فقط (1، 2، 3…) مع دعم التسلسل القديم CO0000001 */

@@ -4,6 +4,7 @@
   "rollStatus.sold": "مباع",
   "rollStatus.damaged": "تالف",
   "rollStatus.transferred": "منقول",
+  "rollStatus.atExternalJob": "بمهمة خارجية",
   "rollStatus.inactive": "غير نشط",
 
   "scope.available": "المتاح للبيع",

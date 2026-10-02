@@ -20,6 +20,7 @@
   "invoices": "Faturalar",
   "invoices.sales": "Satış Faturaları",
   "invoices.purchases": "Alış Faturaları",
+  "invoices.externalJobs": "Harici İşler",
   "invoices.exchange": "Değişim Faturaları",
   "invoices.returns": "İade Faturaları",
   "invoices.statement": "Fatura Özeti",

@@ -21,6 +21,8 @@ export const GL_KEYS = {
   OPERATING_EXPENSE_MAINTENANCE: 'GL_OPERATING_EXPENSE_MAINTENANCE',
   OPERATING_EXPENSE_RENT: 'GL_OPERATING_EXPENSE_RENT',
   OPERATING_EXPENSE_GENERAL: 'GL_OPERATING_EXPENSE_GENERAL',
+  /** أجرة أعمال خارجية (صباغة/تجهيز) — تُرحّل كذمة على المورد عند استلام المهمة الخارجية */
+  EXTERNAL_JOB_FEE_EXPENSE: 'GL_EXTERNAL_JOB_FEE_EXPENSE',
 } as const;
 
 /**
@@ -314,4 +316,18 @@ export async function ensureCompanyOperatingExpenseCoa(client: PoolClient, compa
       [companyId, cat.code, cat.name, glAccountId, cat.sort_order],
     );
   }
+}
+
+/** Ensures the external-job fee expense GL account exists (idempotent). */
+export async function ensureCompanyExternalJobCoa(client: PoolClient, companyId: string): Promise<void> {
+  await ensureCompanyGlCoa(client, companyId);
+
+  await client.query(
+    `INSERT INTO gl_accounts (company_id, code, name, account_type, parent_id, is_posting, system_key, sort_order)
+     SELECT $1, '6206', 'أجرة أعمال خارجية (صباغة/تجهيز)', 'EXPENSE',
+       (SELECT id FROM gl_accounts p WHERE p.company_id = $1 AND p.code = '5' LIMIT 1),
+       true, $2, 155
+     WHERE NOT EXISTS (SELECT 1 FROM gl_accounts g WHERE g.company_id = $1 AND g.system_key = $2)`,
+    [companyId, GL_KEYS.EXTERNAL_JOB_FEE_EXPENSE],
+  );
 }

@@ -20,6 +20,7 @@
   "invoices": "الفواتير",
   "invoices.sales": "فواتير البيع",
   "invoices.purchases": "فواتير الشراء",
+  "invoices.externalJobs": "مهام خارجية",
   "invoices.exchange": "فواتير الصرف",
   "invoices.returns": "فواتير المرتجعات",
   "invoices.statement": "كشف فاتورة",

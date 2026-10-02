@@ -186,6 +186,8 @@ import { CreateRoll } from './pages/inventory/CreateRoll';
 import { RollDetails } from './pages/inventory/RollDetails';
 import { ImportExcel } from './pages/purchases/ImportExcel';
 import { ImportBatches } from './pages/purchases/ImportBatches';
+import { ExternalJobs } from './pages/purchases/ExternalJobs';
+import { ExternalJobReceipt } from './pages/purchases/ExternalJobReceipt';
 import { PrintJobs } from './pages/inventory/PrintJobs';
 import { Sales } from './pages/Sales';
 import { Purchases } from './pages/Purchases';
@@ -271,6 +273,8 @@ export default function App() {
             {/* Purchase import routes */}
             <Route path="purchases/import-excel" element={<ImportExcel />} />
             <Route path="purchases/import-batches" element={<ImportBatches />} />
+            <Route path="purchases/external-jobs" element={<ExternalJobs />} />
+            <Route path="purchases/external-jobs/:id" element={<ExternalJobReceipt />} />
 
             {/* Label printing routes */}
             <Route path="inventory/print-jobs" element={<PrintJobs />} />

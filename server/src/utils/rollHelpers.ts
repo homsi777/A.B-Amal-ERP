@@ -105,10 +105,11 @@ export type RollStatus =
   | 'SOLD'
   | 'DAMAGED'
   | 'TRANSFERRED'
-  | 'INACTIVE';
+  | 'INACTIVE'
+  | 'AT_EXTERNAL_JOB';
 
 export const VALID_STATUSES: RollStatus[] = [
-  'AVAILABLE', 'RESERVED', 'SOLD', 'DAMAGED', 'TRANSFERRED', 'INACTIVE',
+  'AVAILABLE', 'RESERVED', 'SOLD', 'DAMAGED', 'TRANSFERRED', 'INACTIVE', 'AT_EXTERNAL_JOB',
 ];
 
 /** Returns an Arabic error message if the status transition is obviously illegal. */
@@ -121,6 +122,9 @@ export function validateStatusTransition(
   }
   if (from === 'DAMAGED' && to === 'SOLD') {
     return 'لا يمكن بيع ثوب تالف.';
+  }
+  if (from === 'AT_EXTERNAL_JOB' && (to === 'SOLD' || to === 'TRANSFERRED')) {
+    return 'الثوب موجود بمهمة خارجية مفتوحة — يجب استلامه أولاً.';
   }
   return null;
 }

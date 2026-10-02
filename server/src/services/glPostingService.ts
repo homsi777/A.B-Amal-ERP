@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { generateDocumentNo } from '../utils/documentNumbers.js';
-import { ensureCompanyGlCoa, ensureCompanyInvoiceGlAccounts, ensureCompanyOperatingExpenseCoa, getGlAccountIdByKey, GL_KEYS } from './glCoaService.js';
+import { ensureCompanyGlCoa, ensureCompanyInvoiceGlAccounts, ensureCompanyOperatingExpenseCoa, ensureCompanyExternalJobCoa, getGlAccountIdByKey, GL_KEYS } from './glCoaService.js';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -994,6 +994,75 @@ export async function reverseOperatingExpenseGl(
     reversalSourceType: 'OPERATING_EXPENSE_REVERSAL',
     reversalSourceId: input.expenseId,
     description: `عكس مصروف ${input.expenseNo}`,
+    userId: input.userId,
+  });
+}
+
+export async function postExternalJobFeeToGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    jobId: string;
+    jobNo: string;
+    feeDate: string;
+    supplierId: string;
+    feeAmountUsd: number;
+    userId: string | null;
+  },
+): Promise<void> {
+  await ensureCompanyExternalJobCoa(client, input.companyId);
+  const dup = await client.query(
+    `SELECT id FROM journal_entries WHERE company_id=$1 AND source_type='EXTERNAL_JOB_FEE' AND source_id=$2`,
+    [input.companyId, input.jobId],
+  );
+  if (dup.rows.length) return;
+
+  const amount = round2(input.feeAmountUsd);
+  if (amount <= 0) return;
+
+  const feeExpenseId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.EXTERNAL_JOB_FEE_EXPENSE);
+  const apId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.AP);
+  const ccy = 'USD';
+
+  await insertBalancedJournal(client, {
+    companyId: input.companyId,
+    entryDate: input.feeDate.slice(0, 10),
+    description: `أجرة مهمة خارجية ${input.jobNo}`,
+    sourceType: 'EXTERNAL_JOB_FEE',
+    sourceId: input.jobId,
+    userId: input.userId,
+    lines: [
+      {
+        glAccountId: feeExpenseId,
+        debit: amount,
+        credit: 0,
+        currencyCode: ccy,
+        description: `أجرة أعمال خارجية — ${input.jobNo}`,
+      },
+      {
+        glAccountId: apId,
+        debit: 0,
+        credit: amount,
+        currencyCode: ccy,
+        description: `ذمة مورد — مهمة خارجية ${input.jobNo}`,
+        partyType: 'SUPPLIER',
+        partyId: input.supplierId,
+      },
+    ],
+  });
+}
+
+export async function reverseExternalJobFeeGl(
+  client: PoolClient,
+  input: { companyId: string; jobId: string; jobNo: string; userId: string | null },
+): Promise<void> {
+  await reverseJournalBySource(client, {
+    companyId: input.companyId,
+    originalSourceType: 'EXTERNAL_JOB_FEE',
+    originalSourceId: input.jobId,
+    reversalSourceType: 'EXTERNAL_JOB_FEE_REVERSAL',
+    reversalSourceId: input.jobId,
+    description: `عكس أجرة مهمة خارجية ${input.jobNo}`,
     userId: input.userId,
   });
 }

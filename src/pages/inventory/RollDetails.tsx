@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<RollStatus, string> = {
   DAMAGED:     'تالف',
   TRANSFERRED: 'منقول',
   INACTIVE:    'غير نشط',
+  AT_EXTERNAL_JOB: 'بمهمة خارجية',
 };
 const STATUS_COLORS: Record<RollStatus, string> = {
   AVAILABLE:   'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -34,6 +35,7 @@ const STATUS_COLORS: Record<RollStatus, string> = {
   DAMAGED:     'bg-rose-100 text-rose-700 border-rose-200',
   TRANSFERRED: 'bg-blue-100 text-blue-700 border-blue-200',
   INACTIVE:    'bg-slate-100 text-slate-400 border-slate-200',
+  AT_EXTERNAL_JOB: 'bg-violet-100 text-violet-700 border-violet-200',
 };
 const StatusBadge = ({ status }: { status: RollStatus }) => (
   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${STATUS_COLORS[status] ?? ''}`}>

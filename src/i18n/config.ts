@@ -16,6 +16,7 @@ import arSupplierStatement from '../locales/ar/supplierStatement.json';
 import arPurchaseImport from '../locales/ar/purchaseImport.json';
 import arStockImport from '../locales/ar/stockImport.json';
 import arStickerPrinting from '../locales/ar/stickerPrinting.json';
+import arExternalJobs from '../locales/ar/externalJobs.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -32,6 +33,7 @@ import trSupplierStatement from '../locales/tr/supplierStatement.json';
 import trPurchaseImport from '../locales/tr/purchaseImport.json';
 import trStockImport from '../locales/tr/stockImport.json';
 import trStickerPrinting from '../locales/tr/stickerPrinting.json';
+import trExternalJobs from '../locales/tr/externalJobs.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -56,6 +58,7 @@ void i18n.use(initReactI18next).init({
       purchaseImport: arPurchaseImport,
       stockImport: arStockImport,
       stickerPrinting: arStickerPrinting,
+      externalJobs: arExternalJobs,
     },
     tr: {
       common: trCommon,
@@ -74,12 +77,13 @@ void i18n.use(initReactI18next).init({
       purchaseImport: trPurchaseImport,
       stockImport: trStockImport,
       stickerPrinting: trStickerPrinting,
+      externalJobs: trExternalJobs,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs'],
   interpolation: {
     escapeValue: false,
   },
