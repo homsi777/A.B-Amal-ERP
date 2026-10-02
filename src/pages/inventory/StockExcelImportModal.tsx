@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   X, FileSpreadsheet, Loader2, AlertTriangle,
   Package, Palette, Ruler, Hash, ListChecks,
@@ -10,7 +11,7 @@ import {
   parseStockWorkbook,
   pickDefaultSheet,
   stockRowColorLabel,
-  STOCK_SHEET_KIND_LABEL,
+  type StockSheetKind,
   type StockSheetPreview,
   type StockWorkbookPreview,
 } from '../../lib/stockExcelImport';
@@ -156,6 +157,8 @@ interface Props {
 }
 
 export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImported }) => {
+  const { t } = useTranslation('stockImport');
+  const sheetKindLabel = (kind: StockSheetKind): string => t(`sheetKind.${kind}`);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<StockWorkbookPreview | null>(null);
@@ -244,12 +247,12 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
       setPreview(result);
       setActiveSheet(pickDefaultSheet(result));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'تعذر قراءة ملف Excel';
+      const msg = e instanceof Error ? e.message : t('error.readFileFailed');
       setError(msg);
     } finally {
       setParsing(false);
     }
-  }, []);
+  }, [t]);
 
   const onPick = useCallback(() => {
     fileRef.current?.click();
@@ -324,13 +327,13 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
           error.statusCode === 0 &&
           (error.body?.code === 'TIMEOUT' || error.body?.code === 'NETWORK');
         if (!recoverable || attempt === 3) throw error;
-        setImportError('تأخر تحديث حالة الاستيراد. أحاول إعادة الاتصال بالخادم ومتابعة العملية دون فقدان الدفعة...');
+        setImportError(t('importError.statusReconnecting'));
         await recoverLocalApiForImport();
         await new Promise((resolve) => window.setTimeout(resolve, 1200 * attempt));
       }
     }
-    throw new Error('تعذر قراءة حالة الاستيراد');
-  }, []);
+    throw new Error(t('importError.statusReadFailed'));
+  }, [t]);
 
   const handleConfirmImport = useCallback(async () => {
     const canImportSheet = Boolean(
@@ -375,7 +378,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
         processedRows: 0,
         totalRows: importableRows.length,
       });
-      setImportError('جاري رفع ملف الاستيراد وبدء المعالجة في الخلفية...');
+      setImportError(t('importError.uploadStarting'));
 
       let started: StockImportResult;
       try {
@@ -386,7 +389,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
           firstError.statusCode === 0 &&
           firstError.body?.code !== 'TIMEOUT';
         if (!isRecoverableNetworkFailure) throw firstError;
-        setImportError('انقطع اتصال الخادم أثناء بدء الاستيراد. جاري إعادة تشغيل الاتصال ثم إعادة المحاولة...');
+        setImportError(t('importError.connectionLost'));
         const recovered = await recoverLocalApiForImport();
         if (!recovered) throw firstError;
         started = await startStockImport(payload);
@@ -409,13 +412,13 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
         });
         setImportError(
           latest.status === 'FAILED'
-            ? (latest.errorMessage || 'فشل الاستيراد')
-            : `جاري تنفيذ الاستيراد في الخلفية... تمت معالجة ${fmtInt(processedRows)} من ${fmtInt(latest.totalRows || importableRows.length)} صف.`,
+            ? (latest.errorMessage || t('importError.importFailedGeneric'))
+            : t('importError.backgroundProgress', { processed: fmtInt(processedRows), total: fmtInt(latest.totalRows || importableRows.length) }),
         );
       }
 
       if (latest.status === 'FAILED' || latest.status === 'CANCELLED') {
-        throw new Error(latest.errorMessage || 'فشل الاستيراد');
+        throw new Error(latest.errorMessage || t('importError.importFailedGeneric'));
       }
 
       setImportResult(latest);
@@ -428,13 +431,13 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
       setImportError('');
       if (onImported) onImported(latest);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'فشل الاستيراد';
+      const msg = e instanceof Error ? e.message : t('importError.importFailedGeneric');
       setImportError(msg);
     } finally {
       setImportProgress(null);
       setImporting(false);
     }
-  }, [activeSheet, importableRows, importing, onImported, preview, readImportStatus, selectedSupplierId, selectedWarehouseId, sourceType]);
+  }, [activeSheet, importableRows, importing, onImported, preview, readImportStatus, selectedSupplierId, selectedWarehouseId, sourceType, t]);
 
   if (!open) return null;
 
@@ -459,10 +462,10 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
             </div>
             <div className="min-w-0">
               <h3 id="stock-import-title" className="font-bold text-slate-900 text-lg leading-tight">
-                استيراد المخزون من ملف Excel
+                {t('modal.title')}
               </h3>
               <p className="text-xs text-slate-500 truncate">
-                معاينة محتوى الملف قبل الاستيراد — كميات، أطوال، خامات، ألوان، أعداد
+                {t('modal.subtitle')}
               </p>
             </div>
           </div>
@@ -471,7 +474,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
             onClick={handleClose}
             disabled={parsing}
             className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 disabled:opacity-50 transition"
-            aria-label="إغلاق"
+            aria-label={t('modal.closeAriaLabel')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -490,17 +493,17 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
               <div className="w-16 h-16 rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 flex items-center justify-center text-emerald-600 mb-4">
                 <FileSpreadsheet className="w-8 h-8" />
               </div>
-              <h4 className="text-lg font-extrabold text-slate-800 mb-1">اختر ملف Excel للاستيراد</h4>
+              <h4 className="text-lg font-extrabold text-slate-800 mb-1">{t('drop.chooseTitle')}</h4>
               <p className="text-sm text-slate-500 mb-5">
-                اسحب الملف هنا أو اضغط للاختيار — يدعم <span className="font-mono text-emerald-700">.xlsx</span>،{' '}
+                {t('drop.dragOrClick')} <span className="font-mono text-emerald-700">.xlsx</span>,{' '}
                 <span className="font-mono text-emerald-700">.xls</span>
               </p>
               <span className="inline-flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-emerald-700 transition">
                 <FileSpreadsheet className="w-4 h-4" />
-                اختيار ملف
+                {t('drop.chooseFileCta')}
               </span>
               <p className="text-[11px] text-slate-400 mt-4">
-                الملف لن يُرفع لأي خادم في هذه المرحلة — تتم القراءة محلياً داخل التطبيق فقط للمعاينة.
+                {t('drop.localOnlyHint')}
               </p>
               <input
                 ref={fileRef}
@@ -515,8 +518,8 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
           {parsing && (
             <div className="bg-white rounded-2xl border border-slate-200 p-10 flex flex-col items-center text-center">
               <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-3" />
-              <p className="text-slate-700 font-bold">جاري قراءة الملف...</p>
-              <p className="text-xs text-slate-500 mt-1">قد يستغرق الأمر بضع ثوانٍ للملفات الكبيرة</p>
+              <p className="text-slate-700 font-bold">{t('parsing.title')}</p>
+              <p className="text-xs text-slate-500 mt-1">{t('parsing.hint')}</p>
             </div>
           )}
 
@@ -524,14 +527,14 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
             <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-bold">خطأ في قراءة الملف</p>
+                <p className="font-bold">{t('error.title')}</p>
                 <p className="text-sm mt-0.5">{error}</p>
               </div>
               <button
                 onClick={reset}
                 className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-rose-700 text-sm font-bold hover:bg-rose-100 transition"
               >
-                إعادة المحاولة
+                {t('error.retry')}
               </button>
             </div>
           )}
@@ -544,35 +547,35 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-extrabold text-emerald-900">تم الاستيراد بنجاح</h4>
+                  <h4 className="text-lg font-extrabold text-emerald-900">{t('success.title')}</h4>
                   <p className="text-sm text-emerald-700">
-                    إلى المستودع: <span className="font-bold">{importResult.warehouseName}</span> ·
-                    دفعة: <span className="font-mono text-xs">{importResult.batchTag}</span>
+                    {t('success.toWarehouseLabel')} <span className="font-bold">{importResult.warehouseName}</span> ·
+                    {' '}{t('success.batchLabel')} <span className="font-mono text-xs">{importResult.batchTag}</span>
                   </p>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mb-3">
-                <Stat icon={<Package className="w-5 h-5" />} label="أتواب أُنشئت" value={fmtInt(importResult.createdRolls)} accent="emerald" />
-                <Stat icon={<Layers className="w-5 h-5" />} label="خامات جديدة" value={fmtInt(importResult.createdItems)} accent="violet" />
-                <Stat icon={<Palette className="w-5 h-5" />} label="ألوان جديدة" value={fmtInt(importResult.createdColors)} accent="amber" />
-                <Stat icon={<Layers className="w-5 h-5" />} label="تصنيفات جديدة" value={fmtInt(importResult.createdCategories ?? 0)} accent="sky" />
-                <Stat icon={<Hash className="w-5 h-5" />} label="صفوف مُتجاوزة" value={fmtInt(importResult.skippedRows)} accent="sky" />
-                <Stat icon={<AlertTriangle className="w-5 h-5" />} label="أخطاء" value={fmtInt(importResult.errorCount)} accent={importResult.errorCount ? 'rose' : 'indigo'} />
+                <Stat icon={<Package className="w-5 h-5" />} label={t('stat.createdRolls')} value={fmtInt(importResult.createdRolls)} accent="emerald" />
+                <Stat icon={<Layers className="w-5 h-5" />} label={t('stat.newMaterials')} value={fmtInt(importResult.createdItems)} accent="violet" />
+                <Stat icon={<Palette className="w-5 h-5" />} label={t('stat.newColors')} value={fmtInt(importResult.createdColors)} accent="amber" />
+                <Stat icon={<Layers className="w-5 h-5" />} label={t('stat.newCategories')} value={fmtInt(importResult.createdCategories ?? 0)} accent="sky" />
+                <Stat icon={<Hash className="w-5 h-5" />} label={t('stat.skippedRows')} value={fmtInt(importResult.skippedRows)} accent="sky" />
+                <Stat icon={<AlertTriangle className="w-5 h-5" />} label={t('stat.errors')} value={fmtInt(importResult.errorCount)} accent={importResult.errorCount ? 'rose' : 'indigo'} />
               </div>
               <div className="flex items-center justify-between text-xs text-emerald-800/80 mb-2">
                 {typeof importResult.elapsedMs === 'number' && (
-                  <span>⏱ زمن المعالجة: {(importResult.elapsedMs / 1000).toFixed(2)} ث</span>
+                  <span>{t('success.elapsedTime', { seconds: (importResult.elapsedMs / 1000).toFixed(2) })}</span>
                 )}
                 {(importResult.clampedValues ?? 0) > 0 && (
-                  <span>⚙ قيم مضبوطة لنطاق آمن: {fmtInt(importResult.clampedValues!)}</span>
+                  <span>{t('success.clampedValues', { count: fmtInt(importResult.clampedValues!) })}</span>
                 )}
               </div>
               {importResult.errors.length > 0 && (
                 <div className="bg-white rounded-lg border border-rose-200 p-3 max-h-40 overflow-y-auto">
-                  <p className="text-xs font-bold text-rose-700 mb-2">صفوف فشلت:</p>
+                  <p className="text-xs font-bold text-rose-700 mb-2">{t('success.failedRowsLabel')}</p>
                   <ul className="text-xs space-y-1 list-disc pr-5 text-rose-700">
                     {importResult.errors.slice(0, 12).map((e) => (
-                      <li key={e.rowIndex}>صف #{e.rowIndex} — {e.reason}</li>
+                      <li key={e.rowIndex}>{t('success.rowFailed', { row: e.rowIndex, reason: e.reason })}</li>
                     ))}
                   </ul>
                 </div>
@@ -586,7 +589,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                 <div className="flex items-center gap-2 font-bold">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>
-                    جاري تنفيذ الاستيراد في الخلفية
+                    {t('progress.runningBg')}
                   </span>
                 </div>
                 <span className="text-xs font-mono">
@@ -605,7 +608,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                 />
               </div>
               <p className="text-xs text-indigo-700">
-                تم بدء دفعة الاستيراد بنجاح، وتجري الآن المعالجة على الخادم مع متابعة الحالة تلقائياً.
+                {t('progress.startedHint')}
               </p>
             </div>
           )}
@@ -614,7 +617,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
             <div className={`${importing ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-rose-50 border-rose-200 text-rose-700'} border rounded-xl p-4 flex items-start gap-3`}>
               <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-bold">{importing ? 'تنبيه أثناء الاستيراد' : 'فشل الاستيراد'}</p>
+                <p className="font-bold">{importing ? t('importError.warningTitle') : t('importError.failedTitle')}</p>
                 <p className="text-sm mt-0.5">{importError}</p>
               </div>
             </div>
@@ -630,13 +633,13 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                       <Warehouse className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs text-slate-500">المستودع المستهدف للاستيراد</p>
+                      <p className="text-xs text-slate-500">{t('warehouse.targetLabel')}</p>
                       <p className="text-sm font-bold text-slate-800 truncate">
                         {whLoading
-                          ? 'جارٍ تحميل المستودعات...'
+                          ? t('warehouse.loadingWarehouses')
                           : warehouses.length === 0
-                            ? 'سيُستخدم المستودع الرئيسي تلقائياً (سيُنشَأ إن لم يوجد)'
-                            : 'اختاري المستودع — أو اتركيه على الرئيسي'}
+                            ? t('warehouse.autoMainHint')
+                            : t('warehouse.chooseOrMain')}
                       </p>
                     </div>
                   </div>
@@ -647,11 +650,11 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                     className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 min-w-[200px]"
                   >
                     {warehouses.length === 0 && (
-                      <option value="">المستودع الرئيسي (تلقائي)</option>
+                      <option value="">{t('warehouse.autoMainOption')}</option>
                     )}
                     {warehouses.map((w) => (
                       <option key={w.id} value={w.id}>
-                        {w.name}{w.code === 'MAIN' ? ' — الرئيسي' : ''}
+                        {w.name}{w.code === 'MAIN' ? t('warehouse.mainSuffix') : ''}
                       </option>
                     ))}
                   </select>
@@ -660,9 +663,9 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                     onChange={(e) => setSelectedSupplierId(e.target.value)}
                     disabled={supLoading || importing}
                     className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 min-w-[220px]"
-                    title="اختيار المورد لربط الاستيراد بكشفه المحاسبي"
+                    title={t('supplier.selectTitle')}
                   >
-                    <option value="">{supLoading ? 'جاري تحميل الموردين...' : 'بدون مورد محاسبي'}</option>
+                    <option value="">{supLoading ? t('supplier.loadingSuppliers') : t('supplier.noSupplierOption')}</option>
                     {suppliers.map((supplier) => (
                       <option key={supplier.id} value={supplier.id}>
                         {supplier.name} {supplier.code ? `(${supplier.code})` : ''}
@@ -677,14 +680,14 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                         disabled={importing}
                         className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
                       />
-                      استيراد بدون تسعير
+                      {t('ignorePrices.label')}
                     </label>
                   </div>
                   <div className="w-full flex flex-wrap gap-2 pt-2 border-t border-slate-100">
                     {[
-                      { value: 'OPENING_STOCK', label: 'مواد أول مدة', hint: 'لا تنشئ ديناً على المورد' },
-                      { value: 'PURCHASE_INVOICE', label: 'فاتورة شراء', hint: 'تتبع كمصدر شراء' },
-                      { value: 'DIRECT_STOCK_IMPORT', label: 'مخزون مباشر', hint: 'للحالات الخاصة فقط' },
+                      { value: 'OPENING_STOCK', label: t('sourceType.openingStock'), hint: t('sourceType.openingStockHint') },
+                      { value: 'PURCHASE_INVOICE', label: t('sourceType.purchaseInvoice'), hint: t('sourceType.purchaseInvoiceHint') },
+                      { value: 'DIRECT_STOCK_IMPORT', label: t('sourceType.directImport'), hint: t('sourceType.directImportHint') },
                     ].map((option) => (
                       <button
                         key={option.value}
@@ -705,10 +708,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                     ))}
                   </div>
                 <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
-                  💡 الاستيراد ذكي: ستتم إضافة أيّ خامة أو لون أو رمز خامة أو رمز لون
-                  غير موجود في النظام تلقائياً، وسيُولَّد باركود فريد لكل ثوب.
-                  أيّ صف فيه اسم خامة سيُستورد حتى لو غابت الكمّية أو السعر أو اللون
-                  — يمكن إكمال البيانات الناقصة لاحقاً من شاشة المخزون.
+                  {t('smartImportHint')}
                 </p>
               </div>
 
@@ -721,14 +721,14 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                       <span className="font-bold truncate">{preview.fileName}</span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      الحجم: {fmtBytes(preview.fileSize)} · عدد الأوراق: {preview.sheets.length}
+                      {t('fileInfo.sizeAndSheets', { size: fmtBytes(preview.fileSize), count: preview.sheets.length })}
                     </p>
                   </div>
                   <button
                     onClick={reset}
                     className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-100 transition"
                   >
-                    اختيار ملف آخر
+                    {t('fileInfo.chooseAnotherFile')}
                   </button>
                 </div>
 
@@ -748,7 +748,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                       >
                         <span>{sheet.sheetName}</span>
                         <span className={`mr-2 text-[11px] font-mono ${isActive ? 'text-indigo-100' : 'text-slate-400'}`}>
-                          ({fmtInt(sheet.totalRows)}) — {STOCK_SHEET_KIND_LABEL[sheet.kind]}
+                          ({fmtInt(sheet.totalRows)}) — {sheetKindLabel(sheet.kind)}
                         </span>
                       </button>
                     );
@@ -760,7 +760,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-sm">
                   <div className="flex items-center gap-2 font-bold mb-1">
                     <AlertTriangle className="w-4 h-4" />
-                    تنبيهات
+                    {t('sheetWarnings.title')}
                   </div>
                   <ul className="list-disc pr-5 space-y-0.5">
                     {activeSheet.warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -770,7 +770,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
 
               {activeSheet.kind !== 'incoming' && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-sm">
-                  يتم السماح بالاستيراد من ورقة <span className="font-bold">وارد</span> فقط. يمكنك معاينة باقي الأوراق، لكن زر التأكيد سيبقى معطلاً خارج هذه الورقة.
+                  {t('sheetRestriction.prefix')} <span className="font-bold">{sheetKindLabel('incoming')}</span> {t('sheetRestriction.suffix')}
                 </div>
               )}
 
@@ -778,57 +778,57 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <Stat
                   icon={<Hash className="w-5 h-5" />}
-                  label="عدد الصفوف"
+                  label={t('stats.rowCount')}
                   value={fmtInt(activeSheet.totalRows)}
-                  hint={activeSheet.skippedRows ? `تم تخطي ${fmtInt(activeSheet.skippedRows)} صف فارغ` : 'لا توجد صفوف فارغة'}
+                  hint={activeSheet.skippedRows ? t('stats.skippedRowsHint', { count: fmtInt(activeSheet.skippedRows) }) : t('stats.noEmptyRowsHint')}
                   accent="indigo"
                 />
                 <Stat
                   icon={<Ruler className="w-5 h-5" />}
-                  label="إجمالي الكمية"
+                  label={t('stats.totalQuantity')}
                   value={fmt(activeSheet.totalQuantity, 2)}
-                  hint={activeSheet.distinctUnits.join(' · ') || 'بدون وحدة'}
+                  hint={activeSheet.distinctUnits.join(' · ') || t('stats.noUnitHint')}
                   accent="emerald"
                 />
                 <Stat
                   icon={<Package className="w-5 h-5" />}
-                  label="عدد الخامات المختلفة"
+                  label={t('stats.distinctItemCount')}
                   value={fmtInt(activeSheet.distinctItemCount)}
-                  hint="حسب اسم الصنف"
+                  hint={t('stats.byItemNameHint')}
                   accent="violet"
                 />
                 <Stat
                   icon={<Palette className="w-5 h-5" />}
-                  label="عدد الألوان المختلفة"
+                  label={t('stats.distinctColorCount')}
                   value={fmtInt(activeSheet.distinctColorCount)}
-                  hint="حسب اسم اللون"
+                  hint={t('stats.byColorNameHint')}
                   accent="amber"
                 />
                 <Stat
                   icon={<Layers className="w-5 h-5" />}
-                  label="إجمالي القيمة"
+                  label={t('stats.totalValue')}
                   value={fmt(activeSheet.totalValue, 2)}
-                  hint="مجموع عمود الإجمالي"
+                  hint={t('stats.sumOfTotalColumnHint')}
                   accent="sky"
                 />
                 <Stat
                   icon={<ListChecks className="w-5 h-5" />}
-                  label="نوع الورقة"
-                  value={STOCK_SHEET_KIND_LABEL[activeSheet.kind]}
-                  hint={`صف العنوان: ${activeSheet.headerRowIndex + 1}`}
+                  label={t('stats.sheetKind')}
+                  value={sheetKindLabel(activeSheet.kind)}
+                  hint={t('stats.headerRowHint', { row: activeSheet.headerRowIndex + 1 })}
                   accent="rose"
                 />
               </div>
 
               {/* Detected columns */}
-              <Section title="الأعمدة المكتشفة في الملف" count={`${activeSheet.rawHeaders.length} عمود`} defaultOpen>
+              <Section title={t('detectedColumns.title')} count={t('detectedColumns.countSuffix', { count: activeSheet.rawHeaders.length })} defaultOpen>
                 <div className="flex flex-wrap gap-2">
                   {activeSheet.rawHeaders.map((h, idx) => (
                     <span
                       key={`${h}-${idx}`}
                       className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-mono border border-slate-200"
                     >
-                      {h || `(فارغ ${idx + 1})`}
+                      {h || t('detectedColumns.emptyColumn', { index: idx + 1 })}
                     </span>
                   ))}
                 </div>
@@ -837,19 +837,19 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
               {/* Per-item breakdown */}
               {activeSheet.itemBreakdown.length > 0 && (
                 <Section
-                  title="تفصيل حسب الخامة"
-                  count={`أعلى ${Math.min(20, activeSheet.itemBreakdown.length)} من ${fmtInt(activeSheet.itemBreakdown.length)}`}
+                  title={t('itemBreakdown.title')}
+                  count={t('itemBreakdown.countSuffix', { shown: Math.min(20, activeSheet.itemBreakdown.length), total: fmtInt(activeSheet.itemBreakdown.length) })}
                 >
                   <div className="overflow-x-auto -mx-4 px-4">
                     <table className="w-full text-sm min-w-[640px]">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">اسم الخامة</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">رمز الصنف</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">عدد الأتواب</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">إجمالي الكمية</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">إجمالي القيمة</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">الألوان</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colItemName')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colItemCode')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colRollCount')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colTotalQty')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colTotalValue')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colColors')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -861,7 +861,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                             <td className="py-2 px-3 font-mono font-bold text-emerald-700">{fmt(it.totalQuantity, 2)}</td>
                             <td className="py-2 px-3 font-mono text-slate-600">{fmt(it.totalValue, 2)}</td>
                             <td className="py-2 px-3 text-xs text-slate-500">
-                              {it.colors.length === 0 ? '—' : it.colors.join('، ')}
+                              {it.colors.length === 0 ? '—' : it.colors.join(', ')}
                             </td>
                           </tr>
                         ))}
@@ -874,18 +874,18 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
               {/* Per-color breakdown */}
               {activeSheet.colorBreakdown.length > 0 && (
                 <Section
-                  title="تفصيل حسب اللون"
-                  count={`أعلى ${Math.min(20, activeSheet.colorBreakdown.length)} من ${fmtInt(activeSheet.colorBreakdown.length)}`}
+                  title={t('colorBreakdown.title')}
+                  count={t('itemBreakdown.countSuffix', { shown: Math.min(20, activeSheet.colorBreakdown.length), total: fmtInt(activeSheet.colorBreakdown.length) })}
                   defaultOpen={false}
                 >
                   <div className="overflow-x-auto -mx-4 px-4">
                     <table className="w-full text-sm min-w-[480px]">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">اسم اللون</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">رمز اللون</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">عدد الأتواب</th>
-                          <th className="text-right py-2 px-3 font-bold text-slate-600">إجمالي الكمية</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('colorBreakdown.colColorName')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('colorBreakdown.colColorCode')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colRollCount')}</th>
+                          <th className="text-right py-2 px-3 font-bold text-slate-600">{t('itemBreakdown.colTotalQty')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -905,8 +905,8 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
 
               {/* Raw rows */}
               <Section
-                title="الصفوف التفصيلية"
-                count={`${fmtInt(filteredRows.length)} من ${fmtInt(activeSheet.totalRows)}`}
+                title={t('rawRows.title')}
+                count={t('rawRows.countSuffix', { shown: fmtInt(filteredRows.length), total: fmtInt(activeSheet.totalRows) })}
                 defaultOpen
               >
                 <div className="flex items-center gap-2 mb-3">
@@ -916,7 +916,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                       type="text"
                       value={rowSearch}
                       onChange={(e) => setRowSearch(e.target.value)}
-                      placeholder="بحث في الخامة، اللون، الكود، التاريخ..."
+                      placeholder={t('rawRows.searchPlaceholder')}
                       className="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
@@ -925,31 +925,31 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                     onChange={(e) => setMaxRows(Number(e.target.value))}
                     className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value={50}>أول 50</option>
-                    <option value={100}>أول 100</option>
-                    <option value={250}>أول 250</option>
-                    <option value={1000}>أول 1000</option>
-                    <option value={Number.MAX_SAFE_INTEGER}>عرض الكل</option>
+                    <option value={50}>{t('rawRows.show50')}</option>
+                    <option value={100}>{t('rawRows.show100')}</option>
+                    <option value={250}>{t('rawRows.show250')}</option>
+                    <option value={1000}>{t('rawRows.show1000')}</option>
+                    <option value={Number.MAX_SAFE_INTEGER}>{t('rawRows.showAll')}</option>
                   </select>
                 </div>
                 <div className="overflow-x-auto -mx-4 px-4">
                   <table className="w-full text-sm min-w-[1120px]">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">#</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">التاريخ</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">اسم الخامة</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">رمز الصنف</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">الوحدة</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">اللون</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">رمز اللون</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">الكمية</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">الوزن</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">العرض</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colIndex')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colDate')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colItemName')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colItemCode')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colUnit')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colColor')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colColorCode')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colQty')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colWeight')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colWidth')}</th>
                         <th className="text-right py-2 px-3 font-bold text-slate-600">GSM</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">التكلفة</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">السعر</th>
-                        <th className="text-right py-2 px-3 font-bold text-slate-600">الإجمالي</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colCost')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colPrice')}</th>
+                        <th className="text-right py-2 px-3 font-bold text-slate-600">{t('rawRows.colTotal')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -974,7 +974,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                       {filteredRows.length === 0 && (
                         <tr>
                           <td colSpan={14} className="py-8 text-center text-slate-400 text-sm">
-                            لا توجد صفوف مطابقة
+                            {t('rawRows.noMatchingRows')}
                           </td>
                         </tr>
                       )}
@@ -983,7 +983,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                 </div>
                 {filteredRows.length > maxRows && (
                   <p className="text-center text-xs text-slate-500 mt-3">
-                    يتم عرض {fmtInt(maxRows)} صف فقط — استخدم خيار عرض الكل لرؤية البقية ({fmtInt(filteredRows.length - maxRows)}+)
+                    {t('rawRows.showingLimited', { shown: fmtInt(maxRows), rest: fmtInt(filteredRows.length - maxRows) })}
                   </p>
                 )}
               </Section>
@@ -996,23 +996,23 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
           <div className="text-xs text-slate-500 leading-snug">
             {importResult ? (
               <>
-                تم إنشاء {fmtInt(importResult.createdRolls)} ثوب في المستودع{' '}
+                {t('footer.createdSummary', { count: fmtInt(importResult.createdRolls) })}{' '}
                 <span className="font-bold text-emerald-700">{importResult.warehouseName}</span>
-                {importResult.createdItems > 0 && <> — مع {fmtInt(importResult.createdItems)} خامة جديدة</>}
-                {importResult.createdColors > 0 && <> و {fmtInt(importResult.createdColors)} لون جديد</>}
-                {(importResult.createdCategories ?? 0) > 0 && <> و {fmtInt(importResult.createdCategories ?? 0)} تصنيف جديد</>}.
+                {importResult.createdItems > 0 && <>{t('footer.withNewMaterials', { count: fmtInt(importResult.createdItems) })}</>}
+                {importResult.createdColors > 0 && <>{t('footer.withNewColors', { count: fmtInt(importResult.createdColors) })}</>}
+                {(importResult.createdCategories ?? 0) > 0 && <>{t('footer.withNewCategories', { count: fmtInt(importResult.createdCategories ?? 0) })}</>}.
               </>
             ) : preview && activeSheet ? (
               <>
-                جاهز للاستيراد:{' '}
-                <span className="font-bold text-emerald-700">{fmtInt(importableRows.length)} ثوب</span>
-                {' '}من ورقة <span className="font-mono">{activeSheet.sheetName}</span>.
+                {t('footer.readyToImport')}{' '}
+                <span className="font-bold text-emerald-700">{t('footer.rollsCountLabel', { count: fmtInt(importableRows.length) })}</span>
+                {' '}{t('footer.fromSheet')} <span className="font-mono">{activeSheet.sheetName}</span>.
                 {importAllowed
-                  ? ' سيبدأ الاستيراد مباشرة في الخلفية بدون إبقاء الطلب مفتوحاً حتى نهاية المعالجة.'
-                  : ' هذه الورقة للمعاينة فقط — يجب أن تحتوي أعمدة خامة + لون + طول (أو باركود + خامة + متر لفاتورة المورد).'}
+                  ? t('footer.willStartBgImport')
+                  : t('footer.previewOnlyRestriction')}
               </>
             ) : (
-              <>قبل الاستيراد سيتم عرض معاينة كاملة (كميات، أطوال، خامات، ألوان، أعداد).</>
+              <>{t('footer.beforeImportHint')}</>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1021,7 +1021,7 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
               disabled={parsing || importing}
               className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-bold hover:bg-slate-50 disabled:opacity-50 transition"
             >
-              {importResult ? 'تم — إغلاق' : 'إغلاق'}
+              {importResult ? t('footer.doneCloseButton') : t('footer.closeButton')}
             </button>
             {!importResult && (
               <button
@@ -1034,13 +1034,13 @@ export const StockExcelImportModal: React.FC<Props> = ({ open, onClose, onImport
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     {importProgress
-                      ? `دفعة ${fmtInt(importProgress.currentChunk)} / ${fmtInt(importProgress.totalChunks)}`
-                      : 'جارٍ الاستيراد...'}
+                      ? t('footer.batchProgress', { current: fmtInt(importProgress.currentChunk), total: fmtInt(importProgress.totalChunks) })
+                      : t('footer.importingGeneric')}
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    تأكيد استيراد {importableRows.length > 0 ? fmtInt(importableRows.length) : ''} ثوب
+                    {t('footer.confirmButton', { count: importableRows.length > 0 ? fmtInt(importableRows.length) : '' })}
                   </>
                 )}
               </button>
