@@ -14,6 +14,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n/config';
 import {
    Printer, Search, Package, CheckSquare, Square, RefreshCw,
    ArrowRight, ArrowUp, ArrowDown, FileSpreadsheet, Eye, Tags, ScanLine, CheckCircle2, XCircle, AlertTriangle, X,
@@ -103,7 +105,7 @@ async function triggerPdfExport(
   opts: PrintTriggerOptions & { defaultFileName?: string },
 ): Promise<PrintResult & { filePath?: string }> {
   if (!isElectronRenderer()) {
-    return { ok: false, usedSilent: false, error: 'تصدير PDF متاح داخل تطبيق Windows فقط' };
+    return { ok: false, usedSilent: false, error: i18n.t('stickerPrinting:error.pdfExportElectronOnly') };
   }
   const qrSvgs = await generateQrSvgMap(rolls);
   const html = buildPrintDocument(rolls, { ...opts, qrSvgs });
@@ -151,7 +153,7 @@ async function exportPdfInBrowserFromHtml(
   try {
     await new Promise<void>((resolve, reject) => {
       iframe.onload = () => resolve();
-      iframe.onerror = () => reject(new Error('تعذر تحميل مستند المعاينة للتصدير'));
+      iframe.onerror = () => reject(new Error(i18n.t('stickerPrinting:error.loadPreviewFailed')));
       iframe.srcdoc = html;
     });
 
@@ -164,7 +166,7 @@ async function exportPdfInBrowserFromHtml(
     const targetDoc = iframe.contentDocument;
     const targetBody = targetDoc?.body;
     if (!targetDoc || !targetBody) {
-      throw new Error('تعذر قراءة محتوى المعاينة للتصدير');
+      throw new Error(i18n.t('stickerPrinting:error.readPreviewFailed'));
     }
     // For A4_SHEET_6 we capture each 2أ—3 grid sheet as a single A4 page so the
     // exported PDF mirrors the printed sheets exactly. Otherwise we fall back
@@ -177,8 +179,8 @@ async function exportPdfInBrowserFromHtml(
     if (!targets.length) {
       throw new Error(
         useSheetCapture
-          ? 'تعذر العثور على صفحات A4 داخل المعاينة'
-          : 'تعذر العثور على عناصر اللصاقات داخل المعاينة',
+          ? i18n.t('stickerPrinting:error.noA4PagesFound')
+          : i18n.t('stickerPrinting:error.noLabelElementsFound'),
       );
     }
 
@@ -199,7 +201,7 @@ async function exportPdfInBrowserFromHtml(
       });
 
       if (canvas.width <= 0 || canvas.height <= 0) {
-        throw new Error('فشل التقاط إحدى الصفحات');
+        throw new Error(i18n.t('stickerPrinting:error.captureFailed'));
       }
 
       const img = canvas.toDataURL('image/png');
@@ -235,7 +237,9 @@ const RollRow = ({
   selected: boolean;
   onToggle: () => void;
   key?: React.Key;
-}) => (
+}) => {
+  const { t } = useTranslation('stickerPrinting');
+  return (
   <tr
     onClick={onToggle}
     className={`border-b border-slate-100 cursor-pointer transition text-sm
@@ -256,7 +260,7 @@ const RollRow = ({
     </td>
     <td className="py-2 px-3 text-slate-500">{roll.color_name_ar ?? roll.color_name_tr ?? '—'}</td>
     <td className="py-2 px-3 font-mono text-slate-600">
-      {roll.length_m ? `${parseFloat(roll.length_m).toFixed(2)} م` : '—'}
+      {roll.length_m ? `${parseFloat(roll.length_m).toFixed(2)} ${t('units.meterAbbr')}` : '—'}
     </td>
     <td className="py-2 px-3">
       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${
@@ -264,7 +268,7 @@ const RollRow = ({
           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
           : 'bg-amber-50 text-amber-700 border-amber-200'
       }`}>
-        {(roll.label_print_count ?? 0) > 0 ? `مطبوع ${roll.label_print_count}x` : 'غير مطبوع'}
+        {(roll.label_print_count ?? 0) > 0 ? t('status.printedCount', { count: roll.label_print_count }) : t('status.notPrinted')}
       </span>
       {roll.last_label_printed_at && (
         <div className="text-[11px] text-slate-400 mt-1">{new Date(roll.last_label_printed_at).toLocaleDateString('ar-SA')}</div>
@@ -280,7 +284,8 @@ const RollRow = ({
       </span>
     </td>
   </tr>
-);
+  );
+};
 
 // â”€â”€â”€ Browser print confirm dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Only shown for non-silent browser prints (browser cannot confirm physical result)
@@ -295,7 +300,9 @@ const PrintConfirmDialog = ({
   onConfirm: () => void;
   onFail: () => void;
   onClose: () => void;
-}) => (
+}) => {
+  const { t } = useTranslation('stickerPrinting');
+  return (
   <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" dir="rtl">
     <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
       <div className="flex items-center gap-3">
@@ -303,8 +310,8 @@ const PrintConfirmDialog = ({
           <Printer className="w-5 h-5 text-blue-600" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-900">هل تمت الطباعة بنجاح؟</h3>
-          <p className="text-sm text-slate-500">طباعة {rollCount} لصاقة</p>
+          <h3 className="font-bold text-slate-900">{t('confirmDialog.title')}</h3>
+          <p className="text-sm text-slate-500">{t('confirmDialog.printingCount', { count: rollCount })}</p>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -312,21 +319,22 @@ const PrintConfirmDialog = ({
           onClick={onConfirm}
           className="flex items-center justify-center gap-2 bg-emerald-600 text-white rounded-xl py-3 font-bold hover:bg-emerald-700 transition"
         >
-          <CheckCircle2 className="w-4 h-4" /> نعم، تمت
+          <CheckCircle2 className="w-4 h-4" /> {t('confirmDialog.yesConfirm')}
         </button>
         <button
           onClick={onFail}
           className="flex items-center justify-center gap-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl py-3 font-bold hover:bg-rose-100 transition"
         >
-          <XCircle className="w-4 h-4" /> فشلت
+          <XCircle className="w-4 h-4" /> {t('confirmDialog.failed')}
         </button>
       </div>
       <button onClick={onClose} className="w-full text-center text-sm text-slate-400 hover:text-slate-600 transition">
-        تجاهل
+        {t('confirmDialog.ignore')}
       </button>
     </div>
   </div>
-);
+  );
+};
 
 // â”€â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -334,10 +342,12 @@ type Mode = 'selection' | 'batch' | 'single';
 type PrintStep = 'select' | 'preview' | 'done';
 type LabelPrintSortKey = 'none' | 'fabric' | 'color' | 'fabricCode';
 
-const labelPrintSortOptions: Array<{ value: LabelPrintSortKey; label: string }> = [
-  { value: 'color', label: 'اللون' },
-  { value: 'fabricCode', label: 'كود خامة' },
-];
+function getLabelPrintSortOptions(): Array<{ value: LabelPrintSortKey; label: string }> {
+  return [
+    { value: 'color', label: i18n.t('stickerPrinting:sortOptions.color') },
+    { value: 'fabricCode', label: i18n.t('stickerPrinting:sortOptions.fabricCode') },
+  ];
+}
 
 const normalizeSortText = (value: unknown) =>
   String(value ?? '')
@@ -426,6 +436,7 @@ const sortFabricRollRows = (rolls: FabricRollDto[], key: LabelPrintSortKey) => {
 };
 
 export const StickerPrinting: React.FC = () => {
+  const { t } = useTranslation('stickerPrinting');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -609,44 +620,44 @@ useEffect(() => {
 
   const handlePreview = async (ids?: string[]) => {
     const rollIds = ids ?? Array.from(selectedIds);
-    if (!rollIds.length) { setPreviewError('اختر ثوباً واحداً على الأقل'); return; }
+    if (!rollIds.length) { setPreviewError(t('error.selectAtLeastOneRoll')); return; }
     setPreviewing(true); setPreviewError('');
     try {
       const res = await previewRollLabels(rollIds, template?.id);
       if (!res.data.length) {
-        setPreviewError('لا توجد أتواب متاحة للطباعة (حالة متوفر وطول أكبر من صفر) ضمن الاختيار.');
+        setPreviewError(t('error.noAvailableRollsSelection'));
         return;
       }
       if (res.data.length < rollIds.length) {
         showToast(
           'info',
-          `تم استبعاد ${rollIds.length - res.data.length} ثوباً (مباع أو غير متوفر أو طوله صفر) من المعاينة.`,
+          t('toast.excludedRolls', { count: rollIds.length - res.data.length }),
         );
       }
       setPreviewRolls(res.data);
       setTemplate(res.template);
       setStep('preview');
     } catch (e: unknown) {
-      setPreviewError((e as { message?: string }).message ?? 'فشل تحميل البيانات');
+      setPreviewError((e as { message?: string }).message ?? t('error.loadDataFailed'));
     } finally {
       setPreviewing(false);
     }
   };
 
   const handleBatchPreview = async () => {
-    if (!selectedBatchId) { setPreviewError('اختر دفعة استيراد'); return; }
+    if (!selectedBatchId) { setPreviewError(t('error.chooseImportBatch')); return; }
     setPreviewing(true); setPreviewError('');
     try {
       const res = await previewBatchLabels(selectedBatchId, template?.id);
       if (!res.data.length) {
-        setPreviewError('لا توجد أتواب متاحة للطباعة في هذه الدفعة (متوفرة وبطول أكبر من صفر).');
+        setPreviewError(t('error.noAvailableRollsBatch'));
         return;
       }
       setPreviewRolls(res.data);
       setTemplate(res.template);
       setStep('preview');
     } catch (e: unknown) {
-      setPreviewError((e as { message?: string }).message ?? 'فشل تحميل البيانات');
+      setPreviewError((e as { message?: string }).message ?? t('error.loadDataFailed'));
     } finally {
       setPreviewing(false);
     }
@@ -681,7 +692,7 @@ useEffect(() => {
       }
       setShowConfirmDialog(true);
     } catch (e: unknown) {
-      setPreviewError((e as { message?: string }).message ?? 'فشلت الطباعة');
+      setPreviewError((e as { message?: string }).message ?? t('error.printFailed'));
     } finally {
       setPrinting(false);
     }
@@ -692,7 +703,7 @@ useEffect(() => {
     if (!previewRolls.length) return;
 
     if (!settings?.defaultLabelPrinterName) {
-      showToast('error', 'الطباعة الصامتة مفعلة لكن لم يتم تحديد طابعة لصاقات افتراضية. افتح إعدادات النظام → تطبيق سطح المكتب.');
+      showToast('error', t('toast.silentPrintNoDefaultPrinter'));
       return;
     }
 
@@ -712,7 +723,7 @@ useEffect(() => {
       jobId = job.jobId;
       setPrintJobId(job.jobId);
 
-      showToast('info', `جاري الإرسال إلى ${settings.defaultLabelPrinterName}...`);
+      showToast('info', t('toast.sendingToPrinter', { printer: settings.defaultLabelPrinterName }));
 
       const result = await triggerPrint(orderedPreviewRolls, {
         config: effectiveLabelConfig,
@@ -728,15 +739,15 @@ useEffect(() => {
         await updatePrintJobStatus(jobId, 'PRINTED').catch(() => {});
         setPrintSuccess(true);
         setStep('done');
-        showToast('success', `تمت الطباعة الصامتة بنجاح ✓ — ${orderedPreviewRolls.length} لصاقة`);
+        showToast('success', t('toast.silentPrintSuccess', { count: orderedPreviewRolls.length }));
       } else {
-        await updatePrintJobStatus(jobId, 'FAILED', result.error ?? 'فشل Electron').catch(() => {});
+        await updatePrintJobStatus(jobId, 'FAILED', result.error ?? t('error.electronFailed')).catch(() => {});
         setPrintSuccess(false);
         setStep('done');
-        showToast('error', result.error ?? 'فشلت الطباعة الصامتة');
+        showToast('error', result.error ?? t('error.silentPrintFailed'));
       }
     } catch (e: unknown) {
-      const errMsg = (e as { message?: string }).message ?? 'خطأ في الطباعة الصامتة';
+      const errMsg = (e as { message?: string }).message ?? t('error.silentPrintError');
       if (jobId) await updatePrintJobStatus(jobId, 'FAILED', errMsg).catch(() => {});
       setPrintSuccess(false);
       setStep('done');
@@ -765,7 +776,7 @@ useEffect(() => {
           pageSize,
           defaultFileName: fileName,
         });
-        showToast('success', 'تم تصدير PDF من المعاينة بنجاح');
+        showToast('success', t('toast.pdfExportedFromPreview'));
         return;
       }
 
@@ -781,12 +792,12 @@ useEffect(() => {
         defaultFileName: fileName,
       });
       if (result.ok) {
-        showToast('success', `تم تصدير PDF بنجاح`);
+        showToast('success', t('toast.pdfExportSuccess'));
       } else {
-        showToast('error', result.error ?? 'فشل تصدير PDF');
+        showToast('error', result.error ?? t('error.pdfExportFailed'));
       }
     } catch (e: unknown) {
-      showToast('error', (e as { message?: string }).message ?? 'خطأ في تصدير PDF');
+      showToast('error', (e as { message?: string }).message ?? t('error.pdfExportError'));
     } finally {
       setExportingPdf(false);
     }
@@ -800,7 +811,7 @@ useEffect(() => {
   };
 
   const confirmPrintFail = async () => {
-    if (printJobId) await updatePrintJobStatus(printJobId, 'FAILED', 'أفاد المستخدم بفشل الطباعة').catch(() => {});
+    if (printJobId) await updatePrintJobStatus(printJobId, 'FAILED', t('status.userReportedFailure')).catch(() => {});
     setShowConfirmDialog(false);
     setPrintSuccess(false);
     setStep('done');
@@ -841,9 +852,9 @@ useEffect(() => {
           </button>
           <div>
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Tags className="w-6 h-6 text-indigo-600" /> طباعة لصاقات الأتواب
+              <Tags className="w-6 h-6 text-indigo-600" /> {t('page.title')}
             </h2>
-            <p className="text-slate-500 mt-1 text-sm">بيانات حقيقية من PostgreSQL — لا بيانات مؤقتة</p>
+            <p className="text-slate-500 mt-1 text-sm">{t('page.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -852,19 +863,19 @@ useEffect(() => {
             canSilent
               ? (
                 <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-xs font-bold">
-                  <VolumeX className="w-3 h-3" /> طباعة صامتة: {settings?.defaultLabelPrinterName}
+                  <VolumeX className="w-3 h-3" /> {t('header.silentPrintBadge', { printer: settings?.defaultLabelPrinterName })}
                 </span>
               ) : (
                 <Link
                   to="/settings?tab=desktop"
                   className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-full text-xs hover:bg-slate-200 transition"
                 >
-                  <Settings className="w-3 h-3" /> إعداد طابعة افتراضية
+                  <Settings className="w-3 h-3" /> {t('header.setupDefaultPrinter')}
                 </Link>
               )
           )}
           <Link to="/inventory/print-jobs" className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition text-sm font-medium">
-            <Printer className="w-4 h-4" /> سجل الطباعة
+            <Printer className="w-4 h-4" /> {t('common.printLog')}
           </Link>
         </div>
       </div>
@@ -874,8 +885,8 @@ useEffect(() => {
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="flex border-b border-slate-200">
             {([
-              ['selection', 'اختيار أتواب', ScanLine],
-              ['batch',     'دفعة استيراد', FileSpreadsheet],
+              ['selection', t('tabs.rollSelection'), ScanLine],
+              ['batch',     t('tabs.importBatch'), FileSpreadsheet],
             ] as [Mode, string, React.FC<{className?: string}>][]).map(([m, label, Icon]) => (
               <button
                 key={m}
@@ -900,18 +911,18 @@ useEffect(() => {
                     type="text"
                     value={searchText}
                     onChange={e => setSearchText(e.target.value)}
-                    placeholder="بحث بالباركود أو اسم الخامة..."
+                    placeholder={t('selection.searchPlaceholder')}
                     className={`${inputCls} w-full pr-9`}
                   />
                 </div>
                 <select value={warehouseFilter} onChange={e => setWarehouseFilter(e.target.value)} className={inputCls}>
-                  <option value="">كل المستودعات</option>
+                  <option value="">{t('selection.allWarehouses')}</option>
                   {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
                 <select value={purchaseScopeFilter} onChange={e => setPurchaseScopeFilter(e.target.value as 'all' | 'purchased' | 'recent')} className={inputCls}>
-                  <option value="all">كل الأتواب</option>
-                  <option value="purchased">مواد مشترية فقط</option>
-                  <option value="recent">آخر مشتريات</option>
+                  <option value="all">{t('selection.allRolls')}</option>
+                  <option value="purchased">{t('selection.purchasedOnly')}</option>
+                  <option value="recent">{t('selection.recentPurchases')}</option>
                 </select>
                 {purchaseScopeFilter === 'recent' && (
                   <input
@@ -921,13 +932,13 @@ useEffect(() => {
                     value={recentDaysFilter}
                     onChange={e => setRecentDaysFilter(Math.min(365, Math.max(1, Number(e.target.value) || 30)))}
                     className={`${inputCls} w-24`}
-                    title="عدد الأيام"
+                    title={t('selection.daysCountTitle')}
                   />
                 )}
                 <select value={labelPrintedFilter} onChange={e => setLabelPrintedFilter(e.target.value as '' | 'true' | 'false')} className={inputCls}>
-                   <option value="">كل حالات الطباعة</option>
-                   <option value="false">غير مطبوع فقط</option>
-                   <option value="true">مطبوع سابقاً</option>
+                   <option value="">{t('selection.allPrintStatuses')}</option>
+                   <option value="false">{t('selection.unprintedOnly')}</option>
+                   <option value="true">{t('selection.printedBefore')}</option>
                  </select>
                 <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1">
                   <button
@@ -939,25 +950,25 @@ useEffect(() => {
                         : 'bg-white text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    طباعة حسب الخامة
+                    {t('common.printByFabric')}
                   </button>
                   {showPrintSortControls && (
                     <select
                       value={printSortBy}
                       onChange={(event) => setPrintSortBy(event.target.value as LabelPrintSortKey)}
                       className={`${inputCls} py-1.5`}
-                      title="ترتيب داخل الخامة"
+                      title={t('common.sortWithinFabricTitle')}
                     >
-                      {labelPrintSortOptions.map((option) => (
+                      {getLabelPrintSortOptions().map((option) => (
                         <option key={option.value} value={option.value}>
-                          ثم حسب {option.label}
+                          {t('common.thenBySortLabel', { label: option.label })}
                         </option>
                       ))}
                     </select>
                   )}
                 </div>
                   <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition">
-                   بحث
+                   {t('common.search')}
                  </button>
               </form>
 
@@ -965,9 +976,9 @@ useEffect(() => {
               <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-white/95 backdrop-blur-sm border-y border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <span className="font-bold text-indigo-700">{selectedIds.size}</span> ثوب مختار
+                    <span className="font-bold text-indigo-700">{selectedIds.size}</span> {t('selection.rollsSelectedCount')}
                     <span className="text-slate-400">|</span>
-                    <span>{visibleRolls.length.toLocaleString('ar')} ثوب متاح في القائمة</span>
+                    <span>{visibleRolls.length.toLocaleString('ar')} {t('selection.rollsAvailableCount')}</span>
                   </div>
                   <div className="flex gap-3 items-center flex-wrap">
                     <button
@@ -976,7 +987,7 @@ useEffect(() => {
                       disabled={!visibleRolls.length}
                       className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50 disabled:opacity-50"
                     >
-                      اختيار كل الظاهر
+                      {t('selection.selectAllVisible')}
                     </button>
                     <button
                       type="button"
@@ -984,14 +995,14 @@ useEffect(() => {
                       disabled={!visibleRolls.some((roll) => (roll.label_print_count ?? 0) === 0)}
                       className="px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-sm font-bold hover:bg-amber-100 disabled:opacity-50"
                     >
-                      اختيار غير المطبوع
+                      {t('selection.selectUnprinted')}
                     </button>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-600">حجم الورقة:</span>
+                      <span className="text-sm text-slate-600">{t('common.pageSizeLabel')}</span>
                       <select value={pageSize} onChange={e => setPageSize(e.target.value as 'label' | 'A4' | 'A4_SHEET_6')} className={`${inputCls} py-1.5`}>
-                        <option value="label">لصاقة منفصلة (حرارية)</option>
-                        <option value="A4">A4 (متعدد - متدفق)</option>
-                        <option value="A4_SHEET_6">A4 — 6 ستيكرات/ورقة (2×3)</option>
+                        <option value="label">{t('pageSize.singleLabel')}</option>
+                        <option value="A4">{t('pageSize.a4MultiFlow')}</option>
+                        <option value="A4_SHEET_6">{t('pageSize.a4Sheet6')}</option>
                       </select>
                     </div>
                     {previewError && <p className="text-rose-600 text-sm font-bold">{previewError}</p>}
@@ -1001,7 +1012,7 @@ useEffect(() => {
                       className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 text-sm"
                     >
                       {previewing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                      معاينة اللصاقات
+                      {t('selection.previewLabels')}
                     </button>
                   </div>
                 </div>
@@ -1018,24 +1029,24 @@ useEffect(() => {
                             : <Square className="w-4 h-4" />}
                         </button>
                       </th>
-                      <th className="text-right py-2 px-3 font-bold text-slate-600">الباركود</th>
+                      <th className="text-right py-2 px-3 font-bold text-slate-600">{t('table.colBarcode')}</th>
                       <th className="text-right py-2 px-3 font-bold text-slate-600">
                         <button onClick={() => handleSort('item_name')} className="flex items-center gap-1 hover:text-indigo-600">
-                          الخامة
+                          {t('table.colFabric')}
                           {sortBy === 'item_name' && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </button>
                       </th>
-                      <th className="text-right py-2 px-3 font-bold text-slate-600">كود الخامة</th>
+                      <th className="text-right py-2 px-3 font-bold text-slate-600">{t('table.colFabricCode')}</th>
                       <th className="text-right py-2 px-3 font-bold text-slate-600">
                         <button onClick={() => handleSort('color_name_ar')} className="flex items-center gap-1 hover:text-indigo-600">
-                          اللون
+                          {t('table.colColor')}
                           {sortBy === 'color_name_ar' && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </button>
                       </th>
-                      <th className="text-right py-2 px-3 font-bold text-slate-600">الطول</th>
-                      <th className="text-right py-2 px-3 font-bold text-slate-600">طباعة الستيكر</th>
-                      <th className="text-right py-2 px-3 font-bold text-slate-600">المستودع</th>
-                      <th className="text-right py-2 px-3 font-bold text-slate-600">الحالة</th>
+                      <th className="text-right py-2 px-3 font-bold text-slate-600">{t('table.colLength')}</th>
+                      <th className="text-right py-2 px-3 font-bold text-slate-600">{t('table.colStickerPrint')}</th>
+                      <th className="text-right py-2 px-3 font-bold text-slate-600">{t('table.colWarehouse')}</th>
+                      <th className="text-right py-2 px-3 font-bold text-slate-600">{t('table.colStatus')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1043,7 +1054,7 @@ useEffect(() => {
                       <tr><td colSpan={9} className="py-8 text-center text-slate-400"><RefreshCw className="w-5 h-5 animate-spin mx-auto" /></td></tr>
                     )}
                     {!rollsLoading && visibleRolls.length === 0 && (
-                      <tr><td colSpan={9} className="py-8 text-center text-slate-400">لا توجد أتواب</td></tr>
+                      <tr><td colSpan={9} className="py-8 text-center text-slate-400">{t('table.noRolls')}</td></tr>
                     )}
                     {!rollsLoading && visibleRolls.map(r => (
                       <RollRow key={r.id} roll={r} selected={selectedIds.has(r.id)} onToggle={() => toggleRoll(r.id)} />
@@ -1058,28 +1069,28 @@ useEffect(() => {
           {mode === 'batch' && (
             <div className="p-5 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700">دفعة الاستيراد</label>
+                <label className="text-sm font-bold text-slate-700">{t('batch.importBatchLabel')}</label>
                 <select value={selectedBatchId} onChange={e => setSelectedBatchId(e.target.value)} className={`${inputCls} w-full md:w-96`}>
-                  <option value="">— اختر دفعة مؤكدة —</option>
+                  <option value="">{t('batch.chooseConfirmedBatch')}</option>
                   {batches.map(b => (
                     <option key={b.id} value={b.id}>
-                      {b.file_name} — {b.created_roll_count} ثوب — {new Date(b.created_at).toLocaleDateString('ar-SA')}
+                      {t('batch.optionLabel', { fileName: b.file_name, count: b.created_roll_count, date: new Date(b.created_at).toLocaleDateString('ar-SA') })}
                     </option>
                   ))}
                 </select>
                 {batches.length === 0 && (
                   <p className="text-sm text-amber-600 flex items-center gap-1">
-                    <AlertTriangle className="w-4 h-4" /> لا توجد دفعات استيراد مؤكدة.
+                    <AlertTriangle className="w-4 h-4" /> {t('batch.noConfirmedBatches')}
                   </p>
                 )}
               </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600">حجم الورقة:</span>
+                  <span className="text-sm text-slate-600">{t('common.pageSizeLabel')}</span>
                   <select value={pageSize} onChange={e => setPageSize(e.target.value as 'label' | 'A4' | 'A4_SHEET_6')} className={`${inputCls} py-1.5`}>
-                    <option value="label">لصاقة منفصلة (حرارية)</option>
-                    <option value="A4">A4 (متعدد - متدفق)</option>
-                    <option value="A4_SHEET_6">A4 — 6 ستيكرات/ورقة (2×3)</option>
+                    <option value="label">{t('pageSize.singleLabel')}</option>
+                    <option value="A4">{t('pageSize.a4MultiFlow')}</option>
+                    <option value="A4_SHEET_6">{t('pageSize.a4Sheet6')}</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1092,18 +1103,18 @@ useEffect(() => {
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    طباعة حسب الخامة
+                    {t('common.printByFabric')}
                   </button>
                   {showPrintSortControls && (
                     <select
                       value={printSortBy}
                       onChange={(event) => setPrintSortBy(event.target.value as LabelPrintSortKey)}
                       className={`${inputCls} py-1.5`}
-                      title="ترتيب داخل الخامة"
+                      title={t('common.sortWithinFabricTitle')}
                     >
-                      {labelPrintSortOptions.map((option) => (
+                      {getLabelPrintSortOptions().map((option) => (
                         <option key={option.value} value={option.value}>
-                          ثم حسب {option.label}
+                          {t('common.thenBySortLabel', { label: option.label })}
                         </option>
                       ))}
                     </select>
@@ -1116,7 +1127,7 @@ useEffect(() => {
                   className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 text-sm"
                 >
                   {previewing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                  معاينة لصاقات الدفعة
+                  {t('batch.previewBatchLabels')}
                 </button>
               </div>
             </div>
@@ -1133,20 +1144,20 @@ useEffect(() => {
                 <ArrowRight className="w-4 h-4" />
               </button>
               <div>
-                <p className="font-bold text-slate-900">{orderedPreviewRolls.length} لصاقة جاهزة للطباعة</p>
+                <p className="font-bold text-slate-900">{t('preview.readyCount', { count: orderedPreviewRolls.length })}</p>
                 {template && (
-                  <p className="text-xs text-slate-500">القالب: {template.name} — {template.width_mm}×{template.height_mm}mm</p>
+                  <p className="text-xs text-slate-500">{t('preview.templateInfo', { name: template.name, width: template.width_mm, height: template.height_mm })}</p>
                 )}
               </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-slate-600">الحجم:</span>
+                <span className="text-slate-600">{t('preview.sizeLabel')}</span>
                 <select value={pageSize} onChange={e => setPageSize(e.target.value as 'label' | 'A4' | 'A4_SHEET_6')} className={`${inputCls} py-1.5`}>
-                  <option value="label">لصاقة منفصلة (حرارية)</option>
-                  <option value="A4">A4 (متعدد)</option>
-                  <option value="A4_SHEET_6">A4 — 6 ستيكرات/ورقة (2×3)</option>
+                  <option value="label">{t('pageSize.singleLabel')}</option>
+                  <option value="A4">{t('pageSize.a4Multi')}</option>
+                  <option value="A4_SHEET_6">{t('pageSize.a4Sheet6')}</option>
                 </select>
               </div>
               <div className="flex items-center gap-2 text-sm">
@@ -1159,18 +1170,18 @@ useEffect(() => {
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  طباعة حسب الخامة
+                  {t('common.printByFabric')}
                 </button>
                 {showPrintSortControls && (
                   <select
                     value={printSortBy}
                     onChange={(event) => setPrintSortBy(event.target.value as LabelPrintSortKey)}
                     className={`${inputCls} py-1.5`}
-                    title="ترتيب داخل الخامة"
+                    title={t('common.sortWithinFabricTitle')}
                   >
-                    {labelPrintSortOptions.map((option) => (
+                    {getLabelPrintSortOptions().map((option) => (
                       <option key={option.value} value={option.value}>
-                        ثم حسب {option.label}
+                        {t('common.thenBySortLabel', { label: option.label })}
                       </option>
                     ))}
                   </select>
@@ -1186,7 +1197,7 @@ useEffect(() => {
                     : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                {showBrandLogo ? 'إخفاء اللوغو' : 'إظهار اللوغو'}
+                {showBrandLogo ? t('preview.hideLogo') : t('preview.showLogo')}
               </button>
 
               {/* Silent print button â€” Electron only, requires default printer */}
@@ -1199,7 +1210,7 @@ useEffect(() => {
                   {printing
                     ? <RefreshCw className="w-4 h-4 animate-spin" />
                     : <VolumeX className="w-4 h-4" />}
-                  {printing ? 'جاري الطباعة...' : 'طباعة صامتة'}
+                  {printing ? t('common.printing') : t('preview.silentPrintButton')}
                 </button>
               )}
 
@@ -1207,8 +1218,8 @@ useEffect(() => {
               {isElectronRenderer() && !canSilent && settings?.silentLabelPrintingEnabled && !settings?.defaultLabelPrinterName && (
                 <span className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-xl">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  لم تُحدَّد طابعة لصاقات افتراضية
-                  <Link to="/settings?tab=desktop" className="underline font-bold">إعدادات</Link>
+                  {t('preview.noDefaultPrinterWarning')}
+                  <Link to="/settings?tab=desktop" className="underline font-bold">{t('common.settingsLink')}</Link>
                 </span>
               )}
 
@@ -1221,7 +1232,7 @@ useEffect(() => {
                 {printing
                   ? <RefreshCw className="w-4 h-4 animate-spin" />
                   : <Printer className="w-4 h-4" />}
-                {printing ? 'جاري الطباعة...' : isElectronRenderer() ? 'طباعة عبر Windows' : 'طباعة'}
+                {printing ? t('common.printing') : isElectronRenderer() ? t('preview.printViaWindows') : t('common.printButton')}
               </button>
 
               <button
@@ -1232,7 +1243,7 @@ useEffect(() => {
                 {exportingPdf
                   ? <RefreshCw className="w-4 h-4 animate-spin" />
                   : <FileDown className="w-4 h-4" />}
-                {isElectronRenderer() ? 'تصدير PDF' : 'تصدير PDF (معاينة)'}
+                {isElectronRenderer() ? t('common.exportPdf') : t('preview.exportPdfPreview')}
               </button>
             </div>
           </div>
@@ -1258,8 +1269,8 @@ useEffect(() => {
                     style={{ maxWidth: '220mm' }}
                   >
                     <div className="flex items-center justify-between mb-3 text-xs text-slate-500 font-bold">
-                      <span>صفحة A4 رقم {sheetIdx + 1} من {sheets.length}</span>
-                      <span>{sheet.length} ستيكر</span>
+                      <span>{t('sheet.pageLabel', { index: sheetIdx + 1, total: sheets.length })}</span>
+                      <span>{t('sheet.stickerCount', { count: sheet.length })}</span>
                     </div>
                     <div
                       className="grid bg-slate-100 rounded p-2"
@@ -1287,7 +1298,7 @@ useEffect(() => {
                           className="border-2 border-dashed border-slate-200 rounded bg-white/40 flex items-center justify-center text-slate-300 text-xs"
                           style={{ minHeight: '85mm' }}
                         >
-                          فارغ
+                          {t('sheet.empty')}
                         </div>
                       ))}
                     </div>
@@ -1323,23 +1334,23 @@ useEffect(() => {
               : <XCircle className="w-8 h-8 text-rose-600" />}
           </div>
           <h3 className="text-xl font-bold text-slate-900">
-            {printSuccess ? 'تمت الطباعة بنجاح!' : 'فشلت الطباعة'}
+            {printSuccess ? t('done.success') : t('done.failed')}
           </h3>
           <p className="text-slate-500 text-sm">
-            {orderedPreviewRolls.length} لصاقة — مهمة الطباعة مسجلة
+            {t('done.jobRecorded', { count: orderedPreviewRolls.length })}
           </p>
           <div className="flex justify-center gap-3 flex-wrap">
             <button
               onClick={() => { setStep('select'); setPreviewRolls([]); setSelectedIds(new Set()); setPrintJobId(null); setPrintSuccess(null); }}
               className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition text-sm"
             >
-              <Tags className="w-4 h-4" /> طباعة جديدة
+              <Tags className="w-4 h-4" /> {t('done.newPrint')}
             </button>
             <Link to="/inventory/print-jobs" className="flex items-center gap-2 border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-50 transition text-sm">
-              <Printer className="w-4 h-4" /> سجل الطباعة
+              <Printer className="w-4 h-4" /> {t('common.printLog')}
             </Link>
             <Link to="/inventory" className="flex items-center gap-2 border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-50 transition text-sm">
-              <Package className="w-4 h-4" /> المخزون
+              <Package className="w-4 h-4" /> {t('done.inventory')}
             </Link>
           </div>
         </div>
