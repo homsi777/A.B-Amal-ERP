@@ -7,6 +7,10 @@ import {
 } from '../importDisplay';
 import { getRollLengthMeters } from '../inventory/rollAvailability';
 import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocumentFooter';
+import i18n from '../../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
+const ti = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'inventory', ...options });
 
 const NAVY = '#2C405A';
 const FONT = "Tahoma, Arial, 'Segoe UI', 'Arabic Typesetting', sans-serif";
@@ -14,14 +18,15 @@ const LABEL_GRAY = '#f2f2f2';
 const SUBTOTAL_GRAY = '#f6f6f6';
 const CELL_LINE = '#c8c8c8';
 
-const STATUS_LABELS: Record<string, string> = {
-  AVAILABLE: 'متاح',
-  RESERVED: 'محجوز',
-  SOLD: 'مباع',
-  DAMAGED: 'تالف',
-  TRANSFERRED: 'منقول',
-  INACTIVE: 'غير نشط',
-};
+const getStatusLabels = (): Record<string, string> => ({
+  AVAILABLE: ti('rollStatus.available'),
+  RESERVED: ti('rollStatus.reserved'),
+  SOLD: ti('rollStatus.sold'),
+  DAMAGED: ti('rollStatus.damaged'),
+  TRANSFERRED: ti('rollStatus.transferred'),
+  AT_EXTERNAL_JOB: ti('rollStatus.atExternalJob'),
+  INACTIVE: ti('rollStatus.inactive'),
+});
 
 function escapeHtml(s: string): string {
   return String(s)
@@ -57,7 +62,7 @@ function rollWeightKg(roll: FabricRollDto): number {
 }
 
 function rollStatusLabel(roll: FabricRollDto): string {
-  return STATUS_LABELS[roll.status] ?? roll.status ?? '—';
+  return getStatusLabels()[roll.status] ?? roll.status ?? '—';
 }
 
 export function renderInventoryRollsAuditA4Html(opts: {
@@ -71,14 +76,14 @@ export function renderInventoryRollsAuditA4Html(opts: {
   const printedAt = opts.printedAt ?? new Date();
   const searchQuery = String(opts.searchQuery ?? '').trim();
   const scopeLabel = String(opts.scopeLabel ?? '').trim() || '—';
-  const warehouseLabel = String(opts.warehouseLabel ?? '').trim() || 'كل المستودعات';
+  const warehouseLabel = String(opts.warehouseLabel ?? '').trim() || t('inventoryAudit.allWarehouses');
 
   const totalMeters = rolls.reduce((sum, roll) => sum + getRollLengthMeters(roll), 0);
   const totalKg = rolls.reduce((sum, roll) => sum + rollWeightKg(roll), 0);
 
   const subtitle = searchQuery
-    ? `نتائج البحث: ${searchQuery}`
-    : 'جميع الأتواب الظاهرة حسب الفلتر الحالي';
+    ? t('inventoryAudit.searchResults', { query: searchQuery })
+    : t('inventoryAudit.allVisibleRolls');
 
   const preparedRolls = rolls
     .map((roll) => {
@@ -157,10 +162,10 @@ export function renderInventoryRollsAuditA4Html(opts: {
       return `${rowsHtml}
         <tr class="color-summary-row">
           <td class="cell color-summary-cell" colspan="10">
-            إجمالي اللون ${escapeHtml(colorIdentity)}:
-            <strong>${group.length.toLocaleString('en-US')} ثوب</strong>
+            ${t('inventoryAudit.colorTotal', { color: escapeHtml(colorIdentity) })}
+            <strong>${group.length.toLocaleString('en-US')} ${t('inventoryAudit.rollUnit')}</strong>
             <span class="color-summary-separator">—</span>
-            <strong class="num">${formatAr(groupMeters)} متر</strong>
+            <strong class="num">${formatAr(groupMeters)} ${t('inventoryAudit.meterUnit')}</strong>
           </td>
         </tr>`;
     })
@@ -171,11 +176,11 @@ export function renderInventoryRollsAuditA4Html(opts: {
       <table class="meta-card">
         <tbody>
           <tr>
-            <td class="meta-lbl">تاريخ الطباعة</td>
+            <td class="meta-lbl">${t('inventoryAudit.printDate')}</td>
             <td class="meta-val mono">${escapeHtml(formatPrintDate(printedAt))} ${escapeHtml(formatPrintTime(printedAt))}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">نطاق العرض</td>
+            <td class="meta-lbl">${t('inventoryAudit.displayScope')}</td>
             <td class="meta-val">${escapeHtml(scopeLabel)}</td>
           </tr>
         </tbody>
@@ -183,24 +188,25 @@ export function renderInventoryRollsAuditA4Html(opts: {
       <table class="meta-card">
         <tbody>
           <tr>
-            <td class="meta-lbl">المستودع</td>
+            <td class="meta-lbl">${t('inventoryAudit.warehouse')}</td>
             <td class="meta-val">${escapeHtml(warehouseLabel)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">عدد الأتواب</td>
+            <td class="meta-lbl">${t('inventoryAudit.rollsCount')}</td>
             <td class="meta-val mono">${rolls.length.toLocaleString('en-US')}</td>
           </tr>
         </tbody>
       </table>
     </div>`;
 
+  const lang = i18n.language === 'ar' ? 'ar' : 'tr';
   return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="${lang}" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="format-detection" content="telephone=no,email=no,address=no" />
-  <title>كشف جرد أتواب الأقمشة</title>
+  <title>${t('inventoryAudit.title')}</title>
   <style>
     @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -386,35 +392,35 @@ export function renderInventoryRollsAuditA4Html(opts: {
       <div class="brand-wrap">
         <img class="brand-logo" src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" />
       </div>
-      <h1 class="doc-title">كشف جرد أتواب الأقمشة</h1>
+      <h1 class="doc-title">${t('inventoryAudit.title')}</h1>
       <p class="doc-subtitle">${escapeHtml(subtitle)}</p>
       ${metaRowsHtml}
       <table class="data-table">
         <thead>
           <tr>
             <th style="width:4%">#</th>
-            <th style="width:10%">الباركود</th>
-            <th style="width:16%">اسم الخامة</th>
-            <th style="width:11%">كود الخامة</th>
-            <th style="width:11%">اللون</th>
-            <th style="width:8%">كود اللون</th>
-            <th style="width:8%">متر</th>
-            <th style="width:8%">كغ</th>
-            <th style="width:12%">المستودع</th>
-            <th style="width:12%">الحالة</th>
+            <th style="width:10%">${t('inventoryAudit.colBarcode')}</th>
+            <th style="width:16%">${t('inventoryAudit.colMaterialName')}</th>
+            <th style="width:11%">${t('inventoryAudit.colMaterialCode')}</th>
+            <th style="width:11%">${t('inventoryAudit.colColor')}</th>
+            <th style="width:8%">${t('inventoryAudit.colColorCode')}</th>
+            <th style="width:8%">${t('inventoryAudit.colMeter')}</th>
+            <th style="width:8%">${t('inventoryAudit.colKg')}</th>
+            <th style="width:12%">${t('inventoryAudit.colWarehouse')}</th>
+            <th style="width:12%">${t('inventoryAudit.colStatus')}</th>
           </tr>
         </thead>
         <tbody>
           ${bodyRows}
           <tr class="summary-row">
-            <td class="cell center" colspan="6">الإجمالي (${rolls.length.toLocaleString('en-US')} ثوب)</td>
+            <td class="cell center" colspan="6">${t('inventoryAudit.totalWithCount', { count: rolls.length.toLocaleString('en-US') })}</td>
             <td class="cell num">${formatAr(totalMeters)}</td>
             <td class="cell num">${formatAr(totalKg)}</td>
             <td class="cell" colspan="2"></td>
           </tr>
         </tbody>
       </table>
-      <p class="print-note">يُطبع هذا الكشف حسب نتائج البحث والفلاتر الظاهرة على الشاشة — وليس كامل المخزون.</p>
+      <p class="print-note">${t('inventoryAudit.printNote')}</p>
     </div>
     ${renderDocumentFooterHtml('invoice')}
   </div>

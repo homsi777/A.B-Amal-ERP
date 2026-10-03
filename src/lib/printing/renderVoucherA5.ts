@@ -1,22 +1,27 @@
 import { BRAND } from '../../branding';
-import { amountToArabicWords } from './arabicAmountWords';
+import { amountToArabicWords, amountToTurkishWords } from './arabicAmountWords';
 import {
   buildVoucherMetaStatement,
   buildVoucherNarrativeParts,
   type VoucherNarrativeInput,
 } from './voucherNarrative';
 import { voucherPurposeAr } from '../voucherPurpose';
+import i18n from '../../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
+const amountToWords = (amount: number, currencyCode: string) =>
+  i18n.language === 'ar' ? amountToArabicWords(amount, currencyCode) : amountToTurkishWords(amount, currencyCode);
 
 const NAVY = '#2C405A';
 const GOLD = '#C4A962';
 const FONT = "Tahoma, Arial, 'Segoe UI', 'Arabic Typesetting', sans-serif";
 
-const CONTACT = {
-  location: 'الجمهورية العربية السورية / حلب',
+const getContact = () => ({
+  location: t('documentFooter.location'),
   phone: '+963 944 555 080',
-  receiptSlogan: 'ثقتكم رأسمالنا الحقيقي.',
-  paymentSlogan: 'الالتزام في التعامل أساس الثقة بيننا',
-} as const;
+  receiptSlogan: t('documentFooter.voucherReceiptSlogan'),
+  paymentSlogan: t('documentFooter.voucherPaymentSlogan'),
+});
 
 export type VoucherPrintData = {
   voucherNo: string;
@@ -105,16 +110,17 @@ function metaRow(icon: string, label: string, value: string): string {
 }
 
 function renderVoucherFooterHtml(isReceipt: boolean): string {
-  const slogan = isReceipt ? CONTACT.receiptSlogan : CONTACT.paymentSlogan;
+  const contact = getContact();
+  const slogan = isReceipt ? contact.receiptSlogan : contact.paymentSlogan;
   const sloganIcon = isReceipt ? iconSvg('star') : iconSvg('shield');
-  const phoneHtml = `<span class="footer-phone ltr">${esc(CONTACT.phone)}</span>`;
+  const phoneHtml = `<span class="footer-phone ltr">${esc(contact.phone)}</span>`;
 
   return `
       <div class="footer-bar">
         <table class="footer-table" dir="rtl">
           <tr>
             <td class="footer-right" style="width:34%;">
-              <span class="footer-inline">${iconSvg('pin')}<span>${esc(CONTACT.location)}</span></span>
+              <span class="footer-inline">${iconSvg('pin')}<span>${esc(contact.location)}</span></span>
             </td>
             <td class="footer-center" style="width:32%;">
               <span class="footer-inline footer-inline-center">${iconSvg('phone')}${phoneHtml}</span>
@@ -152,8 +158,8 @@ function renderNarrativeHtml(data: VoucherPrintData, accent: string): string {
 function renderSignFieldsHtml(): string {
   return `
     <table class="sign-fields" dir="rtl">
-      <tr><td class="sign-key">الاسم:</td><td class="sign-val sign-underline">&nbsp;</td></tr>
-      <tr><td class="sign-key">التوقيع:</td><td class="sign-val sign-underline">&nbsp;</td></tr>
+      <tr><td class="sign-key">${t('accountStatement.nameField')}</td><td class="sign-val sign-underline">&nbsp;</td></tr>
+      <tr><td class="sign-key">${t('accountStatement.signatureField')}</td><td class="sign-val sign-underline">&nbsp;</td></tr>
     </table>`;
 }
 
@@ -581,12 +587,12 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
   const accent = isReceipt ? '#059669' : '#dc2626';
   const accentSoft = isReceipt ? '#ecfdf5' : '#fef2f2';
   const accentColor = bw ? '#111111' : accent;
-  const typeLabel = isReceipt ? 'قبض' : 'صرف';
-  const docTitle = isReceipt ? 'سند قبض' : 'سند صرف';
-  const statusText = isReceipt ? 'تم استلام المبلغ' : 'تم صرف المبلغ';
-  const amountHeading = isReceipt ? 'المبلغ المستلم' : 'المبلغ المصروف';
-  const partyCardTitle = isReceipt ? 'بيانات العميل' : 'بيانات المستفيد';
-  const receiverTitle = isReceipt ? 'المستلم' : 'المستفيد';
+  const typeLabel = isReceipt ? t('voucher.typeReceipt') : t('voucher.typePayment');
+  const docTitle = isReceipt ? t('voucher.docTitleReceipt') : t('voucher.docTitlePayment');
+  const statusText = isReceipt ? t('voucher.statusReceived') : t('voucher.statusPaid');
+  const amountHeading = isReceipt ? t('voucher.amountHeadingReceived') : t('voucher.amountHeadingPaid');
+  const partyCardTitle = isReceipt ? t('voucher.partyCardTitleCustomer') : t('voucher.partyCardTitleBeneficiary');
+  const receiverTitle = isReceipt ? t('voucher.receiverTitleReceiver') : t('voucher.receiverTitleBeneficiary');
 
   const voucherNo = esc(`#${shortNumericVoucherNo(data.voucherNo)}`);
   const voucherDate = esc(normalizeVoucherDate(data.voucherDate));
@@ -597,7 +603,7 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
   const metaStatement = displayField(buildVoucherMetaStatement(narrativeInput(data)));
   const representative = displayField(data.representative);
   const amountDisplay = esc(formatAmountDisplay(data.amount, data.currencyCode));
-  const amountWords = esc(amountToArabicWords(Number(data.amount) || 0, data.currencyCode));
+  const amountWords = esc(amountToWords(Number(data.amount) || 0, data.currencyCode));
 
   return `
     <div class="page" dir="rtl" data-clotex-doc="voucher-a5">
@@ -621,22 +627,22 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
               <div class="card">
                 <div class="card-head">${iconSvg('user')}<span>${partyCardTitle}</span></div>
                 <table class="meta-table">
-                  ${metaRow(iconSvg('user'), 'اسم الجهة', partyName)}
-                  ${metaRow(iconSvg('receipt'), 'رقم الفاتورة', invoiceNo)}
-                  ${metaRow(iconSvg('doc'), 'غرض العملية', purposeLabel)}
-                  ${metaRow(iconSvg('doc'), 'البيان', metaStatement)}
-                  ${metaRow(iconSvg('user'), 'المندوب', representative)}
+                  ${metaRow(iconSvg('user'), t('voucher.partyNameLabel'), partyName)}
+                  ${metaRow(iconSvg('receipt'), t('voucher.invoiceNoLabel'), invoiceNo)}
+                  ${metaRow(iconSvg('doc'), t('voucher.purposeLabel'), purposeLabel)}
+                  ${metaRow(iconSvg('doc'), t('voucher.statementLabel'), metaStatement)}
+                  ${metaRow(iconSvg('user'), t('voucher.representativeLabel'), representative)}
                 </table>
               </div>
             </td>
             <td>
               <div class="card">
-                <div class="card-head">${iconSvg('tag')}<span>بيانات السند</span></div>
+                <div class="card-head">${iconSvg('tag')}<span>${t('voucher.voucherDataTitle')}</span></div>
                 <table class="meta-table">
-                  ${metaRow(iconSvg('tag'), 'رقم السند', `<span class="ltr">${voucherNo}</span>`)}
-                  ${metaRow(iconSvg('calendar'), 'التاريخ', `<span class="ltr">${voucherDate}</span>`)}
-                  ${metaRow(iconSvg('receipt'), 'نوع السند', `<span class="type-pill">${typeLabel}</span>`)}
-                  ${metaRow(iconSvg('wallet'), 'الصندوق', cashboxName)}
+                  ${metaRow(iconSvg('tag'), t('voucher.voucherNoLabel'), `<span class="ltr">${voucherNo}</span>`)}
+                  ${metaRow(iconSvg('calendar'), t('voucher.dateLabel'), `<span class="ltr">${voucherDate}</span>`)}
+                  ${metaRow(iconSvg('receipt'), t('voucher.voucherTypeLabel'), `<span class="type-pill">${typeLabel}</span>`)}
+                  ${metaRow(iconSvg('wallet'), t('voucher.cashboxLabel'), cashboxName)}
                 </table>
               </div>
             </td>
@@ -650,14 +656,14 @@ export function renderVoucherA5BodyHtml(data: VoucherPrintData, options: Voucher
         </div>
 
         <div class="narrative-box">
-          <div class="narrative-head">${iconSvg('doc')}<span>البيان:</span></div>
+          <div class="narrative-head">${iconSvg('doc')}<span>${t('voucher.statementColon')}</span></div>
           <div class="narrative-text">${renderNarrativeHtml(data, accentColor)}</div>
         </div>
 
         <table class="sign-table">
           <tr>
             <td>
-              <div class="sign-title">${iconSvg('wallet')}<span>أمين الصندوق</span></div>
+              <div class="sign-title">${iconSvg('wallet')}<span>${t('voucher.cashierTitle')}</span></div>
               ${renderSignFieldsHtml()}
             </td>
             <td>
@@ -682,7 +688,7 @@ export function renderVoucherA5Html(data: VoucherPrintData, options: VoucherRend
 <head>
   <meta charset="UTF-8" />
   <meta name="format-detection" content="telephone=no,email=no,address=no" />
-  <title>${isReceipt ? 'سند قبض' : 'سند صرف'}</title>
+  <title>${isReceipt ? t('voucher.docTitleReceipt') : t('voucher.docTitlePayment')}</title>
   <style>${voucherStyles(accent, isReceipt ? '#ecfdf5' : '#fef2f2', bw)}</style>
 </head>
 <body>${body}</body>

@@ -1,6 +1,9 @@
 import { listSalesInvoices, getSalesInvoice } from './api/salesInvoicesApi';
 import { mapSalesInvoiceDetailToInvoice } from './invoiceDbMappers';
 import type { Invoice } from '../types';
+import i18n from '../i18n/config';
+
+const t = (key: string) => i18n.t(key, { ns: 'terminology' });
 
 /** Server caps pageSize at 100 in salesInvoiceService. */
 const SERVER_MAX_PAGE_SIZE = 100;
@@ -156,7 +159,7 @@ export function flattenAccountStatementDisplayRows(args: {
       documentNo: String(row.documentNo ?? ''),
       typeLabel:
         row.type === 'CUSTOMER_DISCOUNT'
-          ? 'حسم عميل'
+          ? t('customerDiscountLabel')
           : row.typeLabel || row.description || '',
       detailText: row.type === 'CUSTOMER_DISCOUNT' ? String(row.description || row.notes || '').trim() || undefined : undefined,
       fabric: null,
@@ -197,7 +200,7 @@ export interface CustomerSaleInvoiceDetailsResult {
 
 export function extractBaseFabricName(rawName: string | undefined): string {
   const value = String(rawName ?? '').trim();
-  if (!value) return 'خامة غير محددة';
+  if (!value) return t('unspecifiedMaterial');
   const separators = ['·', '|', '،', ',', ' - ', ' — ', ' – '];
   for (const separator of separators) {
     if (!value.includes(separator)) continue;
@@ -228,7 +231,7 @@ export function aggregateInvoiceFabricGroups(groups: StatementFabricGroup[]): St
 export function groupInvoiceLinesByFabric(invoice: Invoice): StatementFabricGroup[] {
   if (!invoice.items || invoice.items.length === 0) return [];
   return invoice.items.map((item) => {
-    const name = String(item.fabricName || item.materialName || '').trim() || 'خامة غير محددة';
+    const name = String(item.fabricName || item.materialName || '').trim() || t('unspecifiedMaterial');
     const rollsCount =
       typeof item.rollsCount === 'number' && Number.isFinite(item.rollsCount) && item.rollsCount > 0
         ? item.rollsCount

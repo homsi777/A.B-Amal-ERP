@@ -145,3 +145,66 @@ export function amountToArabicWords(amount: number, currencyCode: string): strin
   }
   return `${words} ${unit} فقط لا غير`;
 }
+
+const TR_ONES: Record<number, string> = {
+  1: 'bir', 2: 'iki', 3: 'üç', 4: 'dört', 5: 'beş',
+  6: 'altı', 7: 'yedi', 8: 'sekiz', 9: 'dokuz',
+};
+
+const TR_TENS: Record<number, string> = {
+  1: 'on', 2: 'yirmi', 3: 'otuz', 4: 'kırk', 5: 'elli',
+  6: 'altmış', 7: 'yetmiş', 8: 'seksen', 9: 'doksan',
+};
+
+function threeDigitToTurkish(n: number): string {
+  const parts: string[] = [];
+  const hundreds = Math.floor(n / 100);
+  const tens = Math.floor((n % 100) / 10);
+  const ones = n % 10;
+  if (hundreds > 0) parts.push(hundreds === 1 ? 'yüz' : `${TR_ONES[hundreds]} yüz`);
+  if (tens > 0) parts.push(TR_TENS[tens]);
+  if (ones > 0) parts.push(TR_ONES[ones]);
+  return parts.join(' ');
+}
+
+function integerToTurkish(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '';
+  if (n === 0) return 'sıfır';
+
+  const parts: string[] = [];
+  const millions = Math.floor(n / 1_000_000);
+  if (millions > 0) parts.push(`${threeDigitToTurkish(millions)} milyon`);
+
+  let rest = n % 1_000_000;
+  const thousands = Math.floor(rest / 1000);
+  if (thousands > 0) parts.push(thousands === 1 ? 'bin' : `${threeDigitToTurkish(thousands)} bin`);
+
+  rest %= 1000;
+  if (rest > 0) parts.push(threeDigitToTurkish(rest));
+
+  return parts.join(' ').trim();
+}
+
+function currencyUnitTurkish(currencyCode: string): string {
+  const code = currencyCode.trim().toUpperCase() || 'USD';
+  if (code === 'USD') return 'Amerikan Doları';
+  if (code === 'SAR') return 'Suudi Riyali';
+  if (code === 'TRY') return 'Türk Lirası';
+  if (code === 'SYP') return 'Suriye Lirası';
+  if (code === 'EGP') return 'Mısır Lirası';
+  return code;
+}
+
+/** Simplified amount-in-words for Turkish — mirrors amountToArabicWords. */
+export function amountToTurkishWords(amount: number, currencyCode: string): string {
+  const value = Math.abs(Number(amount));
+  if (!Number.isFinite(value)) return '—';
+  const whole = Math.floor(value);
+  const fraction = Math.round((value - whole) * 100);
+  const words = integerToTurkish(whole) || 'sıfır';
+  const unit = currencyUnitTurkish(currencyCode);
+  if (fraction > 0) {
+    return `${words} ${unit} ve ${integerToTurkish(fraction)} kuruş yalnız`;
+  }
+  return `${words} ${unit} yalnız`;
+}

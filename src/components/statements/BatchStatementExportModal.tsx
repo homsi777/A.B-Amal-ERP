@@ -13,6 +13,11 @@ import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../..
 import { useToast } from '../NonBlockingToast';
 import { getCustomerStatement, getSupplierStatement } from '../../lib/api/partyStatementsApi';
 import { loadCustomerSaleInvoiceDetails } from '../../lib/customerStatementInvoiceDetails';
+import i18n from '../../i18n/config';
+import { arAccountingCreditSide, arAccountingDebitSide } from '../../lib/i18n/arTerminology';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
+const loc = () => (i18n.language === 'ar' ? 'ar' : 'tr');
 
 type PartyType = 'customer' | 'supplier';
 
@@ -100,7 +105,7 @@ const buildSupplierRows = (
           fabricCode: item.designCode || item.colorCode || item.fabricId,
           rollsCount,
           quantity: item.quantity,
-          unit: item.unitType === 'meter' ? 'متر' : 'يارد',
+          unit: item.unitType === 'meter' ? t('batchExport.unitMeter') : t('batchExport.unitYard'),
           unitPrice: item.unitPrice,
           total: item.total,
           payments: paymentShare,
@@ -188,8 +193,8 @@ export function BatchStatementExportModal({
     };
   }, [rows, type]);
 
-  const title = type === 'customer' ? 'تصدير كشوفات عملاء جماعية' : 'تصدير كشوفات موردين جماعية';
-  const partyLabel = type === 'customer' ? 'العميل' : 'المورد';
+  const title = type === 'customer' ? t('batchExport.titleCustomers') : t('batchExport.titleSuppliers');
+  const partyLabel = type === 'customer' ? t('batchExport.partyLabelCustomer') : t('batchExport.partyLabelSupplier');
 
   const prepared = useMemo(
     () =>
@@ -227,7 +232,7 @@ export function BatchStatementExportModal({
 
   const selectAllParties = () => {
     if (!parties.length) {
-      showToast({ type: 'warning', message: `لا يوجد ${type === 'customer' ? 'عملاء' : 'موردون'} للتحديد` });
+      showToast({ type: 'warning', message: type === 'customer' ? t('batchExport.noCustomersToSelect') : t('batchExport.noSuppliersToSelect') });
       return;
     }
     setRows(
@@ -238,12 +243,16 @@ export function BatchStatementExportModal({
         toDate: defaultToDate,
       })),
     );
-    setStatus(`تم تحديد ${parties.length.toLocaleString('ar')} ${type === 'customer' ? 'عميل' : 'مورد'}`);
+    setStatus(
+      type === 'customer'
+        ? t('batchExport.selectedCustomersCount', { count: parties.length.toLocaleString(loc()) })
+        : t('batchExport.selectedSuppliersCount', { count: parties.length.toLocaleString(loc()) }),
+    );
   };
 
   const buildExport = (item: (typeof prepared)[number]) => {
     if (!item.party || item.fabricItems.length === 0) return null;
-    const balanceType = type === 'customer' ? 'مدين' : 'دائن للمورد';
+    const balanceType = type === 'customer' ? arAccountingDebitSide() : t('accountStatement.creditToSupplier');
     const partyName = type === 'customer' ? (item.party as Customer).name : (item.party as Supplier).company;
     const fileName = `كشف_حساب_${makeSafeFileName(partyName)}_${item.fromDate}_${item.toDate}.pdf`;
     const common = {
@@ -297,7 +306,7 @@ export function BatchStatementExportModal({
   const exportBatch = async (sendTelegram: boolean) => {
     const validRows = prepared.filter(isRowExportable);
     if (!validRows.length) {
-      showToast({ type: 'warning', message: 'لا توجد كشوفات قابلة للتصدير ضمن الصفوف المحددة' });
+      showToast({ type: 'warning', message: t('batchExport.noExportableStatements') });
       return;
     }
 
@@ -307,7 +316,7 @@ export function BatchStatementExportModal({
         const item = validRows[index];
         if (!item.party) continue;
         if (isUuid(item.party.id)) {
-          setStatus(`${index + 1} / ${validRows.length} - ${type === 'customer' ? (item.party as Customer).name : (item.party as Supplier).company}`);
+          setStatus(t('batchExport.progressLine', { current: index + 1, total: validRows.length, name: type === 'customer' ? (item.party as Customer).name : (item.party as Supplier).company }));
 
           const statementRes =
             type === 'customer'
@@ -359,7 +368,9 @@ export function BatchStatementExportModal({
           if (sendTelegram) {
             const closing = statement.totals.closingBalance;
             const closingLabel =
-              type === 'customer' ? (closing >= 0 ? 'مدين' : 'دائن') : closing >= 0 ? 'دائن للمورد' : 'مدين لنا';
+              type === 'customer'
+                ? (closing >= 0 ? arAccountingDebitSide() : arAccountingCreditSide())
+                : (closing >= 0 ? t('accountStatement.creditToSupplier') : t('accountStatement.debitToUs'));
             await sendTelegramAccountStatementPdf({
               partyType: type,
               partyId: item.party.id,
@@ -382,7 +393,7 @@ export function BatchStatementExportModal({
 
         const exportData = buildExport(item);
         if (!exportData) continue;
-        setStatus(`${index + 1} / ${validRows.length} - ${exportData.partyName}`);
+        setStatus(t('batchExport.progressLine', { current: index + 1, total: validRows.length, name: exportData.partyName }));
         await exportPdfFromHtmlString(exportData.pdfHtml, exportData.fileName.replace(/\.pdf$/i, ''), { orientation: 'portrait' });
         if (sendTelegram) {
           await sendTelegramStatementPdf({
@@ -401,10 +412,10 @@ export function BatchStatementExportModal({
           });
         }
       }
-      setStatus(sendTelegram ? 'تم التصدير والإرسال إلى تيليغرام' : 'تم التصدير');
+      setStatus(sendTelegram ? t('batchExport.exportedAndSentTelegram') : t('batchExport.exportedOnly'));
     } catch (error) {
       console.error('Batch statement export failed', error);
-      showToast({ type: 'error', message: 'تعذر إكمال التصدير الجماعي. راجع إعدادات تيليغرام أو بيانات الكشف.' });
+      showToast({ type: 'error', message: t('batchExport.batchExportFailed') });
     } finally {
       setBusy(false);
     }
@@ -415,7 +426,7 @@ export function BatchStatementExportModal({
       <div className="w-full max-w-6xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="إغلاق">
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label={t('batchExport.close')}>
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -426,10 +437,10 @@ export function BatchStatementExportModal({
               <tr>
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">{partyLabel}</th>
-                <th className="px-4 py-3">من تاريخ</th>
-                <th className="px-4 py-3">إلى تاريخ</th>
-                <th className="px-4 py-3">أسطر الكشف</th>
-                <th className="px-4 py-3">الرصيد</th>
+                <th className="px-4 py-3">{t('batchExport.colFromDate')}</th>
+                <th className="px-4 py-3">{t('batchExport.colToDate')}</th>
+                <th className="px-4 py-3">{t('batchExport.colStatementLines')}</th>
+                <th className="px-4 py-3">{t('batchExport.colBalance')}</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -469,10 +480,10 @@ export function BatchStatementExportModal({
                     />
                   </td>
                   <td className="px-4 py-3 font-semibold text-indigo-700">
-                    {preview.loading ? <Loader2 className="inline h-4 w-4 animate-spin text-slate-400" /> : preview.rowCount.toLocaleString('ar')}
+                    {preview.loading ? <Loader2 className="inline h-4 w-4 animate-spin text-slate-400" /> : preview.rowCount.toLocaleString(loc())}
                   </td>
                   <td className="px-4 py-3 font-semibold text-slate-800">
-                    {preview.loading ? <Loader2 className="inline h-4 w-4 animate-spin text-slate-400" /> : preview.balance.toLocaleString('ar')}
+                    {preview.loading ? <Loader2 className="inline h-4 w-4 animate-spin text-slate-400" /> : preview.balance.toLocaleString(loc())}
                   </td>
                   <td className="px-4 py-3">
                     <button
@@ -480,7 +491,7 @@ export function BatchStatementExportModal({
                       onClick={() => removeRow(item.id)}
                       disabled={rows.length === 1}
                       className="rounded-lg border border-rose-100 p-2 text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="حذف الصف"
+                      aria-label={t('batchExport.deleteRow')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -499,7 +510,7 @@ export function BatchStatementExportModal({
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
               >
                 <Plus className="h-4 w-4" />
-                <span>إضافة سطر</span>
+                <span>{t('batchExport.addRow')}</span>
               </button>
               <button
                 type="button"
@@ -509,8 +520,8 @@ export function BatchStatementExportModal({
               >
                 <CheckSquare className="h-4 w-4" />
                 <span>
-                  اختيار الكل
-                  {parties.length > 0 ? ` (${parties.length.toLocaleString('ar')})` : ''}
+                  {t('batchExport.selectAll')}
+                  {parties.length > 0 ? ` (${parties.length.toLocaleString(loc())})` : ''}
                 </span>
               </button>
             </div>
@@ -526,7 +537,7 @@ export function BatchStatementExportModal({
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-white/80 disabled:opacity-60"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            <span>تصدير PDF</span>
+            <span>{t('batchExport.exportPdf')}</span>
           </button>
           <button
             type="button"
@@ -535,7 +546,7 @@ export function BatchStatementExportModal({
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            <span>تصدير وإرسال تيليغرام</span>
+            <span>{t('batchExport.exportAndSendTelegram')}</span>
           </button>
         </div>
       </div>

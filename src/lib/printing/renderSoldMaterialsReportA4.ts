@@ -1,6 +1,9 @@
 import { BRAND } from '../../branding';
 import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocumentFooter';
 import type { SoldMaterialReportRow } from '../api/soldMaterialsReportApi';
+import i18n from '../../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 const NAVY = '#2C405A';
 const FONT = "Tahoma, Arial, 'Segoe UI', sans-serif";
@@ -36,11 +39,12 @@ export function renderSoldMaterialsReportA4Html(opts: {
   const totalMeters = rows.reduce((sum, row) => sum + (Number(row.meters) || 0), 0);
   const totalSales = rows.reduce((sum, row) => sum + (Number(row.line_total) || 0), 0);
   const subtitle = opts.searchQuery?.trim()
-    ? `نتائج البحث: ${opts.searchQuery.trim()}`
-    : 'جميع بنود الخامات المباعة من فواتير البيع المؤكدة فقط';
+    ? t('soldMaterialsReport.searchResults', { query: opts.searchQuery.trim() })
+    : t('soldMaterialsReport.allSoldItemsSubtitle');
   const printedAtText = printedAt.toLocaleString('en-GB', {
     year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
   });
+  const lang = i18n.language === 'ar' ? 'ar' : 'tr';
 
   const body = rows.length
     ? rows.map((row, index) => `
@@ -49,20 +53,20 @@ export function renderSoldMaterialsReportA4Html(opts: {
           <td>${escapeHtml(row.material_name || '—')}</td>
           <td class="center mono">${escapeHtml(row.material_code || '—')}</td>
           <td>${escapeHtml(row.customer_name || '—')}</td>
-          <td class="center mono">${formatNumber(row.quantity, 3)} ${row.unit === 'yard' ? 'ياردة' : 'متر'}</td>
+          <td class="center mono">${formatNumber(row.quantity, 3)} ${row.unit === 'yard' ? t('soldMaterialsReport.yard') : t('soldMaterialsReport.meter')}</td>
           <td class="center mono">${formatNumber(row.meters, 3)}</td>
           <td class="center mono">${formatNumber(row.unit_price, 2)} ${escapeHtml(row.currency_code || 'USD')}</td>
           <td class="center mono">${escapeHtml(row.invoice_no || '—')}</td>
           <td class="center mono">${escapeHtml(formatDate(row.invoice_date))}</td>
         </tr>`).join('')
-    : '<tr><td class="empty" colspan="9">لا توجد خامات مباعة مطابقة للبحث.</td></tr>';
+    : `<tr><td class="empty" colspan="9">${t('soldMaterialsReport.noMatchingItems')}</td></tr>`;
 
   return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="${lang}" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>تقرير خامات مباعة</title>
+  <title>${t('soldMaterialsReport.title')}</title>
   <style>
     @page { size: A4 landscape; margin: 0; }
     * { box-sizing: border-box; }
@@ -91,19 +95,19 @@ export function renderSoldMaterialsReportA4Html(opts: {
   <div class="page" data-clotex-doc="sold-materials-report-a4">
     <div class="page-body">
       <div class="brand"><img src="${BRAND.logoInline}" alt="${escapeHtml(BRAND.name)}" /></div>
-      <h1>تقرير خامات مباعة</h1>
+      <h1>${t('soldMaterialsReport.title')}</h1>
       <p class="subtitle">${escapeHtml(subtitle)}</p>
       <div class="meta">
-        <div>تاريخ الطباعة: <span class="mono">${escapeHtml(printedAtText)}</span></div>
-        <div>عدد البنود المباعة: <span class="mono">${rows.length.toLocaleString('en-US')}</span></div>
-        <div>إجمالي الأمتار: <span class="mono">${formatNumber(totalMeters, 3)}</span></div>
+        <div>${t('soldMaterialsReport.printedAt')} <span class="mono">${escapeHtml(printedAtText)}</span></div>
+        <div>${t('soldMaterialsReport.soldItemsCount')} <span class="mono">${rows.length.toLocaleString('en-US')}</span></div>
+        <div>${t('soldMaterialsReport.totalMeters')} <span class="mono">${formatNumber(totalMeters, 3)}</span></div>
       </div>
       <table>
         <thead><tr>
-          <th style="width:4%">#</th><th style="width:18%">اسم الخامة</th><th style="width:11%">كود الخامة</th><th style="width:16%">اسم الزبون</th><th style="width:11%">الكمية</th><th style="width:9%">متر</th><th style="width:12%">سعر البيع</th><th style="width:10%">رقم الفاتورة</th><th style="width:9%">التاريخ</th>
+          <th style="width:4%">#</th><th style="width:18%">${t('soldMaterialsReport.colMaterialName')}</th><th style="width:11%">${t('soldMaterialsReport.colMaterialCode')}</th><th style="width:16%">${t('soldMaterialsReport.colCustomerName')}</th><th style="width:11%">${t('soldMaterialsReport.colQuantity')}</th><th style="width:9%">${t('soldMaterialsReport.colMeter')}</th><th style="width:12%">${t('soldMaterialsReport.colSellPrice')}</th><th style="width:10%">${t('soldMaterialsReport.colInvoiceNo')}</th><th style="width:9%">${t('soldMaterialsReport.colDate')}</th>
         </tr></thead>
         <tbody>${body}</tbody>
-        <tfoot><tr><td colspan="5">الإجمالي</td><td class="center mono">${formatNumber(totalMeters, 3)}</td><td colspan="3" class="center mono">إجمالي البيع: ${formatNumber(totalSales, 2)}</td></tr></tfoot>
+        <tfoot><tr><td colspan="5">${t('accountStatement.total')}</td><td class="center mono">${formatNumber(totalMeters, 3)}</td><td colspan="3" class="center mono">${t('soldMaterialsReport.totalSales', { amount: formatNumber(totalSales, 2) })}</td></tr></tfoot>
       </table>
     </div>
     ${renderDocumentFooterHtml('invoice')}

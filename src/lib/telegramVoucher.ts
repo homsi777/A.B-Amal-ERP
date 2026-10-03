@@ -3,6 +3,9 @@ import type { VoucherRow } from './api/vouchersApi';
 import { sendTelegramDocument } from './api/telegramApi';
 import { buildVoucherFileName } from './printing/documentFileNames';
 import { buildTelegramVoucherHtml } from './printing/telegramDocumentHtml';
+import i18n from '../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 export interface TelegramVoucherPayload {
   voucherType: 'RECEIPT' | 'PAYMENT';
@@ -18,18 +21,18 @@ export interface TelegramVoucherPayload {
 }
 
 const money = (value: number, currency = 'USD') =>
-  `${value.toLocaleString('ar', { maximumFractionDigits: 2 })} ${currency}`;
+  `${value.toLocaleString(i18n.language === 'ar' ? 'ar' : 'tr', { maximumFractionDigits: 2 })} ${currency}`;
 
 export function formatTelegramVoucherMessage(payload: TelegramVoucherPayload): string {
-  const title = payload.voucherType === 'RECEIPT' ? 'سند قبض' : 'سند صرف';
+  const title = payload.voucherType === 'RECEIPT' ? t('voucher.docTitleReceipt') : t('voucher.docTitlePayment');
   return [
-    `${title}: ${payload.voucherNo}`,
-    `التاريخ: ${payload.voucherDate}`,
-    `الطرف: ${payload.partyName}`,
-    `المبلغ: ${money(payload.amount, payload.currency)}`,
-    `الصندوق: ${payload.cashboxName || '-'}`,
-    `البيان: ${payload.description || '-'}`,
-    `تم إرفاق ملف PDF من ${BRAND.name}.`,
+    t('telegramVoucher.titleAndNo', { title, no: payload.voucherNo }),
+    t('telegramVoucher.dateLine', { date: payload.voucherDate }),
+    t('telegramVoucher.partyLine', { party: payload.partyName }),
+    t('telegramVoucher.amountLine', { amount: money(payload.amount, payload.currency) }),
+    t('telegramVoucher.cashboxLine', { cashbox: payload.cashboxName || '-' }),
+    t('telegramVoucher.statementLine', { statement: payload.description || '-' }),
+    t('telegramVoucher.pdfAttachedFromBrand', { brand: BRAND.name }),
   ].join('\n');
 }
 
@@ -69,7 +72,7 @@ export async function sendTelegramVoucherFromRow(voucher: VoucherRow): Promise<v
     message,
     pdfHtml,
     fileName,
-    caption: `${payload.voucherType === 'RECEIPT' ? 'سند قبض' : 'سند صرف'} PDF`,
+    caption: t('telegramVoucher.captionPdf', { title: payload.voucherType === 'RECEIPT' ? t('voucher.docTitleReceipt') : t('voucher.docTitlePayment') }),
     eventType: payload.voucherType,
   });
 }

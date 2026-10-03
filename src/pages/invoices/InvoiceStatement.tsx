@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import i18n from '../../i18n/config';
 import { useStore } from '../../store/useStore';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Printer, Share2, FileText, ArrowRight } from 'lucide-react';
@@ -566,7 +567,12 @@ export const InvoiceStatement = () => {
 
   const handleShareWhatsApp = () => {
     if (!invoice) return;
-    const text = `فاتورة: ${displayStoredInvoiceNo(invoice.invoiceNumber)}%0Aالتاريخ: ${invoice.date}%0Aالإجمالي: ${formatMoney(invoice.totalAmount, currency)}`;
+    const text = i18n.t('whatsapp.invoiceShareText', {
+      ns: 'terminology',
+      invoiceNo: displayStoredInvoiceNo(invoice.invoiceNumber),
+      date: invoice.date,
+      total: formatMoney(invoice.totalAmount, currency),
+    });
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 

@@ -1,14 +1,18 @@
 import type { UnifiedReportPayload } from './types';
+import i18n from '../../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
+
 function arTotalLabel(label: string): string {
   const map: Record<string, string> = {
-    total_materials: 'مجموع الخامات',
-    total_rolls: 'مجموع الاتواب',
-    total_length_m: 'مجموع اطوال',
-    total_remaining_length_m: 'مجموع المتبقي',
-    total_sold_length_m: 'مجموع المباع',
-    total_weight_kg: 'مجموع اوزان',
-    sold_meters: 'إجمالي الأمتار المباعة',
-    remaining_receivable_meters: 'أمتار ضمن الذمم',
+    total_materials: t('printReport.totalMaterials'),
+    total_rolls: t('printReport.totalRolls'),
+    total_length_m: t('printReport.totalLengthM'),
+    total_remaining_length_m: t('printReport.totalRemainingLengthM'),
+    total_sold_length_m: t('printReport.totalSoldLengthM'),
+    total_weight_kg: t('printReport.totalWeightKg'),
+    sold_meters: t('printReport.soldMeters'),
+    remaining_receivable_meters: t('printReport.remainingReceivableMeters'),
   };
   return map[label] || label;
 }
@@ -90,9 +94,10 @@ export function buildPrintableHtml(report: UnifiedReportPayload): string {
     ? `<div class="note note-meta">${esc(metaNote)}</div>`
     : '';
 
-  const emptyRow = `<tr><td colspan="${report.columns.length}">لا توجد بيانات</td></tr>`;
+  const emptyRow = `<tr><td colspan="${report.columns.length}">${t('printReport.noData')}</td></tr>`;
+  const lang = i18n.language === 'ar' ? 'ar' : 'tr';
   return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="${lang}" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <title>${esc(report.title)}</title>
@@ -128,9 +133,9 @@ export function buildPrintableHtml(report: UnifiedReportPayload): string {
 </head>
 <body${isInventoryRolls ? ' class="inventory"' : ''}>
   <h1>CLOTEX — ${esc(report.title)}</h1>
-  <div class="sub">نظام إدارة مستودعات الأقمشة</div>
-  <div class="meta">تاريخ التوليد: ${esc(new Date(report.generatedAt).toLocaleDateString('ar-SY'))}</div>
-  <div class="meta">الفلاتر: ${esc(filterLine || '—')}</div>
+  <div class="sub">${t('printReport.systemSubtitle')}</div>
+  <div class="meta">${t('printReport.generatedAt')} ${esc(new Date(report.generatedAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-SY' : 'tr-TR'))}</div>
+  <div class="meta">${t('printReport.filters')} ${esc(filterLine || '—')}</div>
   ${subtitleBlock}
   ${metaNoteBlock}
   ${cards}
@@ -138,7 +143,7 @@ export function buildPrintableHtml(report: UnifiedReportPayload): string {
     <thead><tr>${headerCells}</tr></thead>
     <tbody>${bodyRows || emptyRow}</tbody>
   </table>
-  <div class="footer">مُنشأ بواسطة CLOTEX ERP — طباعة / حفظ PDF من المتصفح</div>
+  <div class="footer">${t('printReport.footer')}</div>
 </body>
 </html>`;
 }
@@ -204,13 +209,13 @@ export async function exportReportPdf(report: UnifiedReportPayload, fileName: st
           ? report.meta
           : {
             ...report.meta,
-            note: `تابع التقرير - صفحة ${pageIdx + 1}`,
+            note: t('printReport.continuedReportPage', { page: pageIdx + 1 }),
           },
       };
       const html = buildPrintableHtml(chunkReport);
       await new Promise<void>((resolve, reject) => {
         iframe.onload = () => resolve();
-        iframe.onerror = () => reject(new Error('تعذر تحميل تقرير PDF'));
+        iframe.onerror = () => reject(new Error(t('printReport.errorPdfLoadFailed')));
         iframe.srcdoc = html;
       });
       await new Promise<void>((resolve) => setTimeout(resolve, 80));
@@ -218,7 +223,7 @@ export async function exportReportPdf(report: UnifiedReportPayload, fileName: st
       const doc = iframe.contentDocument;
       const body = doc?.body;
       if (!doc || !body) {
-        throw new Error('تعذر قراءة التقرير للتصدير');
+        throw new Error(t('printReport.errorReadFailed'));
       }
 
       const canvas = await html2canvas(body, {
@@ -230,7 +235,7 @@ export async function exportReportPdf(report: UnifiedReportPayload, fileName: st
         windowHeight: Math.max(doc.documentElement.scrollHeight, 1400),
       });
       if (canvas.width <= 0 || canvas.height <= 0) {
-        throw new Error('فشل تجهيز الصفحة للتصدير');
+        throw new Error(t('printReport.errorPagePrepFailed'));
       }
 
       const img = canvas.toDataURL('image/jpeg', 0.86);

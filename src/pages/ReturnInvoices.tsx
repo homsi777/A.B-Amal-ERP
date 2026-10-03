@@ -548,12 +548,12 @@ export const ReturnInvoices = () => {
     const partyName = detail.customer_name || detail.supplier_name || '—';
     const text = [
       returnDocumentTitle(detail.return_type),
-      `رقم المرتجع: ${detail.return_no}`,
-      `التاريخ: ${detail.return_date}`,
-      `الجهة: ${partyName}`,
-      `مرجع الفاتورة: ${originalInvoiceLabel(detail)}`,
-      `الإجمالي: ${Number(detail.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${detail.currency_code || 'USD'}`,
-      detail.reason ? `السبب: ${detail.reason}` : '',
+      i18n.t('whatsapp.returnNoLabel', { ns: 'terminology', no: detail.return_no }),
+      i18n.t('whatsapp.dateLabel', { ns: 'terminology', date: detail.return_date }),
+      i18n.t('whatsapp.partyLabel', { ns: 'terminology', party: partyName }),
+      i18n.t('whatsapp.invoiceRefLabel', { ns: 'terminology', ref: originalInvoiceLabel(detail) }),
+      i18n.t('whatsapp.totalLabel', { ns: 'terminology', amount: Number(detail.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), currency: detail.currency_code || 'USD' }),
+      detail.reason ? i18n.t('whatsapp.reasonLabel', { ns: 'terminology', reason: detail.reason }) : '',
     ].filter(Boolean).join('\n');
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
@@ -563,7 +563,7 @@ export const ReturnInvoices = () => {
 
     const isSalesReturn = detail.return_type === 'SALES_RETURN';
     const partyId = isSalesReturn ? detail.customer_id : detail.supplier_id;
-    const partyName = detail.customer_name || detail.supplier_name || 'جهة المرتجع';
+    const partyName = detail.customer_name || detail.supplier_name || t('labels.returnPartyFallback');
     const title = returnDocumentTitle(detail.return_type);
     const total = Number(detail.total_amount || 0).toLocaleString('en-US', {
       minimumFractionDigits: 2,
@@ -580,13 +580,15 @@ export const ReturnInvoices = () => {
         targetId: partyId || null,
         message: [
           title,
-          `رقم المرتجع: ${detail.return_no}`,
-          `التاريخ: ${detail.return_date}`,
-          `${isSalesReturn ? 'العميل' : 'المورد'}: ${partyName}`,
-          `مرجع الفاتورة: ${originalInvoiceLabel(detail)}`,
-          `الإجمالي: ${total} ${detail.currency_code || 'USD'}`,
-          detail.reason ? `السبب: ${detail.reason}` : '',
-          'تم إرفاق فاتورة المرتجع PDF.',
+          i18n.t('whatsapp.returnNoLabel', { ns: 'terminology', no: detail.return_no }),
+          i18n.t('whatsapp.dateLabel', { ns: 'terminology', date: detail.return_date }),
+          isSalesReturn
+            ? i18n.t('whatsapp.customerLabel', { ns: 'terminology', party: partyName })
+            : i18n.t('whatsapp.supplierLabel', { ns: 'terminology', party: partyName }),
+          i18n.t('whatsapp.invoiceRefLabel', { ns: 'terminology', ref: originalInvoiceLabel(detail) }),
+          i18n.t('whatsapp.totalLabel', { ns: 'terminology', amount: total, currency: detail.currency_code || 'USD' }),
+          detail.reason ? i18n.t('whatsapp.reasonLabel', { ns: 'terminology', reason: detail.reason }) : '',
+          i18n.t('whatsapp.returnPdfAttached', { ns: 'terminology' }),
         ].filter(Boolean).join('\n'),
         pdfHtml: buildReturnInvoiceHtml(),
         fileName: `${title}_${detail.return_no}`.replace(/[\\/:*?"<>|]+/g, '_') + '.pdf',

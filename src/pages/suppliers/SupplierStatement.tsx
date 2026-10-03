@@ -14,6 +14,7 @@ import { buildSupplierStatementFileName } from '../../lib/printing/documentFileN
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import { BRAND } from '../../branding';
+import i18n from '../../i18n/config';
 import { DUES_REPORT_TABLE_HEAD_CSS, sanitizePartyNotesForExport } from '../../lib/printing/sanitizeExportNotes';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { listPurchaseInvoices, getPurchaseInvoice } from '../../lib/api/purchaseInvoicesApi';
@@ -432,10 +433,10 @@ export const SupplierStatement = () => {
 
     return `
     <!doctype html>
-    <html lang="ar" dir="rtl">
+    <html lang="${i18n.language === 'ar' ? 'ar' : 'tr'}" dir="rtl">
       <head>
         <meta charset="utf-8" />
-        <title>كشف ذمم الموردين</title>
+        <title>${t('duesReport.supplierTitle', { ns: 'terminology' })}</title>
         <style>
           @page { size: A4; margin: 10mm; }
           body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 12px; }
@@ -461,20 +462,20 @@ export const SupplierStatement = () => {
           <div class="brand">${escapeDuesHtml(BRAND.name)}</div>
           <div>${escapeDuesHtml(BRAND.descriptionAr)}</div>
         </div>
-        <div class="title">كشف ذمم الموردين</div>
+        <div class="title">${t('duesReport.supplierTitle', { ns: 'terminology' })}</div>
         <div class="meta">
-          <div>عدد الموردين: ${rows.length}</div>
-          <div>تاريخ التذكير: ${escapeDuesHtml(toDate)}</div>
+          <div>${t('duesReport.supplierCount', { ns: 'terminology' })} ${rows.length}</div>
+          <div>${t('duesReport.reminderDate', { ns: 'terminology' })} ${escapeDuesHtml(toDate)}</div>
         </div>
         <table class="summary">
           <thead>
             <tr>
-              <th>العملة</th>
-              <th>عدد الموردين</th>
-              <th>إجمالي مدين</th>
-              <th>إجمالي دائن</th>
-              <th>إجمالي المتبقي</th>
-              <th>الرصيد الصافي</th>
+              <th>${t('duesReport.colCurrency', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colSupplierCount', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotalDebit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotalCredit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotalRemaining', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colNetBalance', { ns: 'terminology' })}</th>
             </tr>
           </thead>
           <tbody>
@@ -487,24 +488,24 @@ export const SupplierStatement = () => {
                     <td class="num">${formatDuesMoney(total.debit)}</td>
                     <td class="num">${formatDuesMoney(total.credit)}</td>
                     <td class="num">${formatDuesMoney(total.remaining)}</td>
-                    <td class="num">${formatDuesMoney(Math.abs(total.balance))} ${total.balance >= 0 ? 'دائن للمورد' : 'مدين لنا'}</td>
+                    <td class="num">${formatDuesMoney(Math.abs(total.balance))} ${total.balance >= 0 ? t('accountStatement.creditToSupplier', { ns: 'terminology' }) : t('accountStatement.debitToUs', { ns: 'terminology' })}</td>
                   </tr>
                 `)
-                .join('') || '<tr><td colspan="6" style="text-align:center;">لا توجد مجاميع</td></tr>'
+                .join('') || `<tr><td colspan="6" style="text-align:center;">${t('duesReport.noTotals', { ns: 'terminology' })}</td></tr>`
             }
           </tbody>
         </table>
         <table>
           <thead>
             <tr>
-              <th>الكود</th>
-              <th>اسم المورد</th>
-              <th>مجموع</th>
-              <th>دائن</th>
-              <th>مدين</th>
-              <th>متبقي</th>
-              <th>العملة</th>
-              <th>ملاحظة</th>
+              <th>${t('duesReport.colCode', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colSupplierName', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotal', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colCredit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colDebit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colRemaining', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colCurrency', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colNote', { ns: 'terminology' })}</th>
             </tr>
           </thead>
           <tbody>
@@ -524,7 +525,7 @@ export const SupplierStatement = () => {
                     </tr>
                   `,
                 )
-                .join('') || '<tr><td colspan="8" style="text-align:center;">لا توجد بيانات</td></tr>'
+                .join('') || `<tr><td colspan="8" style="text-align:center;">${t('duesReport.noData', { ns: 'terminology' })}</td></tr>`
             }
           </tbody>
         </table>
@@ -585,17 +586,18 @@ export const SupplierStatement = () => {
       return;
     }
 
+    const loc = i18n.language === 'ar' ? 'ar' : 'tr';
     const message = [
-      `كشف حساب مورد: ${selectedSupplier.company}`,
-      `ممثل المورد: ${selectedSupplier.name}`,
-      `الفترة: من ${fromDate} إلى ${toDate}`,
-      `عدد الخامات (أسطر الكشف): ${totals.itemCount}`,
-      `مجموع الأتواب: ${totals.totalRolls.toLocaleString('ar')}`,
-      `مجموع الكميات/الأطوال: ${totals.totalQuantity.toLocaleString('ar')}`,
-      `إجمالي المشتريات: ${totals.totalAmount.toLocaleString('ar')}`,
-      `إجمالي السداد: ${totals.totalPayments.toLocaleString('ar')}`,
-      `الرصيد ${balance.type}: ${balance.amount.toLocaleString('ar')}`,
-      `تم إنشاء الكشف من ${BRAND.name} — ${BRAND.tagline} (${BRAND.descriptionAr}).`
+      t('whatsapp.supplierStatementHeader', { ns: 'terminology', company: selectedSupplier.company }),
+      t('whatsapp.supplierRepresentative', { ns: 'terminology', name: selectedSupplier.name }),
+      t('whatsapp.periodRange', { ns: 'terminology', from: fromDate, to: toDate }),
+      t('whatsapp.itemsLineCount', { ns: 'terminology', count: totals.itemCount }),
+      t('whatsapp.totalRolls', { ns: 'terminology', count: totals.totalRolls.toLocaleString(loc) }),
+      t('whatsapp.totalQuantitiesLengths', { ns: 'terminology', amount: totals.totalQuantity.toLocaleString(loc) }),
+      t('whatsapp.totalPurchases', { ns: 'terminology', amount: totals.totalAmount.toLocaleString(loc) }),
+      t('whatsapp.totalSettlement', { ns: 'terminology', amount: totals.totalPayments.toLocaleString(loc) }),
+      t('whatsapp.balanceWithType', { ns: 'terminology', type: displaySupplierBalanceType(balance.type), amount: balance.amount.toLocaleString(loc) }),
+      t('whatsapp.generatedByBrand', { ns: 'terminology', brand: BRAND.name, tagline: BRAND.tagline, descriptionAr: BRAND.descriptionAr }),
     ].join('\n');
 
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
@@ -614,7 +616,7 @@ export const SupplierStatement = () => {
     try {
       if (accountStatement?.supplier) {
         const closing = accountStatement.totals.closingBalance;
-        const closingLabel = closing >= 0 ? 'دائن للمورد' : 'مدين لنا';
+        const closingLabel = closing >= 0 ? displaySupplierBalanceType('دائن للمورد') : displaySupplierBalanceType('مدين لنا');
         const pdfHtml = renderSupplierAccountStatementPdfHtml({
           supplierCompany: accountStatement.supplier.name,
           supplierName: null,

@@ -12,6 +12,7 @@ import { ORDER_STATUS_LABELS } from '../../pages/orders/orderStatusUi';
 import { useToast } from '../NonBlockingToast';
 import { TelegramSendButton } from '../telegram/TelegramSendButton';
 import { sendTelegramCustomerOrder } from '../../lib/telegramOrder';
+import i18n from '../../i18n/config';
 
 export interface OrderDetailModalProps {
   open: boolean;
@@ -22,7 +23,7 @@ export interface OrderDetailModalProps {
 
 const FALLBACK_CUSTOMER: Customer = {
   id: '—',
-  name: 'عميل غير معروف',
+  get name() { return i18n.t('orderDetail.unknownCustomer', { ns: 'terminology' }); },
   phone: '—',
   address: '—',
   balance: 0,
@@ -62,10 +63,10 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
     try {
       const result = await printCustomerOrderDocument(order, party, statusLabel);
       if (!result.ok) {
-        showToast({ type: 'error', message: result.error || 'تعذرت الطباعة' });
+        showToast({ type: 'error', message: result.error || i18n.t('orderDetail.printFailed', { ns: 'terminology' }) });
         return;
       }
-      showToast({ type: 'success', message: 'تم فتح نافذة الطباعة' });
+      showToast({ type: 'success', message: i18n.t('orderDetail.printWindowOpened', { ns: 'terminology' }) });
     } finally {
       setPrintBusy(false);
     }
@@ -82,11 +83,11 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
     setTelegramBusy(true);
     try {
       await sendTelegramCustomerOrder(order, party, statusLabel);
-      showToast({ type: 'success', message: 'تم إرسال الطلبية إلى تيليغرام.' });
+      showToast({ type: 'success', message: i18n.t('orderDetail.sentToTelegram', { ns: 'terminology' }) });
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'تعذر إرسال الطلبية إلى تيليغرام',
+        message: e instanceof Error ? e.message : i18n.t('orderDetail.telegramSendFailed', { ns: 'terminology' }),
       });
     } finally {
       setTelegramBusy(false);

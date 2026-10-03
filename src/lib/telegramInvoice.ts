@@ -5,6 +5,9 @@ import { arInvoicePaymentStatusCode } from './i18n/arTerminology';
 import { sendTelegramDocument } from './api/telegramApi';
 import { buildInvoiceStatementFileName } from './printing/documentFileNames';
 import { buildTelegramInvoiceHtml } from './printing/telegramDocumentHtml';
+import i18n from '../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 interface TelegramInvoicePayload {
   invoice: Omit<Invoice, 'id' | 'type'> & { id?: string };
@@ -50,59 +53,77 @@ export function formatTelegramInvoiceMessage({ invoice, invoiceType, partyName }
   const headerIcon = invoiceType === 'sale' ? '🧾' : '📦';
   const title = isDraft
     ? invoiceType === 'sale'
-      ? 'مسودة فاتورة بيع للمراجعة'
-      : 'مسودة فاتورة شراء للمراجعة'
+      ? t('telegramInvoice.titleSaleDraft')
+      : t('telegramInvoice.titlePurchaseDraft')
     : invoiceType === 'sale'
-      ? 'فاتورة بيع جديدة'
-      : 'فاتورة شراء جديدة';
-  const partyLabel = invoiceType === 'sale' ? 'العميل' : 'المورد';
-  const invoiceNo = invoice.invoiceNumber || invoice.id || 'بدون رقم';
+      ? t('telegramInvoice.titleSaleNew')
+      : t('telegramInvoice.titlePurchaseNew');
+  const partyLabel = invoiceType === 'sale' ? t('telegramInvoice.partyLabelCustomer') : t('telegramInvoice.partyLabelSupplier');
+  const invoiceNo = invoice.invoiceNumber || invoice.id || t('telegramInvoice.noNumberFallback');
 
   const itemLines = invoice.items.slice(0, 20).map((item, index) => {
-    const material = item.materialName || item.fabricName || 'غير محدد';
-    const design = item.designCode || 'غير محدد';
-    const color = item.colorName || item.colorCode || 'غير محدد';
+    const material = item.materialName || item.fabricName || t('telegramInvoice.notSpecified');
+    const design = item.designCode || t('telegramInvoice.notSpecified');
+    const color = item.colorName || item.colorCode || t('telegramInvoice.notSpecified');
     const roll = item.rollNo || item.rollNumber || '-';
-    return `${index + 1}) ${material} / ${design} / ${color}\n   رول: ${roll} | متر: ${formatNumber(item.quantity)} | وزن: ${formatNumber(item.weightKg ?? item.weight ?? 0)} | سعر: ${formatMoney(item.unitPrice, currency)} | الإجمالي: ${formatMoney(item.total, currency)}`;
+    return t('telegramInvoice.itemLine', {
+      index: index + 1,
+      material,
+      design,
+      color,
+      roll,
+      meters: formatNumber(item.quantity),
+      weight: formatNumber(item.weightKg ?? item.weight ?? 0),
+      price: formatMoney(item.unitPrice, currency),
+      total: formatMoney(item.total, currency),
+    });
   });
 
   const groupLines = summary.groups.map((group) =>
-    `- ${group.materialName} / ${group.designCode}: ألوان ${group.colorCount} | رولات ${group.rollCount} | أمتار ${formatNumber(group.totalMeters)} | وزن ${formatNumber(group.totalKg)} | ${formatMoney(group.totalAmount, currency)}`,
+    t('telegramInvoice.groupLine', {
+      material: group.materialName,
+      design: group.designCode,
+      colorCount: group.colorCount,
+      rollCount: group.rollCount,
+      meters: formatNumber(group.totalMeters),
+      weight: formatNumber(group.totalKg),
+      amount: formatMoney(group.totalAmount, currency),
+    }),
   );
 
-  const moreItemsLine = invoice.items.length > 20 ? `\n\nتم اختصار الأصناف المعروضة في الرسالة: ${invoice.items.length} صنف.` : '';
+  const moreItemsLine = invoice.items.length > 20 ? t('telegramInvoice.moreItemsLine', { count: invoice.items.length }) : '';
 
   return `${headerIcon} ${title}
-${isDraft ? '\n⚠️ هذه مسودة غير مؤكدة، أُرسلت للمراجعة والاعتماد.' : ''}
+${isDraft ? `\n${t('telegramInvoice.draftWarning')}` : ''}
 
-رقم الفاتورة: ${invoiceNo}
-التاريخ: ${invoice.date}
-${partyLabel}: ${partyName || 'نقدي'}
-المستودع: ${invoice.warehouse || '-'}
-العملة: ${currency}
-${currency !== 'USD' && exchangeRateToUsd > 0 ? `سعر الصرف مقابل الدولار: ${exchangeRateToUsd}` : ''}
-الحالة: ${arInvoicePaymentStatusCode(invoice.status)}
+${t('telegramInvoice.invoiceNoLine', { no: invoiceNo })}
+${t('telegramInvoice.dateLine', { date: invoice.date })}
+${t('telegramInvoice.partyLine', { label: partyLabel, name: partyName || t('telegramInvoice.cashFallback') })}
+${t('telegramInvoice.warehouseLine', { warehouse: invoice.warehouse || '-' })}
+${t('telegramInvoice.currencyLine', { currency })}
+${currency !== 'USD' && exchangeRateToUsd > 0 ? t('telegramInvoice.exchangeRateLine', { rate: exchangeRateToUsd }) : ''}
+${t('telegramInvoice.statusLine', { status: arInvoicePaymentStatusCode(invoice.status) })}
 
-تفاصيل الأصناف:
-${itemLines.join('\n') || 'لا يوجد أصناف'}
+${t('telegramInvoice.itemDetailsHeader')}
+${itemLines.join('\n') || t('telegramInvoice.noItems')}
 ${moreItemsLine}
 
-ملخص الخامات:
-${groupLines.join('\n') || 'لا يوجد ملخص'}
+${t('telegramInvoice.materialsSummaryHeader')}
+${groupLines.join('\n') || t('telegramInvoice.noSummary')}
 
-الإجماليات:
-عدد الرولات: ${summary.totals.rollCount}
-إجمالي الأمتار: ${formatNumber(summary.totals.totalMeters)}
-إجمالي الوزن: ${formatNumber(summary.totals.totalKg)}
-إجمالي الفاتورة: ${formatMoney(invoice.totalAmount, currency)}
-${currency !== 'USD' && totalUsd != null ? `إجمالي الفاتورة بالدولار: ${formatMoney(totalUsd, 'USD')}` : ''}
-المدفوع: ${formatMoney(invoice.paidAmount, currency)}
-${currency !== 'USD' && paidUsd != null ? `المدفوع بالدولار: ${formatMoney(paidUsd, 'USD')}` : ''}
-المتبقي: ${formatMoney(invoice.remainingAmount, currency)}
-${currency !== 'USD' && remainingUsd != null ? `المتبقي بالدولار: ${formatMoney(remainingUsd, 'USD')}` : ''}
-عدد مجموعات الخامات: ${summary.totals.groupCount}
+${t('telegramInvoice.totalsHeader')}
+${t('telegramInvoice.rollsCountLine', { count: summary.totals.rollCount })}
+${t('telegramInvoice.totalMetersLine', { meters: formatNumber(summary.totals.totalMeters) })}
+${t('telegramInvoice.totalWeightLine', { weight: formatNumber(summary.totals.totalKg) })}
+${t('telegramInvoice.invoiceTotalLine', { amount: formatMoney(invoice.totalAmount, currency) })}
+${currency !== 'USD' && totalUsd != null ? t('telegramInvoice.invoiceTotalUsdLine', { amount: formatMoney(totalUsd, 'USD') }) : ''}
+${t('telegramInvoice.paidLine', { amount: formatMoney(invoice.paidAmount, currency) })}
+${currency !== 'USD' && paidUsd != null ? t('telegramInvoice.paidUsdLine', { amount: formatMoney(paidUsd, 'USD') }) : ''}
+${t('telegramInvoice.remainingLine', { amount: formatMoney(invoice.remainingAmount, currency) })}
+${currency !== 'USD' && remainingUsd != null ? t('telegramInvoice.remainingUsdLine', { amount: formatMoney(remainingUsd, 'USD') }) : ''}
+${t('telegramInvoice.groupsCountLine', { count: summary.totals.groupCount })}
 
-تم الإرسال من ${BRAND.name} — ${BRAND.tagline} (${BRAND.descriptionAr})`;
+${t('telegramInvoice.sentFromBrand', { brand: BRAND.name, tagline: BRAND.tagline, descriptionAr: BRAND.descriptionAr })}`;
 }
 
 /** نفس قالب كشف الفاتورة A4 — للطباعة والتصدير وتيليغرام */
@@ -121,7 +142,7 @@ export async function sendTelegramInvoiceNotification(payload: TelegramInvoicePa
   const message = formatTelegramInvoiceMessage(payload);
   const pdfHtml = formatTelegramInvoicePdfHtml(payload);
   const invoiceNo = payload.invoice.invoiceNumber || payload.invoice.id || 'invoice';
-  const partyName = payload.partyName || (payload.invoiceType === 'sale' ? 'عميل' : 'مورد');
+  const partyName = payload.partyName || (payload.invoiceType === 'sale' ? t('telegramInvoice.customerFallback') : t('telegramInvoice.supplierFallback'));
   const fileName = `${buildInvoiceStatementFileName(partyName, invoiceNo)}.pdf`;
   await sendTelegramDocument({
     documentType: 'INVOICE',
@@ -134,11 +155,11 @@ export async function sendTelegramInvoiceNotification(payload: TelegramInvoicePa
     fileName,
     caption: isDraft
       ? payload.invoiceType === 'sale'
-        ? 'مسودة فاتورة بيع PDF - للمراجعة والاعتماد'
-        : 'مسودة فاتورة شراء PDF - للمراجعة والاعتماد'
+        ? t('telegramInvoice.captionDraftSale')
+        : t('telegramInvoice.captionDraftPurchase')
       : payload.invoiceType === 'sale'
-        ? 'فاتورة بيع PDF'
-        : 'فاتورة شراء PDF',
+        ? t('telegramInvoice.captionSale')
+        : t('telegramInvoice.captionPurchase'),
     eventType: payload.invoiceType === 'sale' ? 'SALE_INVOICE' : 'PURCHASE_INVOICE',
   });
 }

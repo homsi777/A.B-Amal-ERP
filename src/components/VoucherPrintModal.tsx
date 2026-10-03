@@ -11,6 +11,9 @@ import {
   type VoucherRenderOptions,
 } from '../lib/pdfExport';
 import { buildVoucherNarrativeParagraph } from '../lib/printing/voucherNarrative';
+import i18n from '../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 interface VoucherPrintModalProps {
   isOpen: boolean;
@@ -71,7 +74,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
     setPrinting(true);
     try {
       const voucherHtml = buildHtml();
-      const typeLabel = voucher.voucher_type === 'RECEIPT' ? 'قبض' : 'صرف';
+      const typeLabel = voucher.voucher_type === 'RECEIPT' ? t('voucher.typeReceipt') : t('voucher.typePayment');
       if (window.fabricApp?.printHtml) {
         const settings = await window.fabricApp.getSettings();
         const result = await window.fabricApp.printHtml(voucherHtml, {
@@ -81,23 +84,23 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           printBackground: true,
         });
         if (result.ok) {
-          showToast({ type: 'success', message: 'تم إرسال السند إلى الطابعة بنجاح' });
+          showToast({ type: 'success', message: t('voucherPrintModal.printedToPrinterSuccess') });
           onClose();
         } else {
-          showToast({ type: 'error', message: `خطأ في الطباعة: ${result.error || 'خطأ غير معروف'}` });
+          showToast({ type: 'error', message: t('voucherPrintModal.printError', { error: result.error || t('voucherPrintModal.unknownError') }) });
         }
       } else {
-        if (!openDocumentPrintWindow(voucherHtml, `سند ${typeLabel}`)) {
-          showToast({ type: 'error', message: 'الرجاء السماح بالنوافذ المنبثقة ثم أعد المحاولة' });
+        if (!openDocumentPrintWindow(voucherHtml, t('voucherPrintModal.docTitle', { type: typeLabel }))) {
+          showToast({ type: 'error', message: t('voucherPrintModal.allowPopups') });
           return;
         }
-        showToast({ type: 'success', message: 'تم فتح نافذة الطباعة' });
+        showToast({ type: 'success', message: t('voucherPrintModal.printWindowOpened') });
         onClose();
       }
     } catch (error) {
       showToast({
         type: 'error',
-        message: `خطأ في الطباعة: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`,
+        message: t('voucherPrintModal.printError', { error: error instanceof Error ? error.message : t('voucherPrintModal.unknownError') }),
       });
     } finally {
       setPrinting(false);
@@ -119,7 +122,7 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
     try {
       const fileName = buildVoucherFileName(
         voucher.voucher_type,
-        String(voucher.party_name ?? '').trim() || 'بدون اسم',
+        String(voucher.party_name ?? '').trim() || t('voucherPrintModal.noNameFallback'),
         String(voucher.voucher_no ?? voucher.id),
       );
 
@@ -130,20 +133,20 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
           margins: { ...ELECTRON_A5_EMBEDDED_MARGINS },
         });
         if (result.ok) {
-          showToast({ type: 'success', message: `تم حفظ السند في: ${result.filePath}` });
+          showToast({ type: 'success', message: t('voucherPrintModal.savedAt', { path: result.filePath }) });
           onClose();
         } else {
-          showToast({ type: 'error', message: `خطأ في التصدير: ${result.error || 'تم إلغاء العملية'}` });
+          showToast({ type: 'error', message: t('voucherPrintModal.exportError', { error: result.error || t('voucherPrintModal.operationCancelled') }) });
         }
       } else {
         await exportPrintHtmlToPdf(buildHtml(), pdfFileStem(fileName));
-        showToast({ type: 'success', message: 'تم تصدير السند كـ PDF بنجاح' });
+        showToast({ type: 'success', message: t('voucherPrintModal.exportedPdfSuccess') });
         onClose();
       }
     } catch (error) {
       showToast({
         type: 'error',
-        message: `خطأ في التصدير: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`,
+        message: t('voucherPrintModal.exportError', { error: error instanceof Error ? error.message : t('voucherPrintModal.unknownError') }),
       });
     } finally {
       setExporting(false);
@@ -154,14 +157,14 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-5 text-right animate-in fade-in-0 zoom-in-95 duration-200">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-900">السند #{voucher.voucher_no}</h3>
+          <h3 className="text-lg font-bold text-slate-900">{t('voucherPrintModal.voucherHeader', { no: voucher.voucher_no })}</h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-          <p className="text-sm text-emerald-900 font-bold mb-2">نص البيان على السند (A5):</p>
+          <p className="text-sm text-emerald-900 font-bold mb-2">{t('voucherPrintModal.statementPreviewLabel')}</p>
           <p className="text-sm text-slate-800 leading-relaxed">{narrativePreview}</p>
         </div>
 
@@ -175,12 +178,12 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
             {printing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                جاري الطباعة...
+                {t('voucherPrintModal.printing')}
               </>
             ) : (
               <>
                 <Printer className="w-4 h-4" />
-                طباعة A5
+                {t('voucherPrintModal.printA5')}
               </>
             )}
           </button>
@@ -194,12 +197,12 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
             {exporting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                جاري التصدير...
+                {t('voucherPrintModal.exporting')}
               </>
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                تصدير PDF
+                {t('voucherPrintModal.exportPdf')}
               </>
             )}
           </button>
@@ -210,16 +213,16 @@ export const VoucherPrintModal: React.FC<VoucherPrintModalProps> = ({
             disabled={printing || exporting}
             className="w-full bg-slate-200 text-slate-900 py-2.5 rounded-lg hover:bg-slate-300 transition disabled:opacity-60 font-medium"
           >
-            إغلاق
+            {t('voucherPrintModal.close')}
           </button>
         </div>
 
         <div className="text-xs text-slate-500 bg-slate-50 rounded p-3 text-right">
-          النوع: {voucher.voucher_type === 'RECEIPT' ? 'قبض' : 'صرف'}
+          {t('voucherPrintModal.typeField', { type: voucher.voucher_type === 'RECEIPT' ? t('voucher.typeReceipt') : t('voucher.typePayment') })}
           <br />
-          التاريخ: {voucher.voucher_date}
+          {t('voucherPrintModal.dateField', { date: voucher.voucher_date })}
           <br />
-          المبلغ: {Number(voucher.amount).toLocaleString('ar')} {voucher.currency_code}
+          {t('voucherPrintModal.amountField', { amount: Number(voucher.amount).toLocaleString(i18n.language === 'ar' ? 'ar' : 'tr'), currency: voucher.currency_code })}
         </div>
       </div>
     </div>

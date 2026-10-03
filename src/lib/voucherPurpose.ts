@@ -1,3 +1,5 @@
+import i18n from '../i18n/config';
+
 export const VOUCHER_PURPOSES = [
   'INVOICE_PAYMENT',
   'ADVANCE',
@@ -8,19 +10,21 @@ export const VOUCHER_PURPOSES = [
 
 export type VoucherPurpose = (typeof VOUCHER_PURPOSES)[number];
 
+/** Used by print templates — follows the branch's current language, despite the name. */
 export function voucherPurposeAr(purpose: string | null | undefined): string {
+  const t = (key: string) => i18n.t(key, { ns: 'terminology' });
   switch (String(purpose ?? '').toUpperCase()) {
     case 'ADVANCE':
-      return 'عربون';
+      return t('voucherNarrative.purposeAdvance');
     case 'ADVANCE_REFUND':
-      return 'رد عربون';
+      return t('voucherNarrative.purposeAdvanceRefund');
     case 'COMPENSATION':
-      return 'تعويض / عطل وضرر';
+      return t('voucherNarrative.purposeCompensation');
     case 'OTHER':
-      return 'أخرى';
+      return t('voucherNarrative.purposeOther');
     case 'INVOICE_PAYMENT':
     default:
-      return 'دفعة / تسوية فاتورة';
+      return t('voucherNarrative.purposeInvoicePayment');
   }
 }
 

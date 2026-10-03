@@ -1,24 +1,27 @@
-const LOCATION = 'الجمهورية العربية السورية / حلب';
+import i18n from '../../i18n/config';
+
+const t = (key: string) => i18n.t(key, { ns: 'terminology' });
+const getLocation = () => t('documentFooter.location');
 
 export type DocumentFooterPreset = 'invoice' | 'voucher-receipt' | 'voucher-payment';
 
-const PRESETS: Record<DocumentFooterPreset, { phone: string; slogan: string; icon: 'star' | 'shield' | 'thread' }> = {
+const getPresets = (): Record<DocumentFooterPreset, { phone: string; slogan: string; icon: 'star' | 'shield' | 'thread' }> => ({
   invoice: {
     phone: '09 44 555 080',
-    slogan: 'ننسج الجودة، ونبني الثقة.',
+    slogan: t('documentFooter.invoiceSlogan'),
     icon: 'thread',
   },
   'voucher-receipt': {
     phone: '+963 944 555 080',
-    slogan: 'ثقتكم رأسمالنا الحقيقي.',
+    slogan: t('documentFooter.voucherReceiptSlogan'),
     icon: 'star',
   },
   'voucher-payment': {
     phone: '+963 944 555 080',
-    slogan: 'الالتزام في التعامل أساس الثقة بيننا',
+    slogan: t('documentFooter.voucherPaymentSlogan'),
     icon: 'shield',
   },
-};
+});
 
 function esc(s: string): string {
   return s
@@ -109,7 +112,7 @@ export function renderDocumentFooterHtml(
   bw = false,
   opts?: { slogan?: string },
 ): string {
-  const cfg = PRESETS[preset];
+  const cfg = getPresets()[preset];
   const slogan = opts?.slogan ?? cfg.slogan;
   const sloganIcon = footerIconSvg(cfg.icon);
   const phoneHtml = `<span class="doc-footer-phone">${esc(cfg.phone)}</span>`;
@@ -119,7 +122,7 @@ export function renderDocumentFooterHtml(
       <table class="doc-footer-table" dir="rtl">
         <tr>
           <td class="doc-footer-right" style="width:34%;">
-            <span class="doc-footer-inline">${footerIconSvg('pin')}<span>${esc(LOCATION)}</span></span>
+            <span class="doc-footer-inline">${footerIconSvg('pin')}<span>${esc(getLocation())}</span></span>
           </td>
           <td class="doc-footer-center" style="width:32%;">
             <span class="doc-footer-inline doc-footer-inline-center">${footerIconSvg('phone')}${phoneHtml}</span>

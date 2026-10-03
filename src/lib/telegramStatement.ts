@@ -1,4 +1,7 @@
 import { sendTelegramDocument } from './api/telegramApi';
+import i18n from '../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 export interface TelegramStatementPayload {
   partyType: 'customer' | 'supplier';
@@ -16,18 +19,18 @@ export interface TelegramStatementPayload {
 }
 
 const formatMoney = (amount: number) =>
-  amount.toLocaleString('ar', { maximumFractionDigits: 2 });
+  amount.toLocaleString(i18n.language === 'ar' ? 'ar' : 'tr', { maximumFractionDigits: 2 });
 
 export function formatTelegramStatementMessage(payload: Omit<TelegramStatementPayload, 'pdfHtml' | 'fileName'>): string {
-  const title = payload.partyType === 'customer' ? 'كشف حساب عميل' : 'كشف حساب مورد';
+  const title = payload.partyType === 'customer' ? t('telegramStatement.customerTitle') : t('telegramStatement.supplierTitle');
   return [
-    `${title}: ${payload.partyName}`,
-    `الفترة: من ${payload.fromDate} إلى ${payload.toDate}`,
-    `عدد أسطر الكشف: ${payload.itemCount}`,
-    `الإجمالي: ${formatMoney(payload.totalAmount)}`,
-    `المدفوع/المسدد: ${formatMoney(payload.totalPayments)}`,
-    `الرصيد ${payload.balanceLabel}: ${formatMoney(payload.balanceAmount)}`,
-    'تم إرفاق ملف PDF الخاص بالكشف.'
+    t('telegramStatement.titleAndName', { title, name: payload.partyName }),
+    t('telegramStatement.period', { from: payload.fromDate, to: payload.toDate }),
+    t('telegramStatement.itemsLineCount', { count: payload.itemCount }),
+    t('telegramStatement.total', { amount: formatMoney(payload.totalAmount) }),
+    t('telegramStatement.paidSettled', { amount: formatMoney(payload.totalPayments) }),
+    t('telegramStatement.balanceWithLabel', { label: payload.balanceLabel, amount: formatMoney(payload.balanceAmount) }),
+    t('telegramStatement.pdfAttached'),
   ].join('\n');
 }
 
@@ -67,16 +70,16 @@ export interface TelegramAccountStatementPayload {
 export function formatTelegramAccountStatementMessage(
   payload: Omit<TelegramAccountStatementPayload, 'pdfHtml' | 'fileName'>,
 ): string {
-  const title = payload.partyType === 'customer' ? 'كشف حساب عميل (حركات مالية)' : 'كشف حساب مورد (حركات مالية)';
+  const title = payload.partyType === 'customer' ? t('telegramStatement.customerTitleWithMovements') : t('telegramStatement.supplierTitleWithMovements');
   return [
-    `${title}: ${payload.partyName}`,
-    `الفترة: من ${payload.fromDate} إلى ${payload.toDate}`,
-    `عدد الحركات: ${payload.rowsCount}`,
-    `الرصيد الافتتاحي: ${formatMoney(payload.openingBalance)} ${payload.currency}`,
-    `إجمالي المدين: ${formatMoney(payload.debitTotal)} ${payload.currency}`,
-    `إجمالي الدائن: ${formatMoney(payload.creditTotal)} ${payload.currency}`,
-    `الرصيد النهائي (${payload.closingLabel}): ${formatMoney(payload.closingAmount)} ${payload.currency}`,
-    'تم إرفاق ملف PDF الخاص بالكشف.',
+    t('telegramStatement.titleAndName', { title, name: payload.partyName }),
+    t('telegramStatement.period', { from: payload.fromDate, to: payload.toDate }),
+    t('telegramStatement.rowsCount', { count: payload.rowsCount }),
+    t('telegramStatement.openingBalance', { amount: formatMoney(payload.openingBalance), currency: payload.currency }),
+    t('telegramStatement.totalDebit', { amount: formatMoney(payload.debitTotal), currency: payload.currency }),
+    t('telegramStatement.totalCredit', { amount: formatMoney(payload.creditTotal), currency: payload.currency }),
+    t('telegramStatement.finalBalanceWithLabel', { label: payload.closingLabel, amount: formatMoney(payload.closingAmount), currency: payload.currency }),
+    t('telegramStatement.pdfAttached'),
   ].join('\n');
 }
 

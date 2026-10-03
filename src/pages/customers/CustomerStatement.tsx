@@ -13,6 +13,7 @@ import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../..
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import { BRAND } from '../../branding';
+import { arAccountingCreditSide, arAccountingDebitSide } from '../../lib/i18n/arTerminology';
 import { listVouchers, createVoucher, confirmVoucher, type VoucherRow } from '../../lib/api/vouchersApi';
 import { listCashboxes, type CashboxDto } from '../../lib/api/cashboxesApi';
 import { getCustomerStatement, type PartyStatementData } from '../../lib/api/partyStatementsApi';
@@ -491,10 +492,10 @@ export const CustomerStatement = () => {
 
     return `
     <!doctype html>
-    <html lang="ar" dir="rtl">
+    <html lang="${i18n.language === 'ar' ? 'ar' : 'tr'}" dir="rtl">
       <head>
         <meta charset="utf-8" />
-        <title>كشف ذمم العملاء</title>
+        <title>${t('duesReport.customerTitle', { ns: 'terminology' })}</title>
         <style>
           @page { size: A4; margin: 10mm; }
           body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 14px; }
@@ -521,20 +522,20 @@ export const CustomerStatement = () => {
           <div class="brand">${escapeDuesHtml(BRAND.name)}</div>
           <div>${escapeDuesHtml(BRAND.descriptionAr)}</div>
         </div>
-        <div class="title">كشف ذمم العملاء</div>
+        <div class="title">${t('duesReport.customerTitle', { ns: 'terminology' })}</div>
         <div class="meta">
-          <div>عدد العملاء: ${rows.length}</div>
-          <div>تاريخ التذكير: ${escapeDuesHtml(toDate)}</div>
+          <div>${t('duesReport.customerCount', { ns: 'terminology' })} ${rows.length}</div>
+          <div>${t('duesReport.reminderDate', { ns: 'terminology' })} ${escapeDuesHtml(toDate)}</div>
         </div>
         <table class="summary">
           <thead>
             <tr>
-              <th>العملة</th>
-              <th>عدد العملاء</th>
-              <th>إجمالي مدين</th>
-              <th>إجمالي دائن</th>
-              <th>إجمالي المتبقي</th>
-              <th>الرصيد الصافي</th>
+              <th>${t('duesReport.colCurrency', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colPartyCount', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotalDebit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotalCredit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotalRemaining', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colNetBalance', { ns: 'terminology' })}</th>
             </tr>
           </thead>
           <tbody>
@@ -547,26 +548,26 @@ export const CustomerStatement = () => {
                     <td class="num">${formatDuesMoney(total.debit)}</td>
                     <td class="num">${formatDuesMoney(total.credit)}</td>
                     <td class="num">${formatDuesMoney(total.remaining)}</td>
-                    <td class="num">${formatDuesMoney(Math.abs(total.balance))} ${total.balance >= 0 ? 'مدين' : 'دائن'}</td>
+                    <td class="num">${formatDuesMoney(Math.abs(total.balance))} ${total.balance >= 0 ? arAccountingDebitSide() : arAccountingCreditSide()}</td>
                   </tr>
                 `)
-                .join('') || '<tr><td colspan="6" style="text-align:center;">لا توجد مجاميع</td></tr>'
+                .join('') || `<tr><td colspan="6" style="text-align:center;">${t('duesReport.noTotals', { ns: 'terminology' })}</td></tr>`
             }
           </tbody>
         </table>
         <table>
           <thead>
             <tr>
-              <th>الكود</th>
-              <th class="customer-name">اسم العميل</th>
-              <th>مجموع</th>
-              <th>دائن</th>
-              <th>مدين</th>
-              <th>متبقي</th>
-              <th>آخر دفعة</th>
-              <th>تاريخ آخر دفعة</th>
-              <th>العملة</th>
-              <th>ملاحظة</th>
+              <th>${t('duesReport.colCode', { ns: 'terminology' })}</th>
+              <th class="customer-name">${t('duesReport.colCustomerName', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colTotal', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colCredit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colDebit', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colRemaining', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colLastPayment', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colLastPaymentDate', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colCurrency', { ns: 'terminology' })}</th>
+              <th>${t('duesReport.colNote', { ns: 'terminology' })}</th>
             </tr>
           </thead>
           <tbody>
@@ -588,7 +589,7 @@ export const CustomerStatement = () => {
                     </tr>
                   `,
                 )
-                .join('') || '<tr><td colspan="10" style="text-align:center;">لا توجد بيانات</td></tr>'
+                .join('') || `<tr><td colspan="10" style="text-align:center;">${t('duesReport.noData', { ns: 'terminology' })}</td></tr>`
             }
           </tbody>
         </table>
@@ -785,23 +786,24 @@ export const CustomerStatement = () => {
       return;
     }
 
+    const loc = i18n.language === 'ar' ? 'ar' : 'tr';
     const message = [
-      `كشف حساب عميل: ${selectedCustomer.name}`,
-      `الفترة: من ${fromDate} إلى ${toDate}`,
-      `عدد الخامات (أسطر الكشف): ${totals.itemCount}`,
-      `مجموع الأتواب: ${totals.totalRolls.toLocaleString('ar')}`,
-      `إجمالي الأمتار: ${totals.totalQuantity.toLocaleString('ar')} م`,
-      `إجمالي الأتواب: ${totals.totalRolls.toLocaleString('ar')}`,
+      t('whatsapp.customerStatementHeader', { ns: 'terminology', name: selectedCustomer.name }),
+      t('whatsapp.periodRange', { ns: 'terminology', from: fromDate, to: toDate }),
+      t('whatsapp.itemsLineCount', { ns: 'terminology', count: totals.itemCount }),
+      t('whatsapp.totalRolls', { ns: 'terminology', count: totals.totalRolls.toLocaleString(loc) }),
+      t('whatsapp.totalMeters', { ns: 'terminology', meters: totals.totalQuantity.toLocaleString(loc) }),
+      t('whatsapp.totalRollsAgain', { ns: 'terminology', count: totals.totalRolls.toLocaleString(loc) }),
       accountFinancialSummary
-        ? `إجمالي المدين: ${accountFinancialSummary.debit.toLocaleString('ar')} — إجمالي الدائن: ${accountFinancialSummary.credit.toLocaleString('ar')}`
+        ? t('whatsapp.totalDebitCredit', { ns: 'terminology', debit: accountFinancialSummary.debit.toLocaleString(loc), credit: accountFinancialSummary.credit.toLocaleString(loc) })
         : null,
       accountFinancialSummary
-        ? `الرصيد النهائي (${accountFinancialSummary.closingType}): ${accountFinancialSummary.closingBalance.toLocaleString('ar')}`
-        : `الرصيد ${balance.type}: ${balance.amount.toLocaleString('ar')}`,
+        ? t('whatsapp.finalBalanceWithType', { ns: 'terminology', type: displayDebitCredit(accountFinancialSummary.closingType), amount: accountFinancialSummary.closingBalance.toLocaleString(loc) })
+        : t('whatsapp.balanceWithType', { ns: 'terminology', type: displayDebitCredit(balance.type), amount: balance.amount.toLocaleString(loc) }),
       accountFinancialSummary?.lastPayment
-        ? `آخر دفعة: ${accountFinancialSummary.lastPayment.amount.toLocaleString('ar')} بتاريخ ${accountFinancialSummary.lastPayment.date}`
+        ? t('whatsapp.lastPaymentOn', { ns: 'terminology', amount: accountFinancialSummary.lastPayment.amount.toLocaleString(loc), date: accountFinancialSummary.lastPayment.date })
         : null,
-      `تم إنشاء الكشف من ${BRAND.name} — ${BRAND.tagline} (${BRAND.descriptionAr}).`
+      t('whatsapp.generatedByBrand', { ns: 'terminology', brand: BRAND.name, tagline: BRAND.tagline, descriptionAr: BRAND.descriptionAr }),
     ].filter(Boolean).join('\n');
 
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
@@ -811,7 +813,7 @@ export const CustomerStatement = () => {
     try {
       if (accountStatement?.customer) {
         const closing = accountStatement.totals.closingBalance;
-        const closingLabel = closing >= 0 ? 'مدين' : 'دائن';
+        const closingLabel = closing >= 0 ? arAccountingDebitSide() : arAccountingCreditSide();
         const pdfHtml = statementPrintHtml || buildTelegramCustomerAccountStatementHtml({
           customerName: accountStatement.customer.name,
           customerPhone: accountStatement.customer.phone ?? null,

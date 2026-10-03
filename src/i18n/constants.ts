@@ -37,6 +37,7 @@ export function markManualLanguageOverride(): void {
 }
 
 export function applyDocumentLanguage(language: AppLanguage): void {
+  if (typeof document === 'undefined') return;
   const root = document.documentElement;
   root.lang = language;
   root.dir = language === 'ar' ? 'rtl' : 'ltr';

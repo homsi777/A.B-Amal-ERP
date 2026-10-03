@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import i18n from '../i18n/config';
 import { Calendar, Check, Download, FileUp, Loader2, Pencil, Plus, Printer, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   type ApiCustomer,
@@ -236,10 +237,10 @@ export const Customers = () => {
 
     return `
       <!doctype html>
-      <html lang="ar" dir="rtl">
+      <html lang="${i18n.language === 'ar' ? 'ar' : 'tr'}" dir="rtl">
         <head>
           <meta charset="utf-8" />
-          <title>كشف ذمم العملاء</title>
+          <title>${t('duesReport.customerTitle', { ns: 'terminology' })}</title>
           <style>
             @page { size: A4; margin: 10mm; }
             body { font-family: Arial, Tahoma, sans-serif; color: #0f172a; font-size: 14px; }
@@ -259,26 +260,26 @@ export const Customers = () => {
             <div class="brand">${escapeHtml(BRAND.name)}</div>
             <div>${escapeHtml(BRAND.descriptionAr)}</div>
           </div>
-          <div class="title">كشف ذمم العملاء</div>
+          <div class="title">${t('duesReport.customerTitle', { ns: 'terminology' })}</div>
           <div class="meta">
-            <div>تاريخ التذكير: ${escapeHtml(reminderDate)}</div>
-            <div>عدد العملاء: ${customers.length}</div>
+            <div>${t('duesReport.reminderDate', { ns: 'terminology' })} ${escapeHtml(reminderDate)}</div>
+            <div>${t('duesReport.customerCount', { ns: 'terminology' })} ${customers.length}</div>
           </div>
           <table>
             <thead>
               <tr>
-                <th>الكود</th>
-                <th class="customer-name">اسم العميل</th>
-                <th>مجموع</th>
-                <th>دائن</th>
-                <th>مدين</th>
-                <th>متبقي</th>
-                <th>العملة</th>
-                <th>ملاحظة</th>
+                <th>${t('duesReport.colCode', { ns: 'terminology' })}</th>
+                <th class="customer-name">${t('duesReport.colCustomerName', { ns: 'terminology' })}</th>
+                <th>${t('duesReport.colTotal', { ns: 'terminology' })}</th>
+                <th>${t('duesReport.colCredit', { ns: 'terminology' })}</th>
+                <th>${t('duesReport.colDebit', { ns: 'terminology' })}</th>
+                <th>${t('duesReport.colRemaining', { ns: 'terminology' })}</th>
+                <th>${t('duesReport.colCurrency', { ns: 'terminology' })}</th>
+                <th>${t('duesReport.colNote', { ns: 'terminology' })}</th>
               </tr>
             </thead>
             <tbody>
-              ${rows || `<tr><td colspan="8" style="text-align:center;">لا توجد بيانات</td></tr>`}
+              ${rows || `<tr><td colspan="8" style="text-align:center;">${t('duesReport.noData', { ns: 'terminology' })}</td></tr>`}
             </tbody>
           </table>
         </body>

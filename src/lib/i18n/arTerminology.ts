@@ -8,67 +8,67 @@ import i18n from '../../i18n/config';
 
 /** Labels for print / on-screen invoice statement (كشف الفاتورة). */
 export const AR_INVOICE_STATEMENT = {
-  printTitle: 'إشعار تسليم تفصيلي',
-  printSubtitle: 'كشف الفاتورة',
-  customerSupplier: 'العميل / المورد',
-  serialInvoiceNo: 'الرقم / رقم الفاتورة',
-  date: 'التاريخ',
-  currency: 'العملة',
-  warehouse: 'المستودع',
-  paymentStatus: 'حالة الدفع',
-  saleTerms: 'شروط البيع',
-  paidAmount: 'المبلغ المدفوع',
-  remainingAmount: 'المبلغ المتبقي',
-  total: 'الإجمالي',
-  notes: 'ملاحظات',
-  fabricMaterial: 'القماش / الخامة',
-  design: 'التصميم',
-  rollNo: 'رقم التوب',
-  barcode: 'الباركود',
-  colorCode: 'رمز اللون',
-  colorName: 'اسم اللون',
-  meters: 'الأمتار',
-  kg: 'الوزن',
-  pricePerM: 'سعر المتر',
-  subtotalRow: 'المجموع الفرعي',
-  grandTotals: 'الإجمالي العام',
-  invoicePackingSummary: 'ملخص الأشعار',
-  noInvoiceLines: 'لا توجد بنود في الفاتورة',
-  preparedBy: 'أعدّها',
-  deliveredBy: 'سلّمها',
-  receivedBy: 'استلمها',
+  get printTitle() { return i18n.t('invoiceStatement.printTitle', { ns: 'terminology' }); },
+  get printSubtitle() { return i18n.t('invoiceStatement.printSubtitle', { ns: 'terminology' }); },
+  get customerSupplier() { return i18n.t('invoiceStatement.customerSupplier', { ns: 'terminology' }); },
+  get serialInvoiceNo() { return i18n.t('invoiceStatement.serialInvoiceNo', { ns: 'terminology' }); },
+  get date() { return i18n.t('invoiceStatement.date', { ns: 'terminology' }); },
+  get currency() { return i18n.t('invoiceStatement.currency', { ns: 'terminology' }); },
+  get warehouse() { return i18n.t('invoiceStatement.warehouse', { ns: 'terminology' }); },
+  get paymentStatus() { return i18n.t('invoiceStatement.paymentStatus', { ns: 'terminology' }); },
+  get saleTerms() { return i18n.t('invoiceStatement.saleTerms', { ns: 'terminology' }); },
+  get paidAmount() { return i18n.t('invoiceStatement.paidAmount', { ns: 'terminology' }); },
+  get remainingAmount() { return i18n.t('invoiceStatement.remainingAmount', { ns: 'terminology' }); },
+  get total() { return i18n.t('invoiceStatement.total', { ns: 'terminology' }); },
+  get notes() { return i18n.t('invoiceStatement.notes', { ns: 'terminology' }); },
+  get fabricMaterial() { return i18n.t('invoiceStatement.fabricMaterial', { ns: 'terminology' }); },
+  get design() { return i18n.t('invoiceStatement.design', { ns: 'terminology' }); },
+  get rollNo() { return i18n.t('invoiceStatement.rollNo', { ns: 'terminology' }); },
+  get barcode() { return i18n.t('invoiceStatement.barcode', { ns: 'terminology' }); },
+  get colorCode() { return i18n.t('invoiceStatement.colorCode', { ns: 'terminology' }); },
+  get colorName() { return i18n.t('invoiceStatement.colorName', { ns: 'terminology' }); },
+  get meters() { return i18n.t('invoiceStatement.meters', { ns: 'terminology' }); },
+  get kg() { return i18n.t('invoiceStatement.kg', { ns: 'terminology' }); },
+  get pricePerM() { return i18n.t('invoiceStatement.pricePerM', { ns: 'terminology' }); },
+  get subtotalRow() { return i18n.t('invoiceStatement.subtotalRow', { ns: 'terminology' }); },
+  get grandTotals() { return i18n.t('invoiceStatement.grandTotals', { ns: 'terminology' }); },
+  get invoicePackingSummary() { return i18n.t('invoiceStatement.invoicePackingSummary', { ns: 'terminology' }); },
+  get noInvoiceLines() { return i18n.t('invoiceStatement.noInvoiceLines', { ns: 'terminology' }); },
+  get preparedBy() { return i18n.t('invoiceStatement.preparedBy', { ns: 'terminology' }); },
+  get deliveredBy() { return i18n.t('invoiceStatement.deliveredBy', { ns: 'terminology' }); },
+  get receivedBy() { return i18n.t('invoiceStatement.receivedBy', { ns: 'terminology' }); },
   /** يُطبع على كشوف المسودات قبل التأكيد */
-  draftBanner: 'مسودة غير مؤكدة',
-} as const;
+  get draftBanner() { return i18n.t('invoiceStatement.draftBanner', { ns: 'terminology' }); },
+};
 
 /** Payment progress for display (حالة الدفع) from settled amounts. */
 export function arPaymentProgressFromInvoice(inv: { paidAmount: number; totalAmount: number }): string {
   const { paidAmount: p, totalAmount: t } = inv;
-  if (t <= 1e-4) return '—';
-  if (p >= t - 1e-4) return 'مدفوع';
-  if (p <= 1e-4) return 'غير مدفوع';
-  return 'مدفوع جزئياً';
+  if (t <= 1e-4) return i18n.t('paymentProgress.dash', { ns: 'terminology' });
+  if (p >= t - 1e-4) return i18n.t('paymentProgress.paid', { ns: 'terminology' });
+  if (p <= 1e-4) return i18n.t('paymentProgress.unpaid', { ns: 'terminology' });
+  return i18n.t('paymentProgress.partial', { ns: 'terminology' });
 }
 
 /** Sale / settlement terms narrative (شروط البيع). */
 export function arSaleTermsFromInvoice(inv: { paidAmount: number; totalAmount: number }): string {
   const t = inv.totalAmount;
   const p = inv.paidAmount;
-  if (t <= 0) return '—';
-  if (p >= t - 1e-4) return 'نقدي / مدفوع بالكامل';
-  if (p <= 1e-4) return 'آجل';
-  return 'آجل مع دفعة جزئية';
+  if (t <= 0) return i18n.t('saleTerms.dash', { ns: 'terminology' });
+  if (p >= t - 1e-4) return i18n.t('saleTerms.cashPaidFull', { ns: 'terminology' });
+  if (p <= 1e-4) return i18n.t('saleTerms.credit', { ns: 'terminology' });
+  return i18n.t('saleTerms.creditWithPartial', { ns: 'terminology' });
 }
 
 export function arCashPartyFallbackLabel(): string {
-  return 'عميل / مورد نقدي';
+  return i18n.t('cashPartyFallback', { ns: 'terminology' });
 }
 
 /** Maps stored invoice payment state to short Arabic labels (badges, Telegram, etc.). */
 export function arInvoicePaymentStatusCode(status: Invoice['status']): string {
-  if (status === 'paid') return 'مدفوع';
-  if (status === 'partial') return 'مدفوع جزئياً';
-  return 'غير مدفوع';
+  if (status === 'paid') return i18n.t('paymentProgress.paid', { ns: 'terminology' });
+  if (status === 'partial') return i18n.t('paymentProgress.partial', { ns: 'terminology' });
+  return i18n.t('paymentProgress.unpaid', { ns: 'terminology' });
 }
 
 /** نسخة مضغوطة لجداول الفواتير — تمنع التكدس في عمود حالة الدفع */
@@ -100,9 +100,9 @@ export function arDocumentStatus(status: string | null | undefined): string {
  * Accounting-only: side of entry (مدين / دائن). Do not use for "آجل" sale terms.
  */
 export function arAccountingCreditSide(): string {
-  return 'دائن';
+  return i18n.t('accounting.creditSide', { ns: 'terminology' });
 }
 
 export function arAccountingDebitSide(): string {
-  return 'مدين';
+  return i18n.t('accounting.debitSide', { ns: 'terminology' });
 }

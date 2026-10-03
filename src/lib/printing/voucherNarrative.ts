@@ -1,3 +1,7 @@
+import i18n from '../../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
+
 export type VoucherNarrativeInput = {
   voucherType: 'RECEIPT' | 'PAYMENT';
   partyName: string;
@@ -10,11 +14,11 @@ export type VoucherNarrativeInput = {
   description?: string | null;
 };
 
-function paymentMethodAr(method?: string | null): string {
+function paymentMethodLabel(method?: string | null): string {
   const m = String(method ?? 'CASH').trim().toUpperCase();
-  if (m === 'CASH') return 'نقداً';
-  if (m === 'BANK') return 'عبر تحويل بنكي';
-  if (m === 'TRANSFER') return 'عبر حوالة';
+  if (m === 'CASH') return t('voucherNarrative.cashOnly');
+  if (m === 'BANK') return t('voucherNarrative.viaBankTransfer');
+  if (m === 'TRANSFER') return t('voucherNarrative.viaTransfer');
   return '';
 }
 
@@ -25,11 +29,27 @@ function formatAmountLabel(amount: number, currencyCode: string): string {
   return `${formatted} ${code}`;
 }
 
+const HONORIFIC_PREFIX_RE: Record<string, RegExp> = {
+  ar: /^(السيد|السيدة|الأستاذ|الأستاذة)\s/,
+  tr: /^(Sayın|Bay|Bayan)\s/,
+};
+
 function partyWithHonorific(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return '—';
-  if (/^(السيد|السيدة|الأستاذ|الأستاذة)\s/.test(trimmed)) return trimmed;
-  return `السيد ${trimmed}`;
+  const lang = i18n.language === 'ar' ? 'ar' : 'tr';
+  if (HONORIFIC_PREFIX_RE[lang].test(trimmed)) return trimmed;
+  return t('voucherNarrative.honorificPrefix', { name: trimmed });
+}
+
+function purposeLabel(purpose?: string | null): string {
+  const p = String(purpose ?? '').trim().toUpperCase();
+  if (p === 'ADVANCE') return t('voucherNarrative.purposeAdvance');
+  if (p === 'ADVANCE_REFUND') return t('voucherNarrative.purposeAdvanceRefund');
+  if (p === 'COMPENSATION') return t('voucherNarrative.purposeCompensation');
+  if (p === 'OTHER') return t('voucherNarrative.purposeOther');
+  if (p === 'INVOICE_PAYMENT') return t('voucherNarrative.purposeInvoicePayment');
+  return '';
 }
 
 /** البيان المختصر في بطاقة بيانات العميل/المستفيد */
@@ -37,32 +57,24 @@ export function buildVoucherMetaStatement(input: VoucherNarrativeInput): string 
   const desc = String(input.description ?? '').trim();
   if (desc) return desc;
 
-  const purpose = String(input.purpose ?? '').trim().toUpperCase();
-  const purposeAr =
-    purpose === 'ADVANCE'
-      ? 'عربون'
-      : purpose === 'ADVANCE_REFUND'
-        ? 'رد عربون'
-        : purpose === 'COMPENSATION'
-          ? 'تعويض / عطل وضرر'
-          : purpose === 'OTHER'
-            ? 'أخرى'
-            : purpose === 'INVOICE_PAYMENT'
-              ? 'دفعة / تسوية فاتورة'
-              : '';
-
+  const purposeText = purposeLabel(input.purpose);
   const ref = String(input.referenceDocumentNo ?? '').trim();
+
   if (input.voucherType === 'RECEIPT' && ref) {
-    return purposeAr ? `${purposeAr} مقابل كشف فاتورة ${ref}` : `قبض مقابل كشف فاتورة ${ref}`;
+    return purposeText
+      ? t('voucherNarrative.metaReceiptWithRefAndPurpose', { purpose: purposeText, ref })
+      : t('voucherNarrative.metaReceiptWithRefNoPurpose', { ref });
   }
   if (input.voucherType === 'RECEIPT') {
     const party = input.partyName.trim();
-    if (purposeAr && party) return `${purposeAr} — قبض من ${party}`;
-    return party ? `قبض من ${party}` : purposeAr || 'قبض نقدي';
+    if (purposeText && party) return t('voucherNarrative.metaReceiptNoRefWithPurposeAndParty', { purpose: purposeText, party });
+    if (party) return t('voucherNarrative.metaReceiptNoRefWithParty', { party });
+    return purposeText || t('voucherNarrative.metaReceiptCashOnly');
   }
   const party = input.partyName.trim();
-  if (purposeAr && party) return `${purposeAr} — صرف إلى ${party}`;
-  return party ? `صرف إلى ${party}` : purposeAr || 'صرف نقدي';
+  if (purposeText && party) return t('voucherNarrative.metaPaymentWithPurposeAndParty', { purpose: purposeText, party });
+  if (party) return t('voucherNarrative.metaPaymentWithParty', { party });
+  return purposeText || t('voucherNarrative.metaPaymentCashOnly');
 }
 
 /**
@@ -74,30 +86,30 @@ export function buildVoucherMetaStatement(input: VoucherNarrativeInput): string 
  */
 export function buildVoucherNarrativeParagraph(input: VoucherNarrativeInput): string {
   const amountLabel = formatAmountLabel(input.amount, input.currencyCode);
-  const payMethod = paymentMethodAr(input.paymentMethod);
+  const payMethod = paymentMethodLabel(input.paymentMethod);
   const paySuffix = payMethod ? ` ${payMethod}` : '';
   const party = partyWithHonorific(input.partyName);
-  const cashbox = String(input.cashboxName ?? '').trim() || 'الصندوق';
+  const cashbox = String(input.cashboxName ?? '').trim() || t('voucherNarrative.defaultCashbox');
   const ref = String(input.referenceDocumentNo ?? '').trim();
   const desc = String(input.description ?? '').trim();
 
   if (input.voucherType === 'RECEIPT') {
     if (ref) {
-      return `تم استلام مبلغ ${amountLabel}${paySuffix} مقابل كشف الفاتورة رقم ${ref}.`;
+      return t('voucherNarrative.paragraphReceiptWithRef', { amount: amountLabel, method: paySuffix, ref });
     }
     if (desc) {
-      return `تم استلام مبلغ ${amountLabel}${paySuffix} من ${party} — ${desc}.`;
+      return t('voucherNarrative.paragraphReceiptWithDesc', { amount: amountLabel, method: paySuffix, party, desc });
     }
-    return `تم استلام مبلغ ${amountLabel}${paySuffix} من ${party}.`;
+    return t('voucherNarrative.paragraphReceiptPlain', { amount: amountLabel, method: paySuffix, party });
   }
 
   if (desc && !ref) {
-    return `تم صرف مبلغ ${amountLabel} إلى ${party} من ${cashbox} — ${desc}.`;
+    return t('voucherNarrative.paragraphPaymentWithDescNoRef', { amount: amountLabel, party, cashbox, desc });
   }
   if (ref) {
-    return `تم صرف مبلغ ${amountLabel} إلى ${party} من ${cashbox} مقابل ${ref}.`;
+    return t('voucherNarrative.paragraphPaymentWithRef', { amount: amountLabel, party, cashbox, ref });
   }
-  return `تم صرف مبلغ ${amountLabel} إلى ${party} من ${cashbox}.`;
+  return t('voucherNarrative.paragraphPaymentPlain', { amount: amountLabel, party, cashbox });
 }
 
 /** أجزاء الفقرة للتمييز البصري (المبلغ والمرجع بخط عريض في القالب) */

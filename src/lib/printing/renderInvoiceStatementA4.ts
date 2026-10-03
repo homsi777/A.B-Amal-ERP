@@ -1,6 +1,9 @@
 import type { Invoice, InvoiceItem } from '../../types';
 import { BRAND } from '../../branding';
 import { AR_INVOICE_STATEMENT } from '../i18n/arTerminology';
+import i18n from '../../i18n/config';
+
+const t = (key: string) => i18n.t(key, { ns: 'terminology' });
 import { resolveDisplayMaterialCode } from '../importDisplay';
 import { displayStoredInvoiceNo } from '../invoiceDbMappers';
 import { documentFooterStyles, renderDocumentFooterHtml } from './renderDocumentFooter';
@@ -125,13 +128,7 @@ function splitPrintedCompositeLine(line: {
 }
 
 function buildManagerNoteLines(): string[] {
-  return [
-    'يرجى التأكد من أرقام الأطوال وأرقام اللوطات قبل القص.',
-    'يرجى مطابقة اللون ورقم اللون قبل تنفيذ القص.',
-    'يفضل أن يتم القص من نفس اللوط لتجنب اختلافات اللون.',
-    'الأقمشة المقصوصة أو المفتوحة لا تقبل الإرجاع.',
-    'لا تقبل أي مطالبة بعد مرور 15 يوماً من تاريخ التسليم.',
-  ];
+  return i18n.t('invoiceStatement.managerNotes', { ns: 'terminology', returnObjects: true }) as string[];
 }
 
 export function renderInvoiceStatementA4Html(opts: {
@@ -152,10 +149,10 @@ export function renderInvoiceStatementA4Html(opts: {
   const isDraft = opts.isDraft ?? invoice.documentStatus === 'DRAFT';
   const draftLabel = opts.draftLabel ?? AR_INVOICE_STATEMENT.draftBanner;
   const currency = (invoice.currency || 'USD').trim() || 'USD';
-  const title = opts.title ?? 'إشعار تسليم تفصيلي';
-  const subtitle = opts.subtitle ?? 'كشف الفاتورة';
-  const invoiceTypeLabel = opts.invoiceTypeLabel ?? (invoice.type === 'purchase' ? 'شراء' : 'بيع');
-  const partyLabel = opts.partyLabel ?? (invoice.type === 'purchase' ? 'اسم المورد' : 'اسم العميل');
+  const title = opts.title ?? AR_INVOICE_STATEMENT.printTitle;
+  const subtitle = opts.subtitle ?? AR_INVOICE_STATEMENT.printSubtitle;
+  const invoiceTypeLabel = opts.invoiceTypeLabel ?? (invoice.type === 'purchase' ? t('invoiceStatement.typePurchase') : t('invoiceStatement.typeSale'));
+  const partyLabel = opts.partyLabel ?? (invoice.type === 'purchase' ? t('invoiceStatement.supplierNameLabel') : t('invoiceStatement.customerNameLabel'));
   const invoiceNo = normalizeText(displayStoredInvoiceNo(invoice.invoiceNumber), '—');
   const invoiceDate = formatInvoiceDate(invoice.date);
   const partyName = normalizeText(opts.partyName, '—');
@@ -297,15 +294,15 @@ export function renderInvoiceStatementA4Html(opts: {
             <td class="meta-val">${escapeHtml(partyName)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">عنوان الشحن</td>
+            <td class="meta-lbl">${t('invoiceStatement.shippingAddress')}</td>
             <td class="meta-val">${escapeHtml(shippingAddress)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">رقم الفاتورة</td>
+            <td class="meta-lbl">${t('invoiceStatement.invoiceNoLabel')}</td>
             <td class="meta-val mono">${escapeHtml(invoiceNo)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">البيان</td>
+            <td class="meta-lbl">${t('invoiceStatement.statementLabel')}</td>
             <td class="meta-val">${escapeHtml(subtitle)}</td>
           </tr>
         </tbody>
@@ -313,19 +310,19 @@ export function renderInvoiceStatementA4Html(opts: {
       <table class="meta-card">
         <tbody>
           <tr>
-            <td class="meta-lbl">نوع الفاتورة</td>
+            <td class="meta-lbl">${t('invoiceStatement.invoiceTypeLabelField')}</td>
             <td class="meta-val">${escapeHtml(invoiceTypeLabel)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">التاريخ</td>
+            <td class="meta-lbl">${AR_INVOICE_STATEMENT.date}</td>
             <td class="meta-val mono">${escapeHtml(invoiceDate)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">رقم الفاتورة والتاريخ</td>
+            <td class="meta-lbl">${t('invoiceStatement.invoiceNoAndDate')}</td>
             <td class="meta-val mono">${escapeHtml(invoiceNo)} / ${escapeHtml(invoiceDate)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">طريقة النقل</td>
+            <td class="meta-lbl">${t('invoiceStatement.shippingMethod')}</td>
             <td class="meta-val">—</td>
           </tr>
         </tbody>
@@ -352,7 +349,9 @@ export function renderInvoiceStatementA4Html(opts: {
     }
 
     const subtotalLabel =
-      group.rollCount === 1 ? `${group.rollCount} نوب` : `إجمالي: ${group.rollCount} نوب`;
+      group.rollCount === 1
+        ? `${group.rollCount} ${t('invoiceStatement.rollUnitNoob')}`
+        : `${AR_INVOICE_STATEMENT.total}: ${group.rollCount} ${t('invoiceStatement.rollUnitNoob')}`;
 
     detailRows.push({
       kind: 'subtotal',
@@ -373,7 +372,7 @@ export function renderInvoiceStatementA4Html(opts: {
       kind: 'grand',
       html: `
     <tr class="grand-subtotal-row">
-      <td class="subtotal-cell subtotal-label strong" colspan="4">إجمالي: ${totalRollsAll} نوب</td>
+      <td class="subtotal-cell subtotal-label strong" colspan="4">${AR_INVOICE_STATEMENT.total}: ${totalRollsAll} ${t('invoiceStatement.rollUnitNoob')}</td>
       <td class="subtotal-cell num strong">${formatAr(totalMetersAll)} mt</td>
       <td class="subtotal-cell num strong">${formatAr(totalKgAll)} kg</td>
       <td class="subtotal-cell" colspan="2"></td>
@@ -384,7 +383,7 @@ export function renderInvoiceStatementA4Html(opts: {
   const summaryRows = summaryRowsData
     .map((row) => {
       const meterPrice = row.meters > 0 ? row.totalAmount / row.meters : 0;
-      const colorLabel = row.colors.size === 1 ? '1 لون' : `${row.colors.size} لون`;
+      const colorLabel = `${row.colors.size} ${t('invoiceStatement.colorUnit')}`;
       const priceCell = hideFinancialColumns
         ? ''
         : `<td class="cell num">${formatAr(meterPrice)} ${escapeHtml(currency)}</td>`;
@@ -420,25 +419,25 @@ export function renderInvoiceStatementA4Html(opts: {
       <table class="financial-table">
         <tbody>
           ${discountAmount > 0 ? `<tr>
-            <td class="fin-label">(المجموع قبل الخصم)</td>
+            <td class="fin-label">${t('invoiceStatement.beforeDiscount')}</td>
             <td class="fin-value num">${formatAr(subtotalAmount)} ${escapeHtml(currency)}</td>
           </tr>
           <tr>
-            <td class="fin-label">(الخصم)</td>
+            <td class="fin-label">${t('invoiceStatement.discountLabel')}</td>
             <td class="fin-value num">−${formatAr(discountAmount)} ${escapeHtml(currency)}</td>
           </tr>` : ''}
-          ${taxAmount > 0 ? `<tr><td class="fin-label">(الضريبة)</td><td class="fin-value num">${formatAr(taxAmount)} ${escapeHtml(currency)}</td></tr>` : ''}
+          ${taxAmount > 0 ? `<tr><td class="fin-label">${t('invoiceStatement.taxLabel')}</td><td class="fin-value num">${formatAr(taxAmount)} ${escapeHtml(currency)}</td></tr>` : ''}
           <tr class="${hasAdvancePayment ? '' : 'financial-final'}">
-            <td class="fin-label">(الإجمالي النهائي)</td>
+            <td class="fin-label">${t('invoiceStatement.finalTotal')}</td>
             <td class="fin-value num">${formatAr(invoiceFinalTotal)} ${escapeHtml(currency)}</td>
           </tr>
           ${hasAdvancePayment ? `
           <tr>
-            <td class="fin-label">(العربون / الدفعة المقدمة)</td>
+            <td class="fin-label">${t('invoiceStatement.advancePayment')}</td>
             <td class="fin-value num">−${formatAr(paidAmount)} ${escapeHtml(currency)}</td>
           </tr>
           <tr class="financial-final">
-            <td class="fin-label">(المتبقي للدفع)</td>
+            <td class="fin-label">${t('invoiceStatement.remainingToPay')}</td>
             <td class="fin-value num">${formatAr(remainingAmount)} ${escapeHtml(currency)}</td>
           </tr>` : ''}
         </tbody>
@@ -456,14 +455,14 @@ export function renderInvoiceStatementA4Html(opts: {
         </colgroup>
         <thead>
           <tr>
-            <th>اسم الخامة</th>
-            <th>كود الخامة</th>
-            <th>كود اللون</th>
-            <th>اللون</th>
-            <th>متر</th>
-            <th>كغ</th>
-            <th>رقم الباركود</th>
-            <th>رقم اللوط</th>
+            <th>${t('invoiceStatement.colMaterialName')}</th>
+            <th>${t('invoiceStatement.colMaterialCode')}</th>
+            <th>${t('invoiceStatement.colColorCode')}</th>
+            <th>${t('invoiceStatement.colColorName')}</th>
+            <th>${t('invoiceStatement.colMeter')}</th>
+            <th>${t('invoiceStatement.colKg')}</th>
+            <th>${t('invoiceStatement.colBarcodeNo')}</th>
+            <th>${t('invoiceStatement.colLotNo')}</th>
           </tr>
         </thead>
         <tbody>
@@ -473,7 +472,7 @@ export function renderInvoiceStatementA4Html(opts: {
 
   const summaryAndTotalsHtml = `
       <div class="summary-section">
-        <div class="section-title">ملخص الأشعار</div>
+        <div class="section-title">${AR_INVOICE_STATEMENT.invoicePackingSummary}</div>
         <table class="data-table summary-table">
           <colgroup>
             <col class="sum-material" /><col class="sum-design" /><col class="sum-colors" />
@@ -482,19 +481,19 @@ export function renderInvoiceStatementA4Html(opts: {
           </colgroup>
           <thead>
             <tr>
-              <th>اسم الخامة</th>
-              <th>كود الخامة</th>
-              <th>عدد الألوان</th>
-              <th>متر</th>
-              <th>كغ</th>
-              ${hideFinancialColumns ? '' : '<th>السعر/م</th><th>الإجمالي</th>'}
+              <th>${t('invoiceStatement.colMaterialName')}</th>
+              <th>${t('invoiceStatement.colMaterialCode')}</th>
+              <th>${t('invoiceStatement.colColorsCount')}</th>
+              <th>${t('invoiceStatement.colMeter')}</th>
+              <th>${t('invoiceStatement.colKg')}</th>
+              ${hideFinancialColumns ? '' : `<th>${t('invoiceStatement.colPricePerMeter')}</th><th>${AR_INVOICE_STATEMENT.total}</th>`}
             </tr>
           </thead>
           <tbody>
             ${summaryRows || `<tr><td class="cell center" colspan="${hideFinancialColumns ? 5 : 7}">—</td></tr>`}
             <tr class="summary-total-row">
-              <td class="cell text strong" colspan="2">الإجمالي العام</td>
-              <td class="cell center strong">${totalRollsAll} توب</td>
+              <td class="cell text strong" colspan="2">${AR_INVOICE_STATEMENT.grandTotals}</td>
+              <td class="cell center strong">${totalRollsAll} ${t('invoiceStatement.rollUnitToub')}</td>
               <td class="cell num strong">${formatAr(totalMetersAll)}</td>
               <td class="cell num strong">${formatAr(totalKgAll)}</td>
               ${totalPriceCell}
@@ -506,7 +505,7 @@ export function renderInvoiceStatementA4Html(opts: {
 
       <div class="bottom-row">
         <div class="notes-box">
-          <div class="notes-title">ملاحظة:</div>
+          <div class="notes-title">${t('invoiceStatement.noteLabel')}</div>
           ${invoiceNote ? `<div class="notes-line invoice-note-line">• ${escapeHtml(invoiceNote)}</div>` : ''}
           ${noteLines.map((line) => `<div class="notes-line">• ${escapeHtml(line)}</div>`).join('')}
         </div>
@@ -514,8 +513,8 @@ export function renderInvoiceStatementA4Html(opts: {
       </div>
 
       <div class="signatures">
-        <div class="signature-box">سلّمها (ختم/توقيع)</div>
-        <div class="signature-box">استلمها (ختم/توقيع)</div>
+        <div class="signature-box">${AR_INVOICE_STATEMENT.deliveredBy} ${t('invoiceStatement.sealSignature')}</div>
+        <div class="signature-box">${AR_INVOICE_STATEMENT.receivedBy} ${t('invoiceStatement.sealSignature')}</div>
       </div>`;
 
   // المسودة أطول قليلًا بسبب شريط التنبيه، لذلك لها سعة أقل بسطرين.

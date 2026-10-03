@@ -8,6 +8,9 @@ import {
   renderReservationOrderA4Document,
   renderReservationOrderBodyHtml,
 } from './printing/renderReservationOrderA4';
+import i18n from '../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 function escapeHtml(s: string): string {
   return s
@@ -385,15 +388,15 @@ export async function printCustomerOrderDocument(
         printerName: settings.defaultA4PrinterName ?? undefined,
         printBackground: true,
       });
-      return result.ok ? { ok: true } : { ok: false, error: result.error || 'تعذرت الطباعة' };
+      return result.ok ? { ok: true } : { ok: false, error: result.error || t('orderExport.printFailed') };
     } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : 'تعذرت الطباعة' };
+      return { ok: false, error: error instanceof Error ? error.message : t('orderExport.printFailed') };
     }
   }
 
   const printWindow = window.open('', '_blank', 'width=980,height=900');
   if (!printWindow) {
-    return { ok: false, error: 'اسمح بالنوافذ المنبثقة ثم أعد المحاولة' };
+    return { ok: false, error: t('orderExport.allowPopups') };
   }
   printWindow.document.write(fullHtml);
   printWindow.document.close();
@@ -416,23 +419,23 @@ export function exportCustomerOrderExcel(order: CustomerOrder, customer: Custome
   const tl = orderTotalLength(order);
   const tw = orderTotalWeight(order);
   const headerRows: (string | number)[][] = [
-    ['طلبية حجز', order.orderNumber],
-    ['الحالة', statusLabelAr],
-    ['تاريخ الطلب', order.date],
-    ['العميل', customer.name],
-    ['الجوال', customer.phone],
-    ['العنوان', customer.address],
-    ['العملة', order.currency],
-    ['المستودع', orderWarehouseDisplayLabel(order.warehouse)],
-    ['متوقع التوريد', order.expectedDate || ''],
-    ['ملاحظات', order.notes || ''],
+    [t('orderExport.excelReservationOrder'), order.orderNumber],
+    [t('orderExport.excelStatus'), statusLabelAr],
+    [t('orderExport.excelOrderDate'), order.date],
+    [t('orderExport.excelCustomer'), customer.name],
+    [t('orderExport.excelPhone'), customer.phone],
+    [t('orderExport.excelAddress'), customer.address],
+    [t('orderExport.excelCurrency'), order.currency],
+    [t('orderExport.excelWarehouse'), orderWarehouseDisplayLabel(order.warehouse)],
+    [t('orderExport.excelExpectedSupply'), order.expectedDate || ''],
+    [t('orderExport.excelNotes'), order.notes || ''],
     [],
-    ['إجمالي الخامات (عدد البنود)', order.items.length],
-    ['إجمالي الطول', tl],
-    ['إجمالي الوزن (كجم)', tw],
-    ['إجمالي السعر', total],
+    [t('orderExport.excelTotalMaterials'), order.items.length],
+    [t('orderExport.excelTotalLength'), tl],
+    [t('orderExport.excelTotalWeightKg'), tw],
+    [t('orderExport.excelTotalPrice'), total],
     [],
-    ['#', 'صورة (رابط)', 'مرجع/باركود', 'اسم الخامة', 'كود خامة', 'كود لون', 'لون', 'كمية', 'سعر', 'إجمالي سطر', 'وزن kg'],
+    ['#', t('orderExport.excelColImageLink'), t('orderExport.excelColRefBarcode'), t('orderExport.excelColMaterialName'), t('orderExport.excelColMaterialCode'), t('orderExport.excelColColorCode'), t('orderExport.excelColColor'), t('orderExport.excelColQuantity'), t('orderExport.excelColPrice'), t('orderExport.excelColLineTotal'), t('orderExport.excelColWeightKg')],
   ];
 
   const bodyRows = order.items.map((line, i) => [
@@ -450,12 +453,12 @@ export function exportCustomerOrderExcel(order: CustomerOrder, customer: Custome
   ]);
 
   const footerRows: (string | number)[][] = [
-    ['', '', '', '', '', '', '', '', 'الإجمالي', total, tw],
+    ['', '', '', '', '', '', '', '', t('orderExport.excelTotalRow'), total, tw],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet([...headerRows, ...bodyRows, [], ...footerRows]);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'طلبية');
+  XLSX.utils.book_append_sheet(wb, ws, t('orderExport.excelSheetName'));
   const fname = `${order.orderNumber.replace(/[\\/:*?"<>|]/g, '_')}.xlsx`;
   XLSX.writeFile(wb, fname);
 }
@@ -465,21 +468,21 @@ export function buildCustomerOrderWhatsAppText(order: CustomerOrder, customer: C
   const tl = orderTotalLength(order);
   const tw = orderTotalWeight(order);
   const lines = [
-    `📋 طلبية حجز: ${order.orderNumber}`,
-    `العميل: ${customer.name}`,
-    `الحالة: ${statusLabelAr}`,
-    `تاريخ الطلب: ${order.date}`,
-    `متوقع التوريد: ${order.expectedDate || '—'}`,
-    `إجمالي الخامات (بنود): ${order.items.length}`,
-    `إجمالي الطول: ${tl.toFixed(2)}`,
-    `إجمالي الوزن: ${tw.toFixed(2)} كجم`,
-    `إجمالي السعر (${order.currency}): ${total.toFixed(2)}`,
+    t('orderExport.whatsappHeader', { orderNumber: order.orderNumber }),
+    t('orderExport.whatsappCustomer', { name: customer.name }),
+    t('orderExport.whatsappStatus', { status: statusLabelAr }),
+    t('orderExport.whatsappOrderDate', { date: order.date }),
+    t('orderExport.whatsappExpectedSupply', { date: order.expectedDate || '—' }),
+    t('orderExport.whatsappTotalMaterials', { count: order.items.length }),
+    t('orderExport.whatsappTotalLength', { length: tl.toFixed(2) }),
+    t('orderExport.whatsappTotalWeight', { weight: tw.toFixed(2) }),
+    t('orderExport.whatsappTotalPrice', { currency: order.currency, total: total.toFixed(2) }),
     '',
-    'بنود مختصرة:',
+    t('orderExport.whatsappItemsHeader'),
     ...order.items.slice(0, 8).map((l, i) => `${i + 1}) ${l.materialName} — ${orderLineDesignNo(l)} — ${orderLineColorLabel(l)} — ${l.length} × ${l.price} = ${orderLineTotal(l).toFixed(2)}`),
-    order.items.length > 8 ? `… و${order.items.length - 8} بنداً إضافياً` : '',
+    order.items.length > 8 ? t('orderExport.whatsappMoreItems', { count: order.items.length - 8 }) : '',
     '',
-    `— من نظام ${BRAND.name} (${BRAND.tagline}) —`,
+    t('orderExport.whatsappFooter', { brand: BRAND.name, tagline: BRAND.tagline }),
   ].filter(Boolean);
   return lines.join('\n');
 }

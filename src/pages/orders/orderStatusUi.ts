@@ -1,12 +1,15 @@
 import type { CustomerOrderStatus } from '../../types';
+import i18n from '../../i18n/config';
+
+const t = (key: string) => i18n.t(key, { ns: 'terminology' });
 
 export const ORDER_STATUS_LABELS: Record<CustomerOrderStatus, string> = {
-  draft: 'مسودة',
-  pending_supply: 'بانتظار التوريد',
-  partial_ready: 'جزئياً جاهز',
-  ready_pickup: 'جاهز للتسليم',
-  completed: 'مكتمل',
-  cancelled: 'ملغى',
+  get draft() { return t('orderStatus.draft'); },
+  get pending_supply() { return t('orderStatus.pendingSupply'); },
+  get partial_ready() { return t('orderStatus.partialReady'); },
+  get ready_pickup() { return t('orderStatus.readyPickup'); },
+  get completed() { return t('orderStatus.completed'); },
+  get cancelled() { return t('orderStatus.cancelled'); },
 };
 
 export const ORDER_STATUS_FLOW: CustomerOrderStatus[] = [

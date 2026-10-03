@@ -1,6 +1,9 @@
 import type { Customer, CustomerOrder } from '../../types';
 import { BRAND } from '../../branding';
 import { displayCustomerOrderNumber, orderLineDesignNo } from '../orderDisplay';
+import i18n from '../../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 function orderLineTotal(line: CustomerOrder['items'][0]): number {
   return line.length * line.price;
@@ -19,12 +22,16 @@ const GOLD = '#C4A962';
 const BORDER = '#cbd5e1';
 const FONT = "Tahoma, Arial, 'Segoe UI', 'Arabic Typesetting', sans-serif";
 
-const CONTACT = {
+const CONTACT_STATIC = {
   email: 'bashir@clotexco.com',
   phones: ['+90541 977 7171', '+963 944 555 080'],
-  taglineAr: 'أقمشة بجودة تصنع الفرق',
-  location: 'الجمهورية العربية السورية / حلب',
 } as const;
+
+const getContact = () => ({
+  ...CONTACT_STATIC,
+  taglineAr: t('reservationOrder.tagline'),
+  location: t('documentFooter.location'),
+});
 
 function esc(s: string): string {
   return s
@@ -58,12 +65,12 @@ function formatGregorianDate(dateIso: string): string {
 
 function renderHeaderDatesBox(orderDate: string, supplyDate: string | null): string {
   const supplyBlock = supplyDate
-    ? `<div class="date-divider">${iconSvg('truck')}<span>موعد التوريد</span></div>
+    ? `<div class="date-divider">${iconSvg('truck')}<span>${t('reservationOrder.supplyDateLabel')}</span></div>
        <div class="date-main">${esc(supplyDate)}</div>`
     : '';
   return `
     <div class="date-box">
-      <div class="date-box-label">${iconSvg('calendar')}<span>تاريخ الطلب</span></div>
+      <div class="date-box-label">${iconSvg('calendar')}<span>${t('reservationOrder.orderDateLabel')}</span></div>
       <div class="date-main">${esc(orderDate)}</div>
       ${supplyBlock}
     </div>`;
@@ -161,11 +168,11 @@ function renderSignFieldsHtml(nameValue: string, emptyNameLine: boolean): string
   return `
     <table class="sign-fields" dir="rtl">
       <tr>
-        <td class="sign-key">الاسم:</td>
+        <td class="sign-key">${t('accountStatement.nameField')}</td>
         ${nameCell}
       </tr>
       <tr>
-        <td class="sign-key">التوقيع:</td>
+        <td class="sign-key">${t('accountStatement.signatureField')}</td>
         <td class="sign-val sign-underline">&nbsp;</td>
       </tr>
     </table>`;
@@ -182,19 +189,19 @@ function renderSignSectionHtml(
       <table class="sign-table" dir="rtl">
         <thead>
           <tr>
-            <th>موافقة العميل</th>
-            <th>مندوب المبيعات — ${esc(BRAND.name)}</th>
+            <th>${t('reservationOrder.customerApprovalLabel')}</th>
+            <th>${t('reservationOrder.salesRepLabel', { brand: esc(BRAND.name) })}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td class="sign-body">
               ${renderSignFieldsHtml(displayField(customer.name), false)}
-              <div class="sign-note">يرجى مراجعة البيانات والتوقيع عند الموافقة</div>
+              <div class="sign-note">${t('reservationOrder.reviewSignNote')}</div>
             </td>
             <td class="sign-body">
               ${renderSignFieldsHtml('', true)}
-              <div class="sign-advance-row">عربون: ${advanceText}</div>
+              <div class="sign-advance-row">${t('reservationOrder.advanceLabelColon', { amount: advanceText })}</div>
             </td>
           </tr>
         </tbody>
@@ -233,7 +240,7 @@ function buildGroupedItemRows(order: CustomerOrder, currency: string): string {
           <td>${lineImageHtml(line.imageUrl)}</td>
           ${groupCells}
           <td class="color-cell">${lineColorHtml(line)}</td>
-          <td class="mono">${line.length.toFixed(2)} <span style="font-size:9px;color:#64748b;">م</span></td>
+          <td class="mono">${line.length.toFixed(2)} <span style="font-size:9px;color:#64748b;">${t('reservationOrder.meterAbbrev')}</span></td>
           <td class="mono">${line.price.toFixed(2)}</td>
           <td class="mono total-cell">${formatCurrency(total, currency)}</td>
         </tr>`;
@@ -686,14 +693,15 @@ export function renderReservationOrderBodyHtml(
 
   const notesBody = order.notes?.trim() ? esc(order.notes) : '—';
 
-  const footerPhones = CONTACT.phones
+  const contact = getContact();
+  const footerPhones = contact.phones
     .map(
       (phone) =>
         `<div class="footer-contact-row">${iconSvg('phone')}<span class="footer-contact-text ltr">${footerContactText(phone)}</span></div>`,
     )
     .join('');
 
-  const footerEmail = `<div class="footer-contact-row">${iconSvg('mail')}<span class="footer-contact-text ltr">${footerContactText(CONTACT.email)}</span></div>`;
+  const footerEmail = `<div class="footer-contact-row">${iconSvg('mail')}<span class="footer-contact-text ltr">${footerContactText(contact.email)}</span></div>`;
 
   return `
     <div class="page" dir="rtl">
@@ -701,7 +709,7 @@ export function renderReservationOrderBodyHtml(
       <table class="header-table">
         <tr>
           <td style="width:24%;vertical-align:middle;">
-            <h1 class="doc-title doc-title-only">أوردر</h1>
+            <h1 class="doc-title doc-title-only">${t('reservationOrder.orderWord')}</h1>
           </td>
           <td style="width:52%;text-align:center;vertical-align:middle;">
             <img src="${BRAND.logoInline}" alt="${esc(BRAND.name)}" class="logo-center" />
@@ -717,25 +725,25 @@ export function renderReservationOrderBodyHtml(
         <tr>
           <td>
             <div class="card">
-              <div class="card-head">${iconSvg('user')}<span>بيانات العميل</span></div>
+              <div class="card-head">${iconSvg('user')}<span>${t('reservationOrder.customerDataTitle')}</span></div>
               <table class="meta-table">
-                ${metaRow(iconSvg('user'), 'العميل', displayField(customer.name))}
-                ${metaRow(iconSvg('phone'), 'رقم العميل', `<span class="ltr">${customerPhone}</span>`)}
-                ${metaRow(iconSvg('pin'), 'العنوان', customerAddress)}
-                ${metaRow(iconSvg('truck'), 'طريقة الشحن', shippingMethod)}
+                ${metaRow(iconSvg('user'), t('reservationOrder.customerLabel'), displayField(customer.name))}
+                ${metaRow(iconSvg('phone'), t('reservationOrder.customerNumberLabel'), `<span class="ltr">${customerPhone}</span>`)}
+                ${metaRow(iconSvg('pin'), t('reservationOrder.addressLabel'), customerAddress)}
+                ${metaRow(iconSvg('truck'), t('reservationOrder.shippingMethodLabel'), shippingMethod)}
               </table>
             </div>
           </td>
           <td>
             <div class="card">
-              <div class="card-head">${iconSvg('tag')}<span>بيانات الطلب</span></div>
+              <div class="card-head">${iconSvg('tag')}<span>${t('reservationOrder.orderDataTitle')}</span></div>
               <table class="meta-table">
-                ${metaRow(iconSvg('tag'), 'رقم الطلبية', `<span class="mono" style="font-weight:900;">${esc(orderNo)}</span>`)}
-                ${metaRow(iconSvg('lock'), 'حالة الطلبية', `<span class="status-pill">${esc(statusLabelAr)}</span>`)}
-                ${metaRow(iconSvg('wallet'), 'العملة', displayField(order.currency))}
+                ${metaRow(iconSvg('tag'), t('reservationOrder.orderNoLabel'), `<span class="mono" style="font-weight:900;">${esc(orderNo)}</span>`)}
+                ${metaRow(iconSvg('lock'), t('reservationOrder.orderStatusLabel'), `<span class="status-pill">${esc(statusLabelAr)}</span>`)}
+                ${metaRow(iconSvg('wallet'), t('reservationOrder.currencyLabel'), displayField(order.currency))}
               </table>
               <div class="advance-box">
-                <div class="advance-box-head">${iconSvg('wallet')}<span>عربون</span></div>
+                <div class="advance-box-head">${iconSvg('wallet')}<span>${t('reservationOrder.advanceLabel')}</span></div>
                 <div class="advance-box-value">${advanceLabel}</div>
               </div>
             </div>
@@ -743,18 +751,18 @@ export function renderReservationOrderBodyHtml(
         </tr>
       </table>
 
-      <div class="section-head">${iconSvg('bag')}<span>تفاصيل الأصناف المطلوبة</span></div>
+      <div class="section-head">${iconSvg('bag')}<span>${t('reservationOrder.itemDetailsTitle')}</span></div>
       <table class="items-table">
         <thead>
           <tr>
             <th style="width:28px;">#</th>
-            <th style="width:54px;">صورة</th>
-            <th>اسم الخامة</th>
-            <th>رقم الديزان</th>
-            <th>اللون</th>
-            <th>الأمتار</th>
-            <th>سعر المتر</th>
-            <th>إجمالي السعر</th>
+            <th style="width:54px;">${t('reservationOrder.colImage')}</th>
+            <th>${t('reservationOrder.colMaterialName')}</th>
+            <th>${t('reservationOrder.colDesignNo')}</th>
+            <th>${t('reservationOrder.colColor')}</th>
+            <th>${t('reservationOrder.colMeters')}</th>
+            <th>${t('reservationOrder.colPricePerMeter')}</th>
+            <th>${t('reservationOrder.colTotalPrice')}</th>
           </tr>
         </thead>
         <tbody>${itemRows || '<tr><td colspan="8">—</td></tr>'}</tbody>
@@ -764,19 +772,19 @@ export function renderReservationOrderBodyHtml(
         <tr>
           <td>
             <div class="total-box">
-              <div class="total-box-label">${iconSvg('doc')}<span>إجمالي الأمتار</span></div>
-              <div class="total-box-value">${totalLength.toFixed(2)} م</div>
+              <div class="total-box-label">${iconSvg('doc')}<span>${t('reservationOrder.totalMetersLabel')}</span></div>
+              <div class="total-box-value">${totalLength.toFixed(2)} ${t('reservationOrder.meterAbbrev')}</div>
             </div>
           </td>
           <td>
             <div class="total-box-main">
-              <div class="total-box-label">${iconSvg('receipt')}<span>إجمالي المبلغ</span></div>
+              <div class="total-box-label">${iconSvg('receipt')}<span>${t('reservationOrder.totalAmountLabel')}</span></div>
               <div class="total-box-value">${totalAmountLabel}</div>
             </div>
           </td>
           <td>
             <div class="total-box">
-              <div class="total-box-label">${iconSvg('wallet')}<span>المبلغ المطلوب</span></div>
+              <div class="total-box-label">${iconSvg('wallet')}<span>${t('reservationOrder.amountDueLabel')}</span></div>
               <div class="total-box-value">${amountDueLabel}</div>
             </div>
           </td>
@@ -784,7 +792,7 @@ export function renderReservationOrderBodyHtml(
       </table>
 
       <div class="notes-box">
-        <div class="notes-title">${iconSvg('note')}<span>ملاحظات</span></div>
+        <div class="notes-title">${iconSvg('note')}<span>${t('reservationOrder.notesLabel')}</span></div>
         <div class="notes-body">${notesBody}</div>
       </div>
 
@@ -796,14 +804,14 @@ export function renderReservationOrderBodyHtml(
       <div class="footer-bar">
         <table class="footer-table">
           <tr>
-            <td class="footer-location" style="width:33%;">${iconSvg('pin')}<span>${esc(CONTACT.location)}</span></td>
+            <td class="footer-location" style="width:33%;">${iconSvg('pin')}<span>${esc(contact.location)}</span></td>
             <td class="footer-center" style="width:34%;">
               ${footerEmail}
               ${footerPhones}
             </td>
             <td class="footer-left" style="width:33%;">
               <div class="footer-brand">${esc(BRAND.fullName)}</div>
-              <div class="footer-tagline">${esc(CONTACT.taglineAr)}</div>
+              <div class="footer-tagline">${esc(contact.taglineAr)}</div>
             </td>
           </tr>
         </table>
@@ -816,9 +824,10 @@ export function renderReservationOrderA4Document(
   customer: Customer,
   statusLabelAr: string,
 ): string {
-  const title = `أوردر ${displayCustomerOrderNumber(order.orderNumber)}`;
+  const title = `${t('reservationOrder.orderWord')} ${displayCustomerOrderNumber(order.orderNumber)}`;
+  const lang = i18n.language === 'ar' ? 'ar' : 'tr';
   return `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
+<html dir="rtl" lang="${lang}">
 <head>
   <meta charset="UTF-8" />
   <meta name="format-detection" content="telephone=no,email=no,address=no" />

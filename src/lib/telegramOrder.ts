@@ -5,6 +5,7 @@ import { displayCustomerOrderNumber } from './orderDisplay';
 import { buildCustomerOrderFileName } from './printing/documentFileNames';
 import { renderReservationOrderA4Document } from './printing/renderReservationOrderA4';
 import { ORDER_STATUS_LABELS } from '../pages/orders/orderStatusUi';
+import i18n from '../i18n/config';
 
 export async function sendTelegramCustomerOrder(
   order: CustomerOrder,
@@ -26,7 +27,7 @@ export async function sendTelegramCustomerOrder(
     message,
     pdfHtml,
     fileName,
-    caption: 'طلبية حجز PDF',
+    caption: i18n.t('orderExport.telegramCaption', { ns: 'terminology' }),
     eventType: 'CUSTOMER_ORDER',
   });
 }

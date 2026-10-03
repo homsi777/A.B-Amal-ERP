@@ -6,6 +6,11 @@ import { flattenAccountStatementDisplayRows } from './customerStatementInvoiceDe
 import { buildCustomerStatementFileName, buildSupplierStatementFileName } from './printing/documentFileNames';
 import { documentFooterStyles, renderDocumentFooterHtml } from './printing/renderDocumentFooter';
 import { VOUCHER_A5_PDF_EXPORT_CSS, A5_CAPTURE_WIDTH_PX, prepareVoucherDocumentForCanvas } from './printing/renderVoucherA5';
+import i18n from '../i18n/config';
+import { AR_INVOICE_STATEMENT, arAccountingCreditSide, arAccountingDebitSide } from './i18n/arTerminology';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
+const arLocale = () => (i18n.language === 'ar' ? 'ar' : 'tr');
 
 /** CLOTEX brand header reused across all PDF statements. */
 const renderBrandHeaderHtml = (): string => `
@@ -19,7 +24,7 @@ const renderBrandHeaderHtml = (): string => `
     </div>
     <div style="display:none;text-align:right;font-size:10px;font-weight:700;color:${BRAND.primaryColor};line-height:1.5;">
       <div style="font-size:11px;font-weight:800;">${BRAND.descriptionAr}</div>
-      <div style="color:${BRAND.primaryColorSoft};font-weight:600;">إدارة مستودعات الأقمشة</div>
+      <div style="color:${BRAND.primaryColorSoft};font-weight:600;">${t('brandDescriptionSub')}</div>
     </div>
   </div>
 `;
@@ -233,8 +238,9 @@ const renderFabricStatementHtml = (options: {
   paymentsLabel: string;
   remainingLabel: string;
   hideFinancialColumns?: boolean;
+  isSupplier?: boolean;
 }) => {
-  const isSupplier = options.title.includes('مورد');
+  const isSupplier = Boolean(options.isSupplier);
   const balanceColor = isSupplier ? '#e11d48' : '#4f46e5';
   const balanceBgColor = isSupplier ? '#fff1f2' : '#e0e7ff';
   const privacyStyle = options.hideFinancialColumns ? `
@@ -251,20 +257,20 @@ const renderFabricStatementHtml = (options: {
   const financialSummaryCards = options.hideFinancialColumns ? '' : `
       <div style="background-color: #ffffff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center;">
         <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">${options.totalLabel}</div>
-        <div style="font-size: 24px; font-weight: bold; color: #22c55e;">${options.totals.totalAmount.toLocaleString('ar')}</div>
+        <div style="font-size: 24px; font-weight: bold; color: #22c55e;">${options.totals.totalAmount.toLocaleString(arLocale())}</div>
       </div>
       <div style="background-color: #ffffff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center;">
         <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">${options.paymentsLabel}</div>
-        <div style="font-size: 24px; font-weight: bold; color: #10b981;">${options.totals.totalPayments.toLocaleString('ar')}</div>
+        <div style="font-size: 24px; font-weight: bold; color: #10b981;">${options.totals.totalPayments.toLocaleString(arLocale())}</div>
       </div>
       <div style="background-color: ${balanceBgColor}; border: 2px solid ${balanceColor}; padding: 12px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; color: ${balanceColor}; margin-bottom: 4px; font-weight: bold;">الرصيد (${options.balance.type})</div>
-        <div style="font-size: 24px; font-weight: bold; color: ${balanceColor};">${options.balance.amount.toLocaleString('ar')}</div>
+        <div style="font-size: 11px; color: ${balanceColor}; margin-bottom: 4px; font-weight: bold;">${t('fabricStatement.balanceWithType', { type: options.balance.type })}</div>
+        <div style="font-size: 24px; font-weight: bold; color: ${balanceColor};">${options.balance.amount.toLocaleString(arLocale())}</div>
       </div>
   `;
   const financialHeaderCells = options.hideFinancialColumns ? '' : `
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">السعر الواحد</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #2563eb;">المجموع</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colUnitPrice')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #2563eb;">${t('fabricStatement.colTotal')}</th>
           <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #10b981;">${options.paymentsLabel}</th>
           <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #dc2626;">${options.remainingLabel}</th>
   `;
@@ -283,50 +289,50 @@ const renderFabricStatementHtml = (options: {
       </div>
       <div style="margin-bottom: 8px; color: #475569;">${options.detailLine}</div>
       <div style="margin-bottom: 8px;">
-        <strong style="color: #1e293b;">من:</strong> <span style="color: #475569;">${options.fromDate}</span>
-        <strong style="color: #1e293b;">إلى:</strong> <span style="color: #475569;">${options.toDate}</span>
+        <strong style="color: #1e293b;">${t('accountStatement.from')}</strong> <span style="color: #475569;">${options.fromDate}</span>
+        <strong style="color: #1e293b;">${t('accountStatement.to')}</strong> <span style="color: #475569;">${options.toDate}</span>
       </div>
     </div>
 
     <div class="statement-summary-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
       <div style="background-color: #ffffff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">عدد الخامات (أسطر)</div>
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">${t('fabricStatement.itemsCount')}</div>
         <div style="font-size: 24px; font-weight: bold; color: #4f46e5;">${options.totals.itemCount}</div>
       </div>
       <div style="background-color: #ffffff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">مجموع الأتواب</div>
-        <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">${options.totals.totalRolls.toLocaleString('ar')}</div>
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">${t('fabricStatement.totalRolls')}</div>
+        <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">${options.totals.totalRolls.toLocaleString(arLocale())}</div>
       </div>
       <div style="background-color: #ffffff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">مجموع الكميات</div>
-        <div style="font-size: 24px; font-weight: bold; color: #2563eb;">${options.totals.totalQuantity.toLocaleString('ar')}</div>
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">${t('fabricStatement.totalQuantities')}</div>
+        <div style="font-size: 24px; font-weight: bold; color: #2563eb;">${options.totals.totalQuantity.toLocaleString(arLocale())}</div>
       </div>
       <div style="background-color: #ffffff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center;">
         <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">${options.totalLabel}</div>
-        <div style="font-size: 24px; font-weight: bold; color: #22c55e;">${options.totals.totalAmount.toLocaleString('ar')}</div>
+        <div style="font-size: 24px; font-weight: bold; color: #22c55e;">${options.totals.totalAmount.toLocaleString(arLocale())}</div>
       </div>
       <div style="background-color: #ffffff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; text-align: center;">
         <div style="font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: bold;">${options.paymentsLabel}</div>
-        <div style="font-size: 24px; font-weight: bold; color: #10b981;">${options.totals.totalPayments.toLocaleString('ar')}</div>
+        <div style="font-size: 24px; font-weight: bold; color: #10b981;">${options.totals.totalPayments.toLocaleString(arLocale())}</div>
       </div>
       <div style="background-color: ${balanceBgColor}; border: 2px solid ${balanceColor}; padding: 12px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; color: ${balanceColor}; margin-bottom: 4px; font-weight: bold;">الرصيد (${options.balance.type})</div>
-        <div style="font-size: 24px; font-weight: bold; color: ${balanceColor};">${options.balance.amount.toLocaleString('ar')}</div>
+        <div style="font-size: 11px; color: ${balanceColor}; margin-bottom: 4px; font-weight: bold;">${t('fabricStatement.balanceWithType', { type: options.balance.type })}</div>
+        <div style="font-size: 24px; font-weight: bold; color: ${balanceColor};">${options.balance.amount.toLocaleString(arLocale())}</div>
       </div>
     </div>
 
     <table class="statement-items-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
       <thead>
         <tr style="background-color: #1e293b; color: #ffffff;">
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">التاريخ</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">المرجع</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">اسم الخامة</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">كود الخامة</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">عدد الأتواب</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">الكمية / الطول</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">الوحدة</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">السعر الواحد</th>
-          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #2563eb;">المجموع</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('accountStatement.colDate')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colReference')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colMaterialName')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colMaterialCode')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colRollsCount')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colQuantityLength')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colUnit')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1;">${t('fabricStatement.colUnitPrice')}</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #2563eb;">${t('fabricStatement.colTotal')}</th>
           <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #10b981;">${options.paymentsLabel}</th>
           <th style="padding: 12px; text-align: center; border: 1px solid #cbd5e1; color: #dc2626;">${options.remainingLabel}</th>
         </tr>
@@ -338,14 +344,14 @@ const renderFabricStatementHtml = (options: {
             <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1;">${item.invoiceRef}</td>
             <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1;">${item.fabricName}</td>
             <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1;">${item.fabricCode}</td>
-            <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; color: #6d28d9;">${item.rollsCount.toLocaleString('ar')}</td>
-            <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1;">${item.quantity.toLocaleString('ar')}</td>
+            <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; font-weight: bold; color: #6d28d9;">${item.rollsCount.toLocaleString(arLocale())}</td>
+            <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1;">${item.quantity.toLocaleString(arLocale())}</td>
             <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1;">${item.unit}</td>
             ${options.hideFinancialColumns ? '' : `
               <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1;">${item.unitPrice.toFixed(2)}</td>
-              <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; color: #2563eb; font-weight: bold;">${item.total.toLocaleString('ar')}</td>
-              <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; color: #10b981; font-weight: bold;">${item.payments.toLocaleString('ar')}</td>
-              <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; color: #dc2626; font-weight: bold;">${item.remaining.toLocaleString('ar')}</td>
+              <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; color: #2563eb; font-weight: bold;">${item.total.toLocaleString(arLocale())}</td>
+              <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; color: #10b981; font-weight: bold;">${item.payments.toLocaleString(arLocale())}</td>
+              <td style="padding: 10px; text-align: center; border: 1px solid #cbd5e1; color: #dc2626; font-weight: bold;">${item.remaining.toLocaleString(arLocale())}</td>
             `}
           </tr>
         `).join('')}
@@ -354,46 +360,47 @@ const renderFabricStatementHtml = (options: {
 
     <div style="text-align: center; font-size: 11px; color: #94a3b8; margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
       <p style="margin: 0;font-weight:700;letter-spacing:2px;color:${BRAND.primaryColor};">${BRAND.name} — ${BRAND.tagline}</p>
-      <p style="margin: 4px 0 0;">تم إنشاء هذا الكشف بواسطة ${BRAND.descriptionAr}</p>
-      <p style="margin: 0; margin-top: 5px;">${new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      <p style="margin: 4px 0 0;">${t('fabricStatement.footerGeneratedBy', { descriptionAr: BRAND.descriptionAr })}</p>
+      <p style="margin: 0; margin-top: 5px;">${new Date().toLocaleDateString(arLocale() === 'ar' ? 'ar-SA' : 'tr-TR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
     </div>
   `;
 };
 
 export const renderCustomerStatementPdfHtml = (data: ExportData) =>
   renderFabricStatementHtml({
-    title: 'كشف حساب عميل',
+    title: t('fabricStatement.customerAccountStatement'),
     subtitle: BRAND.descriptionAr,
-    partyLabel: 'العميل',
+    partyLabel: t('fabricStatement.customerLabel'),
     partyName: data.customerName,
-    detailLine: `جوال: ${data.customerPhone} | العنوان: ${data.customerAddress}`,
+    detailLine: t('fabricStatement.customerDetailLine', { phone: data.customerPhone, address: data.customerAddress }),
     fromDate: data.fromDate,
     toDate: data.toDate,
     items: data.fabricItems,
     totals: data.totals,
     balance: data.balance,
-    totalLabel: 'الإجمالي المالي',
-    paymentsLabel: 'الدفعات',
-    remainingLabel: 'الباقي',
+    totalLabel: t('fabricStatement.customerTotalLabel'),
+    paymentsLabel: t('fabricStatement.customerPaymentsLabel'),
+    remainingLabel: t('fabricStatement.remainingLabel'),
     hideFinancialColumns: data.hideFinancialColumns
   });
 
 export const renderSupplierStatementPdfHtml = (data: SupplierStatementExportData) =>
   renderFabricStatementHtml({
-    title: 'كشف حساب مورد',
+    title: t('fabricStatement.supplierAccountStatement'),
     subtitle: BRAND.descriptionAr,
-    partyLabel: 'المورد',
+    partyLabel: t('fabricStatement.supplierLabel'),
     partyName: data.supplierCompany,
-    detailLine: `ممثل الشركة: ${data.supplierName} | رقم الاتصال: ${data.supplierPhone}`,
+    detailLine: t('fabricStatement.supplierDetailLine', { name: data.supplierName, phone: data.supplierPhone }),
     fromDate: data.fromDate,
     toDate: data.toDate,
     items: data.fabricItems,
     totals: data.totals,
     balance: data.balance,
-    totalLabel: 'إجمالي المشتريات',
-    paymentsLabel: 'السداد',
-    remainingLabel: 'الباقي للمورد',
-    hideFinancialColumns: data.hideFinancialColumns
+    totalLabel: t('fabricStatement.supplierTotalLabel'),
+    paymentsLabel: t('fabricStatement.supplierPaymentsLabel'),
+    remainingLabel: t('fabricStatement.supplierRemainingLabel'),
+    hideFinancialColumns: data.hideFinancialColumns,
+    isSupplier: true,
   });
 
 type AccountStatementRow = {
@@ -453,7 +460,7 @@ function renderAccountStatementHtml(options: {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const fmt = (n: number) =>
-    Number.isFinite(n) ? n.toLocaleString('ar', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+    Number.isFinite(n) ? n.toLocaleString(arLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
   const safeText = (v: unknown) =>
     String(v ?? '')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -501,7 +508,7 @@ function renderAccountStatementHtml(options: {
     ${td(cols.docNo, `font-family:monospace;font-size:9.5px;font-weight:600;${rowEmphasis}`)}
     ${td(cols.typeLabel, rowEmphasis)}
     ${td(detailCell, rowEmphasis)}
-    ${td(cols.fabric ? cols.fabric.rollsCount.toLocaleString('ar') : DASH, rowEmphasis)}
+    ${td(cols.fabric ? cols.fabric.rollsCount.toLocaleString(arLocale()) : DASH, rowEmphasis)}
     ${td(cols.fabric ? fmt(cols.fabric.totalQuantity) : DASH, rowEmphasis)}
     ${td(cols.fabric ? fmt(cols.fabric.unitPrice) : DASH, rowEmphasis)}
     ${td(cols.fabric ? `${safeText(options.currency)} ${fmt(cols.fabric.totalAmount)}` : DASH, `font-weight:600;${rowEmphasis}`)}
@@ -515,7 +522,7 @@ function renderAccountStatementHtml(options: {
     if (options.rows.length === 0) {
       return `<tr>
         <td colspan="11" style="padding:20px;text-align:center;color:#64748b;border:1px solid #e2e8f0;">
-          لا توجد حركات ضمن الفترة المحددة
+          ${t('accountStatement.noMovementsInPeriod')}
         </td>
       </tr>`;
     }
@@ -707,16 +714,16 @@ function renderAccountStatementHtml(options: {
   <!-- ══ HEADER ══════════════════════════════════════════════════ -->
   <div class="hdr">
     <div class="hdr-box">
-      <div class="hdr-box-label">&#128197; الفترة</div>
-      <div class="hdr-box-val">من: ${safeText(options.fromDate)}</div>
-      <div class="hdr-box-val">إلى: ${safeText(options.toDate)}</div>
+      <div class="hdr-box-label">&#128197; ${t('accountStatement.period')}</div>
+      <div class="hdr-box-val">${t('accountStatement.from')} ${safeText(options.fromDate)}</div>
+      <div class="hdr-box-val">${t('accountStatement.to')} ${safeText(options.toDate)}</div>
     </div>
 
     <div class="hdr-center">
       <img class="logo" src="${BRAND.logoInline}" alt="${BRAND.name}" />
       <h1 class="ar">${safeText(options.title)}</h1>
       <div class="divider"></div>
-      <div class="sub ar">(حركات مالية)</div>
+      <div class="sub ar">${t('accountStatement.financialMovements')}</div>
     </div>
 
     <div class="hdr-box">
@@ -731,22 +738,22 @@ function renderAccountStatementHtml(options: {
   <div class="cards">
     <div class="card card-navy">
       <div class="card-icon">&#128179;</div>
-      <div class="card-label">الرصيد الافتتاحي</div>
+      <div class="card-label">${t('accountStatement.openingBalance')}</div>
       <div class="card-amount">${safeText(options.currency)} ${fmt(options.openingBalance)}</div>
     </div>
     <div class="card card-green">
       <div class="card-icon" style="color:${GREEN};">&#8595;</div>
-      <div class="card-label">إجمالي المدين</div>
+      <div class="card-label">${t('accountStatement.totalDebit')}</div>
       <div class="card-amount">${safeText(options.currency)} ${fmt(options.totals.debit)}</div>
     </div>
     <div class="card card-red">
       <div class="card-icon" style="color:${RED};">&#8593;</div>
-      <div class="card-label">إجمالي الدائن</div>
+      <div class="card-label">${t('accountStatement.totalCredit')}</div>
       <div class="card-amount">${safeText(options.currency)} ${fmt(options.totals.credit)}</div>
     </div>
     <div class="card card-blue">
       <div class="card-icon" style="color:${BLUE};">&#9878;</div>
-      <div class="card-label">الرصيد النهائي (${safeText(options.closingLabel)})</div>
+      <div class="card-label">${t('accountStatement.finalBalance')} (${safeText(options.closingLabel)})</div>
       <div class="card-amount">${safeText(options.currency)} ${fmt(options.closingAmount)}</div>
     </div>
   </div>
@@ -768,17 +775,17 @@ function renderAccountStatementHtml(options: {
     </colgroup>
     <thead>
       <tr>
-        <th>التاريخ</th>
-        <th>رقم الفاتورة</th>
-        <th>البيان</th>
-        <th>الخامة</th>
-        <th>عدد<br>الأثواب</th>
-        <th>إجمالي<br>الأطوال (م)</th>
-        <th>السعر<br>(م)</th>
-        <th>إجمالي المبلغ</th>
-        <th class="th-green">مدين<br>(${safeText(options.currency)})</th>
-        <th class="th-red">دائن<br>(${safeText(options.currency)})</th>
-        <th class="th-blue">الرصيد<br>(${safeText(options.currency)})</th>
+        <th>${AR_INVOICE_STATEMENT.date}</th>
+        <th>${t('accountStatement.colInvoiceNo')}</th>
+        <th>${t('accountStatement.colDescription')}</th>
+        <th>${t('accountStatement.colMaterial')}</th>
+        <th>${i18n.t('accountStatement.colRollsCount', { ns: 'terminology' })}</th>
+        <th>${i18n.t('accountStatement.colTotalLengths', { ns: 'terminology' })}</th>
+        <th>${i18n.t('accountStatement.colPrice', { ns: 'terminology' })}</th>
+        <th>${t('accountStatement.colTotalAmount')}</th>
+        <th class="th-green">${i18n.t('accountStatement.colDebit', { ns: 'terminology', currency: safeText(options.currency) })}</th>
+        <th class="th-red">${i18n.t('accountStatement.colCredit', { ns: 'terminology', currency: safeText(options.currency) })}</th>
+        <th class="th-blue">${i18n.t('accountStatement.colBalance', { ns: 'terminology', currency: safeText(options.currency) })}</th>
       </tr>
     </thead>
     <tbody>
@@ -786,8 +793,8 @@ function renderAccountStatementHtml(options: {
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="4" style="text-align:right;padding-right:10px;">الإجمالي</td>
-        <td>${totalFabricRolls > 0 ? totalFabricRolls.toLocaleString('ar') : DASH}</td>
+        <td colspan="4" style="text-align:right;padding-right:10px;">${AR_INVOICE_STATEMENT.total}</td>
+        <td>${totalFabricRolls > 0 ? totalFabricRolls.toLocaleString(arLocale()) : DASH}</td>
         <td class="tf-green">${fmt(totalFabricLength)}</td>
         <td></td>
         <td class="tf-green">${safeText(options.currency)} ${fmt(totalFabricAmount)}</td>
@@ -801,29 +808,29 @@ function renderAccountStatementHtml(options: {
   <!-- ══ SIGNATURES ═══════════════════════════════════════════════ -->
   <div class="sigs">
     <div class="sig-box">
-      <div class="sig-label">&#128100; مسؤول الحساب</div>
+      <div class="sig-label">&#128100; ${t('accountStatement.accountResponsible')}</div>
       <div class="sig-row">
-        <span class="sig-key">الاسم:</span>
+        <span class="sig-key">${t('accountStatement.nameField')}</span>
         <span class="sig-write sig-write--name"></span>
       </div>
       <div class="sig-row">
-        <span class="sig-key">التوقيع:</span>
+        <span class="sig-key">${t('accountStatement.signatureField')}</span>
         <span class="sig-write sig-write--sign"></span>
       </div>
     </div>
     <div class="sig-box">
-      <div class="sig-label">&#128100; اعتماد الحسابات</div>
+      <div class="sig-label">&#128100; ${t('accountStatement.accountsApproval')}</div>
       <div class="sig-row">
-        <span class="sig-key">الاسم:</span>
+        <span class="sig-key">${t('accountStatement.nameField')}</span>
         <span class="sig-write sig-write--name"></span>
       </div>
       <div class="sig-row">
-        <span class="sig-key">التوقيع:</span>
+        <span class="sig-key">${t('accountStatement.signatureField')}</span>
         <span class="sig-write sig-write--sign"></span>
       </div>
     </div>
     <div class="sig-box">
-      <div class="sig-label">&#128203; ملاحظات</div>
+      <div class="sig-label">&#128203; ${t('accountStatement.notes')}</div>
       <div class="sig-notes-space"></div>
     </div>
   </div>
@@ -831,7 +838,7 @@ function renderAccountStatementHtml(options: {
   </div>
 
   ${renderDocumentFooterHtml('invoice', false, {
-    slogan: 'شراكتنا لا تُقاس بالأرقام فقط، بل بالثقة التي نبنيها معاً',
+    slogan: t('accountStatement.partnershipSlogan'),
   })}
 
 </div>
@@ -853,13 +860,13 @@ export function renderCustomerAccountStatementPdfHtml(data: {
   saleInvoices?: Invoice[];
 }) {
   const closing = data.totals.closingBalance;
-  const closingLabel = closing >= 0 ? 'مدين' : 'دائن';
+  const closingLabel = closing >= 0 ? arAccountingDebitSide() : arAccountingCreditSide();
   return renderAccountStatementHtml({
-    title: 'كشف حساب عميل',
+    title: t('accountStatement.customerAccountStatement'),
     subtitle: BRAND.descriptionAr,
-    partyLabel: 'العميل',
+    partyLabel: t('fabricStatement.customerLabel'),
     partyName: data.customerName,
-    detailLine: `جوال: ${data.customerPhone ?? '—'} | العنوان: ${data.customerAddress ?? '—'}`,
+    detailLine: t('accountStatement.customerDetailLine', { phone: data.customerPhone ?? '—', address: data.customerAddress ?? '—' }),
     fromDate: data.fromDate,
     toDate: data.toDate,
     openingBalance: data.openingBalance,
@@ -885,13 +892,13 @@ export function renderSupplierAccountStatementPdfHtml(data: {
   totals: AccountStatementTotals;
 }) {
   const closing = data.totals.closingBalance;
-  const closingLabel = closing >= 0 ? 'دائن للمورد' : 'مدين لنا';
+  const closingLabel = closing >= 0 ? t('accountStatement.creditToSupplier') : t('accountStatement.debitToUs');
   return renderAccountStatementHtml({
-    title: 'كشف حساب مورد (حركات مالية)',
+    title: t('accountStatement.supplierAccountStatementWithMovements'),
     subtitle: BRAND.descriptionAr,
-    partyLabel: 'المورد',
+    partyLabel: t('fabricStatement.supplierLabel'),
     partyName: data.supplierCompany,
-    detailLine: `ممثل الشركة: ${data.supplierName ?? '—'} | رقم الاتصال: ${data.supplierPhone ?? '—'}`,
+    detailLine: t('accountStatement.supplierDetailLine', { name: data.supplierName ?? '—', phone: data.supplierPhone ?? '—' }),
     fromDate: data.fromDate,
     toDate: data.toDate,
     openingBalance: data.openingBalance,
@@ -1149,7 +1156,7 @@ export async function exportHtmlDocumentToPdf(
   const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
   if (!doc) {
     document.body.removeChild(iframe);
-    throw new Error('تعذر تجهيز PDF');
+    throw new Error(t('errors.pdfPrepareFailed'));
   }
 
   doc.open();
