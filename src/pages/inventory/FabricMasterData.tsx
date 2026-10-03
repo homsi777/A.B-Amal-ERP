@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Check, Loader2, Palette, Pencil, Plus, RefreshCw, Search, Shapes, Shirt, X,
   Barcode,   // ← إضافة أيقونة الباركود
@@ -36,6 +37,7 @@ type Tab = 'items' | 'colors' | 'variants';
 // Items Tab
 // ─────────────────────────────────────────────────────────────────────────────
 function ItemsTab() {
+  const { t } = useTranslation('fabricMasterData');
   const [items, setItems] = useState<ApiFabricItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -66,9 +68,9 @@ function ItemsTab() {
       ]);
       setItems(res.data); setTotal(res.total);
       setCategories(cats); setSuppliers(sups.data);
-    } catch (e) { setError(e instanceof Error ? e.message : 'خطأ'); }
+    } catch (e) { setError(e instanceof Error ? e.message : t('errors.generic')); }
     finally { setLoading(false); }
-  }, [search, page]);
+  }, [search, page, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -94,7 +96,7 @@ function ItemsTab() {
       if (editTarget) await updateFabricItem(editTarget.id, form);
       else await createFabricItem(form);
       close(); load();
-    } catch (e) { setSaveError(e instanceof Error ? e.message : 'فشل الحفظ'); }
+    } catch (e) { setSaveError(e instanceof Error ? e.message : t('errors.saveFailed')); }
     finally { setSaving(false); }
   };
 
@@ -113,14 +115,14 @@ function ItemsTab() {
         <div className="flex items-center gap-3 flex-1 max-w-sm">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-            <input type="text" placeholder="بحث بالاسم أو الكود..." value={search}
+            <input type="text" placeholder={t('common.searchByNameOrCode')} value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <button onClick={load} className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
         </div>
         <button onClick={openAdd} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition text-sm">
-          <Plus className="w-4 h-4" /><span>إضافة خامة</span>
+          <Plus className="w-4 h-4" /><span>{t('items.addItem')}</span>
         </button>
       </div>
 
@@ -130,13 +132,13 @@ function ItemsTab() {
         <table className="w-full text-right text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
             <tr>
-              <th className="px-4 py-3">الكود الداخلي</th>
-              <th className="px-4 py-3">الاسم</th>
-              <th className="px-4 py-3">النوع</th>
-              <th className="px-4 py-3">الوحدة</th>
-              <th className="px-4 py-3">التصنيف</th>
-              <th className="px-4 py-3">المورد</th>
-              <th className="px-4 py-3">الحالة</th>
+              <th className="px-4 py-3">{t('items.colInternalCode')}</th>
+              <th className="px-4 py-3">{t('items.colName')}</th>
+              <th className="px-4 py-3">{t('items.colType')}</th>
+              <th className="px-4 py-3">{t('items.colUnit')}</th>
+              <th className="px-4 py-3">{t('items.colCategory')}</th>
+              <th className="px-4 py-3">{t('items.colSupplier')}</th>
+              <th className="px-4 py-3">{t('items.colStatus')}</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -144,7 +146,7 @@ function ItemsTab() {
             {loading ? (
               <tr><td colSpan={8} className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} className="py-8 text-center text-slate-400">لا يوجد خامات.</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-slate-400">{t('items.noItems')}</td></tr>
             ) : items.map(it => (
               <tr key={it.id} className="hover:bg-slate-50/50 bg-white">
                 <td className="px-4 py-3 font-mono text-xs text-slate-500">{it.internal_code}</td>
@@ -156,7 +158,7 @@ function ItemsTab() {
                 <td className="px-4 py-3">
                   <button onClick={() => toggle(it.id)}
                     className={`px-2.5 py-1 rounded-full text-xs font-bold ${it.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {it.is_active ? 'نشط' : 'غير نشط'}
+                    {it.is_active ? t('common.active') : t('common.inactive')}
                   </button>
                 </td>
                 <td className="px-4 py-3">
@@ -170,11 +172,11 @@ function ItemsTab() {
 
       {totalPages > 1 && (
         <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
-          <span>{total} خامة</span>
+          <span>{t('items.totalCount', { count: total })}</span>
           <div className="flex gap-1">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">السابق</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">{t('common.prev')}</button>
             <span className="px-3 py-1.5">{page}/{totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">التالي</button>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">{t('common.next')}</button>
           </div>
         </div>
       )}
@@ -183,67 +185,67 @@ function ItemsTab() {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-lg">{editTarget ? 'تعديل خامة' : 'إضافة خامة جديدة'}</h3>
+              <h3 className="font-bold text-lg">{editTarget ? t('items.editTitle') : t('items.addTitle')}</h3>
               <button onClick={close}><X className="w-5 h-5 text-slate-400" /></button>
             </div>
             <form onSubmit={save} className="p-6 space-y-4">
               {saveError && <p className="text-sm text-rose-600 bg-rose-50 p-2 rounded-lg">{saveError}</p>}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الاسم *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.nameLabel')}</label>
                   <input required type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الكود الداخلي *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.internalCodeLabel')}</label>
                   <input required type="text" value={form.internal_code} onChange={e => setForm(f => ({ ...f, internal_code: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">نوع الخامة</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.typeLabel')}</label>
                   <input type="text" value={form.fabric_type || ''} onChange={e => setForm(f => ({ ...f, fabric_type: e.target.value }))}
-                    placeholder="كتون، بوليستر..." className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+                    placeholder={t('items.typePlaceholder')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الوحدة</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.unitLabel')}</label>
                   <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    <option value="meter">متر</option>
-                    <option value="yard">يارد</option>
-                    <option value="kg">كيلوغرام</option>
+                    <option value="meter">{t('units.meter')}</option>
+                    <option value="yard">{t('units.yard')}</option>
+                    <option value="kg">{t('units.kg')}</option>
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">التصنيف</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.categoryLabel')}</label>
                   <select value={form.category_id || ''} onChange={e => setForm(f => ({ ...f, category_id: e.target.value || null }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    <option value="">بلا تصنيف</option>
+                    <option value="">{t('items.noCategoryOption')}</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">المورد</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.supplierLabel')}</label>
                   <select value={form.supplier_id || ''} onChange={e => setForm(f => ({ ...f, supplier_id: e.target.value || null }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    <option value="">بلا مورد</option>
+                    <option value="">{t('items.noSupplierOption')}</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">كود المورد</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.supplierCodeLabel')}</label>
                 <input type="text" value={form.supplier_code || ''} onChange={e => setForm(f => ({ ...f, supplier_code: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
               </div>
               <div className="pt-2 flex justify-end gap-3">
-                <button type="button" onClick={close} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">إلغاء</button>
+                <button type="button" onClick={close} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-60">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {editTarget ? 'حفظ' : 'إضافة'}
+                  {editTarget ? t('common.save') : t('common.add')}
                 </button>
               </div>
             </form>
@@ -258,6 +260,7 @@ function ItemsTab() {
 // Colors Tab
 // ─────────────────────────────────────────────────────────────────────────────
 function ColorsTab() {
+  const { t } = useTranslation('fabricMasterData');
   const [colors, setColors] = useState<ApiFabricColor[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -277,9 +280,9 @@ function ColorsTab() {
     try {
       const res = await listFabricColors({ search: search || undefined, page, pageSize });
       setColors(res.data); setTotal(res.total);
-    } catch (e) { setError(e instanceof Error ? e.message : 'خطأ'); }
+    } catch (e) { setError(e instanceof Error ? e.message : t('errors.generic')); }
     finally { setLoading(false); }
-  }, [search, page]);
+  }, [search, page, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -301,7 +304,7 @@ function ColorsTab() {
       if (editTarget) await updateFabricColor(editTarget.id, form);
       else await createFabricColor(form);
       close(); load();
-    } catch (e) { setSaveError(e instanceof Error ? e.message : 'فشل الحفظ'); }
+    } catch (e) { setSaveError(e instanceof Error ? e.message : t('errors.saveFailed')); }
     finally { setSaving(false); }
   };
 
@@ -320,14 +323,14 @@ function ColorsTab() {
         <div className="flex items-center gap-3 flex-1 max-w-sm">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-            <input type="text" placeholder="بحث بالاسم أو الكود..." value={search}
+            <input type="text" placeholder={t('common.searchByNameOrCode')} value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <button onClick={load} className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
         </div>
         <button onClick={openAdd} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition text-sm">
-          <Plus className="w-4 h-4" /><span>إضافة لون</span>
+          <Plus className="w-4 h-4" /><span>{t('colors.addColor')}</span>
         </button>
       </div>
 
@@ -337,12 +340,12 @@ function ColorsTab() {
         <table className="w-full text-right text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
             <tr>
-              <th className="px-4 py-3">اللون</th>
-              <th className="px-4 py-3">الاسم العربي</th>
-              <th className="px-4 py-3">الاسم التركي</th>
-              <th className="px-4 py-3">كود اللون</th>
-              <th className="px-4 py-3">كود المورد</th>
-              <th className="px-4 py-3">الحالة</th>
+              <th className="px-4 py-3">{t('colors.colColor')}</th>
+              <th className="px-4 py-3">{t('colors.colNameAr')}</th>
+              <th className="px-4 py-3">{t('colors.colNameTr')}</th>
+              <th className="px-4 py-3">{t('colors.colColorCode')}</th>
+              <th className="px-4 py-3">{t('colors.colSupplierCode')}</th>
+              <th className="px-4 py-3">{t('colors.colStatus')}</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -350,7 +353,7 @@ function ColorsTab() {
             {loading ? (
               <tr><td colSpan={7} className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
             ) : colors.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-slate-400">لا يوجد ألوان.</td></tr>
+              <tr><td colSpan={7} className="py-8 text-center text-slate-400">{t('colors.noColors')}</td></tr>
             ) : colors.map(c => (
               <tr key={c.id} className="hover:bg-slate-50/50 bg-white">
                 <td className="px-4 py-3">
@@ -364,7 +367,7 @@ function ColorsTab() {
                 <td className="px-4 py-3">
                   <button onClick={() => toggle(c.id)}
                     className={`px-2.5 py-1 rounded-full text-xs font-bold ${c.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {c.is_active ? 'نشط' : 'غير نشط'}
+                    {c.is_active ? t('common.active') : t('common.inactive')}
                   </button>
                 </td>
                 <td className="px-4 py-3">
@@ -378,11 +381,11 @@ function ColorsTab() {
 
       {totalPages > 1 && (
         <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
-          <span>{total} لون</span>
+          <span>{t('colors.totalCount', { count: total })}</span>
           <div className="flex gap-1">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">السابق</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">{t('common.prev')}</button>
             <span className="px-3 py-1.5">{page}/{totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">التالي</button>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">{t('common.next')}</button>
           </div>
         </div>
       )}
@@ -391,38 +394,38 @@ function ColorsTab() {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-lg">{editTarget ? 'تعديل لون' : 'إضافة لون جديد'}</h3>
+              <h3 className="font-bold text-lg">{editTarget ? t('colors.editTitle') : t('colors.addTitle')}</h3>
               <button onClick={close}><X className="w-5 h-5 text-slate-400" /></button>
             </div>
             <form onSubmit={save} className="p-6 space-y-4">
               {saveError && <p className="text-sm text-rose-600 bg-rose-50 p-2 rounded-lg">{saveError}</p>}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الاسم العربي *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('colors.nameArLabel')}</label>
                   <input required type="text" value={form.name_ar} onChange={e => setForm(f => ({ ...f, name_ar: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الاسم التركي</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('colors.nameTrLabel')}</label>
                   <input type="text" value={form.name_tr || ''} onChange={e => setForm(f => ({ ...f, name_tr: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">كود اللون *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('colors.colorCodeLabel')}</label>
                   <input required type="text" value={form.color_code} onChange={e => setForm(f => ({ ...f, color_code: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">كود المورد</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.supplierCodeLabel')}</label>
                   <input type="text" value={form.supplier_color_code || ''} onChange={e => setForm(f => ({ ...f, supplier_color_code: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
               </div>
               <div className="flex items-end gap-3">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">كود اللون السداسي</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('colors.hexColorLabel')}</label>
                   <input type="text" value={form.hex_color || ''} onChange={e => setForm(f => ({ ...f, hex_color: e.target.value }))}
                     placeholder="#RRGGBB"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
@@ -433,10 +436,10 @@ function ColorsTab() {
                 )}
               </div>
               <div className="pt-2 flex justify-end gap-3">
-                <button type="button" onClick={close} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">إلغاء</button>
+                <button type="button" onClick={close} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-60">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {editTarget ? 'حفظ' : 'إضافة'}
+                  {editTarget ? t('common.save') : t('common.add')}
                 </button>
               </div>
             </form>
@@ -455,6 +458,7 @@ interface VariantsTabProps {
 }
 
 function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
+  const { t } = useTranslation('fabricMasterData');
   const [variants, setVariants] = useState<ApiFabricVariant[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -482,9 +486,9 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
       ]);
       setVariants(res.data); setTotal(res.total);
       setFabricItems(items.data); setFabricColors(colors.data);
-    } catch (e) { setError(e instanceof Error ? e.message : 'خطأ'); }
+    } catch (e) { setError(e instanceof Error ? e.message : t('errors.generic')); }
     finally { setLoading(false); }
-  }, [search, page]);
+  }, [search, page, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -506,7 +510,7 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
       if (editTarget) await updateFabricVariant(editTarget.id, form);
       else await createFabricVariant(form);
       close(); load();
-    } catch (e) { setSaveError(e instanceof Error ? e.message : 'فشل الحفظ'); }
+    } catch (e) { setSaveError(e instanceof Error ? e.message : t('errors.saveFailed')); }
     finally { setSaving(false); }
   };
 
@@ -525,14 +529,14 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
         <div className="flex items-center gap-3 flex-1 max-w-sm">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-            <input type="text" placeholder="بحث بالكود أو الخامة أو اللون..." value={search}
+            <input type="text" placeholder={t('variants.searchPlaceholder')} value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <button onClick={load} className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
         </div>
         <button onClick={openAdd} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition text-sm">
-          <Plus className="w-4 h-4" /><span>إضافة متغير</span>
+          <Plus className="w-4 h-4" /><span>{t('variants.addVariant')}</span>
         </button>
       </div>
 
@@ -542,12 +546,12 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
         <table className="w-full text-right text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
             <tr>
-              <th className="px-4 py-3">كود المتغير</th>
-              <th className="px-4 py-3">الخامة</th>
-              <th className="px-4 py-3">اللون</th>
-              <th className="px-4 py-3">العرض (سم)</th>
-              <th className="px-4 py-3">GSM</th>
-              <th className="px-4 py-3">الحالة</th>
+              <th className="px-4 py-3">{t('variants.colVariantCode')}</th>
+              <th className="px-4 py-3">{t('variants.colMaterial')}</th>
+              <th className="px-4 py-3">{t('variants.colColor')}</th>
+              <th className="px-4 py-3">{t('variants.colWidthCm')}</th>
+              <th className="px-4 py-3">{t('variants.colGsm')}</th>
+              <th className="px-4 py-3">{t('variants.colStatus')}</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -555,7 +559,7 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
             {loading ? (
               <tr><td colSpan={7} className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
             ) : variants.length === 0 ? (
-              <tr><td colSpan={7} className="py-8 text-center text-slate-400">لا يوجد متغيرات.</td></tr>
+              <tr><td colSpan={7} className="py-8 text-center text-slate-400">{t('variants.noVariants')}</td></tr>
             ) : variants.map(v => (
               <tr key={v.id} className="hover:bg-slate-50/50 bg-white">
                 <td className="px-4 py-3 font-mono text-xs text-slate-500">{v.variant_code}</td>
@@ -563,16 +567,16 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
                 <td className="px-4 py-3">
          <div className="flex items-center gap-2">
            <div className="relative flex-1 max-w-sm">
-             <input type="text" placeholder="بحث بالاسم أو الكود..." value={search}
+             <input type="text" placeholder={t('common.searchByNameOrCode')} value={search}
                onChange={e => { setSearch(e.target.value); setPage(1); }}
                className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
            </div>
            <button onClick={load} className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg"><RefreshCw className="w-4 h-4" /></button>
            <button onClick={openAdd} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition text-sm">
-             <Plus className="w-4 h-4" /><span>إضافة خامة</span>
+             <Plus className="w-4 h-4" /><span>{t('items.addItem')}</span>
            </button>
            <button onClick={onOpenBulkBarcode} className="bg-emerald-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition text-sm">
-             <Barcode className="w-4 h-4" /><span>توليد باركود جماعي</span>
+             <Barcode className="w-4 h-4" /><span>{t('variants.bulkBarcodeGenerate')}</span>
            </button>
          </div>
                 </td>
@@ -581,7 +585,7 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
                 <td className="px-4 py-3">
                   <button onClick={() => toggle(v.id)}
                     className={`px-2.5 py-1 rounded-full text-xs font-bold ${v.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {v.is_active ? 'نشط' : 'غير نشط'}
+                    {v.is_active ? t('common.active') : t('common.inactive')}
                   </button>
                 </td>
                 <td className="px-4 py-3">
@@ -595,11 +599,11 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
 
       {totalPages > 1 && (
         <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
-          <span>{total} متغير</span>
+          <span>{t('variants.totalCount', { count: total })}</span>
           <div className="flex gap-1">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">السابق</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">{t('common.prev')}</button>
             <span className="px-3 py-1.5">{page}/{totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">التالي</button>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 rounded-lg border disabled:opacity-40">{t('common.next')}</button>
           </div>
         </div>
       )}
@@ -608,37 +612,37 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-lg">{editTarget ? 'تعديل متغير' : 'إضافة متغير جديد'}</h3>
+              <h3 className="font-bold text-lg">{editTarget ? t('variants.editTitle') : t('variants.addTitle')}</h3>
               <button onClick={close}><X className="w-5 h-5 text-slate-400" /></button>
             </div>
             <form onSubmit={save} className="p-6 space-y-4">
               {saveError && <p className="text-sm text-rose-600 bg-rose-50 p-2 rounded-lg">{saveError}</p>}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">كود المتغير *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('variants.variantCodeLabel')}</label>
                 <input required type="text" value={form.variant_code} onChange={e => setForm(f => ({ ...f, variant_code: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الخامة *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('variants.materialLabel')}</label>
                   <select required value={form.item_id} onChange={e => setForm(f => ({ ...f, item_id: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    <option value="">اختر خامة</option>
+                    <option value="">{t('variants.chooseMaterialOption')}</option>
                     {fabricItems.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">اللون *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('variants.colorLabel')}</label>
                   <select required value={form.color_id} onChange={e => setForm(f => ({ ...f, color_id: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    <option value="">اختر لوناً</option>
+                    <option value="">{t('variants.chooseColorOption')}</option>
                     {fabricColors.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">العرض (سم)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('variants.widthLabel')}</label>
                   <input type="number" min="0" step="0.01"
                     value={form.width_cm ?? ''} onChange={e => setForm(f => ({ ...f, width_cm: e.target.value ? parseFloat(e.target.value) : null }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
@@ -651,10 +655,10 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
                 </div>
               </div>
               <div className="pt-2 flex justify-end gap-3">
-                <button type="button" onClick={close} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">إلغاء</button>
+                <button type="button" onClick={close} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-60">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {editTarget ? 'حفظ' : 'إضافة'}
+                  {editTarget ? t('common.save') : t('common.add')}
                 </button>
               </div>
             </form>
@@ -668,11 +672,6 @@ function VariantsTab({ onOpenBulkBarcode }: VariantsTabProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'items', label: 'الخامات', icon: <Shirt className="w-4 h-4" /> },
-  { id: 'colors', label: 'الألوان', icon: <Palette className="w-4 h-4" /> },
-  { id: 'variants', label: 'المتغيرات', icon: <Shapes className="w-4 h-4" /> },
-];
 
  // ─────────────────────────────────────────────────────────────────────────────
  // Bulk Barcode Modal Component
@@ -698,6 +697,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
  }
 
  function BulkBarcodeModal({ open, onClose, onSuccess }: BulkBarcodeModalProps) {
+   const { t } = useTranslation('fabricMasterData');
    const [itemsWithoutBarcode, setItemsWithoutBarcode] = useState<FabricItemWithBarcode[]>([]);
    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
    const [loading, setLoading] = useState(false);
@@ -717,13 +717,13 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
          });
          setItemsWithoutBarcode(withoutBarcode);
        } catch (err: unknown) {
-         setError(getErrorMessage(err, 'فشل تحميل الخامات'));
+         setError(getErrorMessage(err, t('bulkBarcode.loadFailed')));
        } finally {
          setLoading(false);
        }
      };
      fetchItems();
-   }, [open]);
+   }, [open, t]);
 
    const toggleSelect = (id: string) => {
      setSelectedIds(prev => {
@@ -758,7 +758,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
        onSuccess();
        onClose();
      } catch (err: unknown) {
-       setError(getErrorMessage(err, 'فشل حفظ الباركودات'));
+       setError(getErrorMessage(err, t('bulkBarcode.saveFailed')));
      } finally {
        setGenerating(false);
      }
@@ -771,8 +771,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
        <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl" dir="rtl">
          <div className="p-5 border-b border-slate-200 flex justify-between items-center">
            <div>
-             <h3 className="font-bold text-lg text-slate-900">توليد باركود جماعي للخامات</h3>
-             <p className="text-xs text-slate-500 mt-1">الخامات التالية ليس لها باركود: {itemsWithoutBarcode.length}</p>
+             <h3 className="font-bold text-lg text-slate-900">{t('bulkBarcode.title')}</h3>
+             <p className="text-xs text-slate-500 mt-1">{t('bulkBarcode.itemsWithoutBarcodeCount', { count: itemsWithoutBarcode.length })}</p>
            </div>
            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5 text-slate-400" /></button>
          </div>
@@ -783,22 +783,22 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
            {loading ? (
              <div className="py-8 text-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
            ) : itemsWithoutBarcode.length === 0 ? (
-             <p className="py-8 text-center text-slate-500">جميع الخامات لديها باركود.</p>
+             <p className="py-8 text-center text-slate-500">{t('bulkBarcode.allHaveBarcode')}</p>
            ) : (
              <>
                <div className="mb-3 flex items-center gap-2">
                  <button onClick={selectAll} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg">
-                   {selectedIds.size === itemsWithoutBarcode.length ? 'إلغاء الكل' : 'تحديد الكل'}
+                   {selectedIds.size === itemsWithoutBarcode.length ? t('bulkBarcode.deselectAll') : t('bulkBarcode.selectAll')}
                  </button>
-                 <span className="text-xs text-slate-500">تم تحديد {selectedIds.size} من {itemsWithoutBarcode.length}</span>
+                 <span className="text-xs text-slate-500">{t('bulkBarcode.selectedOfTotal', { selected: selectedIds.size, total: itemsWithoutBarcode.length })}</span>
                </div>
                <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
                  <thead className="bg-slate-50">
                    <tr>
                      <th className="px-4 py-2 w-12 text-center">✓</th>
-                     <th className="px-4 py-2 text-right">الكود الداخلي</th>
-                     <th className="px-4 py-2 text-right">اسم الخامة</th>
-                     <th className="px-4 py-2 text-right">النوع</th>
+                     <th className="px-4 py-2 text-right">{t('items.colInternalCode')}</th>
+                     <th className="px-4 py-2 text-right">{t('bulkBarcode.colItemName')}</th>
+                     <th className="px-4 py-2 text-right">{t('items.colType')}</th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
@@ -825,14 +825,14 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
          </div>
 
          <div className="p-5 border-t border-slate-200 flex justify-between">
-           <button onClick={onClose} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">إلغاء</button>
+           <button onClick={onClose} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50">{t('common.cancel')}</button>
            <button
              onClick={generateAndSave}
              disabled={generating || selectedIds.size === 0}
              className="px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
            >
              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Barcode className="w-4 h-4" />}
-             توليد وحفظ ({selectedIds.size})
+             {t('bulkBarcode.generateAndSave', { count: selectedIds.size })}
            </button>
          </div>
        </div>
@@ -841,6 +841,12 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
  }
 
  export const FabricMasterData = () => {
+   const { t } = useTranslation('fabricMasterData');
+   const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+     { id: 'items', label: t('tabs.items'), icon: <Shirt className="w-4 h-4" /> },
+     { id: 'colors', label: t('tabs.colors'), icon: <Palette className="w-4 h-4" /> },
+     { id: 'variants', label: t('tabs.variants'), icon: <Shapes className="w-4 h-4" /> },
+   ];
    const [activeTab, setActiveTab] = useState<Tab>('items');
    const [, setRefreshKey] = useState(0);
    const [showBulkBarcodeModal, setShowBulkBarcodeModal] = useState(false);
@@ -856,8 +862,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">تعريفات الأقمشة</h2>
-        <p className="text-slate-500 mt-1">الخامات، الألوان، والمتغيرات — مُتصل بـ PostgreSQL</p>
+        <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+        <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

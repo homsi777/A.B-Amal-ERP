@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowRight, RefreshCw, Pencil, MoveRight, ToggleLeft, Printer,
   Save, X, Package,
@@ -16,17 +17,18 @@ import {
 import { listWarehouses, listLocations, type ApiWarehouse, type ApiWarehouseLocation } from '../../lib/api/warehousesApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { displayImportedColorCode, displayImportedColorName } from '../../lib/importDisplay';
+import i18n from '../../i18n/config';
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<RollStatus, string> = {
-  AVAILABLE:   'متاح',
-  RESERVED:    'محجوز',
-  SOLD:        'مباع',
-  DAMAGED:     'تالف',
-  TRANSFERRED: 'منقول',
-  INACTIVE:    'غير نشط',
-  AT_EXTERNAL_JOB: 'بمهمة خارجية',
+  get AVAILABLE() { return i18n.t('rollStatus.available', { ns: 'inventory' }); },
+  get RESERVED() { return i18n.t('rollStatus.reserved', { ns: 'inventory' }); },
+  get SOLD() { return i18n.t('rollStatus.sold', { ns: 'inventory' }); },
+  get DAMAGED() { return i18n.t('rollStatus.damaged', { ns: 'inventory' }); },
+  get TRANSFERRED() { return i18n.t('rollStatus.transferred', { ns: 'inventory' }); },
+  get INACTIVE() { return i18n.t('rollStatus.inactive', { ns: 'inventory' }); },
+  get AT_EXTERNAL_JOB() { return i18n.t('rollStatus.atExternalJob', { ns: 'inventory' }); },
 };
 const STATUS_COLORS: Record<RollStatus, string> = {
   AVAILABLE:   'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -43,20 +45,20 @@ const StatusBadge = ({ status }: { status: RollStatus }) => (
   </span>
 );
 
-const MOVEMENT_TYPE_LABELS: Record<string, string> = {
-  OPENING:              'رصيد افتتاحي',
-  PURCHASE_RECEIPT:     'استلام مشتريات',
-  MANUAL_CREATE:        'إضافة يدوية',
-  TRANSFER_OUT:         'مناقلة (خارج)',
-  TRANSFER_IN:          'مناقلة (داخل)',
-  RESERVE:              'حجز',
-  RELEASE_RESERVATION:  'رفع الحجز',
-  SALE:                 'بيع',
-  RETURN:               'إرجاع',
-  ADJUSTMENT:           'تسوية',
-  DAMAGE:               'تالف',
-  STATUS_CHANGE:        'تغيير حالة',
-};
+const getMovementTypeLabels = (): Record<string, string> => ({
+  OPENING:              i18n.t('movementTypes.opening', { ns: 'rollDetails' }),
+  PURCHASE_RECEIPT:     i18n.t('movementTypes.purchaseReceipt', { ns: 'rollDetails' }),
+  MANUAL_CREATE:        i18n.t('movementTypes.manualCreate', { ns: 'rollDetails' }),
+  TRANSFER_OUT:         i18n.t('movementTypes.transferOut', { ns: 'rollDetails' }),
+  TRANSFER_IN:          i18n.t('movementTypes.transferIn', { ns: 'rollDetails' }),
+  RESERVE:              i18n.t('movementTypes.reserve', { ns: 'rollDetails' }),
+  RELEASE_RESERVATION:  i18n.t('movementTypes.releaseReservation', { ns: 'rollDetails' }),
+  SALE:                 i18n.t('movementTypes.sale', { ns: 'rollDetails' }),
+  RETURN:               i18n.t('movementTypes.return', { ns: 'rollDetails' }),
+  ADJUSTMENT:           i18n.t('movementTypes.adjustment', { ns: 'rollDetails' }),
+  DAMAGE:               i18n.t('movementTypes.damage', { ns: 'rollDetails' }),
+  STATUS_CHANGE:        i18n.t('movementTypes.statusChange', { ns: 'rollDetails' }),
+});
 
 // ─── Data row ─────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,7 @@ interface EditModalProps {
   onSaved: () => void;
 }
 const EditModal = ({ roll, suppliers, warehouses, onClose, onSaved }: EditModalProps) => {
+  const { t } = useTranslation('rollDetails');
   const [locations, setLocations] = useState<ApiWarehouseLocation[]>([]);
   const [supplierId, setSupplierId] = useState(roll.supplier_id ?? '');
   const [locationId, setLocationId] = useState(roll.location_id ?? '');
@@ -116,7 +119,7 @@ const EditModal = ({ roll, suppliers, warehouses, onClose, onSaved }: EditModalP
       });
       onSaved();
     } catch (e: unknown) {
-      setErr((e as { message?: string }).message ?? 'حدث خطأ');
+      setErr((e as { message?: string }).message ?? t('editModal.genericError'));
     } finally {
       setSaving(false);
     }
@@ -135,8 +138,8 @@ const EditModal = ({ roll, suppliers, warehouses, onClose, onSaved }: EditModalP
               <Package className="w-6 h-6" />
             </div>
             <div>
-          <h3 className="font-bold text-slate-900">تعديل بيانات الثوب</h3>
-              <p className="mt-1 text-sm text-slate-500">شاشة مبسطة بنفس روح إنشاء مادة جديدة للتعديل السريع.</p>
+          <h3 className="font-bold text-slate-900">{t('editModal.title')}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t('editModal.subtitle')}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800"><X className="w-5 h-5" /></button>
@@ -144,74 +147,74 @@ const EditModal = ({ roll, suppliers, warehouses, onClose, onSaved }: EditModalP
         <div className="p-6 space-y-5 max-h-[72vh] overflow-y-auto">
           <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <div className="text-xs font-bold text-indigo-500">الباركود</div>
+              <div className="text-xs font-bold text-indigo-500">{t('editModal.barcodeLabel')}</div>
               <div className="mt-1 font-mono text-sm font-black text-slate-900" dir="ltr">{roll.barcode}</div>
             </div>
             <div>
-              <div className="text-xs font-bold text-indigo-500">الخامة</div>
+              <div className="text-xs font-bold text-indigo-500">{t('editModal.materialLabel')}</div>
               <div className="mt-1 text-sm font-black text-slate-900">{displayValue(roll.item_name)}</div>
             </div>
             <div>
-              <div className="text-xs font-bold text-indigo-500">كود الخامة</div>
+              <div className="text-xs font-bold text-indigo-500">{t('editModal.materialCodeLabel')}</div>
               <div className="mt-1 font-mono text-sm font-black text-slate-900" dir="ltr">{displayValue(roll.internal_code ?? roll.supplier_code_item)}</div>
             </div>
             <div>
-              <div className="text-xs font-bold text-indigo-500">اللون</div>
+              <div className="text-xs font-bold text-indigo-500">{t('editModal.colorLabel')}</div>
               <div className="mt-1 text-sm font-black text-slate-900">{displayValue(roll.color_name_ar ?? roll.color_code)}</div>
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h4 className="mb-4 text-base font-black text-slate-900">القياسات الأساسية</h4>
+            <h4 className="mb-4 text-base font-black text-slate-900">{t('editModal.basicMeasurementsTitle')}</h4>
             <div className="grid gap-4 md:grid-cols-4">
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">المورد</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.supplierLabel')}</label>
             <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className={inputCls}>
-              <option value="">— بدون —</option>
+              <option value="">{t('editModal.noneOption')}</option>
               {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">الموقع</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.locationLabel')}</label>
             <select value={locationId} onChange={e => setLocationId(e.target.value)} className={inputCls}>
-              <option value="">— بدون —</option>
+              <option value="">{t('editModal.noneOption')}</option>
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">الطول (م)</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.lengthLabel')}</label>
             <input type="number" value={lengthM} onChange={e => setLengthM(e.target.value)} step="0.001" className={`${primaryInputCls} border-indigo-300 text-indigo-700 focus:border-indigo-500 focus:ring-indigo-500/10`} dir="ltr" autoFocus />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">العرض (سم)</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.widthLabel')}</label>
             <input type="number" value={widthCm} onChange={e => setWidthCm(e.target.value)} step="0.1" className={inputCls} dir="ltr" />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">GSM</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.gsmLabel')}</label>
             <input type="number" value={gsm} onChange={e => setGsm(e.target.value)} className={inputCls} dir="ltr" />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">الوزن الفعلي (كجم)</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.actualWeightLabel')}</label>
             <input type="number" value={actualWeightKg} onChange={e => setActualWeightKg(e.target.value)} step="0.001" className={`${primaryInputCls} border-emerald-300 text-emerald-700 focus:border-emerald-500 focus:ring-emerald-500/10`} dir="ltr" />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">سعر التكلفة</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.unitCostLabel')}</label>
             <input type="number" value={unitCost} onChange={e => setUnitCost(e.target.value)} step="0.0001" className={inputCls} dir="ltr" />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">رقم الدُفعة</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.batchNoLabel')}</label>
             <input type="text" value={batchNo} onChange={e => setBatchNo(e.target.value)} className={inputCls} />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">رقم الحاوية</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.containerNoLabel')}</label>
             <input type="text" value={containerNo} onChange={e => setContainerNo(e.target.value)} className={inputCls} />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">مرجع ثوب المورد</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.supplierRollRefLabel')}</label>
             <input type="text" value={supplierRollRef} onChange={e => setSupplierRollRef(e.target.value)} className={inputCls} dir="ltr" />
           </div>
           <div className="col-span-2 space-y-1">
-            <label className="text-sm font-bold text-slate-700">ملاحظات</label>
+            <label className="text-sm font-bold text-slate-700">{t('editModal.notesLabel')}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`${inputCls} resize-none`} />
           </div>
             </div>
@@ -219,10 +222,10 @@ const EditModal = ({ roll, suppliers, warehouses, onClose, onSaved }: EditModalP
           {err && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 text-sm font-bold">{err}</p>}
         </div>
         <div className="p-5 border-t border-slate-200 bg-white flex flex-col-reverse sm:flex-row justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 text-sm">إلغاء</button>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 text-sm">{t('editModal.cancel')}</button>
           <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-black text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm">
             <Save className="w-4 h-4" />
-            {saving ? 'جاري الحفظ...' : 'حفظ'}
+            {saving ? t('editModal.saving') : t('editModal.save')}
           </button>
         </div>
       </div>
@@ -239,6 +242,7 @@ interface MoveModalProps {
   onSaved: () => void;
 }
 const MoveModal = ({ roll, warehouses, onClose, onSaved }: MoveModalProps) => {
+  const { t } = useTranslation('rollDetails');
   const [toWarehouseId, setToWarehouseId] = useState(roll.warehouse_id);
   const [toLocationId, setToLocationId] = useState('');
   const [locations, setLocations] = useState<ApiWarehouseLocation[]>([]);
@@ -257,7 +261,7 @@ const MoveModal = ({ roll, warehouses, onClose, onSaved }: MoveModalProps) => {
       await moveFabricRoll(roll.id, { toWarehouseId, toLocationId: toLocationId || null, notes: moveNotes || undefined });
       onSaved();
     } catch (e: unknown) {
-      setErr((e as { message?: string }).message ?? 'حدث خطأ');
+      setErr((e as { message?: string }).message ?? t('editModal.genericError'));
     } finally {
       setSaving(false);
     }
@@ -269,37 +273,37 @@ const MoveModal = ({ roll, warehouses, onClose, onSaved }: MoveModalProps) => {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="font-bold text-slate-900">نقل الثوب</h3>
+          <h3 className="font-bold text-slate-900">{t('moveModal.title')}</h3>
           <button onClick={onClose} className="p-1 rounded hover:bg-slate-100"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-5 space-y-4">
           <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-600">
-            من: <strong>{roll.warehouse_name}</strong> {roll.location_name ? `← ${roll.location_name}` : ''}
+            {t('moveModal.fromLabel')} <strong>{roll.warehouse_name}</strong> {roll.location_name ? `← ${roll.location_name}` : ''}
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">المستودع الهدف</label>
+            <label className="text-sm font-bold text-slate-700">{t('moveModal.targetWarehouseLabel')}</label>
             <select value={toWarehouseId} onChange={e => setToWarehouseId(e.target.value)} className={inputCls}>
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">الموقع الهدف</label>
+            <label className="text-sm font-bold text-slate-700">{t('moveModal.targetLocationLabel')}</label>
             <select value={toLocationId} onChange={e => setToLocationId(e.target.value)} className={inputCls}>
-              <option value="">— بدون موقع محدد —</option>
+              <option value="">{t('moveModal.noLocationOption')}</option>
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">ملاحظات</label>
+            <label className="text-sm font-bold text-slate-700">{t('moveModal.notesLabel')}</label>
             <textarea value={moveNotes} onChange={e => setMoveNotes(e.target.value)} rows={2} className={`${inputCls} resize-none`} />
           </div>
           {err && <p className="text-rose-600 text-sm font-bold">{err}</p>}
         </div>
         <div className="p-5 border-t border-slate-200 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 text-sm">إلغاء</button>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 text-sm">{t('moveModal.cancel')}</button>
           <button onClick={handleMove} disabled={saving} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm disabled:opacity-50 flex items-center gap-2">
             <MoveRight className="w-4 h-4" />
-            {saving ? 'جاري النقل...' : 'نقل الثوب'}
+            {saving ? t('moveModal.moving') : t('moveModal.moveButton')}
           </button>
         </div>
       </div>
@@ -315,6 +319,7 @@ interface StatusModalProps {
   onSaved: () => void;
 }
 const StatusModal = ({ roll, onClose, onSaved }: StatusModalProps) => {
+  const { t } = useTranslation('rollDetails');
   const [status, setStatus] = useState<RollStatus>(roll.status);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -327,7 +332,7 @@ const StatusModal = ({ roll, onClose, onSaved }: StatusModalProps) => {
       await updateFabricRollStatus(roll.id, status, notes);
       onSaved();
     } catch (e: unknown) {
-      setErr((e as { message?: string }).message ?? 'حدث خطأ');
+      setErr((e as { message?: string }).message ?? t('editModal.genericError'));
     } finally {
       setSaving(false);
     }
@@ -339,25 +344,25 @@ const StatusModal = ({ roll, onClose, onSaved }: StatusModalProps) => {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" dir="rtl">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="p-5 border-b border-slate-200">
-          <h3 className="font-bold text-slate-900">تغيير حالة الثوب</h3>
+          <h3 className="font-bold text-slate-900">{t('statusModal.title')}</h3>
         </div>
         <div className="p-5 space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">الحالة الجديدة</label>
+            <label className="text-sm font-bold text-slate-700">{t('statusModal.newStatusLabel')}</label>
             <select value={status} onChange={e => setStatus(e.target.value as RollStatus)} className={inputCls}>
               {ALL_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-bold text-slate-700">ملاحظات</label>
+            <label className="text-sm font-bold text-slate-700">{t('statusModal.notesLabel')}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={`${inputCls} resize-none`} />
           </div>
           {err && <p className="text-rose-600 text-sm font-bold">{err}</p>}
         </div>
         <div className="p-5 border-t border-slate-200 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 text-sm">إلغاء</button>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 text-sm">{t('statusModal.cancel')}</button>
           <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold text-sm disabled:opacity-50">
-            {saving ? 'جاري الحفظ...' : 'حفظ'}
+            {saving ? t('statusModal.saving') : t('statusModal.save')}
           </button>
         </div>
       </div>
@@ -368,6 +373,7 @@ const StatusModal = ({ roll, onClose, onSaved }: StatusModalProps) => {
 // ─── Main RollDetails page ────────────────────────────────────────────────────
 
 export const RollDetails = () => {
+  const { t } = useTranslation('rollDetails');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -387,11 +393,11 @@ export const RollDetails = () => {
       const data = await getFabricRoll(id);
       setRoll(data);
     } catch {
-      setError('تعذر تحميل بيانات الثوب');
+      setError(t('page.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     loadRoll();
@@ -409,12 +415,14 @@ export const RollDetails = () => {
     loadRoll();
   };
 
+  const dateLocale = i18n.language === 'ar' ? 'ar-SA' : 'tr-TR';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64" dir="rtl">
         <div className="text-center text-slate-400">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-          <p>جاري التحميل...</p>
+          <p>{t('page.loading')}</p>
         </div>
       </div>
     );
@@ -424,13 +432,15 @@ export const RollDetails = () => {
     return (
       <div className="max-w-xl mx-auto py-12 text-center" dir="rtl">
         <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-600 font-bold mb-4">{error || 'الثوب غير موجود'}</p>
+        <p className="text-slate-600 font-bold mb-4">{error || t('page.rollNotFound')}</p>
         <button onClick={() => navigate('/inventory')} className="text-indigo-600 hover:underline text-sm">
-          العودة إلى المخزون
+          {t('page.backToInventory')}
         </button>
       </div>
     );
   }
+
+  const movementTypeLabels = getMovementTypeLabels();
 
   return (
     <div className="max-w-5xl mx-auto space-y-6" dir="rtl">
@@ -441,25 +451,25 @@ export const RollDetails = () => {
             <ArrowRight className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">تفاصيل الثوب</h2>
+            <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
             <p className="font-mono text-slate-500 mt-0.5">{roll.barcode}</p>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setShowEdit(true)} className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition text-sm font-medium">
-            <Pencil className="w-4 h-4" /> تعديل
+            <Pencil className="w-4 h-4" /> {t('page.editButton')}
           </button>
           <button onClick={() => setShowMove(true)} className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 hover:bg-blue-100 transition text-sm font-medium">
-            <MoveRight className="w-4 h-4" /> نقل
+            <MoveRight className="w-4 h-4" /> {t('page.moveButton')}
           </button>
           <button onClick={() => setShowStatus(true)} className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 hover:bg-amber-100 transition text-sm font-medium">
-            <ToggleLeft className="w-4 h-4" /> تغيير الحالة
+            <ToggleLeft className="w-4 h-4" /> {t('page.changeStatusButton')}
           </button>
           <button
             onClick={() => navigate(`/inventory/labels?rollId=${roll.id}`)}
             className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 transition text-sm font-medium"
           >
-            <Printer className="w-4 h-4" /> طباعة لصاقة
+            <Printer className="w-4 h-4" /> {t('page.printLabelButton')}
           </button>
         </div>
       </div>
@@ -467,13 +477,13 @@ export const RollDetails = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Roll Info */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h3 className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">معلومات الثوب</h3>
-          <DataRow label="الباركود" value={<span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{roll.barcode}</span>} />
-          <DataRow label="رقم الثوب" value={roll.roll_no} />
-          <DataRow label="الحالة" value={<StatusBadge status={roll.status} />} />
-          <DataRow label="الخامة" value={roll.item_name} />
-          <DataRow label="الكود الداخلي" value={<span className="font-mono">{roll.internal_code}</span>} />
-          <DataRow label="اللون" value={
+          <h3 className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">{t('page.rollInfoTitle')}</h3>
+          <DataRow label={t('page.barcodeLabel')} value={<span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{roll.barcode}</span>} />
+          <DataRow label={t('page.rollNoLabel')} value={roll.roll_no} />
+          <DataRow label={t('page.statusLabel')} value={<StatusBadge status={roll.status} />} />
+          <DataRow label={t('page.materialLabel')} value={roll.item_name} />
+          <DataRow label={t('page.internalCodeLabel')} value={<span className="font-mono">{roll.internal_code}</span>} />
+          <DataRow label={t('page.colorLabel')} value={
             <div className="flex items-center gap-2">
               {roll.hex_color && roll.color_name_ar && (
                 <span className="w-4 h-4 rounded-full border border-slate-200" style={{ backgroundColor: roll.hex_color }} />
@@ -484,71 +494,71 @@ export const RollDetails = () => {
               )}
             </div>
           } />
-          <DataRow label="كود اللون" value={
+          <DataRow label={t('page.colorCodeLabel')} value={
             <span className="font-mono">{displayImportedColorCode(roll.color_code)}</span>
           } />
-          <DataRow label="المتغير" value={roll.variant_code} />
-          <DataRow label="المورد" value={roll.supplier_name} />
+          <DataRow label={t('page.variantLabel')} value={roll.variant_code} />
+          <DataRow label={t('page.supplierLabel')} value={roll.supplier_name} />
         </div>
 
         {/* Dimensions & Location */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h3 className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">الأبعاد والموقع</h3>
-          <DataRow label="الطول" value={`${parseFloat(roll.length_m).toFixed(3)} م`} />
-          <DataRow label="العرض" value={roll.width_cm ? `${parseFloat(roll.width_cm).toFixed(1)} سم` : undefined} />
-          <DataRow label="وزن المتر المربع (GSM)" value={roll.gsm ? parseFloat(roll.gsm).toFixed(0) : undefined} />
-          <DataRow label="الوزن المحسوب" value={roll.calculated_weight_kg ? `${parseFloat(roll.calculated_weight_kg).toFixed(3)} كجم` : undefined} />
-          <DataRow label="الوزن الفعلي" value={roll.actual_weight_kg ? `${parseFloat(roll.actual_weight_kg).toFixed(3)} كجم` : undefined} />
-          <DataRow label="المستودع" value={roll.warehouse_name} />
-          <DataRow label="الموقع" value={roll.location_name} />
-          <DataRow label="سعر التكلفة" value={roll.unit_cost ? `${parseFloat(roll.unit_cost).toFixed(4)} ${roll.currency_code ?? ''}` : undefined} />
+          <h3 className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">{t('page.dimensionsLocationTitle')}</h3>
+          <DataRow label={t('page.lengthLabel')} value={`${parseFloat(roll.length_m).toFixed(3)} ${t('page.meterAbbrev')}`} />
+          <DataRow label={t('page.widthLabel')} value={roll.width_cm ? `${parseFloat(roll.width_cm).toFixed(1)} ${t('page.cmAbbrev')}` : undefined} />
+          <DataRow label={t('page.gsmLabel')} value={roll.gsm ? parseFloat(roll.gsm).toFixed(0) : undefined} />
+          <DataRow label={t('page.calculatedWeightLabel')} value={roll.calculated_weight_kg ? `${parseFloat(roll.calculated_weight_kg).toFixed(3)} ${t('page.kgAbbrev')}` : undefined} />
+          <DataRow label={t('page.actualWeightLabel')} value={roll.actual_weight_kg ? `${parseFloat(roll.actual_weight_kg).toFixed(3)} ${t('page.kgAbbrev')}` : undefined} />
+          <DataRow label={t('page.warehouseLabel')} value={roll.warehouse_name} />
+          <DataRow label={t('page.locationLabel')} value={roll.location_name} />
+          <DataRow label={t('page.unitCostLabel')} value={roll.unit_cost ? `${parseFloat(roll.unit_cost).toFixed(4)} ${roll.currency_code ?? ''}` : undefined} />
         </div>
 
         {/* References */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h3 className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">مراجع الشراء</h3>
-          <DataRow label="رقم الدُفعة" value={roll.batch_no} />
-          <DataRow label="رقم الحاوية" value={roll.container_no} />
-          <DataRow label="فاتورة الشراء" value={roll.purchase_invoice_no} />
-          <DataRow label="مرجع ثوب المورد" value={<span className="font-mono">{roll.supplier_roll_ref}</span>} />
-          <DataRow label="ملاحظات" value={roll.notes} />
-          <DataRow label="تاريخ الإضافة" value={new Date(roll.created_at).toLocaleDateString('ar-SA')} />
-          <DataRow label="آخر تحديث" value={new Date(roll.updated_at).toLocaleDateString('ar-SA')} />
+          <h3 className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100">{t('page.purchaseRefsTitle')}</h3>
+          <DataRow label={t('page.batchNoLabel')} value={roll.batch_no} />
+          <DataRow label={t('page.containerNoLabel')} value={roll.container_no} />
+          <DataRow label={t('page.purchaseInvoiceLabel')} value={roll.purchase_invoice_no} />
+          <DataRow label={t('page.supplierRollRefLabel')} value={<span className="font-mono">{roll.supplier_roll_ref}</span>} />
+          <DataRow label={t('page.notesLabel')} value={roll.notes} />
+          <DataRow label={t('page.addedDateLabel')} value={new Date(roll.created_at).toLocaleDateString(dateLocale)} />
+          <DataRow label={t('page.lastUpdatedLabel')} value={new Date(roll.updated_at).toLocaleDateString(dateLocale)} />
         </div>
       </div>
 
       {/* Movement history */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-200">
-          <h3 className="font-bold text-slate-800">سجل الحركات</h3>
-          <p className="text-sm text-slate-500 mt-0.5">{roll.movements.length} حركة مسجلة</p>
+          <h3 className="font-bold text-slate-800">{t('page.movementHistoryTitle')}</h3>
+          <p className="text-sm text-slate-500 mt-0.5">{t('page.movementsCount', { count: roll.movements.length })}</p>
         </div>
         {roll.movements.length === 0 ? (
-          <p className="text-center text-slate-400 py-8 text-sm">لا توجد حركات مسجلة بعد</p>
+          <p className="text-center text-slate-400 py-8 text-sm">{t('page.noMovements')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-right py-3 px-4 font-bold text-slate-600 whitespace-nowrap">التاريخ</th>
-                  <th className="text-right py-3 px-4 font-bold text-slate-600">نوع الحركة</th>
-                  <th className="text-right py-3 px-4 font-bold text-slate-600">من</th>
-                  <th className="text-right py-3 px-4 font-bold text-slate-600">إلى</th>
-                  <th className="text-right py-3 px-4 font-bold text-slate-600">الحالة السابقة</th>
-                  <th className="text-right py-3 px-4 font-bold text-slate-600">الحالة الجديدة</th>
-                  <th className="text-right py-3 px-4 font-bold text-slate-600">مرجع</th>
-                  <th className="text-right py-3 px-4 font-bold text-slate-600">ملاحظات</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600 whitespace-nowrap">{t('page.colDate')}</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600">{t('page.colMovementType')}</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600">{t('page.colFrom')}</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600">{t('page.colTo')}</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600">{t('page.colOldStatus')}</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600">{t('page.colNewStatus')}</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600">{t('page.colReference')}</th>
+                  <th className="text-right py-3 px-4 font-bold text-slate-600">{t('page.colNotes')}</th>
                 </tr>
               </thead>
               <tbody>
                 {roll.movements.map(m => (
                   <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition">
                     <td className="py-3 px-4 whitespace-nowrap text-xs text-slate-500">
-                      {new Date(m.created_at).toLocaleDateString('ar-SA')}
+                      {new Date(m.created_at).toLocaleDateString(dateLocale)}
                     </td>
                     <td className="py-3 px-4">
                       <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-medium">
-                        {MOVEMENT_TYPE_LABELS[m.movement_type] ?? m.movement_type}
+                        {movementTypeLabels[m.movement_type] ?? m.movement_type}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-slate-600 text-xs">

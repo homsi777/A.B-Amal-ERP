@@ -20,6 +20,8 @@ import arExternalJobs from '../locales/ar/externalJobs.json';
 import arSuppliers from '../locales/ar/suppliers.json';
 import arPartiesLog from '../locales/ar/partiesLog.json';
 import arCustomerStatementImportModal from '../locales/ar/customerStatementImportModal.json';
+import arFabricMasterData from '../locales/ar/fabricMasterData.json';
+import arRollDetails from '../locales/ar/rollDetails.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -40,6 +42,8 @@ import trExternalJobs from '../locales/tr/externalJobs.json';
 import trSuppliers from '../locales/tr/suppliers.json';
 import trPartiesLog from '../locales/tr/partiesLog.json';
 import trCustomerStatementImportModal from '../locales/tr/customerStatementImportModal.json';
+import trFabricMasterData from '../locales/tr/fabricMasterData.json';
+import trRollDetails from '../locales/tr/rollDetails.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -68,6 +72,8 @@ void i18n.use(initReactI18next).init({
       suppliers: arSuppliers,
       partiesLog: arPartiesLog,
       customerStatementImportModal: arCustomerStatementImportModal,
+      fabricMasterData: arFabricMasterData,
+      rollDetails: arRollDetails,
     },
     tr: {
       common: trCommon,
@@ -90,12 +96,14 @@ void i18n.use(initReactI18next).init({
       suppliers: trSuppliers,
       partiesLog: trPartiesLog,
       customerStatementImportModal: trCustomerStatementImportModal,
+      fabricMasterData: trFabricMasterData,
+      rollDetails: trRollDetails,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails'],
   interpolation: {
     escapeValue: false,
   },
