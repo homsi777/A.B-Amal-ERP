@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import {
   type ApiSupplier,
@@ -16,6 +17,7 @@ const emptyForm = (): SupplierPayload => ({
 });
 
 export const Suppliers = () => {
+  const { t } = useTranslation('suppliers');
   const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,9 +44,9 @@ export const Suppliers = () => {
       setSuppliers(res.data);
       setTotal(res.total);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'خطأ في تحميل البيانات');
+      setError(e instanceof Error ? e.message : t('errors.loadFailed'));
     } finally { setLoading(false); }
-  }, [search, statusFilter, page]);
+  }, [search, statusFilter, page, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -76,7 +78,7 @@ export const Suppliers = () => {
       else { await createSupplier(form); }
       closeModal(); load();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'فشل الحفظ');
+      setSaveError(e instanceof Error ? e.message : t('errors.saveFailed'));
     } finally { setSaving(false); }
   };
 
@@ -89,7 +91,7 @@ export const Suppliers = () => {
 
   const handleDeactivate = async (supplier: ApiSupplier) => {
     if (!supplier.is_active) return;
-    if (!window.confirm(`تعطيل المورد "${supplier.name}"؟ سيبقى محفوظاً للفواتير والكشوفات السابقة.`)) return;
+    if (!window.confirm(t('confirm.deactivateSupplier', { name: supplier.name }))) return;
     await handleToggle(supplier.id);
   };
 
@@ -99,15 +101,15 @@ export const Suppliers = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">الموردون</h2>
-          <p className="text-slate-500 mt-1">إدارة بيانات الموردين — مُتصل بـ PostgreSQL</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+          <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="تحديث">
+          <button onClick={load} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title={t('toolbar.refresh')}>
             <RefreshCw className="w-4 h-4" />
           </button>
           <button onClick={openAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition">
-            <Plus className="w-4 h-4" /><span>إضافة مورد</span>
+            <Plus className="w-4 h-4" /><span>{t('toolbar.addSupplier')}</span>
           </button>
         </div>
       </div>
@@ -116,15 +118,15 @@ export const Suppliers = () => {
         <div className="p-4 border-b border-slate-200 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-            <input type="text" placeholder="بحث بالاسم أو الكود أو الهاتف..." value={search}
+            <input type="text" placeholder={t('table.searchPlaceholder')} value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as typeof statusFilter); setPage(1); }}
             className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="all">كل الحالات</option>
-            <option value="active">نشط</option>
-            <option value="inactive">غير نشط</option>
+            <option value="all">{t('table.statusAll')}</option>
+            <option value="active">{t('table.statusActive')}</option>
+            <option value="inactive">{t('table.statusInactive')}</option>
           </select>
         </div>
 
@@ -136,12 +138,12 @@ export const Suppliers = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3">الكود</th>
-                <th className="px-4 py-3">الاسم</th>
-                <th className="px-4 py-3">الهاتف</th>
-                <th className="px-4 py-3">الدولة</th>
-                <th className="px-4 py-3">الحالة</th>
-                <th className="px-4 py-3">إجراءات</th>
+                <th className="px-4 py-3">{t('table.colCode')}</th>
+                <th className="px-4 py-3">{t('table.colName')}</th>
+                <th className="px-4 py-3">{t('table.colPhone')}</th>
+                <th className="px-4 py-3">{t('table.colCountry')}</th>
+                <th className="px-4 py-3">{t('table.colStatus')}</th>
+                <th className="px-4 py-3">{t('table.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -150,7 +152,7 @@ export const Suppliers = () => {
                   <Loader2 className="w-5 h-5 animate-spin mx-auto" />
                 </td></tr>
               ) : suppliers.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">لا يوجد موردون.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">{t('table.noSuppliers')}</td></tr>
               ) : suppliers.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50/50">
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{s.code}</td>
@@ -160,15 +162,15 @@ export const Suppliers = () => {
                   <td className="px-4 py-3">
                     <button onClick={() => handleToggle(s.id)}
                       className={`px-2.5 py-1 rounded-full text-xs font-bold transition ${s.is_active ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                      {s.is_active ? 'نشط' : 'غير نشط'}
+                      {s.is_active ? t('table.statusActive') : t('table.statusInactive')}
                     </button>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(s)} title="تعديل" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                      <button onClick={() => openEdit(s)} title={t('table.editActionTitle')} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button onClick={() => void handleDeactivate(s)} disabled={!s.is_active} title="تعطيل المورد" className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition disabled:opacity-30">
+                      <button onClick={() => void handleDeactivate(s)} disabled={!s.is_active} title={t('table.disableSupplierTitle')} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition disabled:opacity-30">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -181,13 +183,13 @@ export const Suppliers = () => {
 
         {totalPages > 1 && (
           <div className="p-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-600">
-            <span>{total} مورد إجمالاً</span>
+            <span>{t('pagination.totalSuppliers', { count: total })}</span>
             <div className="flex gap-1">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">السابق</button>
+                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">{t('pagination.prev')}</button>
               <span className="px-3 py-1.5">{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">التالي</button>
+                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">{t('pagination.next')}</button>
             </div>
           </div>
         )}
@@ -197,54 +199,54 @@ export const Suppliers = () => {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-lg">{editTarget ? 'تعديل مورد' : 'إضافة مورد جديد'}</h3>
+              <h3 className="font-bold text-lg">{editTarget ? t('modal.editTitle') : t('modal.addTitle')}</h3>
               <button onClick={closeModal} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
               {saveError && <p className="text-sm text-rose-600 bg-rose-50 p-2 rounded-lg">{saveError}</p>}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الاسم *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.nameLabel')}</label>
                   <input required type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} onKeyDown={focusNextFormControl}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الكود</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.codeLabel')}</label>
                   <input type="text" value={form.code || ''} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} onKeyDown={focusNextFormControl}
-                    placeholder="تلقائي إذا تُرك فارغاً"
+                    placeholder={t('modal.codePlaceholder')}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">رقم الهاتف</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.phoneLabel')}</label>
                   <input type="text" value={form.phone || ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} onKeyDown={focusNextFormControl}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الدولة</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.countryLabel')}</label>
                   <input type="text" value={form.country || ''} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} onKeyDown={focusNextFormControl}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">البريد الإلكتروني</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.emailLabel')}</label>
                 <input type="email" value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} onKeyDown={focusNextFormControl}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">العنوان</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.addressLabel')}</label>
                 <input type="text" value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} onKeyDown={focusNextFormControl}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">ملاحظات</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.notesLabel')}</label>
                 <textarea rows={2} value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" />
               </div>
               <div className="border border-sky-100 bg-sky-50/40 rounded-xl p-3 space-y-3">
                 <label className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
-                  <span>تفعيل إرسال تيليغرام لهذا المورد</span>
+                  <span>{t('modal.telegramEnableLabel')}</span>
                   <input
                     type="checkbox"
                     checked={Boolean(form.telegramEnabled)}
@@ -265,7 +267,7 @@ export const Suppliers = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">اسم تيليغرام</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">{t('modal.telegramNameLabel')}</label>
                     <input
                       type="text"
                       value={form.telegramLabel || ''}
@@ -277,10 +279,10 @@ export const Suppliers = () => {
                 </div>
               </div>
               <div className="pt-2 flex justify-end gap-3">
-                <button type="button" onClick={closeModal} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm">إلغاء</button>
+                <button type="button" onClick={closeModal} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm">{t('modal.cancel')}</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2 disabled:opacity-60">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {editTarget ? 'حفظ التعديلات' : 'إضافة المورد'}
+                  {editTarget ? t('modal.saveEdit') : t('modal.saveAdd')}
                 </button>
               </div>
             </form>

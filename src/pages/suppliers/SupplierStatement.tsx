@@ -34,7 +34,7 @@ interface SupplierFabricItem {
   fabricCode: string;
   rollsCount: number;
   quantity: number;
-  unit: 'متر' | 'يارد';
+  unit: string;
   unitPrice: number;
   total: number;
   payments: number;
@@ -280,7 +280,7 @@ export const SupplierStatement = () => {
             fabricCode: item.designCode || item.colorCode || item.fabricId,
             rollsCount,
             quantity: item.quantity,
-            unit: item.unitType === 'meter' ? 'متر' : 'يارد',
+            unit: item.unitType === 'meter' ? i18n.t('batchExport.unitMeter', { ns: 'terminology' }) : i18n.t('batchExport.unitYard', { ns: 'terminology' }),
             unitPrice: item.unitPrice,
             total: item.total,
             payments: paymentShare,
@@ -386,7 +386,7 @@ export const SupplierStatement = () => {
   };
 
   const statementPrintFileName = `${buildSupplierStatementFileName(
-    selectedSupplier?.company || selectedSupplier?.name || accountStatement?.supplier?.name || 'مورد',
+    selectedSupplier?.company || selectedSupplier?.name || accountStatement?.supplier?.name || t('labels.supplierFallback'),
     fromDate,
     toDate,
   )}.pdf`;
@@ -701,7 +701,7 @@ export const SupplierStatement = () => {
       return;
     }
     const cur = cashboxes.find((x) => x.id === payCashboxId)?.currency_code ?? 'USD';
-    const descParts = [payOutNote.trim(), 'من كشف حساب مورد'].filter(Boolean);
+    const descParts = [payOutNote.trim(), t('voucherDescription.statementSuffix')].filter(Boolean);
     try {
       const created = await createVoucher({
         voucherType: 'PAYMENT',
@@ -709,7 +709,7 @@ export const SupplierStatement = () => {
         cashboxId: payCashboxId,
         partyType: 'SUPPLIER',
         partyId: selectedSupplierId,
-        partyName: selectedSupplier?.company || selectedSupplier?.name || 'مورد',
+        partyName: selectedSupplier?.company || selectedSupplier?.name || t('labels.supplierFallback'),
         amount,
         currencyCode: cur,
         description: descParts.length ? descParts.join(' — ') : null,

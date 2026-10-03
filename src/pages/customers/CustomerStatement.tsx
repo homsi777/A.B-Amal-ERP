@@ -917,7 +917,7 @@ export const CustomerStatement = () => {
       return;
     }
     const cur = cashboxes.find((x) => x.id === payCashboxId)?.currency_code ?? 'USD';
-    const descParts = [payNote.trim(), 'من كشف حساب عميل'].filter(Boolean);
+    const descParts = [payNote.trim(), t('voucherDescription.statementSuffix')].filter(Boolean);
     try {
       const created = await createVoucher({
         voucherType: paymentMode === 'payment' ? 'PAYMENT' : 'RECEIPT',
@@ -925,7 +925,7 @@ export const CustomerStatement = () => {
         cashboxId: payCashboxId,
         partyType: 'CUSTOMER',
         partyId: selectedCustomerId,
-        partyName: selectedCustomer?.name ?? 'عميل',
+        partyName: selectedCustomer?.name ?? t('voucherDescription.customerFallback'),
         amount,
         currencyCode: cur,
         description: descParts.length ? descParts.join(' — ') : null,
@@ -978,7 +978,7 @@ export const CustomerStatement = () => {
       showToast({ type: 'warning', message: t('toast.invalidExchangeRate') });
       return;
     }
-    const description = discountDescription.trim() || `حسم منحة — ${selectedCustomer?.name ?? 'عميل'}`;
+    const description = discountDescription.trim() || t('discount.defaultDescription', { name: selectedCustomer?.name ?? t('voucherDescription.customerFallback') });
     setDiscountBusy(true);
     try {
       const created = await createCustomerDiscount({

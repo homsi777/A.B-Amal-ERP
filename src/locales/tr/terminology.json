@@ -528,6 +528,10 @@
   "voucherPrintModal.dateField": "Tarih: {{date}}",
   "voucherPrintModal.amountField": "Tutar: {{amount}} {{currency}}",
 
+  "smartPartySearch.selected": "Seçildi: {{name}}",
+  "smartPartySearch.noNameFallback": "İsimsiz",
+  "smartPartySearch.noMatchingResults": "Eşleşen sonuç bulunmuyor",
+
   "invoiceStatement.managerNotes": [
     "Kesimden önce lütfen uzunlukları ve lot numaralarını kontrol ediniz.",
     "Kesim işleminden önce lütfen rengi ve renk numarasını eşleştiriniz.",

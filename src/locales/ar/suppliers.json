@@ -1,0 +1,46 @@
+{
+  "page.title": "الموردون",
+  "page.subtitle": "إدارة بيانات الموردين — مُتصل بـ PostgreSQL",
+
+  "toolbar.refresh": "تحديث",
+  "toolbar.addSupplier": "إضافة مورد",
+
+  "table.searchPlaceholder": "بحث بالاسم أو الكود أو الهاتف...",
+  "table.statusAll": "كل الحالات",
+  "table.statusActive": "نشط",
+  "table.statusInactive": "غير نشط",
+  "table.colCode": "الكود",
+  "table.colName": "الاسم",
+  "table.colPhone": "الهاتف",
+  "table.colCountry": "الدولة",
+  "table.colStatus": "الحالة",
+  "table.colActions": "إجراءات",
+  "table.noSuppliers": "لا يوجد موردون.",
+  "table.editActionTitle": "تعديل",
+  "table.disableSupplierTitle": "تعطيل المورد",
+
+  "pagination.totalSuppliers": "{{count}} مورد إجمالاً",
+  "pagination.prev": "السابق",
+  "pagination.next": "التالي",
+
+  "modal.editTitle": "تعديل مورد",
+  "modal.addTitle": "إضافة مورد جديد",
+  "modal.nameLabel": "الاسم *",
+  "modal.codeLabel": "الكود",
+  "modal.codePlaceholder": "تلقائي إذا تُرك فارغاً",
+  "modal.phoneLabel": "رقم الهاتف",
+  "modal.countryLabel": "الدولة",
+  "modal.emailLabel": "البريد الإلكتروني",
+  "modal.addressLabel": "العنوان",
+  "modal.notesLabel": "ملاحظات",
+  "modal.telegramEnableLabel": "تفعيل إرسال تيليغرام لهذا المورد",
+  "modal.telegramNameLabel": "اسم تيليغرام",
+  "modal.cancel": "إلغاء",
+  "modal.saveEdit": "حفظ التعديلات",
+  "modal.saveAdd": "إضافة المورد",
+
+  "confirm.deactivateSupplier": "تعطيل المورد \"{{name}}\"؟ سيبقى محفوظاً للفواتير والكشوفات السابقة.",
+
+  "errors.loadFailed": "خطأ في تحميل البيانات",
+  "errors.saveFailed": "فشل الحفظ"
+}

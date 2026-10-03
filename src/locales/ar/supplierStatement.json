@@ -96,5 +96,8 @@
   "paymentModal.noCashboxesWarning": "لا توجد صناديق من الخادم — أنشئ صندوقاً أولاً.",
   "paymentModal.statementLabel": "البيان (اختياري)",
   "paymentModal.statementPlaceholder": "سبب الدفع أو رقم فاتورة الشراء...",
-  "paymentModal.saveAndRecord": "حفظ وتسجيل القيد"
+  "paymentModal.saveAndRecord": "حفظ وتسجيل القيد",
+
+  "labels.supplierFallback": "مورد",
+  "voucherDescription.statementSuffix": "من كشف حساب مورد"
 }

@@ -1,0 +1,20 @@
+{
+  "customerTitle": "Müşteri Kayıtları",
+  "supplierTitle": "Tedarikçi Kayıtları",
+  "subtitle": "Sunucudan hareket takibi (taraf kayıtları)",
+  "customerSearchPlaceholder": "Müşteri kayıtlarında ara...",
+  "supplierSearchPlaceholder": "Tedarikçi kayıtlarında ara...",
+  "filter": "Filtrele",
+  "colId": "Kimlik",
+  "colDateTime": "Tarih ve Saat",
+  "colCustomer": "Müşteri",
+  "colSupplier": "Tedarikçi",
+  "colActivityType": "İşlem Türü",
+  "colReference": "Referans",
+  "colAmount": "Tutar",
+  "colDescription": "Açıklama",
+  "loading": "Yükleniyor...",
+  "noCustomerLogs": "Henüz müşteri kaydı bulunmuyor",
+  "noSupplierLogs": "Henüz tedarikçi kaydı bulunmuyor",
+  "loadFailed": "Kayıt yüklenemedi"
+}

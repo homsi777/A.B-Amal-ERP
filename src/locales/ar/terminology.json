@@ -528,6 +528,10 @@
   "voucherPrintModal.dateField": "التاريخ: {{date}}",
   "voucherPrintModal.amountField": "المبلغ: {{amount}} {{currency}}",
 
+  "smartPartySearch.selected": "تم اختيار: {{name}}",
+  "smartPartySearch.noNameFallback": "بدون اسم",
+  "smartPartySearch.noMatchingResults": "لا توجد نتائج مطابقة",
+
   "invoiceStatement.managerNotes": [
     "يرجى التأكد من أرقام الأطوال وأرقام اللوطات قبل القص.",
     "يرجى مطابقة اللون ورقم اللون قبل تنفيذ القص.",

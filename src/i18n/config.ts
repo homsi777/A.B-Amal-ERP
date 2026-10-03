@@ -17,6 +17,9 @@ import arPurchaseImport from '../locales/ar/purchaseImport.json';
 import arStockImport from '../locales/ar/stockImport.json';
 import arStickerPrinting from '../locales/ar/stickerPrinting.json';
 import arExternalJobs from '../locales/ar/externalJobs.json';
+import arSuppliers from '../locales/ar/suppliers.json';
+import arPartiesLog from '../locales/ar/partiesLog.json';
+import arCustomerStatementImportModal from '../locales/ar/customerStatementImportModal.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -34,6 +37,9 @@ import trPurchaseImport from '../locales/tr/purchaseImport.json';
 import trStockImport from '../locales/tr/stockImport.json';
 import trStickerPrinting from '../locales/tr/stickerPrinting.json';
 import trExternalJobs from '../locales/tr/externalJobs.json';
+import trSuppliers from '../locales/tr/suppliers.json';
+import trPartiesLog from '../locales/tr/partiesLog.json';
+import trCustomerStatementImportModal from '../locales/tr/customerStatementImportModal.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -59,6 +65,9 @@ void i18n.use(initReactI18next).init({
       stockImport: arStockImport,
       stickerPrinting: arStickerPrinting,
       externalJobs: arExternalJobs,
+      suppliers: arSuppliers,
+      partiesLog: arPartiesLog,
+      customerStatementImportModal: arCustomerStatementImportModal,
     },
     tr: {
       common: trCommon,
@@ -78,12 +87,15 @@ void i18n.use(initReactI18next).init({
       stockImport: trStockImport,
       stickerPrinting: trStickerPrinting,
       externalJobs: trExternalJobs,
+      suppliers: trSuppliers,
+      partiesLog: trPartiesLog,
+      customerStatementImportModal: trCustomerStatementImportModal,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal'],
   interpolation: {
     escapeValue: false,
   },

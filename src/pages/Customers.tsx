@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n/config';
+import { arAccountingCreditSide, arAccountingDebitSide } from '../lib/i18n/arTerminology';
 import { Calendar, Check, Download, FileUp, Loader2, Pencil, Plus, Printer, RefreshCw, Search, Send, Trash2, X } from 'lucide-react';
 import {
   type ApiCustomer,
@@ -409,7 +410,7 @@ export const Customers = () => {
           openingBalance: statement.openingBalance,
           debitTotal: statement.totals.debit,
           creditTotal: statement.totals.credit,
-          closingLabel: closing >= 0 ? 'مدين' : 'دائن',
+          closingLabel: closing >= 0 ? arAccountingDebitSide() : arAccountingCreditSide(),
           closingAmount: Math.abs(closing),
           currency: statement.rows[0]?.currency ?? 'USD',
           rowsCount: statement.rows.length,

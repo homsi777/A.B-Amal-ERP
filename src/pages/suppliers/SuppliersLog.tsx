@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Filter, Truck, Loader2 } from 'lucide-react';
 import { listPartyLogs, type PartyActivityRow } from '../../lib/api/partyLogsApi';
 import { ApiRequestError } from '../../lib/api/client';
+import i18n from '../../i18n/config';
 
 export const SuppliersLog = () => {
+  const { t } = useTranslation('partiesLog');
   const [logs, setLogs] = useState<PartyActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,11 +18,11 @@ export const SuppliersLog = () => {
       const res = await listPartyLogs({ partyType: 'SUPPLIER', pageSize: 100 });
       setLogs(res.data);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل السجل');
+      setError(e instanceof ApiRequestError ? e.message : t('loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -29,8 +32,8 @@ export const SuppliersLog = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">سجل الموردين</h2>
-          <p className="text-slate-500 mt-1">تتبع الحركات من الخادم (سجل الأطراف)</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('supplierTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('subtitle')}</p>
         </div>
       </div>
 
@@ -42,7 +45,7 @@ export const SuppliersLog = () => {
             <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
             <input
               type="text"
-              placeholder="بحث في سجل الموردين..."
+              placeholder={t('supplierSearchPlaceholder')}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
               disabled
             />
@@ -53,20 +56,20 @@ export const SuppliersLog = () => {
             disabled
           >
             <Filter className="w-4 h-4" />
-            <span>تصفية</span>
+            <span>{t('filter')}</span>
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-6 py-4">المعرّف</th>
-                <th className="px-6 py-4">التاريخ والوقت</th>
-                <th className="px-6 py-4">المورد</th>
-                <th className="px-6 py-4">نوع النشاط</th>
-                <th className="px-6 py-4">المرجع</th>
-                <th className="px-6 py-4">المبلغ</th>
-                <th className="px-6 py-4">الوصف</th>
+                <th className="px-6 py-4">{t('colId')}</th>
+                <th className="px-6 py-4">{t('colDateTime')}</th>
+                <th className="px-6 py-4">{t('colSupplier')}</th>
+                <th className="px-6 py-4">{t('colActivityType')}</th>
+                <th className="px-6 py-4">{t('colReference')}</th>
+                <th className="px-6 py-4">{t('colAmount')}</th>
+                <th className="px-6 py-4">{t('colDescription')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -74,13 +77,13 @@ export const SuppliersLog = () => {
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
-                    جاري التحميل...
+                    {t('loading')}
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                    لا يوجد سجل موردين بعد
+                    {t('noSupplierLogs')}
                   </td>
                 </tr>
               ) : (
@@ -88,7 +91,7 @@ export const SuppliersLog = () => {
                   <tr key={log.id} className="hover:bg-slate-50 transition-colors bg-white">
                     <td className="px-6 py-4 font-medium text-slate-500 font-mono text-xs">{log.id.slice(0, 8)}…</td>
                     <td className="px-6 py-4 text-slate-600 font-medium">
-                      {new Date(log.activity_at).toLocaleDateString('ar-SY')}
+                      {new Date(log.activity_at).toLocaleDateString(i18n.language === 'ar' ? 'ar-SY' : 'tr-TR')}
                     </td>
                     <td className="px-6 py-4">
                       <span className="flex items-center gap-2 font-bold text-indigo-600">

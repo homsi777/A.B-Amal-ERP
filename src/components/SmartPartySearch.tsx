@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import i18n from '../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'terminology', ...options });
 
 export interface SmartPartyOption {
   id: string;
@@ -70,7 +73,7 @@ export function SmartPartySearch<T extends SmartPartyOption>({
         return { option, rank: starts ? 0 : 1, name };
       })
       .filter((item): item is { option: T; rank: number; name: string } => Boolean(item))
-      .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ar'));
+      .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, i18n.language === 'ar' ? 'ar' : 'tr'));
 
     return ranked.slice(0, 12).map((item) => item.option);
   }, [options, query]);
@@ -134,7 +137,7 @@ export function SmartPartySearch<T extends SmartPartyOption>({
 
       {selected ? (
         <div className="mt-1 text-[11px] font-bold text-emerald-700">
-          تم اختيار: {partyName(selected)}
+          {t('smartPartySearch.selected', { name: partyName(selected) })}
         </div>
       ) : emptyLabel ? (
         <div className="mt-1 text-[11px] font-bold text-slate-500">{emptyLabel}</div>
@@ -144,7 +147,7 @@ export function SmartPartySearch<T extends SmartPartyOption>({
         <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-2xl">
           {filtered.length ? (
             filtered.map((option, index) => {
-              const name = partyName(option) || 'بدون اسم';
+              const name = partyName(option) || t('smartPartySearch.noNameFallback');
               const meta = [option.phone || option.mobile, option.code, option.address].filter(Boolean).join(' | ');
               return (
                 <button
@@ -162,7 +165,7 @@ export function SmartPartySearch<T extends SmartPartyOption>({
               );
             })
           ) : (
-            <div className="px-3 py-3 text-sm font-semibold text-slate-500">لا توجد نتائج مطابقة</div>
+            <div className="px-3 py-3 text-sm font-semibold text-slate-500">{t('smartPartySearch.noMatchingResults')}</div>
           )}
         </div>
       )}

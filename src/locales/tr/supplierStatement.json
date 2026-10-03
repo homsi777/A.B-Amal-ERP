@@ -96,5 +96,8 @@
   "paymentModal.noCashboxesWarning": "Sunucudan kasa yok — önce bir kasa oluşturun.",
   "paymentModal.statementLabel": "Açıklama (isteğe bağlı)",
   "paymentModal.statementPlaceholder": "Ödeme sebebi veya alış faturası numarası...",
-  "paymentModal.saveAndRecord": "Kaydet ve Kaydı Gir"
+  "paymentModal.saveAndRecord": "Kaydet ve Kaydı Gir",
+
+  "labels.supplierFallback": "Tedarikçi",
+  "voucherDescription.statementSuffix": "tedarikçi hesap özetinden"
 }

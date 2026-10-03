@@ -173,5 +173,9 @@
   "duesExportModal.fullExport": "تصدير شامل",
   "duesExportModal.fullExportDesc": "يشمل جميع العملاء النشطين حتى من رصيدهم صفر",
   "duesExportModal.duesOnlyExport": "تصدير فقط ذمم",
-  "duesExportModal.duesOnlyExportDesc": "يستبعد العملاء الذين ليس عليهم أي ذمة (رصيد صفر)"
+  "duesExportModal.duesOnlyExportDesc": "يستبعد العملاء الذين ليس عليهم أي ذمة (رصيد صفر)",
+
+  "voucherDescription.statementSuffix": "من كشف حساب عميل",
+  "voucherDescription.customerFallback": "عميل",
+  "discount.defaultDescription": "حسم منحة — {{name}}"
 }

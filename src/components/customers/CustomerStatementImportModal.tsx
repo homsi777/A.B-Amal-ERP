@@ -5,6 +5,9 @@ import { importCustomerStatement } from '../../lib/api/customersApi';
 import { listCashboxes, type CashboxDto } from '../../lib/api/cashboxesApi';
 import { parseCustomerStatementImportDate, type CustomerStatementDateParseSource } from '../../lib/customerStatementImportDateParser';
 import { normalizeStatementImportSaleLines, scanStatementSheetTotals } from '../../lib/statementImportSaleLines';
+import i18n from '../../i18n/config';
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'customerStatementImportModal', ...options });
 
 type ImportedSaleLine = {
   date: string;
@@ -96,7 +99,7 @@ function analyzeWorkbook(fileName: string, workbook: XLSX.WorkBook): ImportAnaly
   const orderDate = orderDateParsed.ok ? orderDateParsed.date : '';
   if (orderDateParsed.ok && orderDateParsed.warning) warnings.push(orderDateParsed.warning);
   if (!orderDateParsed.ok) {
-    blockingErrors.push(`تعذر قراءة تاريخ الكشف من ملف Excel: ${orderDateParsed.originalValue || 'فارغ'}`);
+    blockingErrors.push(t('errors.cannotReadStatementDate', { value: orderDateParsed.originalValue || t('errors.emptyFallback') }));
   }
 
   const saleLines: ImportedSaleLine[] = [];
@@ -112,10 +115,10 @@ function analyzeWorkbook(fileName: string, workbook: XLSX.WorkBook): ImportAnaly
     if (!date || !materialName || !Number.isFinite(quantity) || quantity <= 0 || total <= 0) continue;
     const parsedDate = parseCustomerStatementImportDate(date);
     if (!parsedDate.ok) {
-      blockingErrors.push(`تعذر قراءة تاريخ بند مبيعات في السطر ${rowIndex + 1}: ${parsedDate.originalValue || 'فارغ'}`);
+      blockingErrors.push(t('errors.cannotReadSaleLineDate', { row: rowIndex + 1, value: parsedDate.originalValue || t('errors.emptyFallback') }));
       continue;
     }
-    if (parsedDate.warning) warnings.push(`سطر ${rowIndex + 1}: ${parsedDate.warning}`);
+    if (parsedDate.warning) warnings.push(t('errors.rowWarning', { row: rowIndex + 1, warning: parsedDate.warning }));
     saleLines.push({
       date: parsedDate.date,
       originalDateValue: parsedDate.originalValue,
@@ -139,10 +142,10 @@ function analyzeWorkbook(fileName: string, workbook: XLSX.WorkBook): ImportAnaly
     if (!hasDateCandidate || amount <= 0) continue;
     const parsedDate = parseCustomerStatementImportDate(dateCell);
     if (!parsedDate.ok) {
-      blockingErrors.push(`تاريخ الدفعة غير مفهوم في السطر ${rowIndex + 1}: ${parsedDate.originalValue || 'فارغ'}`);
+      blockingErrors.push(t('errors.cannotReadPaymentDate', { row: rowIndex + 1, value: parsedDate.originalValue || t('errors.emptyFallback') }));
       continue;
     }
-    if (parsedDate.warning) warnings.push(`سطر ${rowIndex + 1}: ${parsedDate.warning}`);
+    if (parsedDate.warning) warnings.push(t('errors.rowWarning', { row: rowIndex + 1, warning: parsedDate.warning }));
     payments.push({
       date: parsedDate.date,
       originalDateValue: parsedDate.originalValue,
@@ -165,16 +168,16 @@ function analyzeWorkbook(fileName: string, workbook: XLSX.WorkBook): ImportAnaly
   const computedBalance = round2(computedSalesTotal - paymentsTotal - returnsTotal);
   const balanceDifference = sheetBalance == null ? 0 : round2(sheetBalance - computedBalance);
 
-  if (!customerName) warnings.push('لم يتم العثور على اسم العميل بوضوح.');
-  if (!saleLines.length) warnings.push('لم يتم العثور على بنود مبيعات قابلة للاستيراد.');
+  if (!customerName) warnings.push(t('warnings.customerNameNotFound'));
+  if (!saleLines.length) warnings.push(t('warnings.noSaleLinesFound'));
   if (sheetSalesTotal && Math.abs(round2(sheetSalesTotal - computedSalesTotal)) > 1) {
-    warnings.push('إجمالي المبيعات المحسوب لا يطابق إجمالي الملف.');
+    warnings.push(t('warnings.salesTotalMismatch'));
   }
   if (sheetRollsTotal && Math.abs(round2(sheetRollsTotal - computedRollsTotal)) > 0.01) {
-    warnings.push('مجموع الأتواب المحسوب من البنود لا يطابق مجموع الأتواب في الملف.');
+    warnings.push(t('warnings.rollsTotalMismatch'));
   }
   if (sheetBalance != null && Math.abs(balanceDifference) > 0.05) {
-    warnings.push('يوجد فرق رصيد بين الملف والحساب المحسوب وسيظهر كتسوية منفصلة عند الاعتماد.');
+    warnings.push(t('warnings.balanceDifference'));
   }
 
   return {
@@ -243,7 +246,7 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
       setAnalysis(analyzeWorkbook(file.name, workbook));
     } catch (err) {
       setAnalysis(null);
-      setError(err instanceof Error ? err.message : 'تعذر تحليل ملف Excel');
+      setError(err instanceof Error ? err.message : t('errors.excelParseFailed'));
     } finally {
       setLoadingFile(false);
     }
@@ -252,15 +255,15 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
   const handleConfirmImport = async () => {
     if (!analysis) return;
     if (!analysis.customerName || !analysis.saleLines.length) {
-      setError('لا يمكن الاعتماد قبل وجود اسم عميل وبنود مبيعات.');
+      setError(t('errors.cannotConfirmMissingData'));
       return;
     }
     if (analysis.blockingErrors.length > 0) {
-      setError('لا يمكن تأكيد الاستيراد قبل تصحيح تواريخ ملف Excel غير المفهومة.');
+      setError(t('errors.cannotConfirmUnresolvedDates'));
       return;
     }
     if (!cashboxId && analysis.payments.length > 0) {
-      setError('اختر صندوقاً مالياً لتأكيد سندات القبض.');
+      setError(t('errors.chooseCashboxForReceipts'));
       return;
     }
 
@@ -286,15 +289,15 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
       });
 
       const details = [
-        result.data.createdInvoice ? `فاتورة مالية ${result.data.invoiceNo}` : `تم تجاوز فاتورة موجودة ${result.data.invoiceNo}`,
-        `${result.data.createdReceipts} سند قبض`,
-        `${result.data.createdCredits} قيد مرتجع/حسم`,
-        result.data.createdAdjustment ? 'مع تسوية فرق الرصيد' : null,
+        result.data.createdInvoice ? t('result.newInvoice', { no: result.data.invoiceNo }) : t('result.skippedExistingInvoice', { no: result.data.invoiceNo }),
+        t('result.receiptVouchersCount', { count: result.data.createdReceipts }),
+        t('result.creditEntriesCount', { count: result.data.createdCredits }),
+        result.data.createdAdjustment ? t('result.withBalanceAdjustment') : null,
       ].filter(Boolean);
-      setMessage(`تم استيراد الكشف وربطه بالعميل: ${result.data.customer.name}. ${details.join('، ')}`);
+      setMessage(t('result.importedAndLinked', { name: result.data.customer.name, details: details.join('، ') }));
       onImported();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'فشل استيراد كشف العميل');
+      setError(err instanceof Error ? err.message : t('errors.importFailed'));
     } finally {
       setImporting(false);
     }
@@ -308,8 +311,8 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
       <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h3 className="text-lg font-black text-slate-900">استيراد كشف عميل Excel</h3>
-            <p className="mt-1 text-xs text-slate-500">تحليل أولاً، ثم اعتماد الاستيراد بعد المراجعة</p>
+            <h3 className="text-lg font-black text-slate-900">{t('modal.title')}</h3>
+            <p className="mt-1 text-xs text-slate-500">{t('modal.subtitle')}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <X className="h-5 w-5" />
@@ -326,11 +329,11 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
             >
               {loadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              اختيار ملف كشف
+              {t('modal.chooseFile')}
             </button>
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <FileSpreadsheet className="h-4 w-4" />
-              <span>{analysis?.fileName ?? 'لم يتم اختيار ملف بعد'}</span>
+              <span>{analysis?.fileName ?? t('modal.noFileChosen')}</span>
             </div>
           </div>
 
@@ -340,23 +343,23 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
           {analysis && (
             <div className="mt-5 space-y-5">
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <SummaryCard label="العميل" value={analysis.customerName || '—'} />
-                <SummaryCard label="تاريخ الكشف" value={analysis.orderDate || 'غير مفهوم'} tone={analysis.orderDate ? 'normal' : 'warn'} />
-                <SummaryCard label="إجمالي المبيعات" value={money(analysis.computedSalesTotal)} />
-                <SummaryCard label="رصيد الملف" value={money(analysis.sheetBalance)} />
-                <SummaryCard label="أتواب الملف" value={analysis.sheetRollsTotal.toLocaleString()} />
-                <SummaryCard label="أتواب البنود" value={analysis.computedRollsTotal.toLocaleString()} tone={Math.abs(analysis.sheetRollsTotal - analysis.computedRollsTotal) > 0.01 ? 'warn' : 'normal'} />
-                <SummaryCard label="الدفعات" value={money(analysis.paymentsTotal)} />
-                <SummaryCard label="المرتجعات" value={money(analysis.returnsTotal)} />
-                <SummaryCard label="الرصيد المحسوب" value={money(analysis.computedBalance)} />
-                <SummaryCard label="فرق الرصيد" value={money(analysis.balanceDifference)} tone={Math.abs(analysis.balanceDifference) > 0.05 ? 'warn' : 'normal'} />
+                <SummaryCard label={t('summary.customer')} value={analysis.customerName || '—'} />
+                <SummaryCard label={t('summary.statementDate')} value={analysis.orderDate || t('summary.unresolved')} tone={analysis.orderDate ? 'normal' : 'warn'} />
+                <SummaryCard label={t('summary.totalSales')} value={money(analysis.computedSalesTotal)} />
+                <SummaryCard label={t('summary.fileBalance')} value={money(analysis.sheetBalance)} />
+                <SummaryCard label={t('summary.fileRolls')} value={analysis.sheetRollsTotal.toLocaleString()} />
+                <SummaryCard label={t('summary.lineRolls')} value={analysis.computedRollsTotal.toLocaleString()} tone={Math.abs(analysis.sheetRollsTotal - analysis.computedRollsTotal) > 0.01 ? 'warn' : 'normal'} />
+                <SummaryCard label={t('summary.payments')} value={money(analysis.paymentsTotal)} />
+                <SummaryCard label={t('summary.returns')} value={money(analysis.returnsTotal)} />
+                <SummaryCard label={t('summary.computedBalance')} value={money(analysis.computedBalance)} />
+                <SummaryCard label={t('summary.balanceDifference')} value={money(analysis.balanceDifference)} tone={Math.abs(analysis.balanceDifference) > 0.05 ? 'warn' : 'normal'} />
               </div>
 
               {analysis.blockingErrors.length > 0 && (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
                   <div className="mb-2 flex items-center gap-2 font-black">
                     <AlertTriangle className="h-4 w-4" />
-                    تواريخ يجب مراجعتها قبل الاعتماد
+                    {t('section.datesNeedReview')}
                   </div>
                   {analysis.blockingErrors.map((warning) => (
                     <div key={warning}>- {warning}</div>
@@ -368,7 +371,7 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   <div className="mb-2 flex items-center gap-2 font-black">
                     <AlertTriangle className="h-4 w-4" />
-                    ملاحظات قبل الاعتماد
+                    {t('section.notesBeforeConfirm')}
                   </div>
                   {analysis.warnings.map((warning) => (
                     <div key={warning}>- {warning}</div>
@@ -377,25 +380,25 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
               )}
 
               <div className="rounded-lg border border-slate-200 p-4">
-                <label className="mb-2 block text-sm font-bold text-slate-700">الصندوق المالي المستخدم لسندات القبض</label>
+                <label className="mb-2 block text-sm font-bold text-slate-700">{t('cashbox.label')}</label>
                 <select
                   value={cashboxId}
                   onChange={(event) => setCashboxId(event.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">اختر صندوقاً</option>
+                  <option value="">{t('cashbox.choosePlaceholder')}</option>
                   {cashboxes.map((box) => (
                     <option key={box.id} value={box.id}>
                       {box.name} ({box.code}) - {box.currency_code}
                     </option>
                   ))}
                 </select>
-                {matchingCashbox && <p className="mt-2 text-xs text-slate-500">سيتم تأكيد سندات القبض على صندوق: {matchingCashbox.name}</p>}
+                {matchingCashbox && <p className="mt-2 text-xs text-slate-500">{t('cashbox.willConfirmOn', { name: matchingCashbox.name })}</p>}
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <PreviewTable
-                  title={`بنود المبيعات (${analysis.saleLines.length})`}
+                  title={t('preview.saleLinesTitle', { count: analysis.saleLines.length })}
                   rows={analysis.saleLines.slice(0, 12).map((line) => [
                     line.date,
                     line.originalDateValue && line.originalDateValue !== line.date ? line.originalDateValue : '—',
@@ -404,24 +407,24 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
                     line.rolls.toString(),
                     money(line.total),
                   ])}
-                  headers={['التاريخ', 'أصل التاريخ', 'الخامة', 'الكمية', 'توب', 'الإجمالي']}
+                  headers={[t('preview.colDate'), t('preview.colOriginalDate'), t('preview.colMaterial'), t('preview.colQuantity'), t('preview.colRoll'), t('preview.colTotal')]}
                 />
                 <PreviewTable
-                  title={`الدفعات والمرتجعات (${analysis.payments.length + analysis.returnPayments.length})`}
+                  title={t('preview.paymentsAndReturnsTitle', { count: analysis.payments.length + analysis.returnPayments.length })}
                   rows={[...analysis.payments, ...analysis.returnPayments].map((row) => [
                     row.date,
-                    row.kind === 'return' ? 'مرتجع' : 'سند قبض',
+                    row.kind === 'return' ? t('preview.kindReturn') : t('preview.kindReceipt'),
                     money(row.amount),
                     row.rawLabel,
-                    row.dateParseSource === 'excel_serial' ? 'Excel رقمي' : row.dateParseSource,
+                    row.dateParseSource === 'excel_serial' ? t('preview.sourceExcelNumeric') : row.dateParseSource,
                   ])}
-                  headers={['التاريخ', 'النوع', 'المبلغ', 'الأصل', 'مصدر التاريخ']}
+                  headers={[t('preview.colDate'), t('preview.colType'), t('preview.colAmount'), t('preview.colOriginal'), t('preview.colDateSource')]}
                 />
               </div>
 
               <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
                 <button type="button" onClick={onClose} className="rounded-lg bg-slate-100 px-4 py-2 font-bold text-slate-700 hover:bg-slate-200">
-                  إغلاق
+                  {t('actions.close')}
                 </button>
                 <button
                   type="button"
@@ -430,7 +433,7 @@ export const CustomerStatementImportModal: React.FC<Props> = ({ open, onClose, o
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
                 >
                   {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  تأكيد الاستيراد
+                  {t('actions.confirmImport')}
                 </button>
               </div>
             </div>
@@ -466,7 +469,7 @@ const PreviewTable = ({ title, headers, rows }: { title: string; headers: string
           {rows.length === 0 ? (
             <tr>
               <td colSpan={headers.length} className="px-3 py-5 text-center text-slate-400">
-                لا توجد بيانات
+                {t('preview.noData')}
               </td>
             </tr>
           ) : (

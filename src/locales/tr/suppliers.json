@@ -1,0 +1,46 @@
+{
+  "page.title": "Tedarikçiler",
+  "page.subtitle": "Tedarikçi bilgilerini yönetin — PostgreSQL'e bağlı",
+
+  "toolbar.refresh": "Yenile",
+  "toolbar.addSupplier": "Tedarikçi Ekle",
+
+  "table.searchPlaceholder": "Ad, kod veya telefon ile ara...",
+  "table.statusAll": "Tüm Durumlar",
+  "table.statusActive": "Aktif",
+  "table.statusInactive": "Pasif",
+  "table.colCode": "Kod",
+  "table.colName": "Ad",
+  "table.colPhone": "Telefon",
+  "table.colCountry": "Ülke",
+  "table.colStatus": "Durum",
+  "table.colActions": "İşlemler",
+  "table.noSuppliers": "Tedarikçi bulunmuyor.",
+  "table.editActionTitle": "Düzenle",
+  "table.disableSupplierTitle": "Tedarikçiyi Devre Dışı Bırak",
+
+  "pagination.totalSuppliers": "Toplam {{count}} tedarikçi",
+  "pagination.prev": "Önceki",
+  "pagination.next": "Sonraki",
+
+  "modal.editTitle": "Tedarikçiyi Düzenle",
+  "modal.addTitle": "Yeni Tedarikçi Ekle",
+  "modal.nameLabel": "Ad *",
+  "modal.codeLabel": "Kod",
+  "modal.codePlaceholder": "Boş bırakılırsa otomatik oluşturulur",
+  "modal.phoneLabel": "Telefon Numarası",
+  "modal.countryLabel": "Ülke",
+  "modal.emailLabel": "E-posta",
+  "modal.addressLabel": "Adres",
+  "modal.notesLabel": "Notlar",
+  "modal.telegramEnableLabel": "Bu tedarikçi için Telegram gönderimini etkinleştir",
+  "modal.telegramNameLabel": "Telegram Adı",
+  "modal.cancel": "İptal",
+  "modal.saveEdit": "Değişiklikleri Kaydet",
+  "modal.saveAdd": "Tedarikçiyi Ekle",
+
+  "confirm.deactivateSupplier": "\"{{name}}\" tedarikçisi devre dışı bırakılsın mı? Geçmiş fatura ve özetler için kayıtlı kalacaktır.",
+
+  "errors.loadFailed": "Veri yükleme hatası",
+  "errors.saveFailed": "Kaydetme başarısız oldu"
+}

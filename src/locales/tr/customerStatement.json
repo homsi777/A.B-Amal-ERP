@@ -173,5 +173,9 @@
   "duesExportModal.fullExport": "Tam Dışa Aktarma",
   "duesExportModal.fullExportDesc": "Bakiyesi sıfır olanlar dahil tüm aktif müşterileri kapsar",
   "duesExportModal.duesOnlyExport": "Yalnızca Alacaklar",
-  "duesExportModal.duesOnlyExportDesc": "Hiç alacağı olmayan müşterileri hariç tutar (sıfır bakiye)"
+  "duesExportModal.duesOnlyExportDesc": "Hiç alacağı olmayan müşterileri hariç tutar (sıfır bakiye)",
+
+  "voucherDescription.statementSuffix": "müşteri hesap özetinden",
+  "voucherDescription.customerFallback": "Müşteri",
+  "discount.defaultDescription": "İndirim — {{name}}"
 }

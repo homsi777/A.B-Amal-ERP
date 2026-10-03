@@ -1,0 +1,20 @@
+{
+  "customerTitle": "سجل العملاء",
+  "supplierTitle": "سجل الموردين",
+  "subtitle": "تتبع الحركات من الخادم (سجل الأطراف)",
+  "customerSearchPlaceholder": "بحث في سجل العملاء...",
+  "supplierSearchPlaceholder": "بحث في سجل الموردين...",
+  "filter": "تصفية",
+  "colId": "المعرّف",
+  "colDateTime": "التاريخ والوقت",
+  "colCustomer": "العميل",
+  "colSupplier": "المورد",
+  "colActivityType": "نوع النشاط",
+  "colReference": "المرجع",
+  "colAmount": "المبلغ",
+  "colDescription": "الوصف",
+  "loading": "جاري التحميل...",
+  "noCustomerLogs": "لا يوجد سجل عملاء بعد",
+  "noSupplierLogs": "لا يوجد سجل موردين بعد",
+  "loadFailed": "تعذر تحميل السجل"
+}
