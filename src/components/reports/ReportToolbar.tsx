@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Download, FileText } from 'lucide-react';
 
 interface Props {
@@ -13,7 +14,9 @@ export const ReportToolbar = ({
   onExportPdf,
   disabled,
   disableReason,
-}: Props) => (
+}: Props) => {
+  const { t } = useTranslation('reportsMain');
+  return (
   <div className="flex flex-wrap items-center gap-1.5">
     {onExportExcel ? (
       <button
@@ -36,8 +39,9 @@ export const ReportToolbar = ({
         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-45"
       >
         <FileText className="w-4 h-4" />
-        تصدير PDF
+        {t('toolbar.exportPdf')}
       </button>
     ) : null}
   </div>
-);
+  );
+};
