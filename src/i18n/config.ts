@@ -23,6 +23,7 @@ import arCustomerStatementImportModal from '../locales/ar/customerStatementImpor
 import arFabricMasterData from '../locales/ar/fabricMasterData.json';
 import arRollDetails from '../locales/ar/rollDetails.json';
 import arTransfers from '../locales/ar/transfers.json';
+import arInventorySettings from '../locales/ar/inventorySettings.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -45,6 +46,8 @@ import trPartiesLog from '../locales/tr/partiesLog.json';
 import trCustomerStatementImportModal from '../locales/tr/customerStatementImportModal.json';
 import trFabricMasterData from '../locales/tr/fabricMasterData.json';
 import trRollDetails from '../locales/tr/rollDetails.json';
+import trTransfers from '../locales/tr/transfers.json';
+import trInventorySettings from '../locales/tr/inventorySettings.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -75,6 +78,8 @@ void i18n.use(initReactI18next).init({
       customerStatementImportModal: arCustomerStatementImportModal,
       fabricMasterData: arFabricMasterData,
       rollDetails: arRollDetails,
+      transfers: arTransfers,
+      inventorySettings: arInventorySettings,
     },
     tr: {
       common: trCommon,
@@ -99,12 +104,14 @@ void i18n.use(initReactI18next).init({
       customerStatementImportModal: trCustomerStatementImportModal,
       fabricMasterData: trFabricMasterData,
       rollDetails: trRollDetails,
+      transfers: trTransfers,
+      inventorySettings: trInventorySettings,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings'],
   interpolation: {
     escapeValue: false,
   },

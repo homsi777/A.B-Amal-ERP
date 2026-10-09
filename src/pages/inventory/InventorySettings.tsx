@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Layers, Ruler, Save } from 'lucide-react';
 
 const INVENTORY_LOW_STOCK_THRESHOLD_KEY = 'inventory_low_stock_threshold';
 const INVENTORY_DEFAULT_UNIT_KEY = 'inventory_default_unit';
 
 export const InventorySettings = () => {
+  const { t } = useTranslation('inventorySettings');
   const [lowStockThreshold, setLowStockThreshold] = useState(() => localStorage.getItem(INVENTORY_LOW_STOCK_THRESHOLD_KEY) || '10');
   const [defaultUnit, setDefaultUnit] = useState(() => localStorage.getItem(INVENTORY_DEFAULT_UNIT_KEY) || 'meter');
   const [saveMessage, setSaveMessage] = useState('');
@@ -16,15 +18,15 @@ export const InventorySettings = () => {
     setLowStockThreshold(String(normalizedThreshold));
     localStorage.setItem(INVENTORY_LOW_STOCK_THRESHOLD_KEY, String(normalizedThreshold));
     localStorage.setItem(INVENTORY_DEFAULT_UNIT_KEY, defaultUnit);
-    setSaveMessage('تم حفظ إعدادات المخزون بنجاح.');
+    setSaveMessage(t('saveSuccess'));
   };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">إعدادات المخزون</h2>
-          <p className="text-slate-500 mt-1">إعدادات عرض إنشاء المادة، التنبيهات، وحدود انخفاض المخزون.</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('pageSubtitle')}</p>
         </div>
       </div>
 
@@ -33,11 +35,11 @@ export const InventorySettings = () => {
           <div className="space-y-4 pt-2">
             <h3 className="text-lg font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
-              تنبيهات وحدود المخزون
+              {t('alertsSectionTitle')}
             </h3>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-end">
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-700">حد تنبيه انخفاض المخزون من المادة</label>
+                <label className="block text-sm font-bold text-slate-700">{t('lowStockThresholdLabel')}</label>
                 <input
                   type="number"
                   min="0"
@@ -49,16 +51,16 @@ export const InventorySettings = () => {
                   className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm font-mono text-left"
                   dir="ltr"
                 />
-                <p className="text-xs text-slate-500">عند وصول كمية المادة لهذا الرقم أو أقل يظهر تنبيه انخفاض مخزون.</p>
+                <p className="text-xs text-slate-500">{t('lowStockThresholdHint')}</p>
               </div>
 
               <label className="flex items-center gap-2 font-medium text-slate-700 p-3 border border-slate-200 rounded-lg bg-slate-50 cursor-pointer">
                 <input type="checkbox" className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4" defaultChecked />
-                تفعيل تنبيهات حد إعادة الطلب
+                {t('enableReorderAlerts')}
               </label>
               <label className="flex items-center gap-2 font-medium text-slate-700 p-3 border border-slate-200 rounded-lg bg-slate-50 cursor-pointer">
                 <input type="checkbox" className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4" defaultChecked />
-                منع البيع عند نفاد المخزون
+                {t('preventSaleWhenOutOfStock')}
               </label>
             </div>
           </div>
@@ -66,11 +68,11 @@ export const InventorySettings = () => {
           <div className="space-y-4 pt-6 border-t border-slate-100">
             <h3 className="text-lg font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
               <Ruler className="w-5 h-5 text-indigo-500" />
-              وحدات القياس الافتراضية
+              {t('unitsSectionTitle')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-slate-700">الوحدة الأساسية للأقمشة</label>
+                <label className="block text-sm font-medium text-slate-700">{t('baseFabricUnitLabel')}</label>
                 <select
                   value={defaultUnit}
                   onChange={(event) => {
@@ -79,9 +81,9 @@ export const InventorySettings = () => {
                   }}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="meter">متر</option>
-                  <option value="yard">ياردة</option>
-                  <option value="roll">طاقة / رول</option>
+                  <option value="meter">{t('unitMeter')}</option>
+                  <option value="yard">{t('unitYard')}</option>
+                  <option value="roll">{t('unitRoll')}</option>
                 </select>
               </div>
             </div>
@@ -90,16 +92,16 @@ export const InventorySettings = () => {
           <div className="space-y-4 pt-6 border-t border-slate-100">
             <h3 className="text-lg font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
               <Layers className="w-5 h-5 text-indigo-500" />
-              سياسة التقييم وإدارة التكلفة
+              {t('valuationSectionTitle')}
             </h3>
             <div className="flex flex-col sm:flex-row gap-4">
               <label className="flex items-center gap-2 font-medium text-slate-700 p-3 border border-slate-200 rounded-lg bg-slate-50 w-full sm:w-auto cursor-pointer">
                 <input type="radio" name="valuation" value="fifo" className="text-indigo-600 focus:ring-indigo-500" defaultChecked />
-                الوارد أولاً يصرف أولاً (FIFO)
+                {t('valuationFifo')}
               </label>
               <label className="flex items-center gap-2 font-medium text-slate-700 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 w-full sm:w-auto cursor-pointer">
                 <input type="radio" name="valuation" value="average" className="text-indigo-600 focus:ring-indigo-500" />
-                المتوسط المرجح
+                {t('valuationAverage')}
               </label>
             </div>
           </div>
@@ -114,7 +116,7 @@ export const InventorySettings = () => {
         <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end">
           <button onClick={handleSaveSettings} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition flex items-center gap-2 shadow-sm">
             <Save className="w-4 h-4" />
-            حفظ الإعدادات
+            {t('saveSettings')}
           </button>
         </div>
       </section>

@@ -1,0 +1,19 @@
+{
+  "saveSuccess": "تم حفظ إعدادات المخزون بنجاح.",
+  "pageTitle": "إعدادات المخزون",
+  "pageSubtitle": "إعدادات عرض إنشاء المادة، التنبيهات، وحدود انخفاض المخزون.",
+  "alertsSectionTitle": "تنبيهات وحدود المخزون",
+  "lowStockThresholdLabel": "حد تنبيه انخفاض المخزون من المادة",
+  "lowStockThresholdHint": "عند وصول كمية المادة لهذا الرقم أو أقل يظهر تنبيه انخفاض مخزون.",
+  "enableReorderAlerts": "تفعيل تنبيهات حد إعادة الطلب",
+  "preventSaleWhenOutOfStock": "منع البيع عند نفاد المخزون",
+  "unitsSectionTitle": "وحدات القياس الافتراضية",
+  "baseFabricUnitLabel": "الوحدة الأساسية للأقمشة",
+  "unitMeter": "متر",
+  "unitYard": "ياردة",
+  "unitRoll": "طاقة / رول",
+  "valuationSectionTitle": "سياسة التقييم وإدارة التكلفة",
+  "valuationFifo": "الوارد أولاً يصرف أولاً (FIFO)",
+  "valuationAverage": "المتوسط المرجح",
+  "saveSettings": "حفظ الإعدادات"
+}

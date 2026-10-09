@@ -1,0 +1,19 @@
+{
+  "saveSuccess": "Stok ayarları başarıyla kaydedildi.",
+  "pageTitle": "Stok Ayarları",
+  "pageSubtitle": "Malzeme oluşturma görünümü, uyarılar ve düşük stok sınırları için ayarlar.",
+  "alertsSectionTitle": "Stok Uyarıları ve Sınırları",
+  "lowStockThresholdLabel": "Malzeme Düşük Stok Uyarı Eşiği",
+  "lowStockThresholdHint": "Malzeme miktarı bu sayıya veya altına düştüğünde düşük stok uyarısı görünür.",
+  "enableReorderAlerts": "Yeniden Sipariş Eşiği Uyarılarını Etkinleştir",
+  "preventSaleWhenOutOfStock": "Stok Tükendiğinde Satışı Engelle",
+  "unitsSectionTitle": "Varsayılan Ölçü Birimleri",
+  "baseFabricUnitLabel": "Kumaş İçin Temel Birim",
+  "unitMeter": "Metre",
+  "unitYard": "Yarda",
+  "unitRoll": "Top / Rulo",
+  "valuationSectionTitle": "Değerleme Politikası ve Maliyet Yönetimi",
+  "valuationFifo": "İlk Giren İlk Çıkar (FIFO)",
+  "valuationAverage": "Ağırlıklı Ortalama",
+  "saveSettings": "Ayarları Kaydet"
+}
