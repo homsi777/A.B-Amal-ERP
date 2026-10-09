@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Loader2, Printer, RefreshCw, RotateCcw, TrendingUp } from 'lucide-react';
 import { useToast } from '../../components/NonBlockingToast';
 import { ReportToolbar } from '../../components/reports/ReportToolbar';
@@ -8,6 +9,7 @@ import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { exportReportPdf, printReport } from '../../lib/reports/printReport';
 import type { UnifiedReportPayload } from '../../lib/reports/types';
+import i18n from '../../i18n/config';
 
 type DetailLevel = 'invoice' | 'line';
 type GroupBy = 'none' | 'customer' | 'material' | 'supplier' | 'date';
@@ -23,7 +25,7 @@ const fmtMoney = (value: unknown) => `${Number(value || 0).toLocaleString('en-US
 const fmtMeters = (value: unknown) => `${Number(value || 0).toLocaleString('en-US', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
-})} م`;
+})} ${i18n.t('units.meters', { ns: 'profitDetails' })}`;
 
 const dash = (value: unknown) => {
   const text = String(value ?? '').trim();
@@ -33,11 +35,11 @@ const dash = (value: unknown) => {
 const paymentStatusLabel = (value: unknown) => {
   switch (String(value || '')) {
     case 'paid':
-      return 'مدفوع';
+      return i18n.t('paymentStatus.paid', { ns: 'profitDetails' });
     case 'partial':
-      return 'مدفوع جزئياً';
+      return i18n.t('paymentStatus.partial', { ns: 'profitDetails' });
     case 'unpaid':
-      return 'غير مدفوع';
+      return i18n.t('paymentStatus.unpaid', { ns: 'profitDetails' });
     default:
       return '-';
   }
@@ -62,15 +64,15 @@ const costQualityLabel = (row: Record<string, unknown>) => {
   if (row.cost_quality_label) return String(row.cost_quality_label);
   switch (String(row.cost_quality || '')) {
     case 'HISTORICAL_SNAPSHOT':
-      return 'تكلفة مثبتة';
+      return i18n.t('costQuality.historical', { ns: 'profitDetails' });
     case 'CURRENT_COST_FALLBACK':
-      return 'تكلفة تقديرية';
+      return i18n.t('costQuality.fallback', { ns: 'profitDetails' });
     case 'MISSING_COST':
-      return 'تكلفة مفقودة';
+      return i18n.t('costQuality.missing', { ns: 'profitDetails' });
     case 'PARTIAL_COST':
-      return 'تكلفة جزئية';
+      return i18n.t('costQuality.partial', { ns: 'profitDetails' });
     default:
-      return 'غير معروف';
+      return i18n.t('costQuality.unknown', { ns: 'profitDetails' });
   }
 };
 
@@ -84,6 +86,7 @@ const CostBadge = ({ row }: { row: Record<string, unknown> }) => (
 );
 
 export const ProfitDetails = () => {
+  const { t } = useTranslation('profitDetails');
   const { showToast } = useToast();
   const [fromDate, setFromDate] = useState(firstDay);
   const [toDate, setToDate] = useState(today);
@@ -156,7 +159,7 @@ export const ProfitDetails = () => {
       const res = await fetchUnifiedReport('/financial/profit-details', params);
       setReport(res.report);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'تعذر تحميل كشف الأرباح');
+      setError(err instanceof Error ? err.message : t('toast.loadError'));
     } finally {
       setLoading(false);
     }
@@ -180,7 +183,7 @@ export const ProfitDetails = () => {
       await exportReportPdf(report, pdfFileName());
     } catch (err) {
       showToast({
-        message: err instanceof Error ? err.message : 'فشل تصدير PDF',
+        message: err instanceof Error ? err.message : t('toast.exportPdfError'),
         type: 'error',
       });
     }
@@ -191,7 +194,7 @@ export const ProfitDetails = () => {
     const ok = printReport(report);
     if (!ok) {
       showToast({
-        message: 'تعذر فتح نافذة الطباعة. اسمح بالنوافذ المنبثقة ثم أعد المحاولة.',
+        message: t('toast.printBlocked'),
         type: 'warning',
       });
     }
@@ -252,20 +255,20 @@ export const ProfitDetails = () => {
     if (!report) return [];
     const totals = report.totals ?? {};
     const base = [
-      { label: 'إجمالي المبيعات', value: `${totals.sales_amount ?? '0.00'} USD` },
-      { label: 'إجمالي التكلفة', value: `${totals.cost_amount ?? '0.00'} USD` },
-      { label: 'إجمالي الربح', value: `${totals.gross_profit ?? '0.00'} USD` },
-      { label: 'إجمالي الأمتار المباعة', value: fmtMeters(totals.sold_meters) },
-      { label: 'المحصل', value: `${totals.paid_amount ?? '0.00'} USD` },
-      { label: 'المتبقي ضمن الذمم', value: `${totals.remaining_amount ?? '0.00'} USD` },
-      { label: 'أمتار ضمن الذمم', value: fmtMeters(totals.remaining_receivable_meters) },
-      { label: 'ربح محصل', value: `${totals.realized_profit ?? '0.00'} USD` },
-      { label: 'ربح متبق ضمن الذمم', value: `${totals.receivable_profit ?? '0.00'} USD` },
+      { label: t('stats.totalSales'), value: `${totals.sales_amount ?? '0.00'} USD` },
+      { label: t('stats.totalCost'), value: `${totals.cost_amount ?? '0.00'} USD` },
+      { label: t('stats.totalProfit'), value: `${totals.gross_profit ?? '0.00'} USD` },
+      { label: t('stats.totalSoldMeters'), value: fmtMeters(totals.sold_meters) },
+      { label: t('stats.collected'), value: `${totals.paid_amount ?? '0.00'} USD` },
+      { label: t('stats.remainingReceivable'), value: `${totals.remaining_amount ?? '0.00'} USD` },
+      { label: t('stats.remainingReceivableMeters'), value: fmtMeters(totals.remaining_receivable_meters) },
+      { label: t('stats.realizedProfit'), value: `${totals.realized_profit ?? '0.00'} USD` },
+      { label: t('stats.receivableProfit'), value: `${totals.receivable_profit ?? '0.00'} USD` },
     ];
-    if (report.meta?.missingCostCount) base.push({ label: 'بنود تكلفة مفقودة', value: report.meta.missingCostCount });
-    if (report.meta?.fallbackCostCount) base.push({ label: 'بنود تكلفة تقديرية', value: report.meta.fallbackCostCount });
+    if (report.meta?.missingCostCount) base.push({ label: t('stats.missingCostCount'), value: report.meta.missingCostCount });
+    if (report.meta?.fallbackCostCount) base.push({ label: t('stats.fallbackCostCount'), value: report.meta.fallbackCostCount });
     return base;
-  }, [report]);
+  }, [report, t]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -273,42 +276,42 @@ export const ProfitDetails = () => {
         <div>
           <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <TrendingUp className="w-6 h-6 text-emerald-600" />
-            كشف الأرباح التفصيلي
+            {t('page.title')}
           </h2>
           <p className="text-slate-500 mt-1">
-            أرباح فواتير البيع مع فصل المبيعات والتكلفة والتحصيل والذمم، مع توضيح جودة التكلفة.
+            {t('page.subtitle')}
           </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <label className="text-xs font-bold text-slate-500">
-              طريقة العرض
+              {t('filters.detailLevelLabel')}
               <select
                 value={detailLevel}
                 onChange={(event) => handleDetailLevelChange(event.target.value as DetailLevel)}
                 className="block mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
               >
-                <option value="invoice">ملخص الفواتير</option>
-                <option value="line">تفصيل حسب الخامة</option>
+                <option value="invoice">{t('filters.detailLevel.invoice')}</option>
+                <option value="line">{t('filters.detailLevel.line')}</option>
               </select>
             </label>
             <label className="text-xs font-bold text-slate-500">
-              تجميع حسب
+              {t('filters.groupByLabel')}
               <select
                 value={groupBy}
                 onChange={(event) => handleGroupByChange(event.target.value as GroupBy)}
                 className="block mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
               >
-                <option value="none">بدون تجميع</option>
-                <option value="customer">العميل</option>
-                <option value="material">الخامة</option>
-                <option value="supplier">المورد</option>
-                <option value="date">التاريخ</option>
+                <option value="none">{t('filters.groupBy.none')}</option>
+                <option value="customer">{t('filters.groupBy.customer')}</option>
+                <option value="material">{t('filters.groupBy.material')}</option>
+                <option value="supplier">{t('filters.groupBy.supplier')}</option>
+                <option value="date">{t('filters.groupBy.date')}</option>
               </select>
             </label>
             <label className="text-xs font-bold text-slate-500">
-              من تاريخ
+              {t('filters.fromDate')}
               <input
                 type="date"
                 value={fromDate}
@@ -320,7 +323,7 @@ export const ProfitDetails = () => {
               />
             </label>
             <label className="text-xs font-bold text-slate-500">
-              إلى تاريخ
+              {t('filters.toDate')}
               <input
                 type="date"
                 value={toDate}
@@ -332,7 +335,7 @@ export const ProfitDetails = () => {
               />
             </label>
             <label className="text-xs font-bold text-slate-500">
-              العميل
+              {t('filters.customerLabel')}
               <select
                 value={customerId}
                 onChange={(event) => {
@@ -341,14 +344,14 @@ export const ProfitDetails = () => {
                 }}
                 className="block mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
               >
-                <option value="">كل العملاء</option>
+                <option value="">{t('filters.allCustomers')}</option>
                 {customers.map((customer) => (
                   <option key={customer.id} value={customer.id}>{customer.name}</option>
                 ))}
               </select>
             </label>
             <label className="text-xs font-bold text-slate-500">
-              حالة الدفع
+              {t('filters.paymentStatusLabel')}
               <select
                 value={paymentStatus}
                 onChange={(event) => {
@@ -357,14 +360,14 @@ export const ProfitDetails = () => {
                 }}
                 className="block mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
               >
-                <option value="">كل الحالات</option>
-                <option value="paid">مدفوع</option>
-                <option value="partial">مدفوع جزئياً</option>
-                <option value="unpaid">غير مدفوع</option>
+                <option value="">{t('filters.allStatuses')}</option>
+                <option value="paid">{t('paymentStatus.paid')}</option>
+                <option value="partial">{t('paymentStatus.partial')}</option>
+                <option value="unpaid">{t('paymentStatus.unpaid')}</option>
               </select>
             </label>
             <label className="text-xs font-bold text-slate-500">
-              كود الخامة
+              {t('filters.materialCodeLabel')}
               <input
                 value={materialCode}
                 onChange={(event) => {
@@ -372,7 +375,7 @@ export const ProfitDetails = () => {
                   resetPage();
                 }}
                 disabled={!isLineMode}
-                placeholder={isLineMode ? 'اكتب كود الخامة' : 'خاص بالتفصيل'}
+                placeholder={isLineMode ? t('filters.materialCodePlaceholder') : t('filters.lineOnlyPlaceholder')}
                 className="block mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg disabled:bg-slate-50 disabled:text-slate-400"
               />
             </label>
@@ -383,21 +386,21 @@ export const ProfitDetails = () => {
                 className="inline-flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-60"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                تحديث
+                {t('actions.refresh')}
               </button>
               <button
                 onClick={resetFilters}
                 className="inline-flex items-center justify-center gap-2 border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-bold hover:bg-slate-50"
               >
                 <RotateCcw className="w-4 h-4" />
-                مسح
+                {t('actions.clear')}
               </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <label className="text-xs font-bold text-slate-500">
-              المورد
+              {t('filters.supplierLabel')}
               <select
                 value={supplierId}
                 onChange={(event) => {
@@ -407,14 +410,14 @@ export const ProfitDetails = () => {
                 disabled={!isLineMode}
                 className="block mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50 disabled:text-slate-400"
               >
-                <option value="">{isLineMode ? 'كل الموردين' : 'خاص بالتفصيل'}</option>
+                <option value="">{isLineMode ? t('filters.allSuppliers') : t('filters.lineOnlyPlaceholder')}</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
                 ))}
               </select>
             </label>
             <label className="text-xs font-bold text-slate-500">
-              المستودع
+              {t('filters.warehouseLabel')}
               <select
                 value={warehouseId}
                 onChange={(event) => {
@@ -424,14 +427,14 @@ export const ProfitDetails = () => {
                 disabled={!isLineMode}
                 className="block mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white disabled:bg-slate-50 disabled:text-slate-400"
               >
-                <option value="">{isLineMode ? 'كل المستودعات' : 'خاص بالتفصيل'}</option>
+                <option value="">{isLineMode ? t('filters.allWarehouses') : t('filters.lineOnlyPlaceholder')}</option>
                 {warehouses.map((warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                 ))}
               </select>
             </label>
             <label className="text-xs font-bold text-slate-500">
-              عدد الأسطر
+              {t('filters.pageSizeLabel')}
               <select
                 value={pageSize}
                 onChange={(event) => {
@@ -448,7 +451,7 @@ export const ProfitDetails = () => {
               </select>
             </label>
             <div className="text-xs text-slate-500 flex items-end">
-              {lookupsLoading ? 'جاري تحميل القوائم...' : isLineMode ? 'المحصل والمتبقي موزعان نسبياً حسب قيمة البند.' : 'فلاتر الخامة والمورد والمستودع تعمل في التفصيل.'}
+              {lookupsLoading ? t('filters.loadingLookups') : isLineMode ? t('filters.lineHint') : t('filters.invoiceHint')}
             </div>
           </div>
         </div>
@@ -461,9 +464,9 @@ export const ProfitDetails = () => {
           {warnings.map((warning) => (
             <p key={warning.code}>{warning.message}{warning.count != null ? ` (${warning.count})` : ''}</p>
           ))}
-          {isLineMode && <p>المحصل والمتبقي موزعان نسبياً حسب قيمة البند.</p>}
+          {isLineMode && <p>{t('filters.lineHint')}</p>}
           {isLineMode && groupBy !== 'none' && (
-            <p>المحصل والمتبقي في التجميع محسوبان بناءً على التوزيع النسبي حسب قيمة البنود، وليس تخصيص سندات قبض دقيق.</p>
+            <p>{t('warnings.groupProrationNote')}</p>
           )}
         </div>
       )}
@@ -481,21 +484,21 @@ export const ProfitDetails = () => {
             onClick={() => setTopCustomerOpen(true)}
             className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-right hover:bg-slate-50 transition"
             disabled={loading}
-            title="عرض التفاصيل"
+            title={t('topCustomer.viewDetails')}
           >
-            <p className="text-xs font-bold text-slate-500">أكثر زبون يشتري</p>
+            <p className="text-xs font-bold text-slate-500">{t('topCustomer.cardTitle')}</p>
             <p className="mt-2 text-lg font-black text-slate-900">{dash(topCustomer.customerName)}</p>
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-              <span className="text-slate-500 font-bold">إجمالي الشراء</span>
+              <span className="text-slate-500 font-bold">{t('topCustomer.totalPurchase')}</span>
               <span className="font-mono text-slate-900">{fmtMoney(topCustomer.salesAmount)}</span>
-              <span className="text-slate-500 font-bold">الأمتار</span>
+              <span className="text-slate-500 font-bold">{t('topCustomer.meters')}</span>
               <span className="font-mono text-slate-900">{fmtMeters(topCustomer.soldMeters)}</span>
-              <span className="text-slate-500 font-bold">الفواتير</span>
+              <span className="text-slate-500 font-bold">{t('topCustomer.invoiceCount')}</span>
               <span className="font-mono text-slate-900">{dash(topCustomer.invoiceCount)}</span>
-              <span className="text-slate-500 font-bold">المتبقي</span>
+              <span className="text-slate-500 font-bold">{t('topCustomer.remaining')}</span>
               <span className="font-mono text-amber-700">{fmtMoney(topCustomer.remainingAmount)}</span>
             </div>
-            <div className="mt-2 text-xs font-bold text-indigo-700 underline">عرض التفاصيل</div>
+            <div className="mt-2 text-xs font-bold text-indigo-700 underline">{t('topCustomer.viewDetails')}</div>
           </button>
         ) : null}
       </div>
@@ -503,9 +506,9 @@ export const ProfitDetails = () => {
       {groupBy !== 'none' && (
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-200">
-            <h3 className="font-black text-slate-900">ملخص التجميع</h3>
+            <h3 className="font-black text-slate-900">{t('groupSummary.title')}</h3>
             <p className="text-xs text-slate-500">
-              المجاميع محسوبة من كامل البيانات المفلترة، وليست من الصفحة الحالية فقط.
+              {t('groupSummary.subtitle')}
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -517,10 +520,10 @@ export const ProfitDetails = () => {
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           <div>
-            <h3 className="font-black text-slate-900">{isLineMode ? 'تفصيل حسب الخامة' : 'تفصيل الفواتير'}</h3>
+            <h3 className="font-black text-slate-900">{isLineMode ? t('table.lineTitle') : t('table.invoiceTitle')}</h3>
             <p className="text-xs text-slate-500">
-              العملة المعتمدة في التقرير: USD
-              {totalRows > 0 ? ` · ${totalRows.toLocaleString('en-US')} سطر` : ''}
+              {t('table.currencyNote')}
+              {totalRows > 0 ? ` · ${t('table.rowsCount', { count: totalRows.toLocaleString('en-US') })}` : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -530,30 +533,30 @@ export const ProfitDetails = () => {
             />
             <button
               type="button"
-              title="طباعة"
+              title={t('actions.print')}
               disabled={loading || !report}
               onClick={handlePrint}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-45"
             >
               <Printer className="w-4 h-4" />
-              طباعة
+              {t('actions.print')}
             </button>
             <button
               onClick={() => goToPage(page - 1)}
               disabled={!canGoPrevious || loading}
               className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-              title="السابق"
+              title={t('actions.previous')}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
             <span className="text-xs font-bold text-slate-600">
-              صفحة {page}{totalRows > 0 ? ` / ${totalPages}` : ''}
+              {totalRows > 0 ? t('table.pageLabelWithTotal', { page, total: totalPages }) : t('table.pageLabel', { page })}
             </span>
             <button
               onClick={() => goToPage(page + 1)}
               disabled={!canGoNext || loading}
               className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-              title="التالي"
+              title={t('actions.next')}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -574,17 +577,17 @@ export const ProfitDetails = () => {
           <button
             type="button"
             className="absolute inset-0"
-            aria-label="إغلاق"
+            aria-label={t('actions.close')}
             onClick={() => setTopCustomerOpen(false)}
           />
           <div className="relative z-10 my-6 w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-500">تفاصيل أكثر زبون يشتري</p>
+                <p className="text-xs font-bold text-slate-500">{t('topCustomerModal.title')}</p>
                 <h3 className="mt-1 text-xl font-black text-slate-900">{dash(topCustomer.customerName)}</h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  آخر شراء: {String(topCustomer.lastInvoiceDate ?? '').slice(0, 10) || '-'}
-                  {topCustomer.topMaterialName ? ` · أكثر خامة: ${topCustomer.topMaterialName}` : ''}
+                  {t('topCustomerModal.lastPurchase', { date: String(topCustomer.lastInvoiceDate ?? '').slice(0, 10) || '-' })}
+                  {topCustomer.topMaterialName ? ` · ${t('topCustomerModal.topMaterial', { material: topCustomer.topMaterialName })}` : ''}
                 </p>
               </div>
               <button
@@ -592,51 +595,51 @@ export const ProfitDetails = () => {
                 onClick={() => setTopCustomerOpen(false)}
                 className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-                إغلاق
+                {t('actions.close')}
               </button>
             </div>
 
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-500">إجمالي المبيعات</p>
+                  <p className="text-xs font-bold text-slate-500">{t('topCustomerModal.totalSales')}</p>
                   <p className="mt-2 font-mono text-lg font-black text-slate-900">{fmtMoney(topCustomer.salesAmount)}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-500">إجمالي الأمتار</p>
+                  <p className="text-xs font-bold text-slate-500">{t('topCustomerModal.totalMeters')}</p>
                   <p className="mt-2 font-mono text-lg font-black text-slate-900">{fmtMeters(topCustomer.soldMeters)}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-500">إجمالي التكلفة</p>
+                  <p className="text-xs font-bold text-slate-500">{t('topCustomerModal.totalCost')}</p>
                   <p className="mt-2 font-mono text-lg font-black text-slate-900">{fmtMoney(topCustomer.costAmount)}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-500">إجمالي الربح</p>
+                  <p className="text-xs font-bold text-slate-500">{t('topCustomerModal.totalProfit')}</p>
                   <p className="mt-2 font-mono text-lg font-black text-slate-900">{fmtMoney(topCustomer.grossProfit)}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-500">المحصل</p>
+                  <p className="text-xs font-bold text-slate-500">{t('topCustomerModal.collected')}</p>
                   <p className="mt-2 font-mono text-lg font-black text-emerald-700">{fmtMoney(topCustomer.paidAmount)}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-500">المتبقي</p>
+                  <p className="text-xs font-bold text-slate-500">{t('topCustomerModal.remaining')}</p>
                   <p className="mt-2 font-mono text-lg font-black text-amber-700">{fmtMoney(topCustomer.remainingAmount)}</p>
                 </div>
               </div>
 
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-black text-slate-900">أهم 5 فواتير</p>
+                  <p className="text-sm font-black text-slate-900">{t('topCustomerModal.topInvoicesTitle')}</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-right">
                     <thead className="bg-slate-900 text-white">
                       <tr>
-                        <th className="p-3">التاريخ</th>
-                        <th className="p-3">رقم الفاتورة</th>
-                        <th className="p-3">المبيعات</th>
-                        <th className="p-3">الأمتار</th>
-                        <th className="p-3">متبقي</th>
+                        <th className="p-3">{t('topCustomerModal.col.date')}</th>
+                        <th className="p-3">{t('topCustomerModal.col.invoiceNo')}</th>
+                        <th className="p-3">{t('topCustomerModal.col.sales')}</th>
+                        <th className="p-3">{t('topCustomerModal.col.meters')}</th>
+                        <th className="p-3">{t('topCustomerModal.col.remaining')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -652,7 +655,7 @@ export const ProfitDetails = () => {
                       {(topCustomer.topInvoices ?? []).length === 0 && (
                         <tr>
                           <td colSpan={5} className="p-8 text-center text-slate-500 bg-white">
-                            لا توجد بيانات فواتير ضمن الفلاتر الحالية.
+                            {t('topCustomerModal.noInvoices')}
                           </td>
                         </tr>
                       )}
@@ -674,57 +677,60 @@ const GroupSummaryTable = ({
 }: {
   groups: Array<{ groupKey: string; groupLabel: string; totals: Record<string, number | string> }>;
   loading: boolean;
-}) => (
-  <table className="w-full text-sm text-right">
-    <thead className="bg-slate-900 text-white">
-      <tr>
-        <th className="p-3">المجموعة</th>
-        <th className="p-3">عدد الفواتير</th>
-        <th className="p-3">عدد البنود</th>
-        <th className="p-3">إجمالي البيع</th>
-        <th className="p-3">إجمالي التكلفة</th>
-        <th className="p-3">الربح</th>
-        <th className="p-3">المحصل</th>
-        <th className="p-3">المتبقي</th>
-        <th className="p-3">الأمتار</th>
-        <th className="p-3">جودة التكلفة</th>
-      </tr>
-    </thead>
-    <tbody>
-      {groups.map((group) => (
-        <tr key={group.groupKey || group.groupLabel} className="border-b border-slate-100 hover:bg-slate-50">
-          <td className="p-3 font-black text-slate-900">{dash(group.groupLabel)}</td>
-          <td className="p-3 font-mono">{dash(group.totals.invoice_count)}</td>
-          <td className="p-3 font-mono">{dash(group.totals.line_count)}</td>
-          <td className="p-3 font-mono">{fmtMoney(group.totals.sales_amount)}</td>
-          <td className="p-3 font-mono">{fmtMoney(group.totals.cost_amount)}</td>
-          <td className="p-3 font-mono font-bold">{fmtMoney(group.totals.gross_profit)}</td>
-          <td className="p-3 font-mono text-emerald-700">{fmtMoney(group.totals.paid_amount)}</td>
-          <td className="p-3 font-mono text-amber-700">{fmtMoney(group.totals.remaining_amount)}</td>
-          <td className="p-3 font-mono">
-            <div>{fmtMeters(group.totals.sold_meters)}</div>
-            <div className="text-[11px] text-amber-700">{fmtMeters(group.totals.remaining_receivable_meters)}</div>
-          </td>
-          <td className="p-3">
-            <div className="flex flex-wrap gap-1">
-              <QualityCount label="مثبتة" value={group.totals.historical_snapshot_count} className="bg-emerald-50 text-emerald-700 border-emerald-200" />
-              <QualityCount label="تقديرية" value={group.totals.fallback_cost_count} className="bg-amber-50 text-amber-700 border-amber-200" />
-              <QualityCount label="مفقودة" value={group.totals.missing_cost_count} className="bg-rose-50 text-rose-700 border-rose-200" />
-              <QualityCount label="جزئية" value={group.totals.partial_cost_count} className="bg-orange-50 text-orange-700 border-orange-200" />
-            </div>
-          </td>
-        </tr>
-      ))}
-      {!loading && groups.length === 0 && (
+}) => {
+  const { t } = useTranslation('profitDetails');
+  return (
+    <table className="w-full text-sm text-right">
+      <thead className="bg-slate-900 text-white">
         <tr>
-          <td colSpan={10} className="p-8 text-center text-slate-500 bg-slate-50">
-            لا توجد مجاميع مطابقة للفلاتر الحالية.
-          </td>
+          <th className="p-3">{t('groupTable.col.group')}</th>
+          <th className="p-3">{t('groupTable.col.invoiceCount')}</th>
+          <th className="p-3">{t('groupTable.col.lineCount')}</th>
+          <th className="p-3">{t('groupTable.col.sales')}</th>
+          <th className="p-3">{t('groupTable.col.cost')}</th>
+          <th className="p-3">{t('groupTable.col.profit')}</th>
+          <th className="p-3">{t('groupTable.col.collected')}</th>
+          <th className="p-3">{t('groupTable.col.remaining')}</th>
+          <th className="p-3">{t('groupTable.col.meters')}</th>
+          <th className="p-3">{t('groupTable.col.costQuality')}</th>
         </tr>
-      )}
-    </tbody>
-  </table>
-);
+      </thead>
+      <tbody>
+        {groups.map((group) => (
+          <tr key={group.groupKey || group.groupLabel} className="border-b border-slate-100 hover:bg-slate-50">
+            <td className="p-3 font-black text-slate-900">{dash(group.groupLabel)}</td>
+            <td className="p-3 font-mono">{dash(group.totals.invoice_count)}</td>
+            <td className="p-3 font-mono">{dash(group.totals.line_count)}</td>
+            <td className="p-3 font-mono">{fmtMoney(group.totals.sales_amount)}</td>
+            <td className="p-3 font-mono">{fmtMoney(group.totals.cost_amount)}</td>
+            <td className="p-3 font-mono font-bold">{fmtMoney(group.totals.gross_profit)}</td>
+            <td className="p-3 font-mono text-emerald-700">{fmtMoney(group.totals.paid_amount)}</td>
+            <td className="p-3 font-mono text-amber-700">{fmtMoney(group.totals.remaining_amount)}</td>
+            <td className="p-3 font-mono">
+              <div>{fmtMeters(group.totals.sold_meters)}</div>
+              <div className="text-[11px] text-amber-700">{fmtMeters(group.totals.remaining_receivable_meters)}</div>
+            </td>
+            <td className="p-3">
+              <div className="flex flex-wrap gap-1">
+                <QualityCount label={t('costQuality.historicalShort')} value={group.totals.historical_snapshot_count} className="bg-emerald-50 text-emerald-700 border-emerald-200" />
+                <QualityCount label={t('costQuality.fallbackShort')} value={group.totals.fallback_cost_count} className="bg-amber-50 text-amber-700 border-amber-200" />
+                <QualityCount label={t('costQuality.missingShort')} value={group.totals.missing_cost_count} className="bg-rose-50 text-rose-700 border-rose-200" />
+                <QualityCount label={t('costQuality.partialShort')} value={group.totals.partial_cost_count} className="bg-orange-50 text-orange-700 border-orange-200" />
+              </div>
+            </td>
+          </tr>
+        ))}
+        {!loading && groups.length === 0 && (
+          <tr>
+            <td colSpan={10} className="p-8 text-center text-slate-500 bg-slate-50">
+              {t('groupTable.empty')}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+};
 
 const QualityCount = ({ label, value, className }: { label: string; value: unknown; className: string }) => {
   const count = Number(value ?? 0);
@@ -736,20 +742,22 @@ const QualityCount = ({ label, value, className }: { label: string; value: unkno
   );
 };
 
-const InvoiceTable = ({ rows, loading }: { rows: Record<string, unknown>[]; loading: boolean }) => (
+const InvoiceTable = ({ rows, loading }: { rows: Record<string, unknown>[]; loading: boolean }) => {
+  const { t } = useTranslation('profitDetails');
+  return (
   <table className="w-full text-sm text-right">
     <thead className="bg-slate-900 text-white">
       <tr>
-        <th className="p-3">التاريخ</th>
-        <th className="p-3">رقم الفاتورة</th>
-        <th className="p-3">العميل</th>
-        <th className="p-3">البيع</th>
-        <th className="p-3">المحصل</th>
-        <th className="p-3">المتبقي ذمم</th>
-        <th className="p-3">التكلفة</th>
-        <th className="p-3">الربح الكلي</th>
-        <th className="p-3">ربح محصل</th>
-        <th className="p-3">ربح مع الذمم</th>
+        <th className="p-3">{t('invoiceTable.col.date')}</th>
+        <th className="p-3">{t('invoiceTable.col.invoiceNo')}</th>
+        <th className="p-3">{t('invoiceTable.col.customer')}</th>
+        <th className="p-3">{t('invoiceTable.col.sales')}</th>
+        <th className="p-3">{t('invoiceTable.col.collected')}</th>
+        <th className="p-3">{t('invoiceTable.col.remainingReceivable')}</th>
+        <th className="p-3">{t('invoiceTable.col.cost')}</th>
+        <th className="p-3">{t('invoiceTable.col.grossProfit')}</th>
+        <th className="p-3">{t('invoiceTable.col.realizedProfit')}</th>
+        <th className="p-3">{t('invoiceTable.col.receivableProfit')}</th>
       </tr>
     </thead>
     <tbody>
@@ -773,37 +781,40 @@ const InvoiceTable = ({ rows, loading }: { rows: Record<string, unknown>[]; load
       {!loading && rows.length === 0 && (
         <tr>
           <td colSpan={10} className="p-10 text-center text-slate-500 bg-slate-50">
-            لا توجد فواتير بيع مؤكدة ضمن هذا النطاق.
+            {t('invoiceTable.empty')}
           </td>
         </tr>
       )}
     </tbody>
   </table>
-);
+  );
+};
 
-const LineTable = ({ rows, loading }: { rows: Record<string, unknown>[]; loading: boolean }) => (
+const LineTable = ({ rows, loading }: { rows: Record<string, unknown>[]; loading: boolean }) => {
+  const { t } = useTranslation('profitDetails');
+  return (
   <table className="w-full text-xs text-right">
     <thead className="bg-slate-900 text-white">
       <tr>
-        <th className="p-3">التاريخ</th>
-        <th className="p-3">رقم الفاتورة</th>
-        <th className="p-3">العميل</th>
-        <th className="p-3">حالة الدفع</th>
-        <th className="p-3">الخامة</th>
-        <th className="p-3">كود الخامة</th>
-        <th className="p-3">اللون</th>
-        <th className="p-3">الباركود</th>
-        <th className="p-3">المورد</th>
-        <th className="p-3">المستودع</th>
-        <th className="p-3">الكمية</th>
-        <th className="p-3">الوحدة</th>
-        <th className="p-3">الكمية بالمتر</th>
-        <th className="p-3">إجمالي البيع</th>
-        <th className="p-3">إجمالي التكلفة</th>
-        <th className="p-3">الربح</th>
-        <th className="p-3">المحصل</th>
-        <th className="p-3">المتبقي</th>
-        <th className="p-3">جودة التكلفة</th>
+        <th className="p-3">{t('lineTable.col.date')}</th>
+        <th className="p-3">{t('lineTable.col.invoiceNo')}</th>
+        <th className="p-3">{t('lineTable.col.customer')}</th>
+        <th className="p-3">{t('lineTable.col.paymentStatus')}</th>
+        <th className="p-3">{t('lineTable.col.material')}</th>
+        <th className="p-3">{t('lineTable.col.materialCode')}</th>
+        <th className="p-3">{t('lineTable.col.color')}</th>
+        <th className="p-3">{t('lineTable.col.barcode')}</th>
+        <th className="p-3">{t('lineTable.col.supplier')}</th>
+        <th className="p-3">{t('lineTable.col.warehouse')}</th>
+        <th className="p-3">{t('lineTable.col.quantity')}</th>
+        <th className="p-3">{t('lineTable.col.unit')}</th>
+        <th className="p-3">{t('lineTable.col.quantityMeters')}</th>
+        <th className="p-3">{t('lineTable.col.totalSales')}</th>
+        <th className="p-3">{t('lineTable.col.totalCost')}</th>
+        <th className="p-3">{t('lineTable.col.profit')}</th>
+        <th className="p-3">{t('lineTable.col.collected')}</th>
+        <th className="p-3">{t('lineTable.col.remaining')}</th>
+        <th className="p-3">{t('lineTable.col.costQuality')}</th>
       </tr>
     </thead>
     <tbody>
@@ -833,10 +844,11 @@ const LineTable = ({ rows, loading }: { rows: Record<string, unknown>[]; loading
       {!loading && rows.length === 0 && (
         <tr>
           <td colSpan={19} className="p-10 text-center text-slate-500 bg-slate-50">
-            لا توجد بنود بيع مطابقة للفلاتر.
+            {t('lineTable.empty')}
           </td>
         </tr>
       )}
     </tbody>
   </table>
-);
+  );
+};

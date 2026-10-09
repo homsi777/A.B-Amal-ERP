@@ -1,0 +1,180 @@
+{
+  "page": {
+    "title": "Detaylı Kâr Raporu",
+    "subtitle": "Satış, maliyet, tahsilat ve alacakları ayrıştıran satış faturası kârları; maliyet kalitesi belirtilerek."
+  },
+  "filters": {
+    "detailLevelLabel": "Görüntüleme Şekli",
+    "detailLevel": {
+      "invoice": "Fatura Özeti",
+      "line": "Kalem Bazında Detay"
+    },
+    "groupByLabel": "Gruplama",
+    "groupBy": {
+      "none": "Gruplama Yok",
+      "customer": "Müşteri",
+      "material": "Kumaş",
+      "supplier": "Tedarikçi",
+      "date": "Tarih"
+    },
+    "fromDate": "Başlangıç Tarihi",
+    "toDate": "Bitiş Tarihi",
+    "customerLabel": "Müşteri",
+    "allCustomers": "Tüm Müşteriler",
+    "paymentStatusLabel": "Ödeme Durumu",
+    "allStatuses": "Tüm Durumlar",
+    "materialCodeLabel": "Kumaş Kodu",
+    "materialCodePlaceholder": "Kumaş kodunu yazın",
+    "lineOnlyPlaceholder": "Sadece detay görünümünde",
+    "supplierLabel": "Tedarikçi",
+    "allSuppliers": "Tüm Tedarikçiler",
+    "warehouseLabel": "Depo",
+    "allWarehouses": "Tüm Depolar",
+    "pageSizeLabel": "Satır Sayısı",
+    "loadingLookups": "Listeler yükleniyor...",
+    "lineHint": "Tahsilat ve bakiye, kalem tutarına göre orantılı olarak dağıtılır.",
+    "invoiceHint": "Kumaş, tedarikçi ve depo filtreleri detay görünümünde çalışır."
+  },
+  "actions": {
+    "refresh": "Yenile",
+    "clear": "Temizle",
+    "print": "Yazdır",
+    "previous": "Önceki",
+    "next": "Sonraki",
+    "close": "Kapat"
+  },
+  "paymentStatus": {
+    "paid": "Ödendi",
+    "partial": "Kısmen Ödendi",
+    "unpaid": "Ödenmedi"
+  },
+  "costQuality": {
+    "historical": "Kesinleşmiş Maliyet",
+    "fallback": "Tahmini Maliyet",
+    "missing": "Maliyet Eksik",
+    "partial": "Kısmi Maliyet",
+    "unknown": "Bilinmiyor",
+    "historicalShort": "Kesinleşmiş",
+    "fallbackShort": "Tahmini",
+    "missingShort": "Eksik",
+    "partialShort": "Kısmi"
+  },
+  "units": {
+    "meters": "m"
+  },
+  "toast": {
+    "loadError": "Kâr raporu yüklenemedi",
+    "exportPdfError": "PDF dışa aktarma başarısız oldu",
+    "printBlocked": "Yazdırma penceresi açılamadı. Açılır pencerelere izin verip yeniden deneyin."
+  },
+  "stats": {
+    "totalSales": "Toplam Satış",
+    "totalCost": "Toplam Maliyet",
+    "totalProfit": "Toplam Kâr",
+    "totalSoldMeters": "Toplam Satılan Metre",
+    "collected": "Tahsil Edilen",
+    "remainingReceivable": "Alacak Bakiyesi",
+    "remainingReceivableMeters": "Alacak Metresi",
+    "realizedProfit": "Tahsil Edilen Kâr",
+    "receivableProfit": "Alacaklı Kalan Kâr",
+    "missingCostCount": "Maliyeti Eksik Kalemler",
+    "fallbackCostCount": "Tahmini Maliyetli Kalemler"
+  },
+  "warnings": {
+    "groupProrationNote": "Gruplamadaki tahsilat ve bakiye, kalem tutarına göre orantılı dağılımla hesaplanmıştır; kesin tahsilat fişi eşleştirmesi değildir."
+  },
+  "topCustomer": {
+    "cardTitle": "En Çok Alışveriş Yapan Müşteri",
+    "totalPurchase": "Toplam Alışveriş",
+    "meters": "Metre",
+    "invoiceCount": "Fatura Sayısı",
+    "remaining": "Bakiye",
+    "viewDetails": "Detayları Görüntüle"
+  },
+  "groupSummary": {
+    "title": "Gruplama Özeti",
+    "subtitle": "Toplamlar, yalnızca geçerli sayfadan değil, filtrelenmiş tüm verilerden hesaplanmıştır."
+  },
+  "table": {
+    "lineTitle": "Kalem Bazında Detay",
+    "invoiceTitle": "Fatura Detayı",
+    "currencyNote": "Raporda kullanılan para birimi: USD",
+    "rowsCount": "{{count}} satır",
+    "pageLabel": "Sayfa {{page}}",
+    "pageLabelWithTotal": "Sayfa {{page}} / {{total}}"
+  },
+  "topCustomerModal": {
+    "title": "En Çok Alışveriş Yapan Müşteri Detayı",
+    "lastPurchase": "Son alışveriş: {{date}}",
+    "topMaterial": "En çok alınan kumaş: {{material}}",
+    "totalSales": "Toplam Satış",
+    "totalMeters": "Toplam Metre",
+    "totalCost": "Toplam Maliyet",
+    "totalProfit": "Toplam Kâr",
+    "collected": "Tahsil Edilen",
+    "remaining": "Bakiye",
+    "topInvoicesTitle": "En Önemli 5 Fatura",
+    "col": {
+      "date": "Tarih",
+      "invoiceNo": "Fatura No",
+      "sales": "Satış",
+      "meters": "Metre",
+      "remaining": "Bakiye"
+    },
+    "noInvoices": "Geçerli filtrelerle eşleşen fatura verisi bulunmuyor."
+  },
+  "groupTable": {
+    "col": {
+      "group": "Grup",
+      "invoiceCount": "Fatura Sayısı",
+      "lineCount": "Kalem Sayısı",
+      "sales": "Toplam Satış",
+      "cost": "Toplam Maliyet",
+      "profit": "Kâr",
+      "collected": "Tahsil Edilen",
+      "remaining": "Bakiye",
+      "meters": "Metre",
+      "costQuality": "Maliyet Kalitesi"
+    },
+    "empty": "Geçerli filtrelerle eşleşen toplam bulunmuyor."
+  },
+  "invoiceTable": {
+    "col": {
+      "date": "Tarih",
+      "invoiceNo": "Fatura No",
+      "customer": "Müşteri",
+      "sales": "Satış",
+      "collected": "Tahsil Edilen",
+      "remainingReceivable": "Alacak Bakiyesi",
+      "cost": "Maliyet",
+      "grossProfit": "Toplam Kâr",
+      "realizedProfit": "Tahsil Edilen Kâr",
+      "receivableProfit": "Alacaklı Kâr"
+    },
+    "empty": "Bu aralıkta onaylanmış satış faturası bulunmuyor."
+  },
+  "lineTable": {
+    "col": {
+      "date": "Tarih",
+      "invoiceNo": "Fatura No",
+      "customer": "Müşteri",
+      "paymentStatus": "Ödeme Durumu",
+      "material": "Kumaş",
+      "materialCode": "Kumaş Kodu",
+      "color": "Renk",
+      "barcode": "Barkod",
+      "supplier": "Tedarikçi",
+      "warehouse": "Depo",
+      "quantity": "Miktar",
+      "unit": "Birim",
+      "quantityMeters": "Metre Miktarı",
+      "totalSales": "Toplam Satış",
+      "totalCost": "Toplam Maliyet",
+      "profit": "Kâr",
+      "collected": "Tahsil Edilen",
+      "remaining": "Bakiye",
+      "costQuality": "Maliyet Kalitesi"
+    },
+    "empty": "Filtrelerle eşleşen satış kalemi bulunmuyor."
+  }
+}

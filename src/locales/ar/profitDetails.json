@@ -1,0 +1,180 @@
+{
+  "page": {
+    "title": "كشف الأرباح التفصيلي",
+    "subtitle": "أرباح فواتير البيع مع فصل المبيعات والتكلفة والتحصيل والذمم، مع توضيح جودة التكلفة."
+  },
+  "filters": {
+    "detailLevelLabel": "طريقة العرض",
+    "detailLevel": {
+      "invoice": "ملخص الفواتير",
+      "line": "تفصيل حسب الخامة"
+    },
+    "groupByLabel": "تجميع حسب",
+    "groupBy": {
+      "none": "بدون تجميع",
+      "customer": "العميل",
+      "material": "الخامة",
+      "supplier": "المورد",
+      "date": "التاريخ"
+    },
+    "fromDate": "من تاريخ",
+    "toDate": "إلى تاريخ",
+    "customerLabel": "العميل",
+    "allCustomers": "كل العملاء",
+    "paymentStatusLabel": "حالة الدفع",
+    "allStatuses": "كل الحالات",
+    "materialCodeLabel": "كود الخامة",
+    "materialCodePlaceholder": "اكتب كود الخامة",
+    "lineOnlyPlaceholder": "خاص بالتفصيل",
+    "supplierLabel": "المورد",
+    "allSuppliers": "كل الموردين",
+    "warehouseLabel": "المستودع",
+    "allWarehouses": "كل المستودعات",
+    "pageSizeLabel": "عدد الأسطر",
+    "loadingLookups": "جاري تحميل القوائم...",
+    "lineHint": "المحصل والمتبقي موزعان نسبياً حسب قيمة البند.",
+    "invoiceHint": "فلاتر الخامة والمورد والمستودع تعمل في التفصيل."
+  },
+  "actions": {
+    "refresh": "تحديث",
+    "clear": "مسح",
+    "print": "طباعة",
+    "previous": "السابق",
+    "next": "التالي",
+    "close": "إغلاق"
+  },
+  "paymentStatus": {
+    "paid": "مدفوع",
+    "partial": "مدفوع جزئياً",
+    "unpaid": "غير مدفوع"
+  },
+  "costQuality": {
+    "historical": "تكلفة مثبتة",
+    "fallback": "تكلفة تقديرية",
+    "missing": "تكلفة مفقودة",
+    "partial": "تكلفة جزئية",
+    "unknown": "غير معروف",
+    "historicalShort": "مثبتة",
+    "fallbackShort": "تقديرية",
+    "missingShort": "مفقودة",
+    "partialShort": "جزئية"
+  },
+  "units": {
+    "meters": "م"
+  },
+  "toast": {
+    "loadError": "تعذر تحميل كشف الأرباح",
+    "exportPdfError": "فشل تصدير PDF",
+    "printBlocked": "تعذر فتح نافذة الطباعة. اسمح بالنوافذ المنبثقة ثم أعد المحاولة."
+  },
+  "stats": {
+    "totalSales": "إجمالي المبيعات",
+    "totalCost": "إجمالي التكلفة",
+    "totalProfit": "إجمالي الربح",
+    "totalSoldMeters": "إجمالي الأمتار المباعة",
+    "collected": "المحصل",
+    "remainingReceivable": "المتبقي ضمن الذمم",
+    "remainingReceivableMeters": "أمتار ضمن الذمم",
+    "realizedProfit": "ربح محصل",
+    "receivableProfit": "ربح متبق ضمن الذمم",
+    "missingCostCount": "بنود تكلفة مفقودة",
+    "fallbackCostCount": "بنود تكلفة تقديرية"
+  },
+  "warnings": {
+    "groupProrationNote": "المحصل والمتبقي في التجميع محسوبان بناءً على التوزيع النسبي حسب قيمة البنود، وليس تخصيص سندات قبض دقيق."
+  },
+  "topCustomer": {
+    "cardTitle": "أكثر زبون يشتري",
+    "totalPurchase": "إجمالي الشراء",
+    "meters": "الأمتار",
+    "invoiceCount": "الفواتير",
+    "remaining": "المتبقي",
+    "viewDetails": "عرض التفاصيل"
+  },
+  "groupSummary": {
+    "title": "ملخص التجميع",
+    "subtitle": "المجاميع محسوبة من كامل البيانات المفلترة، وليست من الصفحة الحالية فقط."
+  },
+  "table": {
+    "lineTitle": "تفصيل حسب الخامة",
+    "invoiceTitle": "تفصيل الفواتير",
+    "currencyNote": "العملة المعتمدة في التقرير: USD",
+    "rowsCount": "{{count}} سطر",
+    "pageLabel": "صفحة {{page}}",
+    "pageLabelWithTotal": "صفحة {{page}} / {{total}}"
+  },
+  "topCustomerModal": {
+    "title": "تفاصيل أكثر زبون يشتري",
+    "lastPurchase": "آخر شراء: {{date}}",
+    "topMaterial": "أكثر خامة: {{material}}",
+    "totalSales": "إجمالي المبيعات",
+    "totalMeters": "إجمالي الأمتار",
+    "totalCost": "إجمالي التكلفة",
+    "totalProfit": "إجمالي الربح",
+    "collected": "المحصل",
+    "remaining": "المتبقي",
+    "topInvoicesTitle": "أهم 5 فواتير",
+    "col": {
+      "date": "التاريخ",
+      "invoiceNo": "رقم الفاتورة",
+      "sales": "المبيعات",
+      "meters": "الأمتار",
+      "remaining": "متبقي"
+    },
+    "noInvoices": "لا توجد بيانات فواتير ضمن الفلاتر الحالية."
+  },
+  "groupTable": {
+    "col": {
+      "group": "المجموعة",
+      "invoiceCount": "عدد الفواتير",
+      "lineCount": "عدد البنود",
+      "sales": "إجمالي البيع",
+      "cost": "إجمالي التكلفة",
+      "profit": "الربح",
+      "collected": "المحصل",
+      "remaining": "المتبقي",
+      "meters": "الأمتار",
+      "costQuality": "جودة التكلفة"
+    },
+    "empty": "لا توجد مجاميع مطابقة للفلاتر الحالية."
+  },
+  "invoiceTable": {
+    "col": {
+      "date": "التاريخ",
+      "invoiceNo": "رقم الفاتورة",
+      "customer": "العميل",
+      "sales": "البيع",
+      "collected": "المحصل",
+      "remainingReceivable": "المتبقي ذمم",
+      "cost": "التكلفة",
+      "grossProfit": "الربح الكلي",
+      "realizedProfit": "ربح محصل",
+      "receivableProfit": "ربح مع الذمم"
+    },
+    "empty": "لا توجد فواتير بيع مؤكدة ضمن هذا النطاق."
+  },
+  "lineTable": {
+    "col": {
+      "date": "التاريخ",
+      "invoiceNo": "رقم الفاتورة",
+      "customer": "العميل",
+      "paymentStatus": "حالة الدفع",
+      "material": "الخامة",
+      "materialCode": "كود الخامة",
+      "color": "اللون",
+      "barcode": "الباركود",
+      "supplier": "المورد",
+      "warehouse": "المستودع",
+      "quantity": "الكمية",
+      "unit": "الوحدة",
+      "quantityMeters": "الكمية بالمتر",
+      "totalSales": "إجمالي البيع",
+      "totalCost": "إجمالي التكلفة",
+      "profit": "الربح",
+      "collected": "المحصل",
+      "remaining": "المتبقي",
+      "costQuality": "جودة التكلفة"
+    },
+    "empty": "لا توجد بنود بيع مطابقة للفلاتر."
+  }
+}
