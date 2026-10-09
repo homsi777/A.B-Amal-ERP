@@ -14,6 +14,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { calculateFabricInvoiceSummary, calculateFabricWeightKg } from '../../lib/fabricInvoiceSummary';
 import type {
   Customer,
@@ -291,6 +292,7 @@ export function OrderFormModal({
   editingOrder,
   onSubmit,
 }: OrderFormModalProps) {
+  const { t } = useTranslation('orderFormModal');
   const { showToast } = useToast();
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [orderNumber, setOrderNumber] = useState('');
@@ -450,18 +452,24 @@ export function OrderFormModal({
         commitLine({ ...applyCartelaToLinePatch(cartela, scan, inventory), needsCartelaDraft: false });
         const colorHint =
           cartela.match_type === 'color' && cartela.color
-            ? ` · اللون ${cartela.color.color_code}${cartela.color.name_ar ? ` (${cartela.color.name_ar})` : ''}`
-            : ' — أكمل اللون والكمية';
+            ? ` · ${t('toast.cartelaColorMatched', {
+                code: cartela.color.color_code,
+                name: cartela.color.name_ar ? ` (${cartela.color.name_ar})` : '',
+              })}`
+            : ` ${t('toast.cartelaCompleteColorQty')}`;
         showToast({
           type: 'success',
-          message: `كارتيلا: ${cartela.title || cartela.art_code} · ${cartela.art_code}${cartela.design_no ? ` · ${cartela.design_no}` : ''}${colorHint}`,
+          message: `${t('toast.cartelaFoundPrefix', {
+            title: cartela.title || cartela.art_code,
+            artCode: cartela.art_code,
+          })}${cartela.design_no ? ` · ${cartela.design_no}` : ''}${colorHint}`,
         });
         return;
       } catch (e) {
         if (!(e instanceof ApiRequestError) || e.statusCode !== 404) {
           showToast({
             type: 'error',
-            message: e instanceof ApiRequestError ? e.message : 'تعذر البحث في الكارتيلا',
+            message: e instanceof ApiRequestError ? e.message : t('toast.cartelaSearchFailed'),
           });
           return;
         }
@@ -472,8 +480,7 @@ export function OrderFormModal({
         commitLine({ scanBarcode: scan, needsCartelaDraft: true });
         showToast({
           type: 'warning',
-          message:
-            'كارتيلا غير موجودة — أكمل الخامة واللون يدوياً. تُسجَّل مسودة كارتيلا تلقائياً عند حفظ الطلبية.',
+          message: t('toast.cartelaNotFoundManual'),
         });
         return;
       }
@@ -491,8 +498,7 @@ export function OrderFormModal({
       });
       showToast({
         type: 'warning',
-        message:
-          'كارتيلا غير موجودة — تم تعبئة بيانات من المخزون. تُسجَّل مسودة كارتيلا تلقائياً عند حفظ الطلبية.',
+        message: t('toast.cartelaNotFoundFromInventory'),
       });
     } finally {
       barcodeCommittingRef.current = null;
@@ -512,10 +518,10 @@ export function OrderFormModal({
   const handleRemoveItem = (id: string) => setItems(items.filter((item) => item.id !== id));
 
   const applyTemplate = (tid: string) => {
-    const t = templates.find((x) => x.id === tid);
-    if (!t || !t.lines.length) return;
+    const tpl = templates.find((x) => x.id === tid);
+    if (!tpl || !tpl.lines.length) return;
     setTemplateId(tid);
-    setItems([...t.lines.map((line) => {
+    setItems([...tpl.lines.map((line) => {
         const row = emptyLine();
         return {
           ...row,
@@ -540,7 +546,7 @@ export function OrderFormModal({
     const looksLikeImage =
       file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name);
     if (!looksLikeImage) {
-      showToast({ type: 'error', message: 'الملف المختار ليس صورة' });
+      showToast({ type: 'error', message: t('toast.notAnImage') });
       return;
     }
 
@@ -548,7 +554,7 @@ export function OrderFormModal({
     try {
       const { dataUrl } = await compressOrderLineImage(file);
       patchLine(lineId, { imageUrl: dataUrl });
-      showToast({ type: 'success', message: 'تم ضغط الصورة وجاهزة للحفظ' });
+      showToast({ type: 'success', message: t('toast.imageCompressed') });
     } catch (err) {
       showToast({ type: 'error', message: compressOrderLineImageErrorMessage(err) });
     } finally {
@@ -558,7 +564,7 @@ export function OrderFormModal({
     }
   };
 
-  const groupText = (value: string) => value.trim() || 'غير محدد';
+  const groupText = (value: string) => value.trim() || t('misc.unspecified');
 
   const groupKey = (materialName: string, designCode: string) => `${materialName}|||${designCode}`;
 
@@ -588,11 +594,11 @@ export function OrderFormModal({
     if (isBlankOrderLine(item)) return '';
     if (field === 'metersPerRoll') {
       const value = numberValue(item.metersPerRoll);
-      if (value <= 0) return 'متر/رول يجب أن يكون أكبر من صفر';
+      if (value <= 0) return t('validation.metersPerRollRequired');
     }
     if (field === 'rollCount') {
       const value = Math.round(numberValue(item.rollCount));
-      if (value <= 0) return 'عدد الرول يجب أن يكون أكبر من صفر';
+      if (value <= 0) return t('validation.rollCountRequired');
     }
     return '';
   };
@@ -651,12 +657,12 @@ export function OrderFormModal({
       showToast({
         type: 'error',
         message: !partyId
-          ? 'اختر العميل قبل الحفظ'
+          ? t('toast.selectCustomerFirst')
           : savableItems.length === 0
             ? summaryItems.length > 0
-              ? 'أكمل اللون في كل سطر قبل الحفظ'
-              : 'أضف سطراً واحداً على الأقل (خامة + كمية + لون)'
-            : 'تحقق من الكميات في بنود الطلبية',
+              ? t('toast.completeColorFirst')
+              : t('toast.addAtLeastOneLine')
+            : t('toast.checkQuantities'),
       });
       return;
     }
@@ -673,14 +679,14 @@ export function OrderFormModal({
       if (draftsCreated > 0) {
         showToast({
           type: 'success',
-          message: `تمت إضافة ${draftsCreated} كارتيلا مسودة — يمكن إكمال التفاصيل من سجل الكارتيلات`,
+          message: t('toast.cartelaDraftsCreated', { count: draftsCreated }),
         });
       }
       onClose();
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر حفظ الطلبية',
+        message: e instanceof ApiRequestError ? e.message : t('toast.saveFailed'),
       });
     } finally {
       setSaving(false);
@@ -738,17 +744,17 @@ export function OrderFormModal({
               type="button"
               onClick={onClose}
               className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition shrink-0"
-              aria-label="إغلاق"
+              aria-label={t('header.closeAriaLabel')}
             >
               <ArrowRight className="w-5 h-5" />
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-indigo-700 font-bold text-lg">
                 <ClipboardList className="w-5 h-5 shrink-0" />
-                {editingOrder ? 'تعديل طلبية حجز' : 'طلبية حجز جديدة'}
+                {editingOrder ? t('header.titleEdit') : t('header.titleCreate')}
               </div>
               <p className="text-sm text-slate-500 mt-0.5">
-                الباركود → اسم الخامة → كود الخامة — اللون يدوياً. السطر التالي يرث الباركود والكميات.
+                {t('header.subtitle')}
               </p>
             </div>
           </div>
@@ -759,7 +765,7 @@ export function OrderFormModal({
               className="bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-lg flex items-center gap-1.5 hover:bg-slate-50 text-sm font-medium"
             >
               <X className="w-4 h-4" />
-              إلغاء
+              {t('actions.cancel')}
             </button>
             <button
               type="button"
@@ -768,7 +774,7 @@ export function OrderFormModal({
               className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
             >
               <FileText className="w-4 h-4" />
-              {saving ? 'جاري الحفظ…' : 'حفظ مسودة'}
+              {saving ? t('actions.saving') : t('actions.saveDraft')}
             </button>
             <button
               type="button"
@@ -777,33 +783,33 @@ export function OrderFormModal({
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-1.5 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {saving ? 'جاري الحفظ…' : editingOrder ? 'حفظ التعديلات' : 'تأكيد الطلبية'}
+              {saving ? t('actions.saving') : editingOrder ? t('actions.saveChanges') : t('actions.confirmOrder')}
             </button>
           </div>
         </div>
 
         <div className="min-h-0 overflow-y-auto flex-1 px-4 sm:px-6 py-5 space-y-6">
           <div className="rounded-xl border border-cyan-200 bg-cyan-50/80 px-4 py-3 text-sm text-cyan-900 flex flex-wrap gap-2 items-center">
-            <strong>تنبيه:</strong>
+            <strong>{t('alert.title')}</strong>
             <span>
-              امسح <strong>باركود/QR الكارتيلا</strong> لتعبئة الخامة والباركود — ثم أكمل{' '}
-              <strong>كود اللون</strong> و<strong>اللون</strong> يدوياً. السطر التالي يرث نفس الباركود والكميات والسعر.
+              {t('alert.scanPrefix')} <strong>{t('alert.scanBold')}</strong> {t('alert.scanMiddle')}{' '}
+              <strong>{t('alert.colorCodeBold')}</strong> {t('alert.and')}<strong>{t('alert.colorBold')}</strong> {t('alert.scanSuffix')}
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             <div className="space-y-1.5 xl:col-span-2">
-              <label className="text-xs font-bold text-slate-700">رقم الطلبية</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.orderNumberLabel')}</label>
               <input
                 type="text"
                 value={orderNumber}
                 onChange={(e) => setOrderNumber(e.target.value)}
-                placeholder="يُولَّد تلقائياً (رقم فقط)"
+                placeholder={t('form.orderNumberPlaceholder')}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">التاريخ</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.dateLabel')}</label>
               <input
                 type="date"
                 value={date}
@@ -812,7 +818,7 @@ export function OrderFormModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">توريد متوقع</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.expectedDateLabel')}</label>
               <input
                 type="date"
                 value={expectedDate}
@@ -821,7 +827,7 @@ export function OrderFormModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">دفعة مقدمة من العميل</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.advancePaymentLabel')}</label>
               <input
                 type="number"
                 min="0"
@@ -833,13 +839,13 @@ export function OrderFormModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">العميل *</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.customerLabel')}</label>
               <select
                 value={partyId}
                 onChange={(e) => setPartyId(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
               >
-                <option value="">— اختر العميل —</option>
+                <option value="">{t('form.selectCustomerOption')}</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -848,14 +854,14 @@ export function OrderFormModal({
               </select>
               {selectedCustomer && (
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  <span className="font-bold text-slate-600">من قيد العميل:</span>{' '}
+                  <span className="font-bold text-slate-600">{t('form.fromCustomerRecord')}</span>{' '}
                   {selectedCustomer.phone?.trim() || '—'}
                   {selectedCustomer.address?.trim() ? ` · ${selectedCustomer.address.trim()}` : ''}
                 </p>
               )}
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">حالة الطلبية</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.statusLabel')}</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as CustomerOrder['status'])}
@@ -869,24 +875,24 @@ export function OrderFormModal({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">طريقة الشحن</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.shippingMethodLabel')}</label>
               <input
                 type="text"
                 value={shippingMethod}
                 onChange={(e) => setShippingMethod(e.target.value)}
                 list="shipping-method-options"
-                placeholder="مثال: شحن داخلي، استلام، توصيل..."
+                placeholder={t('form.shippingMethodPlaceholder')}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
               />
               <datalist id="shipping-method-options">
-                <option value="شحن داخلي" />
-                <option value="استلام من المستودع" />
-                <option value="توصيل للعميل" />
-                <option value="شحن خارجي" />
+                <option value={t('form.shippingOptionInternal')} />
+                <option value={t('form.shippingOptionWarehousePickup')} />
+                <option value={t('form.shippingOptionDeliverToCustomer')} />
+                <option value={t('form.shippingOptionExternal')} />
               </datalist>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">مستودع (مرجعي)</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.warehouseLabel')}</label>
               <select
                 value={warehouse}
                 onChange={(e) => setWarehouse(e.target.value)}
@@ -894,9 +900,9 @@ export function OrderFormModal({
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm disabled:bg-slate-50"
               >
                 {warehousesLoading ? (
-                  <option value="">جاري تحميل المستودعات...</option>
+                  <option value="">{t('form.warehouseLoading')}</option>
                 ) : warehouses.length === 0 ? (
-                  <option value="">لا مستودعات نشطة</option>
+                  <option value="">{t('form.warehouseNoneActive')}</option>
                 ) : (
                   warehouses.map((w) => (
                     <option key={w.id} value={w.name}>
@@ -908,19 +914,19 @@ export function OrderFormModal({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">العملة</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.currencyLabel')}</label>
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
               >
-                <option value="USD">دولار (USD)</option>
-                <option value="SAR">ريال (SAR)</option>
-                <option value="TRY">ليرة (TRY)</option>
+                <option value="USD">{t('form.currencyUsd')}</option>
+                <option value="SAR">{t('form.currencySar')}</option>
+                <option value="TRY">{t('form.currencyTry')}</option>
               </select>
             </div>
             <div className="space-y-1.5 xl:col-span-2">
-              <label className="text-xs font-bold text-slate-700">تحميل من نموذج</label>
+              <label className="text-xs font-bold text-slate-700">{t('form.templateLabel')}</label>
               <select
                 value={templateId || ''}
                 onChange={(e) => {
@@ -930,10 +936,10 @@ export function OrderFormModal({
                 }}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
               >
-                <option value="">— بدون نموذج —</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
+                <option value="">{t('form.noTemplateOption')}</option>
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name}
                   </option>
                 ))}
               </select>
@@ -942,13 +948,13 @@ export function OrderFormModal({
 
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-bold text-slate-900">بنود الطلبية</h3>
+              <h3 className="text-base font-bold text-slate-900">{t('table.itemsTitle')}</h3>
               <button
                 type="button"
                 onClick={handleAddItem}
                 className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1"
               >
-                <Plus className="w-4 h-4" /> إضافة سطر
+                <Plus className="w-4 h-4" /> {t('actions.addLine')}
               </button>
             </div>
 
@@ -957,15 +963,15 @@ export function OrderFormModal({
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 border-b border-slate-200">
                     <th className="p-2 font-bold w-10 text-center">#</th>
-                    <th className="p-2 font-bold min-w-[120px]">الباركود</th>
-                    <th className="p-2 font-bold min-w-[130px]">اسم الخامة</th>
+                    <th className="p-2 font-bold min-w-[120px]">{t('table.colBarcode')}</th>
+                    <th className="p-2 font-bold min-w-[130px]">{t('table.colMaterialName')}</th>
                     <th className="p-2 font-bold min-w-[90px]">DESIGN NO</th>
-                    <th className="p-2 font-bold min-w-[100px]">كود لون</th>
-                    <th className="p-2 font-bold min-w-[110px]">لون</th>
-                    <th className="p-2 font-bold min-w-[90px]">متر/رول</th>
-                    <th className="p-2 font-bold min-w-[70px]">عدد رول</th>
-                    <th className="p-2 font-bold min-w-[80px]">إجمالي م</th>
-                    <th className="p-2 font-bold w-14 text-center">صورة</th>
+                    <th className="p-2 font-bold min-w-[100px]">{t('table.colColorCode')}</th>
+                    <th className="p-2 font-bold min-w-[110px]">{t('table.colColorName')}</th>
+                    <th className="p-2 font-bold min-w-[90px]">{t('table.colMetersPerRoll')}</th>
+                    <th className="p-2 font-bold min-w-[70px]">{t('table.colRollCount')}</th>
+                    <th className="p-2 font-bold min-w-[80px]">{t('table.colTotalMeters')}</th>
+                    <th className="p-2 font-bold w-14 text-center">{t('table.colImage')}</th>
                     <th className="p-2 w-10" />
                   </tr>
                 </thead>
@@ -985,7 +991,7 @@ export function OrderFormModal({
                                 barcodeInputRefs.current[item.id] = el;
                               }}
                               type="text"
-                              placeholder="امسح الباركود"
+                              placeholder={t('table.barcodePlaceholder')}
                               value={item.scanBarcode}
                               onChange={(e) => patchLine(item.id, { scanBarcode: e.target.value })}
                               onBlur={() => void handleBarcodeCommit(item.id)}
@@ -1003,7 +1009,7 @@ export function OrderFormModal({
                         <td className="p-1.5">
                           <input
                             type="text"
-                            placeholder="اسم الخامة"
+                            placeholder={t('table.materialNamePlaceholder')}
                             value={item.materialName}
                             onChange={(e) => patchLine(item.id, { materialName: e.target.value })}
                             onKeyDown={(e) => handleKeyDownTable(e, item.id)}
@@ -1021,7 +1027,7 @@ export function OrderFormModal({
                             onKeyDown={(e) => handleKeyDownTable(e, item.id)}
                             className={`${inputClass()} font-mono text-xs`}
                             dir="ltr"
-                            title="DESIGN NO من الكارتيلا"
+                            title={t('table.designNoTitle')}
                           />
                         </td>
                         <td className="p-1.5">
@@ -1030,7 +1036,7 @@ export function OrderFormModal({
                               colorCodeInputRefs.current[item.id] = el;
                             }}
                             type="text"
-                            placeholder="كود لون"
+                            placeholder={t('table.colorCodePlaceholder')}
                             value={item.colorCode}
                             onChange={(e) => patchLine(item.id, { colorCode: e.target.value })}
                             onKeyDown={(e) => handleKeyDownTable(e, item.id)}
@@ -1040,7 +1046,7 @@ export function OrderFormModal({
                         <td className="p-1.5">
                           <input
                             type="text"
-                            placeholder="لون"
+                            placeholder={t('table.colorNamePlaceholder')}
                             value={item.colorName}
                             onChange={(e) => patchLine(item.id, { colorName: e.target.value })}
                             onKeyDown={(e) => handleKeyDownTable(e, item.id)}
@@ -1094,7 +1100,7 @@ export function OrderFormModal({
                             disabled={compressingLineId === item.id}
                             onClick={() => fileInputRefs.current[item.id]?.click()}
                             className="w-10 h-10 mx-auto rounded-lg border border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50 hover:border-indigo-400 transition disabled:opacity-60"
-                            title="إرفاق صورة (كاميرا أو معرض)"
+                            title={t('table.attachImageTitle')}
                           >
                             {compressingLineId === item.id ? (
                               <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />
@@ -1122,7 +1128,7 @@ export function OrderFormModal({
                 <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-slate-700 text-xs">
                   <tr>
                     <td colSpan={8} className="p-2 text-left">
-                      المجموع
+                      {t('table.totalLabel')}
                     </td>
                     <td className="p-2 font-mono">{summary.totals.totalMeters.toFixed(2)}</td>
                     <td className="p-2" colSpan={2} />
@@ -1139,8 +1145,8 @@ export function OrderFormModal({
               className="w-full flex items-center justify-between px-4 py-3 text-right"
             >
               <div>
-                <h3 className="text-base font-bold text-slate-900">ملخص حسب الخامة والتصميم</h3>
-                <p className="text-xs text-slate-500">التسعير هنا — سعر المتر لكل خامة/تصميم</p>
+                <h3 className="text-base font-bold text-slate-900">{t('summary.title')}</h3>
+                <p className="text-xs text-slate-500">{t('summary.subtitle')}</p>
               </div>
               {summaryOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
@@ -1150,13 +1156,13 @@ export function OrderFormModal({
                   <table className="w-full text-xs sm:text-sm text-right">
                     <thead className="bg-slate-100 text-slate-600">
                       <tr>
-                        <th className="p-2">الخامة</th>
-                        <th className="p-2">التصميم</th>
-                        <th className="p-2">ألوان</th>
-                        <th className="p-2">رولات</th>
-                        <th className="p-2">أمتار</th>
-                        <th className="p-2">سعر المتر</th>
-                        <th className="p-2">إجمالي</th>
+                        <th className="p-2">{t('summary.colMaterial')}</th>
+                        <th className="p-2">{t('summary.colDesign')}</th>
+                        <th className="p-2">{t('summary.colColors')}</th>
+                        <th className="p-2">{t('summary.colRolls')}</th>
+                        <th className="p-2">{t('summary.colMeters')}</th>
+                        <th className="p-2">{t('summary.colPricePerMeter')}</th>
+                        <th className="p-2">{t('summary.colTotal')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1164,8 +1170,8 @@ export function OrderFormModal({
                         <tr>
                           <td colSpan={7} className="p-4 text-center text-slate-400 text-sm">
                             {items.some(isSummaryLine)
-                              ? 'أدخل سعر المتر لكل خامة/تصميم'
-                              : 'امسح الباركود وأدخل الكمية — يظهر الملخص تلقائياً'}
+                              ? t('summary.emptyEnterPrice')
+                              : t('summary.emptyScanBarcode')}
                           </td>
                         </tr>
                       ) : (
@@ -1190,7 +1196,7 @@ export function OrderFormModal({
                               }
                               className="w-24 bg-white border border-slate-200 rounded px-1.5 py-1 font-mono text-left"
                               dir="ltr"
-                              aria-label={`سعر المتر — ${group.materialName}`}
+                              aria-label={t('summary.pricePerMeterAriaLabel', { materialName: group.materialName })}
                             />
                           </td>
                           <td className="p-2 font-mono font-bold text-indigo-700">{money(group.totalAmount, currency)}</td>
@@ -1201,23 +1207,23 @@ export function OrderFormModal({
                   </table>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <SummaryStat label="رولات" value={String(summary.totals.rollCount)} />
-                  <SummaryStat label="أمتار" value={summary.totals.totalMeters.toFixed(2)} />
-                  <SummaryStat label={`إجمالي ${currency}`} value={money(summary.totals.totalAmount, currency)} />
-                  <SummaryStat label="مجموعات" value={String(summary.totals.groupCount)} />
+                  <SummaryStat label={t('summary.statRolls')} value={String(summary.totals.rollCount)} />
+                  <SummaryStat label={t('summary.statMeters')} value={summary.totals.totalMeters.toFixed(2)} />
+                  <SummaryStat label={t('summary.statTotal', { currency })} value={money(summary.totals.totalAmount, currency)} />
+                  <SummaryStat label={t('summary.statGroups')} value={String(summary.totals.groupCount)} />
                 </div>
               </div>
             )}
           </section>
 
           <div>
-            <label className="text-xs font-bold text-slate-700">ملاحظات عامة للطلبية</label>
+            <label className="text-xs font-bold text-slate-700">{t('form.notesLabel')}</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               className="mt-1 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
-              placeholder="شروط التسليم، مرجع شحنة المورد، ..."
+              placeholder={t('form.notesPlaceholder')}
             />
           </div>
         </div>
