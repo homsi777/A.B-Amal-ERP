@@ -655,8 +655,12 @@ async function exportHtmlToPdf(
       setTimeout(() => reject(new Error('timeout')), 20000);
     });
 
-    // Small delay for rendering
-    await new Promise<void>((r) => setTimeout(r, 300));
+    // Delay for rendering — scales with document size so large multi-page
+    // statements (e.g. invoices with 100+ lines across several .page blocks)
+    // finish layout before Chromium snapshots the PDF, instead of a flat 300ms
+    // that was enough for short documents but could race ahead of long ones.
+    const renderDelayMs = Math.min(1500, 300 + Math.floor(html.length / 5000) * 100);
+    await new Promise<void>((r) => setTimeout(r, renderDelayMs));
 
     const ps = buildElectronPageSize(options.pageSize, options.widthMm, options.heightMm);
     const pdfBuffer = await printWin.webContents.printToPDF({
