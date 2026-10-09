@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Filter, Plus, Loader2, Trash2, X } from 'lucide-react';
 import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
 import { listLocations, listWarehouses, type ApiWarehouse, type ApiWarehouseLocation } from '../../lib/api/warehousesApi';
@@ -11,21 +12,6 @@ import {
   type WasteType,
 } from '../../lib/api/inventoryWasteApi';
 import { ApiRequestError } from '../../lib/api/client';
-
-const WASTE_TYPE_AR: Record<WasteType, string> = {
-  DAMAGE: 'تلف',
-  SHORTAGE: 'نقص',
-  CUTTING_WASTE: 'هدر قص',
-  QUALITY_REJECT: 'رفض جودة',
-  LOST: 'مفقود',
-  OTHER: 'أخرى',
-};
-
-const STATUS_AR: Record<string, string> = {
-  DRAFT: 'مسودة',
-  CONFIRMED: 'مؤكدة',
-  CANCELLED: 'ملغاة',
-};
 
 const STATUS_CLASS: Record<string, string> = {
   DRAFT: 'bg-amber-100 text-amber-800',
@@ -49,6 +35,20 @@ async function loadRollsForWarehouse(warehouseId: string): Promise<FabricRollDto
 }
 
 export const Depreciation = () => {
+  const { t } = useTranslation('depreciation');
+  const WASTE_TYPE_AR: Record<WasteType, string> = {
+    DAMAGE: t('wasteType.damage'),
+    SHORTAGE: t('wasteType.shortage'),
+    CUTTING_WASTE: t('wasteType.cuttingWaste'),
+    QUALITY_REJECT: t('wasteType.qualityReject'),
+    LOST: t('wasteType.lost'),
+    OTHER: t('wasteType.other'),
+  };
+  const STATUS_AR: Record<string, string> = {
+    DRAFT: t('status.draft'),
+    CONFIRMED: t('status.confirmed'),
+    CANCELLED: t('status.cancelled'),
+  };
   const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
   const [rows, setRows] = useState<InventoryWasteRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -88,7 +88,7 @@ export const Depreciation = () => {
       setTotal(all.total);
       setDraftTotal(drafts.total);
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر تحميل السجلات');
+      setErr(e instanceof ApiRequestError ? e.message : t('loadListError'));
     } finally {
       setBus((b) => ({ ...b, list: false }));
     }
@@ -139,7 +139,7 @@ export const Depreciation = () => {
     return (id: string) => {
       const r = m.get(id);
       if (!r) return id;
-      return `${r.barcode} — ${r.item_name ?? 'ثوب'}`;
+      return `${r.barcode} — ${r.item_name ?? t('rollFallbackName')}`;
     };
   }, [rollsPick]);
 
@@ -157,11 +157,11 @@ export const Depreciation = () => {
   const handleCreate = async () => {
     setErr(null);
     if (!warehouseId) {
-      setErr('اختر المستودع الذي يقع فيه التوالف');
+      setErr(t('chooseWarehouseError'));
       return;
     }
     if (lines.length === 0) {
-      setErr('أضف ثوباً واحداً على الأقل');
+      setErr(t('addAtLeastOneRollError'));
       return;
     }
     setBus((b) => ({ ...b, create: true }));
@@ -186,7 +186,7 @@ export const Depreciation = () => {
       setShowForm(false);
       await loadList();
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر إنشاء السجل');
+      setErr(e instanceof ApiRequestError ? e.message : t('createError'));
     } finally {
       setBus((b) => ({ ...b, create: false }));
     }
@@ -199,7 +199,7 @@ export const Depreciation = () => {
       await confirmInventoryWaste(id);
       await loadList();
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر التأكيد');
+      setErr(e instanceof ApiRequestError ? e.message : t('confirmError'));
     } finally {
       setBus((b) => ({ ...b, act: null }));
     }
@@ -212,7 +212,7 @@ export const Depreciation = () => {
       await cancelInventoryWaste(id);
       await loadList();
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر الإلغاء');
+      setErr(e instanceof ApiRequestError ? e.message : t('cancelError'));
     } finally {
       setBus((b) => ({ ...b, act: null }));
     }
@@ -222,8 +222,8 @@ export const Depreciation = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">إهلاك مادي (توالف)</h2>
-          <p className="text-slate-500 mt-1">تسجيل التوالف والمنسوجات التالفة أو المفقودة — بيانات من PostgreSQL</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('pageSubtitle')}</p>
         </div>
         <button
           type="button"
@@ -234,7 +234,7 @@ export const Depreciation = () => {
           className="bg-rose-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-700 transition shadow-sm font-medium"
         >
           <Plus className="w-4 h-4" />
-          <span>تسجيل توالف جديد</span>
+          <span>{t('registerNewWaste')}</span>
         </button>
       </div>
 
@@ -248,7 +248,7 @@ export const Depreciation = () => {
             <Trash2 className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-slate-500">إجمالي السجلات</p>
+            <p className="text-sm text-slate-500">{t('totalRecords')}</p>
             <p className="text-2xl font-bold text-slate-900">{total.toLocaleString()}</p>
           </div>
         </div>
@@ -257,7 +257,7 @@ export const Depreciation = () => {
             <Filter className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-slate-500">مسودات قيد المعالجة</p>
+            <p className="text-sm text-slate-500">{t('pendingDrafts')}</p>
             <p className="text-2xl font-bold text-slate-900">{draftTotal.toLocaleString()}</p>
           </div>
         </div>
@@ -265,10 +265,10 @@ export const Depreciation = () => {
 
       {showForm ? (
         <div className="bg-white p-6 rounded-xl border border-rose-100 shadow-sm space-y-4">
-          <h3 className="font-bold text-slate-900 border-b pb-2">مسودة توالف جديدة</h3>
+          <h3 className="font-bold text-slate-900 border-b pb-2">{t('newWasteDraftTitle')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500">نوع التوالف</label>
+              <label className="text-xs font-bold text-slate-500">{t('wasteTypeLabel')}</label>
               <select
                 value={wasteType}
                 onChange={(e) => setWasteType(e.target.value as WasteType)}
@@ -282,13 +282,13 @@ export const Depreciation = () => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500">المستودع</label>
+              <label className="text-xs font-bold text-slate-500">{t('warehouseLabel')}</label>
               <select
                 value={warehouseId}
                 onChange={(e) => setWarehouseId(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
               >
-                <option value="">— اختر —</option>
+                <option value="">{t('chooseOption')}</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -297,7 +297,7 @@ export const Depreciation = () => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500">الموقع (اختياري)</label>
+              <label className="text-xs font-bold text-slate-500">{t('locationOptionalLabel')}</label>
               <select
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
@@ -313,17 +313,17 @@ export const Depreciation = () => {
               </select>
             </div>
             <div className="space-y-1 md:col-span-2">
-              <label className="text-xs font-bold text-slate-500">السبب</label>
+              <label className="text-xs font-bold text-slate-500">{t('reasonLabel')}</label>
               <input
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                placeholder="مثال: رطوبة، قص، رفض جودة..."
+                placeholder={t('reasonPlaceholder')}
               />
             </div>
             <div className="space-y-1 md:col-span-3">
-              <label className="text-xs font-bold text-slate-500">ملاحظات</label>
+              <label className="text-xs font-bold text-slate-500">{t('notesLabel')}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -334,17 +334,17 @@ export const Depreciation = () => {
           </div>
 
           <div className="border border-slate-100 rounded-lg p-4 space-y-3">
-            <p className="text-sm font-bold text-slate-800">أثواب التوالف</p>
+            <p className="text-sm font-bold text-slate-800">{t('wasteRollsTitle')}</p>
             <div className="flex flex-wrap gap-2 items-end">
               <div className="flex-1 min-w-[200px] space-y-1">
-                <label className="text-xs text-slate-500">ثوب</label>
+                <label className="text-xs text-slate-500">{t('rollLabel')}</label>
                 <select
                   value={pickRollId}
                   onChange={(e) => setPickRollId(e.target.value)}
                   disabled={!warehouseId}
                   className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm"
                 >
-                  <option value="">اختر باركود...</option>
+                  <option value="">{t('chooseBarcode')}</option>
                   {rollsPick
                     .filter((r) => !lines.some((l) => l.rollId === r.id))
                     .map((r) => (
@@ -355,13 +355,13 @@ export const Depreciation = () => {
                 </select>
               </div>
               <div className="w-32 space-y-1">
-                <label className="text-xs text-slate-500">طول مُهْلك (م) اختياري</label>
+                <label className="text-xs text-slate-500">{t('wasteLengthOptionalLabel')}</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={pickWasteLen}
                   onChange={(e) => setPickWasteLen(e.target.value)}
-                  placeholder="كامل إن فارغ"
+                  placeholder={t('fullIfEmptyPlaceholder')}
                   className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm"
                 />
               </div>
@@ -371,7 +371,7 @@ export const Depreciation = () => {
                 disabled={!pickRollId}
                 className="px-4 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700 disabled:opacity-50"
               >
-                إضافة
+                {t('add')}
               </button>
             </div>
             {lines.length > 0 ? (
@@ -380,7 +380,7 @@ export const Depreciation = () => {
                   <li key={l.rollId} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                     <span className="truncate">{rollLabel(l.rollId)}</span>
                     <span className="text-slate-500 shrink-0">
-                      {l.wasteLengthM ? `${l.wasteLengthM} م` : 'تلف كامل'}
+                      {l.wasteLengthM ? t('metersAbbrev', { value: l.wasteLengthM }) : t('fullDamage')}
                     </span>
                     <button type="button" onClick={() => removeLine(l.rollId)} className="text-rose-600">
                       <X className="w-4 h-4" />
@@ -389,7 +389,7 @@ export const Depreciation = () => {
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-slate-400">لم تُضف أثواب بعد</p>
+              <p className="text-xs text-slate-400">{t('noRollsAddedYet')}</p>
             )}
           </div>
 
@@ -399,7 +399,7 @@ export const Depreciation = () => {
               onClick={() => setShowForm(false)}
               className="px-4 py-2 border border-slate-200 rounded-lg text-sm"
             >
-              إغلاق
+              {t('close')}
             </button>
             <button
               type="button"
@@ -408,7 +408,7 @@ export const Depreciation = () => {
               className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2"
             >
               {bus.create ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              حفظ مسودة
+              {t('saveDraft')}
             </button>
           </div>
         </div>
@@ -422,7 +422,7 @@ export const Depreciation = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث برقم السجل أو السبب..."
+              placeholder={t('searchPlaceholder')}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
             />
           </div>
@@ -433,7 +433,7 @@ export const Depreciation = () => {
               className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition shadow-sm font-medium"
             >
               <Filter className="w-4 h-4" />
-              <span>تصفية الحالة</span>
+              <span>{t('filterStatus')}</span>
             </button>
             {filterOpen ? (
               <select
@@ -441,10 +441,10 @@ export const Depreciation = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="p-2 border border-slate-200 rounded-lg text-sm bg-white"
               >
-                <option value="">كل الحالات</option>
-                <option value="DRAFT">مسودة</option>
-                <option value="CONFIRMED">مؤكدة</option>
-                <option value="CANCELLED">ملغاة</option>
+                <option value="">{t('statusAll')}</option>
+                <option value="DRAFT">{t('status.draft')}</option>
+                <option value="CONFIRMED">{t('status.confirmed')}</option>
+                <option value="CANCELLED">{t('status.cancelled')}</option>
               </select>
             ) : null}
             <button
@@ -452,7 +452,7 @@ export const Depreciation = () => {
               onClick={() => void loadList()}
               className="text-sm px-3 py-2 border border-slate-200 rounded-lg bg-white"
             >
-              تحديث
+              {t('refresh')}
             </button>
           </div>
         </div>
@@ -460,14 +460,14 @@ export const Depreciation = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-6 py-4">رقم السجل</th>
-                <th className="px-6 py-4">التاريخ</th>
-                <th className="px-6 py-4">المستودع</th>
-                <th className="px-6 py-4">النوع</th>
-                <th className="px-6 py-4">الأثواب</th>
-                <th className="px-6 py-4">السبب</th>
-                <th className="px-6 py-4">الحالة</th>
-                <th className="px-6 py-4 w-36">إجراءات</th>
+                <th className="px-6 py-4">{t('colRecordNo')}</th>
+                <th className="px-6 py-4">{t('colDate')}</th>
+                <th className="px-6 py-4">{t('colWarehouse')}</th>
+                <th className="px-6 py-4">{t('colType')}</th>
+                <th className="px-6 py-4">{t('colRolls')}</th>
+                <th className="px-6 py-4">{t('colReason')}</th>
+                <th className="px-6 py-4">{t('colStatus')}</th>
+                <th className="px-6 py-4 w-36">{t('colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -480,7 +480,7 @@ export const Depreciation = () => {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-slate-600 font-medium">
-                    لا توجد توالف أو إهلاكات مسجلة بعد
+                    {t('noRecordsYet')}
                   </td>
                 </tr>
               ) : (
@@ -491,7 +491,7 @@ export const Depreciation = () => {
                     <td className="px-6 py-4 text-indigo-700 font-medium">{record.warehouse_name ?? '—'}</td>
                     <td className="px-6 py-4">{WASTE_TYPE_AR[record.waste_type] ?? record.waste_type}</td>
                     <td className="px-6 py-4 font-bold text-slate-800">
-                      {(record.line_count ?? 0).toLocaleString()} ثوب
+                      {t('rollsCount', { count: record.line_count ?? 0 })}
                     </td>
                     <td className="px-6 py-4 text-slate-600 max-w-[180px] truncate">{record.reason ?? '—'}</td>
                     <td className="px-6 py-4">
@@ -510,7 +510,7 @@ export const Depreciation = () => {
                             disabled={bus.act === record.id}
                             className="text-xs px-2 py-1 rounded bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50"
                           >
-                            تأكيد
+                            {t('confirm')}
                           </button>
                           <button
                             type="button"
@@ -518,7 +518,7 @@ export const Depreciation = () => {
                             disabled={bus.act === record.id}
                             className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                           >
-                            إلغاء
+                            {t('cancel')}
                           </button>
                         </div>
                       ) : (

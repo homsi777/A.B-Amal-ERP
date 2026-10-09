@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BadgeDollarSign,
   CheckSquare,
@@ -41,6 +42,7 @@ const fmtPriceOrDash = (value: string | number | null | undefined, digits = 4) =
 };
 
 export const BulkPricing = () => {
+  const { t } = useTranslation('bulkPricing');
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [groups, setGroups] = useState<FabricPricingGroupDto[]>([]);
@@ -102,7 +104,7 @@ export const BulkPricing = () => {
         })
         .catch((err) => {
           if (cancelled) return;
-          setMessage(err instanceof Error ? err.message : 'تعذر تحميل التسعير الجماعي');
+          setMessage(err instanceof Error ? err.message : t('loadError'));
           setMessageType('error');
         })
         .finally(() => {
@@ -177,7 +179,7 @@ export const BulkPricing = () => {
       .filter((u) => u.selected && (u.unitCost != null || u.sellingPrice != null));
 
     if (updates.length === 0) {
-      setMessage('يرجى تحديد خامة واحدة على الأقل وإدخال سعر تكلفة أو سعر بيع قبل الحفظ.');
+      setMessage(t('selectAtLeastOneError'));
       setMessageType('error');
       return;
     }
@@ -213,17 +215,17 @@ export const BulkPricing = () => {
       }
 
       const parts: string[] = [];
-      if (updatedRolls > 0) parts.push(`تم تحديث سعر التكلفة لـ ${updatedRolls.toLocaleString('en-US')} ثوب`);
-      if (updatedSellingItems > 0) parts.push(`تم تحديث سعر البيع لـ ${updatedSellingItems.toLocaleString('en-US')} خامة`);
-      if (updatedDraftInvoices > 0) parts.push(`تم تحديث ${updatedDraftInvoices.toLocaleString('en-US')} فاتورة شراء (مسودة)`);
-      if (updatedDraftVouchers > 0) parts.push(`تم تحديث ${updatedDraftVouchers.toLocaleString('en-US')} سند مرتبط`);
+      if (updatedRolls > 0) parts.push(t('rollsCostUpdated', { count: updatedRolls.toLocaleString('en-US') }));
+      if (updatedSellingItems > 0) parts.push(t('sellingPriceUpdated', { count: updatedSellingItems.toLocaleString('en-US') }));
+      if (updatedDraftInvoices > 0) parts.push(t('draftInvoicesUpdated', { count: updatedDraftInvoices.toLocaleString('en-US') }));
+      if (updatedDraftVouchers > 0) parts.push(t('draftVouchersUpdated', { count: updatedDraftVouchers.toLocaleString('en-US') }));
       if (updatedConfirmedInvoices > 0) {
         const glHint = repostedGlEntries > 0
-          ? ` (مع إعادة ترحيل ${repostedGlEntries.toLocaleString('en-US')} قيد محاسبي)`
+          ? t('glRepostHint', { count: repostedGlEntries.toLocaleString('en-US') })
           : '';
-        parts.push(`تم تحديث ${updatedConfirmedInvoices.toLocaleString('en-US')} فاتورة مؤكدة تلقائياً${glHint}`);
+        parts.push(t('confirmedInvoicesUpdated', { count: updatedConfirmedInvoices.toLocaleString('en-US'), glHint }));
       }
-      setMessage(parts.join(' · ') || 'لم يتم تنفيذ أي تغيير.');
+      setMessage(parts.join(' · ') || t('noChangesApplied'));
       setMessageType('success');
 
       if (importMode && batchTag && supplierId) {
@@ -234,7 +236,7 @@ export const BulkPricing = () => {
           currencyCode: 'USD',
         });
         setMessage((current) =>
-          `${current} · تم إنشاء فاتورة شراء مؤكدة رقم ${invoice.invoiceNo} للمورد ${invoice.supplierName} بقيمة USD ${fmt(invoice.totalAmount)}.`,
+          `${current} · ${t('finalizedInvoiceSummary', { invoiceNo: invoice.invoiceNo, supplierName: invoice.supplierName, amount: fmt(invoice.totalAmount) })}`,
         );
       }
 
@@ -244,7 +246,7 @@ export const BulkPricing = () => {
       // Reset drafts so users see persisted values.
       setPriceDrafts({});
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'فشل حفظ التسعير الجماعي');
+      setMessage(err instanceof Error ? err.message : t('saveFailed'));
       setMessageType('error');
     } finally {
       setSaving(false);
@@ -257,9 +259,9 @@ export const BulkPricing = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">التسعير الجماعي حسب الخامة</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
           <p className="text-slate-500 mt-1">
-            تحديث سعر تكلفة الأثواب وسعر البيع الافتراضي مباشرة من قاعدة البيانات، مع مزامنة فواتير الشراء غير المؤكدة والسندات المرتبطة بها.
+            {t('pageSubtitle')}
           </p>
         </div>
       </div>
@@ -270,10 +272,10 @@ export const BulkPricing = () => {
             <div>
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <BadgeDollarSign className="w-5 h-5 text-emerald-600" />
-                فلترة وتسعير حسب الفاتورة أو اسم الخامة
+                {t('filterSectionTitle')}
               </h3>
               <p className="text-sm text-slate-500 mt-1">
-                اختر نطاق التسعير (آخر فاتورة شراء، كل المواد، أو فاتورة محددة)، ثم أدخل أسعار التكلفة/البيع للخامات المحددة.
+                {t('filterSectionSubtitle')}
               </p>
             </div>
 
@@ -285,7 +287,7 @@ export const BulkPricing = () => {
                   onChange={(event) => setOnlyAvailable(event.target.checked)}
                   className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                 />
-                تطبيق على الأتواب المتاحة فقط
+                {t('applyToAvailableOnly')}
               </label>
               <div className="relative w-full lg:w-80">
                 <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
@@ -293,7 +295,7 @@ export const BulkPricing = () => {
                   type="text"
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="بحث باسم الخامة أو كودها..."
+                  placeholder={t('searchPlaceholder')}
                   className="w-full pr-10 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -305,7 +307,7 @@ export const BulkPricing = () => {
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
                 <Filter className="w-4 h-4 text-indigo-600" />
-                <span>الفلتر حسب الفاتورة:</span>
+                <span>{t('filterByInvoiceLabel')}</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -317,7 +319,7 @@ export const BulkPricing = () => {
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  آخر فاتورة شراء
+                  {t('lastPurchaseInvoice')}
                 </button>
                 <button
                   type="button"
@@ -328,7 +330,7 @@ export const BulkPricing = () => {
                       : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  كل المواد
+                  {t('allMaterials')}
                 </button>
                 <select
                   value={invoiceMode === 'specific' ? specificInvoiceId : ''}
@@ -346,10 +348,10 @@ export const BulkPricing = () => {
                     invoiceMode === 'specific' ? 'border-indigo-600 ring-2 ring-indigo-200' : ''
                   }`}
                 >
-                  <option value="">— اختيار فاتورة محددة —</option>
+                  <option value="">{t('chooseSpecificInvoiceOption')}</option>
                   {recentInvoices.map((inv) => (
                     <option key={inv.id} value={inv.id}>
-                      {inv.invoice_no} · {inv.invoice_date.slice(0, 10)} · {inv.supplier_name ?? '—'} · {inv.roll_count} ثوب
+                      {inv.invoice_no} · {inv.invoice_date.slice(0, 10)} · {inv.supplier_name ?? '—'} · {t('rollsCount', { count: inv.roll_count })}
                     </option>
                   ))}
                 </select>
@@ -359,36 +361,36 @@ export const BulkPricing = () => {
 
           {importMode && (
             <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-800">
-              أنت في وضع متابعة استيراد المخزون — يتم عرض المواد لدفعة الاستيراد فقط (batchTag: <span className="font-mono">{batchTag}</span>).
+              {t('importFollowUpBannerPrefix')} <span className="font-mono">{batchTag}</span>).
             </div>
           )}
 
           {!importMode && activeInvoice && (
             <div className="text-xs text-slate-600 flex flex-wrap items-center gap-2">
-              <span>الفاتورة الحالية:</span>
+              <span>{t('currentInvoiceLabel')}</span>
               <span className="font-mono bg-slate-100 px-2 py-0.5 rounded">{activeInvoice.invoice_no}</span>
               <span>·</span>
               <span>{activeInvoice.invoice_date.slice(0, 10)}</span>
               <span>·</span>
-              <span>{activeInvoice.supplier_name ?? 'بدون مورد'}</span>
+              <span>{activeInvoice.supplier_name ?? t('noSupplier')}</span>
               <span>·</span>
               <span>{activeInvoice.document_status}</span>
               <span>·</span>
-              <span>{activeInvoice.roll_count} ثوب</span>
+              <span>{t('rollUnit', { count: activeInvoice.roll_count })}</span>
             </div>
           )}
 
           {!importMode && invoiceMode === 'last' && noInvoicesYet && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-              لا توجد فواتير شراء سابقة بعد — يمكنك التبديل إلى "كل المواد" لعرض جميع المخزون.
+              {t('noPreviousInvoices')}
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <BulkStat label="عدد الخامات" value={groups.length.toLocaleString('en-US')} />
-            <BulkStat label="الخامات المحددة" value={selectedCount.toLocaleString('en-US')} />
-            <BulkStat label="إجمالي الأثواب" value={totals.rolls.toLocaleString('en-US')} />
-            <BulkStat label="الأمتار المتاحة" value={fmt(totals.meters)} />
+            <BulkStat label={t('statMaterialsCount')} value={groups.length.toLocaleString('en-US')} />
+            <BulkStat label={t('statSelectedMaterials')} value={selectedCount.toLocaleString('en-US')} />
+            <BulkStat label={t('statTotalRolls')} value={totals.rolls.toLocaleString('en-US')} />
+            <BulkStat label={t('statAvailableMeters')} value={fmt(totals.meters)} />
           </div>
 
           <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -400,17 +402,17 @@ export const BulkPricing = () => {
                       {selectedCount === groups.length && groups.length > 0 ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                     </button>
                   </th>
-                  <th className="p-3">الخامة</th>
-                  <th className="p-3">الكود</th>
-                  <th className="p-3">الأثواب</th>
-                  <th className="p-3">المتاح</th>
-                  <th className="p-3">الألوان</th>
-                  <th className="p-3">إجمالي متر</th>
-                  <th className="p-3">آخر فاتورة شراء</th>
-                  <th className="p-3">سعر التكلفة الحالي</th>
-                  <th className="p-3">سعر التكلفة الجديد</th>
-                  <th className="p-3">سعر البيع الحالي</th>
-                  <th className="p-3">سعر البيع الجديد</th>
+                  <th className="p-3">{t('colMaterial')}</th>
+                  <th className="p-3">{t('colCode')}</th>
+                  <th className="p-3">{t('colRolls')}</th>
+                  <th className="p-3">{t('colAvailable')}</th>
+                  <th className="p-3">{t('colColors')}</th>
+                  <th className="p-3">{t('colTotalMeters')}</th>
+                  <th className="p-3">{t('colLastPurchaseInvoice')}</th>
+                  <th className="p-3">{t('colCurrentCostPrice')}</th>
+                  <th className="p-3">{t('colNewCostPrice')}</th>
+                  <th className="p-3">{t('colCurrentSellingPrice')}</th>
+                  <th className="p-3">{t('colNewSellingPrice')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -418,7 +420,7 @@ export const BulkPricing = () => {
                   <tr>
                     <td colSpan={12} className="p-8 text-center text-slate-500 bg-slate-50">
                       <Loader2 className="w-5 h-5 animate-spin inline-block ml-2" />
-                      جاري تحميل بيانات المخزون...
+                      {t('loadingInventoryData')}
                     </td>
                   </tr>
                 )}
@@ -484,7 +486,7 @@ export const BulkPricing = () => {
                 {!loading && groups.length === 0 && (
                   <tr>
                     <td colSpan={12} className="p-8 text-center text-slate-500 bg-slate-50">
-                      لا توجد خامات مطابقة للفلتر.
+                      {t('noMatchingMaterials')}
                     </td>
                   </tr>
                 )}
@@ -513,7 +515,7 @@ export const BulkPricing = () => {
               className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition flex items-center gap-2 shadow-sm disabled:opacity-60"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              حفظ التسعير الجماعي
+              {t('saveBulkPricing')}
             </button>
           </div>
         </div>
