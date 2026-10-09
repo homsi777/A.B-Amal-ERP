@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowRight, FileDown, Languages, Printer, RefreshCw, Settings, Tags, Type, VolumeX } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BRAND } from '../../branding';
@@ -159,6 +160,7 @@ function buildCustomStickerHtml(input: {
 }
 
 export const CustomStickerPrinting: React.FC = () => {
+  const { t } = useTranslation('customStickerPrinting');
   const navigate = useNavigate();
   const { settings } = useElectronSettings();
   const canSilent = canUseSilentLabelPrinting({
@@ -225,7 +227,7 @@ export const CustomStickerPrinting: React.FC = () => {
     try {
       if (mode === 'pdf') {
         if (!isElectronRenderer()) {
-          setMessage('تصدير PDF متاح داخل تطبيق Windows فقط.');
+          setMessage(t('pdfOnlyInWindowsApp'));
           return;
         }
         const adapter = new ElectronPrintAdapter();
@@ -235,7 +237,7 @@ export const CustomStickerPrinting: React.FC = () => {
           heightMm,
           defaultFileName: `custom-label-${new Date().toISOString().slice(0, 10)}.pdf`,
         });
-        setMessage(result.ok ? 'تم تصدير PDF بنجاح.' : result.error || 'فشل تصدير PDF.');
+        setMessage(result.ok ? t('pdfExportSuccess') : result.error || t('pdfExportFailed'));
         return;
       }
 
@@ -248,9 +250,9 @@ export const CustomStickerPrinting: React.FC = () => {
         silent: mode === 'silent',
         printerName: mode === 'silent' ? settings?.defaultLabelPrinterName || undefined : undefined,
       });
-      setMessage(result.ok ? 'تم إرسال الستيكر للطباعة.' : result.error || 'فشلت الطباعة.');
+      setMessage(result.ok ? t('sentToPrintSuccess') : result.error || t('printFailed'));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'حدث خطأ أثناء الطباعة.');
+      setMessage(error instanceof Error ? error.message : t('printError'));
     } finally {
       setBusy(null);
     }
@@ -268,20 +270,20 @@ export const CustomStickerPrinting: React.FC = () => {
           <div>
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <Tags className="w-6 h-6 text-indigo-600" />
-              طباعة ستيكر خاص
+              {t('pageTitle')}
             </h2>
-            <p className="text-slate-500 mt-1 text-sm">حقول مخصصة ومعاينة حية بمقاس افتراضي 100×80 مم.</p>
+            <p className="text-slate-500 mt-1 text-sm">{t('pageSubtitle')}</p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {canSilent ? (
             <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-xs font-bold">
-              <VolumeX className="w-3 h-3" /> طباعة صامتة: {settings?.defaultLabelPrinterName}
+              <VolumeX className="w-3 h-3" /> {t('silentPrintingWithPrinter', { printer: settings?.defaultLabelPrinterName })}
             </span>
           ) : (
             <Link to="/settings?tab=desktop" className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-full text-xs hover:bg-slate-200 transition">
-              <Settings className="w-3 h-3" /> إعداد طابعة افتراضية
+              <Settings className="w-3 h-3" /> {t('setupDefaultPrinter')}
             </Link>
           )}
         </div>
@@ -303,16 +305,16 @@ export const CustomStickerPrinting: React.FC = () => {
                 onChange={(e) => setUseBrandLogo(e.target.checked)}
                 className="accent-indigo-600"
               />
-              شعار CLOTEX الرسمي (مناسب للطباعة الحرارية — حرف X يظهر أسود)
+              {t('officialLogoLabel')}
             </label>
             {!useBrandLogo && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                 <label className="space-y-1.5">
-                  <span className="text-sm font-bold text-slate-700">اسم العلامة (نص بديل)</span>
+                  <span className="text-sm font-bold text-slate-700">{t('brandNameAltLabel')}</span>
                   <input value={brandName} onChange={(e) => setBrandName(e.target.value)} className={inputCls} />
                 </label>
                 <label className="space-y-1.5">
-                  <span className="text-sm font-bold text-slate-700">السطر الفرعي</span>
+                  <span className="text-sm font-bold text-slate-700">{t('subtitleLineLabel')}</span>
                   <input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} className={inputCls} />
                 </label>
               </div>
@@ -321,22 +323,22 @@ export const CustomStickerPrinting: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="space-y-1.5 md:col-span-2">
-              <span className="text-sm font-bold text-slate-700">عنوان الستيكر</span>
+              <span className="text-sm font-bold text-slate-700">{t('stickerTitleLabel')}</span>
               <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} dir={textDirection} />
             </label>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <label className="space-y-1.5">
-              <span className="text-sm font-bold text-slate-700">العرض mm</span>
+              <span className="text-sm font-bold text-slate-700">{t('widthMmLabel')}</span>
               <input type="number" min={30} max={210} value={widthMm} onChange={(e) => setWidthMm(Math.max(30, Number(e.target.value) || 100))} className={inputCls} />
             </label>
             <label className="space-y-1.5">
-              <span className="text-sm font-bold text-slate-700">الارتفاع mm</span>
+              <span className="text-sm font-bold text-slate-700">{t('heightMmLabel')}</span>
               <input type="number" min={20} max={297} value={heightMm} onChange={(e) => setHeightMm(Math.max(20, Number(e.target.value) || 80))} className={inputCls} />
             </label>
             <label className="space-y-1.5">
-              <span className="text-sm font-bold text-slate-700">عدد النسخ</span>
+              <span className="text-sm font-bold text-slate-700">{t('copiesCountLabel')}</span>
               <input type="number" min={1} max={100} value={copies} onChange={(e) => setCopies(Math.min(100, Math.max(1, Number(e.target.value) || 1)))} className={inputCls} />
             </label>
           </div>
@@ -344,7 +346,7 @@ export const CustomStickerPrinting: React.FC = () => {
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
               <Languages className="w-4 h-4 text-indigo-600" />
-              اتجاه النص على الستيكر
+              {t('textDirectionLabel')}
             </div>
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
               <button
@@ -356,7 +358,7 @@ export const CustomStickerPrinting: React.FC = () => {
                     : 'bg-white text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                يمين ← يسار (عربي)
+                {t('rtlArabicOption')}
               </button>
               <button
                 type="button"
@@ -367,7 +369,7 @@ export const CustomStickerPrinting: React.FC = () => {
                     : 'bg-white text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                يسار → يمين (إنجليزي)
+                {t('ltrEnglishOption')}
               </button>
             </div>
           </div>
@@ -376,7 +378,7 @@ export const CustomStickerPrinting: React.FC = () => {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
                 <Type className="w-4 h-4 text-indigo-600" />
-                حجم الخط على الستيكر
+                {t('fontSizeLabel')}
               </div>
               <span className="rounded-full bg-white border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-indigo-700" dir="ltr">
                 {fontScale}%
@@ -392,9 +394,9 @@ export const CustomStickerPrinting: React.FC = () => {
               className="w-full accent-indigo-600"
             />
             <div className="flex justify-between text-[11px] font-bold text-slate-500">
-              <span>أصغر ({FONT_SCALE_MIN}%)</span>
-              <span>افتراضي ({FONT_SCALE_DEFAULT}%)</span>
-              <span>أكبر ({FONT_SCALE_MAX}%)</span>
+              <span>{t('smallerOption', { value: FONT_SCALE_MIN })}</span>
+              <span>{t('defaultOption', { value: FONT_SCALE_DEFAULT })}</span>
+              <span>{t('largerOption', { value: FONT_SCALE_MAX })}</span>
             </div>
           </div>
 
@@ -409,7 +411,7 @@ export const CustomStickerPrinting: React.FC = () => {
                     : 'bg-white text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                كتابة بالخانات
+                {t('fieldsInputMode')}
               </button>
               <button
                 type="button"
@@ -420,20 +422,20 @@ export const CustomStickerPrinting: React.FC = () => {
                     : 'bg-white text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                كتابة حرة
+                {t('freeInputMode')}
               </button>
             </div>
 
             {inputMode === 'free' && (
               <label className="space-y-1.5 block">
-                <span className="text-sm font-bold text-slate-700">النص الحر (بدون أسطر حقول)</span>
+                <span className="text-sm font-bold text-slate-700">{t('freeTextLabel')}</span>
                 <textarea
                   rows={8}
                   value={freeText}
                   onChange={(e) => setFreeText(e.target.value)}
                   className={inputCls}
                   dir={textDirection}
-                  placeholder="اكتب أي نص تريده هنا، وسيتم طباعته كما هو داخل الستيكر."
+                  placeholder={t('freeTextPlaceholder')}
                 />
               </label>
             )}
@@ -442,10 +444,10 @@ export const CustomStickerPrinting: React.FC = () => {
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Type className="w-4 h-4 text-indigo-600" />
-                الحقول المخصصة
+                {t('customFieldsTitle')}
               </h3>
               <button type="button" onClick={addField} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700">
-                إضافة حقل
+                {t('addField')}
               </button>
             </div>
             )}
@@ -454,10 +456,10 @@ export const CustomStickerPrinting: React.FC = () => {
             <div className="space-y-2">
               {fields.map((field) => (
                 <div key={field.id} className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-2">
-                  <input value={field.label} onChange={(e) => updateField(field.id, { label: e.target.value })} className={inputCls} placeholder="اسم الحقل" dir={textDirection} />
-                  <input value={field.value} onChange={(e) => updateField(field.id, { value: e.target.value })} className={inputCls} placeholder="القيمة" dir={textDirection} />
+                  <input value={field.label} onChange={(e) => updateField(field.id, { label: e.target.value })} className={inputCls} placeholder={t('fieldNamePlaceholder')} dir={textDirection} />
+                  <input value={field.value} onChange={(e) => updateField(field.id, { value: e.target.value })} className={inputCls} placeholder={t('valuePlaceholder')} dir={textDirection} />
                   <button type="button" onClick={() => removeField(field.id)} className="px-3 py-2 rounded-lg border border-rose-200 text-rose-600 text-sm font-bold hover:bg-rose-50">
-                    حذف
+                    {t('delete')}
                   </button>
                 </div>
               ))}
@@ -466,44 +468,44 @@ export const CustomStickerPrinting: React.FC = () => {
           </div>
 
           <label className="space-y-1.5 block">
-            <span className="text-sm font-bold text-slate-700">ملاحظات داخل الستيكر</span>
+            <span className="text-sm font-bold text-slate-700">{t('notesInsideStickerLabel')}</span>
             <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} dir={textDirection} />
           </label>
 
           <label className="space-y-1.5 block">
-            <span className="text-sm font-bold text-slate-700">سطر أسفل الستيكر</span>
+            <span className="text-sm font-bold text-slate-700">{t('footerLineLabel')}</span>
             <input value={footer} onChange={(e) => setFooter(e.target.value)} className={inputCls} dir={textDirection} />
           </label>
 
           <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
             <button type="button" onClick={() => void runPrint('dialog')} disabled={Boolean(busy)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
               {busy === 'dialog' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              طباعة
+              {t('print')}
             </button>
             {canSilent && (
               <button type="button" onClick={() => void runPrint('silent')} disabled={Boolean(busy)} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
                 {busy === 'silent' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <VolumeX className="w-4 h-4" />}
-                طباعة صامتة
+                {t('silentPrint')}
               </button>
             )}
             {isElectronRenderer() && (
               <button type="button" onClick={() => void runPrint('pdf')} disabled={Boolean(busy)} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
                 {busy === 'pdf' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-                تصدير PDF
+                {t('exportPdf')}
               </button>
             )}
             <button type="button" onClick={resetDefaults} disabled={Boolean(busy)} className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-              استعادة الافتراضي
+              {t('restoreDefaults')}
             </button>
           </div>
         </section>
 
         <aside className="bg-slate-100 rounded-xl border border-slate-200 p-4 overflow-auto">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="font-bold text-slate-800">معاينة حية</span>
+            <span className="font-bold text-slate-800">{t('livePreview')}</span>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                {textDirection === 'rtl' ? 'RTL عربي' : 'LTR إنجليزي'}
+                {textDirection === 'rtl' ? t('rtlArabicBadge') : t('ltrEnglishBadge')}
               </span>
               <span className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600" dir="ltr">
                 {fontScale}%

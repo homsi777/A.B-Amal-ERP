@@ -28,6 +28,8 @@ import arWarehouses from '../locales/ar/warehouses.json';
 import arPrintJobs from '../locales/ar/printJobs.json';
 import arYarnManagement from '../locales/ar/yarnManagement.json';
 import arCategories from '../locales/ar/categories.json';
+import arCreateRoll from '../locales/ar/createRoll.json';
+import arCustomStickerPrinting from '../locales/ar/customStickerPrinting.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -56,6 +58,8 @@ import trWarehouses from '../locales/tr/warehouses.json';
 import trPrintJobs from '../locales/tr/printJobs.json';
 import trYarnManagement from '../locales/tr/yarnManagement.json';
 import trCategories from '../locales/tr/categories.json';
+import trCreateRoll from '../locales/tr/createRoll.json';
+import trCustomStickerPrinting from '../locales/tr/customStickerPrinting.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -92,6 +96,8 @@ void i18n.use(initReactI18next).init({
       printJobs: arPrintJobs,
       yarnManagement: arYarnManagement,
       categories: arCategories,
+      createRoll: arCreateRoll,
+      customStickerPrinting: arCustomStickerPrinting,
     },
     tr: {
       common: trCommon,
@@ -122,12 +128,14 @@ void i18n.use(initReactI18next).init({
       printJobs: trPrintJobs,
       yarnManagement: trYarnManagement,
       categories: trCategories,
+      createRoll: trCreateRoll,
+      customStickerPrinting: trCustomStickerPrinting,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting'],
   interpolation: {
     escapeValue: false,
   },
