@@ -112,7 +112,7 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
         <div className="flex flex-wrap items-center gap-2 justify-between px-4 py-3 border-b border-slate-200 bg-gradient-to-l from-[#2C405A]/10 to-white shrink-0">
           <div className="min-w-0">
             <p id="order-detail-title" className="text-xs font-bold text-[#2C405A] uppercase tracking-wide">
-              أوردر — معاينة المستند
+              {i18n.t('orderDetail.title', { ns: 'terminology' })}
             </p>
             <p className="text-lg font-black text-slate-900 font-mono truncate">{order.orderNumber}</p>
           </div>
@@ -124,7 +124,7 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 disabled:opacity-60"
             >
               <FileText className="w-4 h-4 shrink-0" />
-              {pdfBusy ? 'جاري PDF…' : 'PDF'}
+              {pdfBusy ? i18n.t('orderDetail.pdfBusy', { ns: 'terminology' }) : i18n.t('orderDetail.pdfLabel', { ns: 'terminology' })}
             </button>
             <button
               type="button"
@@ -132,7 +132,7 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
             >
               <FileSpreadsheet className="w-4 h-4 shrink-0" />
-              Excel
+              {i18n.t('orderDetail.excelLabel', { ns: 'terminology' })}
             </button>
             <button
               type="button"
@@ -141,7 +141,7 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 disabled:opacity-60"
             >
               <Printer className="w-4 h-4 shrink-0" />
-              {printBusy ? 'جاري الطباعة…' : 'طباعة'}
+              {printBusy ? i18n.t('orderDetail.printBusy', { ns: 'terminology' }) : i18n.t('orderDetail.printLabel', { ns: 'terminology' })}
             </button>
             <button
               type="button"
@@ -149,11 +149,11 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold bg-[#25D366]/15 text-emerald-900 border border-emerald-300/60 hover:bg-[#25D366]/25"
             >
               <MessageCircle className="w-4 h-4 shrink-0" />
-              واتساب
+              {i18n.t('orderDetail.whatsappLabel', { ns: 'terminology' })}
             </button>
             <TelegramSendButton
               size="toolbar"
-              label="إرسال تيليغرام"
+              label={i18n.t('orderDetail.sendTelegramLabel', { ns: 'terminology' })}
               busy={telegramBusy}
               onClick={handleTelegram}
               className="rounded-xl"
@@ -164,14 +164,14 @@ export function OrderDetailModal({ open, order, customer, onClose }: OrderDetail
               className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 border border-transparent hover:border-slate-200"
             >
               <X className="w-5 h-5" />
-              إغلاق
+              {i18n.t('orderDetail.close', { ns: 'terminology' })}
             </button>
           </div>
         </div>
 
         <div className="flex-1 overflow-hidden min-h-0 bg-slate-100">
           <iframe
-            title="معاينة طلبية الحجز"
+            title={i18n.t('orderDetail.previewIframeTitle', { ns: 'terminology' })}
             srcDoc={previewSrcDoc}
             className="w-full h-full border-0 bg-slate-100"
           />
