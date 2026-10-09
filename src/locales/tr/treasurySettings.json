@@ -1,0 +1,15 @@
+{
+  "loadError": "Yüklenemedi",
+  "pageTitle": "Kasa Ayarları",
+  "pageSubtitle": "Sunucuda kayıtlı kasaların görünümü. Negatif bakiye politikaları ve ekler, özel bir kaydetme arayüzüyle daha sonraki bir aşamada eklenecektir.",
+  "currentSafesTitle": "Mevcut Kasalar",
+  "loading": "Yükleniyor...",
+  "noSafes": "Kasa bulunmuyor — Kasalar sayfasından bir kasa oluşturun veya başlangıç verisini çalıştırın.",
+  "statusActive": "Aktif",
+  "statusSuspended": "Durduruldu",
+  "futurePoliciesTitle": "Gelecek Politikalar",
+  "futurePoliciesDescription": "Negatif bakiyeye izin verme veya büyük tutarlar için ek zorunluluğu gibi seçenekler, talep üzerine sunucudaki bir ayarlar tablosuna bağlanacaktır. Aşağıdaki kaydet düğmesi, ayarlar API'si etkinleşene kadar devre dışıdır.",
+  "allowNegativeBalanceLabel": "Küçük Kasa Hesaplarında Negatif Bakiyeye İzin Ver (yakında)",
+  "saveDisabledTitle": "Ayarlar API'si etkinleşene kadar kaydetme yok",
+  "saveChanges": "Değişiklikleri Kaydet"
+}
