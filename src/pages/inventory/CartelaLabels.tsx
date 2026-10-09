@@ -18,6 +18,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   sanitizeManualCartelaSerialInput,
   validateManualCartelaSerial,
@@ -120,6 +121,7 @@ function activeCompositionLines(lines: CartelaCompositionLine[]): CartelaComposi
 }
 
 export const CartelaLabels: React.FC = () => {
+  const { t, i18n } = useTranslation('cartelaLabels');
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { settings } = useElectronSettings();
@@ -178,7 +180,7 @@ export const CartelaLabels: React.FC = () => {
       const rows = await listCartelaFiberTypes();
       setFiberTypes(rows);
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر تحميل أنواع الخامة' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.loadFiberTypesFailed') });
     }
   };
 
@@ -188,7 +190,7 @@ export const CartelaLabels: React.FC = () => {
       const rows = await listCartelaLabels(search);
       setItems(rows);
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر تحميل الكارتيلات' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.loadListFailed') });
     } finally {
       setListLoading(false);
     }
@@ -246,7 +248,7 @@ export const CartelaLabels: React.FC = () => {
   const handleAddFiberType = async () => {
     const name = newFiberName.trim();
     if (!name) {
-      showToast({ type: 'warning', message: 'اكتب اسم نوع الخامة بالإنجليزي' });
+      showToast({ type: 'warning', message: t('toast.fiberNameRequired') });
       return;
     }
     setFiberSaving(true);
@@ -254,22 +256,22 @@ export const CartelaLabels: React.FC = () => {
       await createCartelaFiberType(name);
       setNewFiberName('');
       await loadFiberTypes();
-      showToast({ type: 'success', message: 'تمت إضافة نوع الخامة للقائمة' });
+      showToast({ type: 'success', message: t('toast.fiberAdded') });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر إضافة نوع الخامة' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.addFiberFailed') });
     } finally {
       setFiberSaving(false);
     }
   };
 
   const handleDeleteFiberType = async (id: string) => {
-    if (!window.confirm('حذف نوع الخامة من القائمة؟')) return;
+    if (!window.confirm(t('confirm.deleteFiberType'))) return;
     try {
       await deleteCartelaFiberType(id);
       await loadFiberTypes();
-      showToast({ type: 'success', message: 'تم الحذف' });
+      showToast({ type: 'success', message: t('toast.deleted') });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الحذف' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.deleteFailed') });
     }
   };
 
@@ -314,7 +316,7 @@ export const CartelaLabels: React.FC = () => {
   const printHtml = async (html: string, mode: PrintMode, fileStem: string) => {
     if (mode === 'pdf') {
       if (!isElectronRenderer()) {
-        showToast({ type: 'warning', message: 'تصدير PDF متاح داخل تطبيق Windows فقط.' });
+        showToast({ type: 'warning', message: t('toast.pdfWindowsOnly') });
         return;
       }
       const adapter = new ElectronPrintAdapter();
@@ -326,7 +328,7 @@ export const CartelaLabels: React.FC = () => {
       });
       showToast({
         type: result.ok ? 'success' : 'error',
-        message: result.ok ? 'تم تصدير PDF' : result.error || 'فشل تصدير PDF',
+        message: result.ok ? t('toast.pdfExported') : result.error || t('toast.pdfExportFailed'),
       });
       return;
     }
@@ -343,8 +345,8 @@ export const CartelaLabels: React.FC = () => {
     showToast({
       type: result.ok ? 'success' : 'error',
       message: result.ok
-        ? (fileStem.startsWith('cartela-batch-') ? 'تم إرسال الكارتيلات للطباعة الجماعية' : 'تم إرسال اللصاقة للطباعة الحرارية')
-        : result.error || 'فشلت الطباعة',
+        ? (fileStem.startsWith('cartela-batch-') ? t('toast.batchPrintSent') : t('toast.printSent'))
+        : result.error || t('toast.printFailed'),
     });
   };
 
@@ -373,13 +375,13 @@ export const CartelaLabels: React.FC = () => {
       setForm(cartelaDtoToPayload(row));
       if (switchToForm) setActiveTab('form');
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر تحميل الكارتيلا' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.loadOneFailed') });
     }
   };
 
   const handleGenerate = async () => {
     if (selectedId) {
-      showToast({ type: 'warning', message: 'لتوليد كارتيلا جديدة استخدم «حفظ ككارتيلا جديدة» أو «كارتيلا جديدة».' });
+      showToast({ type: 'warning', message: t('toast.useNewForGenerate') });
       return;
     }
     const validationError = validateBeforeSave();
@@ -396,11 +398,13 @@ export const CartelaLabels: React.FC = () => {
       await loadList();
       showToast({
         type: 'success',
-        message: `تم توليد الكارتيلا${row.serial_no ? ` — رقم ${row.serial_no}` : ''} — أضف الألوان من الأسفل`,
+        message: t('toast.generated', {
+          suffix: row.serial_no ? t('toast.generatedSerialSuffix', { serial: row.serial_no }) : '',
+        }),
       });
       scrollToColorsPanel();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر توليد الكارتيلا' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.generateFailed') });
     } finally {
       setSaving(false);
     }
@@ -408,7 +412,7 @@ export const CartelaLabels: React.FC = () => {
 
   const handleSaveUpdate = async () => {
     if (!selectedId) {
-      showToast({ type: 'warning', message: 'لا توجد كارتيلا محفوظة للتعديل — استخدم «توليد الكارتيله».' });
+      showToast({ type: 'warning', message: t('toast.noSavedForEdit') });
       return;
     }
     const validationError = validateBeforeSave();
@@ -422,10 +426,10 @@ export const CartelaLabels: React.FC = () => {
       const row = await updateCartelaLabel(selectedId, buildSavePayload());
       setForm(cartelaDtoToPayload(row));
       await loadList();
-      showToast({ type: 'success', message: 'تم حفظ التعديل — يمكنك إدارة الألوان في الأسفل' });
+      showToast({ type: 'success', message: t('toast.updateSaved') });
       scrollToColorsPanel();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر حفظ التعديل' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.updateSaveFailed') });
     } finally {
       setSaving(false);
     }
@@ -446,10 +450,12 @@ export const CartelaLabels: React.FC = () => {
       await loadList();
       showToast({
         type: 'success',
-        message: `تم حفظ نسخة جديدة${row.serial_no ? ` — رقم ${row.serial_no}` : ''}`,
+        message: t('toast.savedAsNew', {
+          suffix: row.serial_no ? t('toast.savedAsNewSuffix', { serial: row.serial_no }) : '',
+        }),
       });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر حفظ النسخة الجديدة' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.saveAsNewFailed') });
     } finally {
       setSaving(false);
     }
@@ -457,14 +463,14 @@ export const CartelaLabels: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedId) return;
-    if (!window.confirm('حذف هذه الكارتيلا؟')) return;
+    if (!window.confirm(t('confirm.deleteCartela'))) return;
     try {
       await deleteCartelaLabel(selectedId);
       startNew();
       await loadList();
-      showToast({ type: 'success', message: 'تم الحذف' });
+      showToast({ type: 'success', message: t('toast.deleted') });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الحذف' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.deleteFailed') });
     }
   };
 
@@ -473,7 +479,7 @@ export const CartelaLabels: React.FC = () => {
     try {
       await printPayload(buildSavePayload(), mode);
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'حدث خطأ أثناء الطباعة' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.printError') });
     } finally {
       setBusy(null);
     }
@@ -489,7 +495,7 @@ export const CartelaLabels: React.FC = () => {
         'dialog',
       );
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الطباعة' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.printFailedGeneric') });
     } finally {
       setRegistryPrintingId(null);
     }
@@ -527,7 +533,7 @@ export const CartelaLabels: React.FC = () => {
 
   const handleBulkPrint = async (mode: PrintMode) => {
     if (selectedCartelaIds.size === 0) {
-      showToast({ type: 'warning', message: 'اختر كارتيلة واحدة على الأقل للطباعة الجماعية.' });
+      showToast({ type: 'warning', message: t('toast.selectAtLeastOne') });
       return;
     }
 
@@ -541,7 +547,7 @@ export const CartelaLabels: React.FC = () => {
       const html = buildCartelaLabelsBatchHtml(labelDataList);
       await printHtml(html, mode, `cartela-batch-${new Date().toISOString().slice(0, 10)}`);
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'تعذر الطباعة الجماعية' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.batchPrintFailed') });
     } finally {
       setBulkBusy(null);
     }
@@ -564,10 +570,10 @@ export const CartelaLabels: React.FC = () => {
           <div>
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <ScrollText className="w-6 h-6 text-indigo-600" />
-              كارتيله
+              {t('header.title')}
             </h2>
             <p className="text-slate-500 mt-1 text-sm">
-              لصاقة 80×50 مم + كارتيلة ألوان (Code128) — طباعة حرارية بدون QR.
+              {t('header.subtitle')}
             </p>
           </div>
         </div>
@@ -580,7 +586,7 @@ export const CartelaLabels: React.FC = () => {
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            توليد كارتيلا
+            {t('tab.generate')}
           </button>
           <button
             type="button"
@@ -590,7 +596,7 @@ export const CartelaLabels: React.FC = () => {
             }`}
           >
             <List className="w-4 h-4" />
-            سجل الكارتيلات
+            {t('tab.registry')}
           </button>
           <button
             type="button"
@@ -602,18 +608,18 @@ export const CartelaLabels: React.FC = () => {
             }`}
           >
             {form.showLogo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            {form.showLogo ? 'إخفاء شعار CLOTEX' : 'إظهار شعار CLOTEX'}
+            {form.showLogo ? t('toggle.hideLogo') : t('toggle.showLogo')}
           </button>
         </div>
       </div>
 
       <div className="rounded-xl border border-violet-200 bg-gradient-to-l from-violet-50 to-white p-4 text-sm text-slate-700 space-y-2">
-        <p className="font-bold text-violet-900">مسار العمل — كارتيلة الألوان</p>
+        <p className="font-bold text-violet-900">{t('workflow.title')}</p>
         <ol className="list-decimal list-inside space-y-1 text-xs sm:text-sm">
-          <li>أنشئ/افتح كارتيلa واحفظها برقم <strong>SERIAL</strong> (مثل 0013).</li>
-          <li>من الأسفل: أضف ألواناً يدوياً — كل لون يأخذ باركود <span className="font-mono" dir="ltr">0013-C01</span>.</li>
-          <li>حدّد الألوان → «طباعة 3×1» → اضبط المقاس → احفظ الإعدادات كافتراضي.</li>
-          <li>امسح الباركود من الأعلى أو من Zebra — النظام يجلب الخامة + اللون من السيرفر.</li>
+          <li>{t('workflow.step1Before')}<strong>SERIAL</strong>{t('workflow.step1After')}</li>
+          <li>{t('workflow.step2Before')}<span className="font-mono" dir="ltr">0013-C01</span>{t('workflow.step2After')}</li>
+          <li>{t('workflow.step3')}</li>
+          <li>{t('workflow.step4')}</li>
         </ol>
       </div>
 
@@ -628,15 +634,15 @@ export const CartelaLabels: React.FC = () => {
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-slate-900">سجل الكارتيلات</h3>
-              <p className="text-xs text-slate-500 mt-1">جميع اللصاقات المُولَّدة — تعديل، حفظ، وإعادة طباعة.</p>
+              <h3 className="font-bold text-slate-900">{t('registry.title')}</h3>
+              <p className="text-xs text-slate-500 mt-1">{t('registry.subtitle')}</p>
             </div>
             <div className="flex gap-2">
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && void loadList()}
-                placeholder="بحث..."
+                placeholder={t('registry.searchPlaceholder')}
                 className={`${inputCls} max-w-xs`}
               />
               <button
@@ -644,7 +650,7 @@ export const CartelaLabels: React.FC = () => {
                 onClick={() => void loadList()}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
-                تحديث
+                {t('registry.refresh')}
               </button>
               <button
                 type="button"
@@ -652,14 +658,14 @@ export const CartelaLabels: React.FC = () => {
                 className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700"
               >
                 <Plus className="w-3.5 h-3.5" />
-                كارتيلا جديدة
+                {t('registry.newCartela')}
               </button>
             </div>
           </div>
           <div className="px-4 py-3 border-b border-indigo-100 bg-indigo-50/70 flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-slate-700">
               <span className="font-bold text-indigo-700">{selectedCartelaIds.size}</span>
-              <span> كارتيلة مختارة من </span>
+              <span>{t('registry.selectedOfMiddle')}</span>
               <span className="font-bold">{items.length}</span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -670,8 +676,8 @@ export const CartelaLabels: React.FC = () => {
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 {items.length > 0 && items.every((item) => selectedCartelaIds.has(item.id))
-                  ? 'إلغاء تحديد الكل'
-                  : 'تحديد الكل'}
+                  ? t('registry.deselectAll')
+                  : t('registry.selectAll')}
               </button>
               <button
                 type="button"
@@ -680,7 +686,7 @@ export const CartelaLabels: React.FC = () => {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {bulkBusy === 'dialog' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Layers className="w-3.5 h-3.5" />}
-                طباعة جماعية
+                {t('registry.bulkPrint')}
               </button>
               {canSilent && (
                 <button
@@ -690,7 +696,7 @@ export const CartelaLabels: React.FC = () => {
                   className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {bulkBusy === 'silent' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <VolumeX className="w-3.5 h-3.5" />}
-                  طباعة جماعية صامتة
+                  {t('registry.bulkPrintSilent')}
                 </button>
               )}
               {isElectronRenderer() && (
@@ -701,7 +707,7 @@ export const CartelaLabels: React.FC = () => {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   {bulkBusy === 'pdf' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-                  PDF جماعي
+                  {t('registry.bulkPrintPdf')}
                 </button>
               )}
             </div>
@@ -716,30 +722,30 @@ export const CartelaLabels: React.FC = () => {
                       checked={items.length > 0 && items.every((item) => selectedCartelaIds.has(item.id))}
                       onChange={toggleAllVisibleCartelas}
                       className="accent-indigo-600"
-                      aria-label="تحديد كل الكارتيلات"
+                      aria-label={t('registry.selectAllAria')}
                     />
                   </th>
-                  <th className="p-3 text-right font-bold">الرقم</th>
+                  <th className="p-3 text-right font-bold">{t('registry.colSerial')}</th>
                   <th className="p-3 text-right font-bold">ART CODE</th>
                   <th className="p-3 text-right font-bold">DESIGN NO</th>
                   <th className="p-3 text-right font-bold">COLOUR</th>
-                  <th className="p-3 text-right font-bold">ألوان</th>
-                  <th className="p-3 text-right font-bold">آخر تحديث</th>
-                  <th className="p-3 text-right font-bold w-52">إجراءات</th>
+                  <th className="p-3 text-right font-bold">{t('registry.colColors')}</th>
+                  <th className="p-3 text-right font-bold">{t('registry.colUpdatedAt')}</th>
+                  <th className="p-3 text-right font-bold w-52">{t('registry.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {listLoading && (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-slate-500">
-                      جاري التحميل...
+                      {t('registry.loading')}
                     </td>
                   </tr>
                 )}
                 {!listLoading && items.length === 0 && (
                   <tr>
                     <td colSpan={8} className="p-6 text-center text-slate-500">
-                      لا توجد كارتيلات بعد — استخدم «توليد كارتيلا» لإضافة أول لصاقة.
+                      {t('registry.emptyState')}
                     </td>
                   </tr>
                 )}
@@ -756,7 +762,7 @@ export const CartelaLabels: React.FC = () => {
                         checked={selectedCartelaIds.has(item.id)}
                         onChange={() => toggleCartelaSelection(item.id)}
                         className="accent-indigo-600"
-                        aria-label={`تحديد ${item.serial_no || item.art_code}`}
+                        aria-label={t('registry.selectRowAria', { name: item.serial_no || item.art_code })}
                       />
                     </td>
                     <td className="p-3 font-mono font-bold text-slate-900" dir="ltr">
@@ -773,11 +779,11 @@ export const CartelaLabels: React.FC = () => {
                             : 'bg-slate-100 text-slate-500'
                         }`}
                       >
-                        {item.color_count ?? 0} لون
+                        {t('registry.colorCount', { count: item.color_count ?? 0 })}
                       </span>
                     </td>
                     <td className="p-3 text-slate-500 text-xs">
-                      {new Date(item.updated_at).toLocaleString('ar-SY')}
+                      {new Date(item.updated_at).toLocaleString(i18n.language === 'tr' ? 'tr-TR' : 'ar-SY')}
                     </td>
                     <td className="p-3">
                       <div className="flex flex-wrap gap-1.5">
@@ -787,7 +793,7 @@ export const CartelaLabels: React.FC = () => {
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          تعديل
+                          {t('registry.edit')}
                         </button>
                         <button
                           type="button"
@@ -800,7 +806,7 @@ export const CartelaLabels: React.FC = () => {
                           ) : (
                             <Printer className="w-3.5 h-3.5" />
                           )}
-                          طباعة
+                          {t('print')}
                         </button>
                       </div>
                     </td>
@@ -818,23 +824,23 @@ export const CartelaLabels: React.FC = () => {
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h3 className="font-bold text-slate-900">
-              {selectedId ? 'تعديل كارتيلا' : 'توليد كارتيلا جديدة'}
+              {selectedId ? t('form.editTitle') : t('form.newTitle')}
             </h3>
             {selectedId && (
               <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-full">
-                محفوظة — يمكن التعديل أو الحفظ كنسخة جديدة
+                {t('form.savedBadge')}
               </span>
             )}
           </div>
 
           <label className="space-y-1 block">
-            <span className="text-sm font-bold text-slate-700">اسم مختصر (اختياري)</span>
+            <span className="text-sm font-bold text-slate-700">{t('form.titleLabel')}</span>
             <input value={form.title} onChange={(e) => patchForm({ title: e.target.value })} className={inputCls} />
           </label>
 
           <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-bold text-slate-700">قياس الخط (pt)</span>
+              <span className="text-sm font-bold text-slate-700">{t('form.fontSizeLabel')}</span>
               <span className="rounded-full bg-white border border-slate-200 px-2.5 py-0.5 text-xs font-bold text-indigo-700" dir="ltr">
                 {form.fontSizePt.toFixed(1)} pt
               </span>
@@ -856,11 +862,11 @@ export const CartelaLabels: React.FC = () => {
                 });
               }}
               className="w-full h-3 accent-indigo-600 touch-manipulation cursor-pointer"
-              aria-label="قياس الخط"
+              aria-label={t('form.fontSizeAria')}
             />
             <div className="flex justify-between text-[11px] font-bold text-slate-500" dir="ltr">
               <span>{CARTELA_MIN_FONT_SIZE_PT}</span>
-              <span>محفوظ {savedDefaultFontSizePt.toFixed(1)}</span>
+              <span>{t('form.savedFontSize', { value: savedDefaultFontSizePt.toFixed(1) })}</span>
               <span>{CARTELA_MAX_FONT_SIZE_PT}</span>
             </div>
             <button
@@ -870,34 +876,34 @@ export const CartelaLabels: React.FC = () => {
                 setSavedDefaultFontSizePt(saved);
                 showToast({
                   type: 'success',
-                  message: `تم حفظ قياس الخط الافتراضي: ${saved.toFixed(1)} pt — تُطبَّق على الكارتيلات الجديدة.`,
+                  message: t('toast.fontSizeSaved', { value: saved.toFixed(1) }),
                 });
               }}
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50"
             >
               <Save size={14} />
-              حفظ قياس الخط كافتراضي
+              {t('form.saveFontSizeDefault')}
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="space-y-1 block">
-              <span className="text-sm font-bold text-slate-700">ART CODE — اسم الخامة</span>
+              <span className="text-sm font-bold text-slate-700">{t('form.artCodeLabel')}</span>
               <input value={form.artCode} onChange={(e) => patchForm({ artCode: e.target.value })} className={inputCls} />
             </label>
             <label className="space-y-1 block">
-              <span className="text-sm font-bold text-slate-700">DESIGN NO — كود الدسان</span>
+              <span className="text-sm font-bold text-slate-700">{t('form.designNoLabel')}</span>
               <input value={form.designNo} onChange={(e) => patchForm({ designNo: e.target.value })} className={inputCls} />
             </label>
             <label className="space-y-1 block md:col-span-2">
-              <span className="text-sm font-bold text-slate-700">COLOUR — اللون</span>
+              <span className="text-sm font-bold text-slate-700">{t('form.colourLabel')}</span>
               <input value={form.colour} onChange={(e) => patchForm({ colour: e.target.value })} className={inputCls} />
             </label>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h4 className="font-bold text-slate-900 text-sm">COMP. — خليط الخامة (مجموع 100%)</h4>
+              <h4 className="font-bold text-slate-900 text-sm">{t('form.compTitle')}</h4>
               <span
                 className={`text-xs font-bold px-2 py-1 rounded-full ${
                   activeCompositionLines(form.compositionLines).length === 0
@@ -907,12 +913,12 @@ export const CartelaLabels: React.FC = () => {
                       : 'bg-rose-100 text-rose-700'
                 }`}
               >
-                المجموع: {compositionTotal}%
+                {t('form.compTotal', { value: compositionTotal })}
               </span>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
-              <div className="text-xs font-bold text-slate-600">قائمة أنواع الخامة (إنجليزي — تُعبّأ يدوياً مرة واحدة)</div>
+              <div className="text-xs font-bold text-slate-600">{t('form.fiberListLabel')}</div>
               <div className="flex flex-wrap gap-1.5">
                 {fiberTypes.map((fiber) => (
                   <span
@@ -924,13 +930,13 @@ export const CartelaLabels: React.FC = () => {
                       type="button"
                       onClick={() => void handleDeleteFiberType(fiber.id)}
                       className="text-rose-500 hover:text-rose-700"
-                      title="حذف"
+                      title={t('form.deleteFiberTooltip')}
                     >
                       ×
                     </button>
                   </span>
                 ))}
-                {fiberTypes.length === 0 && <span className="text-xs text-slate-500">أضف أنواعاً مثل COTTON, POLYESTER, ACRYLIC…</span>}
+                {fiberTypes.length === 0 && <span className="text-xs text-slate-500">{t('form.fiberListEmpty')}</span>}
               </div>
               <div className="flex gap-2">
                 <input
@@ -946,7 +952,7 @@ export const CartelaLabels: React.FC = () => {
                   onClick={() => void handleAddFiberType()}
                   className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-black disabled:opacity-50"
                 >
-                  إضافة للقائمة
+                  {t('form.addFiberButton')}
                 </button>
               </div>
             </div>
@@ -977,7 +983,7 @@ export const CartelaLabels: React.FC = () => {
                     }}
                     className={inputCls}
                   >
-                    <option value="">نوع الخامة…</option>
+                    <option value="">{t('form.fiberTypePlaceholder')}</option>
                     {fiberTypes.map((fiber) => (
                       <option key={fiber.id} value={fiber.id}>
                         {fiber.name_en}
@@ -989,7 +995,7 @@ export const CartelaLabels: React.FC = () => {
                     onClick={() => removeCompositionLine(index)}
                     className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50"
                   >
-                    حذف
+                    {t('form.removeLine')}
                   </button>
                 </div>
               ))}
@@ -1002,7 +1008,7 @@ export const CartelaLabels: React.FC = () => {
                 className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
               >
                 <Plus className="w-3.5 h-3.5" />
-                إضافة سطر ({form.compositionLines.length}/5)
+                {t('form.addLine', { count: form.compositionLines.length })}
               </button>
             )}
             {compositionError && activeCompositionLines(form.compositionLines).length > 0 && (
@@ -1011,7 +1017,7 @@ export const CartelaLabels: React.FC = () => {
           </div>
 
           <div className="rounded-xl border border-slate-200 p-4 space-y-3">
-            <h4 className="font-bold text-slate-900 text-sm">رموز العناية (اختيار حر — تظهر على اللصاقة بالإنجليزي)</h4>
+            <h4 className="font-bold text-slate-900 text-sm">{t('form.careSymbolsTitle')}</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {CARTELA_CARE_SYMBOLS.map((sym) => (
                 <label
@@ -1040,7 +1046,7 @@ export const CartelaLabels: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <span className="text-sm font-bold text-slate-700">WIDTH — عرض الرول</span>
+              <span className="text-sm font-bold text-slate-700">{t('form.widthLabel')}</span>
               <div className="flex gap-2">
                 <input
                   value={form.widthValue}
@@ -1071,12 +1077,12 @@ export const CartelaLabels: React.FC = () => {
                   onChange={(e) => patchForm({ widthTolerancePercent: Number(e.target.value) || 0 })}
                   className="w-16 rounded border border-slate-200 px-2 py-1"
                 />
-                % على اللصاقة
+                {t('form.onLabelSuffix')}
               </label>
             </div>
 
             <div className="space-y-2">
-              <span className="text-sm font-bold text-slate-700">WEIGHT — الوزن</span>
+              <span className="text-sm font-bold text-slate-700">{t('form.weightLabel')}</span>
               <div className="flex gap-2">
                 <input
                   value={form.weightValue}
@@ -1107,13 +1113,13 @@ export const CartelaLabels: React.FC = () => {
                   onChange={(e) => patchForm({ weightTolerancePercent: Number(e.target.value) || 0 })}
                   className="w-16 rounded border border-slate-200 px-2 py-1"
                 />
-                % على اللصاقة
+                {t('form.onLabelSuffix')}
               </label>
             </div>
           </div>
 
           <label className="space-y-1 block">
-            <span className="text-sm font-bold text-slate-700">رقم تسلسلي / باركود</span>
+            <span className="text-sm font-bold text-slate-700">{t('form.serialLabel')}</span>
             <input
               value={form.serialNo}
               onChange={(e) => patchForm({ serialNo: sanitizeManualCartelaSerialInput(e.target.value) })}
@@ -1124,11 +1130,11 @@ export const CartelaLabels: React.FC = () => {
               dir="ltr"
             />
             <span className="text-xs text-slate-500">
-              تلقائي: 4 أرقام (0001…) — يدوي: حتى {CARTELA_SERIAL_MANUAL_MAX_LEN} أرقام. اتركه فارغاً للتوليد التلقائي.
+              {t('form.serialHint', { max: CARTELA_SERIAL_MANUAL_MAX_LEN })}
             </span>
             {form.serialNo.trim().length > CARTELA_SERIAL_AUTO_DIGITS && (
               <span className="text-xs text-amber-700 block mt-1">
-                هذا رقم يدوي أو قديم. لكارتيلa جديدة بـ 4 أرقام: اترك الحقل فارغاً واضغط «حفظ ككارتيلa جديدة».
+                {t('form.serialManualWarning')}
               </span>
             )}
           </label>
@@ -1142,7 +1148,7 @@ export const CartelaLabels: React.FC = () => {
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                توليد الكارتيله
+                {t('form.generateButton')}
               </button>
             ) : (
               <>
@@ -1153,7 +1159,7 @@ export const CartelaLabels: React.FC = () => {
                   className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  حفظ التعديل
+                  {t('form.saveUpdateButton')}
                 </button>
                 <button
                   type="button"
@@ -1162,7 +1168,7 @@ export const CartelaLabels: React.FC = () => {
                   className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-2.5 text-sm font-bold text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
                 >
                   {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
-                  حفظ ككارتيلا جديدة
+                  {t('form.saveAsNewButton')}
                 </button>
               </>
             )}
@@ -1173,7 +1179,7 @@ export const CartelaLabels: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-black disabled:opacity-50"
             >
               {busy === 'dialog' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              طباعة
+              {t('print')}
             </button>
             {canSilent && (
               <button
@@ -1183,7 +1189,7 @@ export const CartelaLabels: React.FC = () => {
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 {busy === 'silent' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <VolumeX className="w-4 h-4" />}
-                طباعة صامتة
+                {t('form.printSilentButton')}
               </button>
             )}
             {isElectronRenderer() && (
@@ -1204,7 +1210,7 @@ export const CartelaLabels: React.FC = () => {
                 className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-100"
               >
                 <Trash2 className="w-4 h-4" />
-                حذف
+                {t('delete')}
               </button>
             )}
           </div>
@@ -1212,13 +1218,13 @@ export const CartelaLabels: React.FC = () => {
 
         <aside className="bg-slate-100 rounded-xl border border-slate-200 p-4 sticky top-4">
           <div className="mb-3 flex items-center justify-between gap-2 text-sm">
-            <span className="font-bold text-slate-800">معاينة قبل الطباعة</span>
+            <span className="font-bold text-slate-800">{t('preview.title')}</span>
             <span className="font-mono text-xs text-slate-500" dir="ltr">
               {CARTELA_WIDTH_MM}×{CARTELA_HEIGHT_MM} mm
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mb-3">
-            معاينة مكبّرة بنفس النسب — الطباعة الفعلية 80×50 mm حراري.
+            {t('preview.subtitle')}
           </p>
           <div className="w-full">
             <CartelaPreviewFrame html={previewHtml} />

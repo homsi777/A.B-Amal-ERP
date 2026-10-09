@@ -107,7 +107,7 @@ const MaterialCodePickerModal = ({
   onClose,
   onSelect,
 }: MaterialCodePickerModalProps) => {
-  const { t } = useTranslation('inventory');
+  const { t, i18n } = useTranslation('inventory');
   if (!open) return null;
 
   return (
@@ -170,7 +170,7 @@ const MaterialCodePickerModal = ({
                 <span className="min-w-0">
                   <span className="block truncate font-mono text-sm font-black text-slate-900">{option.code}</span>
                   <span className="mt-1 block truncate text-xs text-slate-500">
-                    {option.materialNames.join('، ')}
+                    {option.materialNames.join(i18n.language === 'ar' ? '، ' : ', ')}
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
