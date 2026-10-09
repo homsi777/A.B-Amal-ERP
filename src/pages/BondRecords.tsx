@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Filter, ArrowUpRight, ArrowDownRight, Loader2, Printer, X } from 'lucide-react';
 import { listVouchers, type VoucherRow, type VoucherStatus, type VoucherType } from '../lib/api/vouchersApi';
 import { ApiRequestError } from '../lib/api/client';
@@ -14,23 +15,13 @@ type StatusFilter = '' | VoucherStatus;
 type PurposeFilter = '' | VoucherPurpose;
 type PartyFilter = '' | 'CUSTOMER' | 'SUPPLIER' | 'OTHER';
 
-function typeLabel(t: string) {
-  return t === 'RECEIPT' ? 'قبض' : 'صرف';
-}
-
-function statusLabel(s: string) {
-  if (s === 'DRAFT') return 'مسودة';
-  if (s === 'CONFIRMED') return 'مُرحل';
-  if (s === 'CANCELLED') return 'ملغى';
-  return s;
-}
-
 function formatVoucherDate(value: string) {
   if (!value) return '—';
   return String(value).split('T')[0];
 }
 
 export const BondRecords = () => {
+  const { t } = useTranslation('bondRecords');
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [bonds, setBonds] = useState<VoucherRow[]>([]);
@@ -70,7 +61,7 @@ export const BondRecords = () => {
       });
       setBonds(res.data);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل السندات');
+      setError(e instanceof ApiRequestError ? e.message : t('error.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -90,15 +81,24 @@ export const BondRecords = () => {
 
   const activeAdvancedCount = [statusFilter, purposeFilter, partyFilter, dateFrom, dateTo].filter(Boolean).length;
 
+  const typeLabel = (type: string) => (type === 'RECEIPT' ? t('type.receipt') : t('type.payment'));
+
+  const statusLabel = (status: string) => {
+    if (status === 'DRAFT') return t('status.draft');
+    if (status === 'CONFIRMED') return t('status.confirmed');
+    if (status === 'CANCELLED') return t('status.cancelled');
+    return status;
+  };
+
   const handleSendTelegram = async (bond: VoucherRow) => {
     setTelegramBusyId(bond.id);
     try {
       await sendTelegramVoucherFromRow(bond);
-      showToast({ type: 'success', message: 'تم إرسال السند إلى تيليغرام.' });
+      showToast({ type: 'success', message: t('toast.telegramSent') });
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'تعذر إرسال السند إلى تيليغرام',
+        message: e instanceof Error ? e.message : t('toast.telegramError'),
       });
     } finally {
       setTelegramBusyId(null);
@@ -109,8 +109,8 @@ export const BondRecords = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">سجل السندات</h2>
-          <p className="text-slate-500 mt-1">سندات القبض والصرف من قاعدة البيانات</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('title')}</h2>
+          <p className="text-slate-500 mt-1">{t('subtitle')}</p>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ export const BondRecords = () => {
             <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
             <input
               type="text"
-              placeholder="بحث برقم السند أو الجهة أو البيان..."
+              placeholder={t('filters.searchPlaceholder')}
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -133,11 +133,11 @@ export const BondRecords = () => {
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
               className="bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-              title="تصفية حسب نوع السند"
+              title={t('filters.typeFilterTitle')}
             >
-              <option value="">جميع السندات</option>
-              <option value="RECEIPT">سندات القبض فقط</option>
-              <option value="PAYMENT">سندات الصرف فقط</option>
+              <option value="">{t('filters.allBonds')}</option>
+              <option value="RECEIPT">{t('filters.receiptOnly')}</option>
+              <option value="PAYMENT">{t('filters.paymentOnly')}</option>
             </select>
             <button
               type="button"
@@ -149,7 +149,7 @@ export const BondRecords = () => {
               }`}
             >
               <Filter className="w-4 h-4" />
-              <span>تصفية متقدمة</span>
+              <span>{t('filters.advancedFilter')}</span>
               {activeAdvancedCount > 0 ? (
                 <span className="bg-white/20 text-xs rounded-full px-1.5 py-0.5 font-bold">{activeAdvancedCount}</span>
               ) : null}
@@ -160,26 +160,26 @@ export const BondRecords = () => {
         {showAdvanced ? (
           <div className="px-4 py-3 border-b border-slate-200 bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-600">الحالة</label>
+              <label className="text-xs font-bold text-slate-600">{t('filters.statusLabel')}</label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
                 className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
               >
-                <option value="">الكل</option>
-                <option value="CONFIRMED">مُرحل</option>
-                <option value="DRAFT">مسودة</option>
-                <option value="CANCELLED">ملغى</option>
+                <option value="">{t('filters.all')}</option>
+                <option value="CONFIRMED">{t('status.confirmed')}</option>
+                <option value="DRAFT">{t('status.draft')}</option>
+                <option value="CANCELLED">{t('status.cancelled')}</option>
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-600">الغرض</label>
+              <label className="text-xs font-bold text-slate-600">{t('filters.purposeLabel')}</label>
               <select
                 value={purposeFilter}
                 onChange={(e) => setPurposeFilter(e.target.value as PurposeFilter)}
                 className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
               >
-                <option value="">الكل</option>
+                <option value="">{t('filters.all')}</option>
                 {VOUCHER_PURPOSES.map((p) => (
                   <option key={p} value={p}>
                     {voucherPurposeAr(p)}
@@ -188,20 +188,20 @@ export const BondRecords = () => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-600">نوع الجهة</label>
+              <label className="text-xs font-bold text-slate-600">{t('filters.partyTypeLabel')}</label>
               <select
                 value={partyFilter}
                 onChange={(e) => setPartyFilter(e.target.value as PartyFilter)}
                 className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm"
               >
-                <option value="">الكل</option>
-                <option value="CUSTOMER">عميل</option>
-                <option value="SUPPLIER">مورد</option>
-                <option value="OTHER">أخرى</option>
+                <option value="">{t('filters.all')}</option>
+                <option value="CUSTOMER">{t('filters.partyCustomer')}</option>
+                <option value="SUPPLIER">{t('filters.partySupplier')}</option>
+                <option value="OTHER">{t('filters.partyOther')}</option>
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-600">من تاريخ</label>
+              <label className="text-xs font-bold text-slate-600">{t('filters.dateFrom')}</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -210,7 +210,7 @@ export const BondRecords = () => {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-600">إلى تاريخ</label>
+              <label className="text-xs font-bold text-slate-600">{t('filters.dateTo')}</label>
               <input
                 type="date"
                 value={dateTo}
@@ -226,7 +226,7 @@ export const BondRecords = () => {
                 className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-rose-700 disabled:opacity-40 px-2 py-1"
               >
                 <X className="w-4 h-4" />
-                مسح التصفية المتقدمة
+                {t('filters.clearAdvanced')}
               </button>
             </div>
           </div>
@@ -236,16 +236,16 @@ export const BondRecords = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-6 py-4">رقم السند</th>
-                <th className="px-6 py-4">النوع</th>
-                <th className="px-6 py-4">التاريخ</th>
-                <th className="px-6 py-4">المبلغ</th>
-                <th className="px-6 py-4">الجهة</th>
-                <th className="px-6 py-4">الغرض</th>
-                <th className="px-6 py-4">الصندوق</th>
-                <th className="px-6 py-4">البيان</th>
-                <th className="px-6 py-4">الحالة</th>
-                <th className="px-6 py-4">الإجراءات</th>
+                <th className="px-6 py-4">{t('table.voucherNo')}</th>
+                <th className="px-6 py-4">{t('table.type')}</th>
+                <th className="px-6 py-4">{t('table.date')}</th>
+                <th className="px-6 py-4">{t('table.amount')}</th>
+                <th className="px-6 py-4">{t('table.party')}</th>
+                <th className="px-6 py-4">{t('table.purpose')}</th>
+                <th className="px-6 py-4">{t('table.cashbox')}</th>
+                <th className="px-6 py-4">{t('table.description')}</th>
+                <th className="px-6 py-4">{t('table.status')}</th>
+                <th className="px-6 py-4">{t('table.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -253,13 +253,13 @@ export const BondRecords = () => {
                 <tr>
                   <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
-                    جاري التحميل...
+                    {t('table.loading')}
                   </td>
                 </tr>
               ) : bonds.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
-                    لا توجد سندات مطابقة للتصفية
+                    {t('table.noResults')}
                   </td>
                 </tr>
               ) : (
@@ -270,7 +270,7 @@ export const BondRecords = () => {
                         type="button"
                         onClick={() => navigate(`/bonds/records/${bond.id}`)}
                         className="text-indigo-700 hover:underline"
-                        title="فتح السند"
+                        title={t('table.openBond')}
                       >
                         {bond.voucher_no}
                       </button>
@@ -310,15 +310,15 @@ export const BondRecords = () => {
                           type="button"
                           onClick={() => setPrintVoucher(bond)}
                           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
-                          title="طباعة السند"
+                          title={t('table.printBond')}
                         >
                           <Printer className="w-4 h-4" />
-                          <span>طباعة</span>
+                          <span>{t('table.print')}</span>
                         </button>
                         {bond.status === 'CONFIRMED' ? (
                           <TelegramSendButton
                             size="compact"
-                            label="تيليغرام"
+                            label={t('table.telegram')}
                             busy={telegramBusyId === bond.id}
                             onClick={() => void handleSendTelegram(bond)}
                           />

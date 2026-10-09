@@ -1,0 +1,56 @@
+{
+  "title": "Fiş Kayıtları",
+  "subtitle": "Veritabanındaki tahsilat ve ödeme fişleri",
+  "error": {
+    "loadFailed": "Fişler yüklenemedi"
+  },
+  "toast": {
+    "telegramSent": "Fiş Telegram'a gönderildi.",
+    "telegramError": "Fiş Telegram'a gönderilemedi"
+  },
+  "type": {
+    "receipt": "Tahsilat",
+    "payment": "Ödeme"
+  },
+  "status": {
+    "draft": "Taslak",
+    "confirmed": "Onaylandı",
+    "cancelled": "İptal edildi"
+  },
+  "filters": {
+    "searchPlaceholder": "Fiş no, taraf veya açıklamaya göre ara...",
+    "typeFilterTitle": "Fiş türüne göre filtrele",
+    "allBonds": "Tüm fişler",
+    "receiptOnly": "Yalnızca tahsilat fişleri",
+    "paymentOnly": "Yalnızca ödeme fişleri",
+    "advancedFilter": "Gelişmiş filtre",
+    "statusLabel": "Durum",
+    "purposeLabel": "Amaç",
+    "partyTypeLabel": "Taraf türü",
+    "all": "Tümü",
+    "partyCustomer": "Müşteri",
+    "partySupplier": "Tedarikçi",
+    "partyOther": "Diğer",
+    "dateFrom": "Başlangıç tarihi",
+    "dateTo": "Bitiş tarihi",
+    "clearAdvanced": "Gelişmiş filtreyi temizle"
+  },
+  "table": {
+    "voucherNo": "Fiş no",
+    "type": "Tür",
+    "date": "Tarih",
+    "amount": "Tutar",
+    "party": "Taraf",
+    "purpose": "Amaç",
+    "cashbox": "Kasa",
+    "description": "Açıklama",
+    "status": "Durum",
+    "actions": "İşlemler",
+    "loading": "Yükleniyor...",
+    "noResults": "Filtreye uygun fiş bulunamadı",
+    "openBond": "Fişi aç",
+    "printBond": "Fişi yazdır",
+    "print": "Yazdır",
+    "telegram": "Telegram"
+  }
+}

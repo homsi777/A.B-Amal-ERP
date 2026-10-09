@@ -1,0 +1,56 @@
+{
+  "title": "سجل السندات",
+  "subtitle": "سندات القبض والصرف من قاعدة البيانات",
+  "error": {
+    "loadFailed": "تعذر تحميل السندات"
+  },
+  "toast": {
+    "telegramSent": "تم إرسال السند إلى تيليغرام.",
+    "telegramError": "تعذر إرسال السند إلى تيليغرام"
+  },
+  "type": {
+    "receipt": "قبض",
+    "payment": "صرف"
+  },
+  "status": {
+    "draft": "مسودة",
+    "confirmed": "مُرحل",
+    "cancelled": "ملغى"
+  },
+  "filters": {
+    "searchPlaceholder": "بحث برقم السند أو الجهة أو البيان...",
+    "typeFilterTitle": "تصفية حسب نوع السند",
+    "allBonds": "جميع السندات",
+    "receiptOnly": "سندات القبض فقط",
+    "paymentOnly": "سندات الصرف فقط",
+    "advancedFilter": "تصفية متقدمة",
+    "statusLabel": "الحالة",
+    "purposeLabel": "الغرض",
+    "partyTypeLabel": "نوع الجهة",
+    "all": "الكل",
+    "partyCustomer": "عميل",
+    "partySupplier": "مورد",
+    "partyOther": "أخرى",
+    "dateFrom": "من تاريخ",
+    "dateTo": "إلى تاريخ",
+    "clearAdvanced": "مسح التصفية المتقدمة"
+  },
+  "table": {
+    "voucherNo": "رقم السند",
+    "type": "النوع",
+    "date": "التاريخ",
+    "amount": "المبلغ",
+    "party": "الجهة",
+    "purpose": "الغرض",
+    "cashbox": "الصندوق",
+    "description": "البيان",
+    "status": "الحالة",
+    "actions": "الإجراءات",
+    "loading": "جاري التحميل...",
+    "noResults": "لا توجد سندات مطابقة للتصفية",
+    "openBond": "فتح السند",
+    "printBond": "طباعة السند",
+    "print": "طباعة",
+    "telegram": "تيليغرام"
+  }
+}
