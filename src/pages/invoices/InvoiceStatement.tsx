@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import i18n from '../../i18n/config';
+import { useTranslation } from 'react-i18next';
 import { useStore } from '../../store/useStore';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Printer, Share2, FileText, ArrowRight } from 'lucide-react';
@@ -56,6 +57,7 @@ type InvoiceListEntry = {
 };
 
 export const InvoiceStatement = () => {
+  const { t } = useTranslation('invoiceStatement');
   const { id } = useParams();
   const navigate = useNavigate();
   const { invoices, customers, suppliers } = useStore();
@@ -103,7 +105,7 @@ export const InvoiceStatement = () => {
           setApiInvoice(mapPurchaseInvoiceDetailToInvoice(p.data));
         }
       } catch {
-        showToast({ type: 'error', message: 'تعذر تحديث بيانات الفاتورة' });
+        showToast({ type: 'error', message: t('toast.refreshFailed') });
       } finally {
         setApiLoading(false);
       }
@@ -254,7 +256,7 @@ export const InvoiceStatement = () => {
 
   const handleStatementConfirmDraft = async () => {
     if (!invoice) return;
-    if (!window.confirm('سيتم ترحيل الفاتورة وسيؤثر ذلك على المخزون والحسابات، هل أنت متأكد؟')) return;
+    if (!window.confirm(t('confirm.confirmDraft'))) return;
 
     let paidAmount = Number(invoice.paidAmount ?? 0) || 0;
     if (uuidRe.test(invoice.id)) {
@@ -269,21 +271,21 @@ export const InvoiceStatement = () => {
             if (qty > 1e-6 && unitPrice <= 0) {
               showToast({
                 type: 'warning',
-                message: 'لا يمكن تأكيد فاتورة البيع: أدخل سعر المتر (يجب أن يكون أكبر من صفر) لكل سطر',
+                message: t('toast.missingUnitPrice'),
               });
               return;
             }
           }
         }
       } catch {
-        showToast({ type: 'error', message: 'تعذر قراءة بيانات المسودة قبل التأكيد' });
+        showToast({ type: 'error', message: t('toast.readDraftFailed') });
         return;
       }
     }
     if (paidAmount > 1e-4 && !confirmCashboxId) {
       showToast({
         type: 'warning',
-        message: 'اختر الصندوق المالي لربط الدفعة بخزينة حقيقية وتوليد السند تلقائياً على الخادم.',
+        message: t('toast.chooseCashbox'),
       });
       return;
     }
@@ -296,12 +298,12 @@ export const InvoiceStatement = () => {
       } else {
         await confirmPurchaseInvoice(invoice.id, confirmBody);
       }
-      showToast({ type: 'success', message: 'تم تأكيد الفاتورة' });
+      showToast({ type: 'success', message: t('toast.confirmSuccess') });
       await refetchInvoiceDetail(invoice);
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر تأكيد الفاتورة',
+        message: e instanceof ApiRequestError ? e.message : t('toast.confirmFailed'),
       });
     } finally {
       setInvoiceActionBusy(false);
@@ -310,7 +312,7 @@ export const InvoiceStatement = () => {
 
   const handleStatementDeleteDraft = async () => {
     if (!invoice) return;
-    if (!window.confirm('سيتم حذف المسودة فقط ولن يؤثر ذلك على المخزون أو الحسابات. هل تريد المتابعة؟')) return;
+    if (!window.confirm(t('confirm.deleteDraft'))) return;
     setInvoiceActionBusy(true);
     try {
       if (invoice.type === 'sale') {
@@ -318,12 +320,12 @@ export const InvoiceStatement = () => {
       } else {
         await deletePurchaseInvoice(invoice.id);
       }
-      showToast({ type: 'success', message: 'تم حذف المسودة' });
+      showToast({ type: 'success', message: t('toast.deleteSuccess') });
       navigate(invoice.type === 'sale' ? '/invoices/sales' : '/invoices/purchases');
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر حذف المسودة',
+        message: e instanceof ApiRequestError ? e.message : t('toast.deleteFailed'),
       });
     } finally {
       setInvoiceActionBusy(false);
@@ -334,7 +336,7 @@ export const InvoiceStatement = () => {
     if (!invoice) return;
     if (
       !window.confirm(
-        'سيتم إلغاء الفاتورة المؤكدة وعكس أثرها على المخزون والقيود المحاسبية قدر الإمكان. هل أنت متأكد؟',
+        t('confirm.voidInvoice'),
       )
     ) {
       return;
@@ -346,12 +348,12 @@ export const InvoiceStatement = () => {
       } else {
         await voidPurchaseInvoice(invoice.id);
       }
-      showToast({ type: 'success', message: 'تم إلغاء الفاتورة' });
+      showToast({ type: 'success', message: t('toast.voidSuccess') });
       await refetchInvoiceDetail(invoice);
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'تعذر إلغاء الفاتورة',
+        message: e instanceof ApiRequestError ? e.message : t('toast.voidFailed'),
       });
     } finally {
       setInvoiceActionBusy(false);
@@ -386,13 +388,13 @@ export const InvoiceStatement = () => {
       showToast({
         type: 'success',
         message: isDraft
-          ? 'تم إرسال مسودة الفاتورة إلى تيليغرام للمراجعة والاعتماد.'
-          : 'تم إرسال الفاتورة إلى تيليغرام.',
+          ? t('toast.telegramDraftSent')
+          : t('toast.telegramSent'),
       });
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof Error ? e.message : 'تعذر إرسال الفاتورة إلى تيليغرام',
+        message: e instanceof Error ? e.message : t('toast.telegramFailed'),
       });
     } finally {
       setTelegramBusy(false);
@@ -490,10 +492,10 @@ export const InvoiceStatement = () => {
 
   const defaultPdfFileName = invoice
     ? `${buildInvoiceStatementFileName(
-      partyName || (invoice.type === 'purchase' ? 'مورد' : 'عميل'),
+      partyName || (invoice.type === 'purchase' ? t('fileName.supplierFallback') : t('fileName.customerFallback')),
       displayStoredInvoiceNo(invoice.invoiceNumber).replace(/[<>:"/\\|?*]/g, '_').trim(),
     )}.pdf`
-    : 'كشف_فاتورة.pdf';
+    : `${t('fileName.statementFallback')}.pdf`;
 
   const handlePrint = async () => {
     if (!invoice) return;
@@ -518,12 +520,12 @@ export const InvoiceStatement = () => {
           printBackground: true,
         });
         if (result.ok) {
-          showToast({ type: 'success', message: 'تم إرسال كشف الفاتورة إلى الطابعة' });
+          showToast({ type: 'success', message: t('toast.printSentSuccess') });
         } else {
-          showToast({ type: 'error', message: result.error || 'تعذر طباعة كشف الفاتورة' });
+          showToast({ type: 'error', message: result.error || t('toast.printFailed') });
         }
       } catch (err) {
-        showToast({ type: 'error', message: err instanceof Error ? err.message : 'تعذر طباعة كشف الفاتورة' });
+        showToast({ type: 'error', message: err instanceof Error ? err.message : t('toast.printFailed') });
       } finally {
         setPrinting(false);
       }
@@ -549,17 +551,17 @@ export const InvoiceStatement = () => {
           margins: { ...ELECTRON_A4_EMBEDDED_MARGINS },
         });
         if (result.ok) {
-          showToast({ type: 'success', message: `تم حفظ PDF: ${result.filePath}` });
+          showToast({ type: 'success', message: t('toast.pdfSaved', { filePath: result.filePath }) });
         } else {
-          showToast({ type: 'error', message: result.error || 'تم إلغاء حفظ PDF' });
+          showToast({ type: 'error', message: result.error || t('toast.pdfSaveCancelled') });
         }
         return;
       }
 
       await exportPrintHtmlToPdf(html, defaultFileName);
-      showToast({ type: 'success', message: 'تم تصدير PDF بنجاح' });
+      showToast({ type: 'success', message: t('toast.pdfExportSuccess') });
     } catch (err) {
-      showToast({ type: 'error', message: err instanceof Error ? err.message : 'تعذر تصدير PDF' });
+      showToast({ type: 'error', message: err instanceof Error ? err.message : t('toast.pdfExportFailed') });
     } finally {
       setExportingPdf(false);
     }
@@ -578,15 +580,15 @@ export const InvoiceStatement = () => {
 
   if (apiLoading && id) {
     return (
-      <div className="max-w-7xl mx-auto p-6 text-center text-slate-600">جاري تحميل الفاتورة...</div>
+      <div className="max-w-7xl mx-auto p-6 text-center text-slate-600">{t('loading.invoice')}</div>
     );
   }
 
   if (!invoice && id && !apiLoading) {
     return (
       <div className="max-w-7xl mx-auto p-6 text-center">
-        <h2 className="text-2xl font-bold text-slate-800">لم يتم العثور على الفاتورة</h2>
-        <button onClick={() => navigate(-1)} className="mt-4 text-indigo-600 hover:underline">العودة للخلف</button>
+        <h2 className="text-2xl font-bold text-slate-800">{t('notFound.title')}</h2>
+        <button onClick={() => navigate(-1)} className="mt-4 text-indigo-600 hover:underline">{t('notFound.back')}</button>
       </div>
     );
   }
@@ -595,7 +597,7 @@ export const InvoiceStatement = () => {
     <div className="max-w-6xl mx-auto space-y-6 print:m-0 print:p-0 print:max-w-none">
       <A4PreviewModal
         open={previewOpen}
-        title="معاينة كشف الفاتورة A4"
+        title={t('preview.title')}
         html={buildA4Html()}
         pageSize="A4"
         fixedPageLayout
@@ -610,25 +612,25 @@ export const InvoiceStatement = () => {
             <ArrowRight className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">كشف فاتورة أقمشة</h2>
-            <p className="text-slate-500 mt-1">عرض طباعة مجمع حسب الخامة والتصميم والسعر</p>
+            <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+            <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <form onSubmit={handleSearch} className="flex bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden text-sm">
-            <input type="text" placeholder="ابحث برقم الفاتورة..." value={searchId} onChange={(e) => setSearchId(e.target.value)} className="px-3 py-2 w-48 outline-none" />
-            <button type="submit" className="bg-slate-100 hover:bg-slate-200 px-3 text-slate-700 font-medium border-r border-slate-200 transition">بحث</button>
+            <input type="text" placeholder={t('search.placeholder')} value={searchId} onChange={(e) => setSearchId(e.target.value)} className="px-3 py-2 w-48 outline-none" />
+            <button type="submit" className="bg-slate-100 hover:bg-slate-200 px-3 text-slate-700 font-medium border-r border-slate-200 transition">{t('search.submit')}</button>
           </form>
 
           <button onClick={handleShareWhatsApp} disabled={!invoice} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-100 transition shadow-sm font-medium disabled:opacity-50">
             <Share2 className="w-4 h-4" />
-            <span className="hidden sm:inline">مشاركة</span>
+            <span className="hidden sm:inline">{t('actions.share')}</span>
           </button>
           {documentStatus === 'CONFIRMED' || documentStatus === 'DRAFT' ? (
             <TelegramSendButton
               size="toolbar"
-              label={documentStatus === 'DRAFT' ? 'إرسال المسودة تيليغرام' : 'إرسال تيليغرام'}
+              label={documentStatus === 'DRAFT' ? t('actions.sendTelegramDraft') : t('actions.sendTelegram')}
               busy={telegramBusy}
               disabled={!invoice}
               onClick={handleSendTelegram}
@@ -643,7 +645,7 @@ export const InvoiceStatement = () => {
                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
             }`}
           >
-            <span className="hidden sm:inline">{hideFinancialColumns ? 'إظهار المبالغ' : 'إخفاء المبالغ'}</span>
+            <span className="hidden sm:inline">{hideFinancialColumns ? t('actions.showAmounts') : t('actions.hideAmounts')}</span>
           </button>
           <button
             type="button"
@@ -652,46 +654,46 @@ export const InvoiceStatement = () => {
             className="bg-white text-slate-700 border border-slate-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm font-medium disabled:opacity-50"
           >
             <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">{exportingPdf ? 'جاري التصدير…' : 'PDF'}</span>
+            <span className="hidden sm:inline">{exportingPdf ? t('actions.exporting') : 'PDF'}</span>
           </button>
           <button onClick={handlePrint} disabled={!invoice} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-50">
             <Printer className="w-4 h-4" />
-            <span className="hidden sm:inline">{printing ? 'جاري الطباعة…' : 'طباعة'}</span>
+            <span className="hidden sm:inline">{printing ? t('actions.printing') : t('actions.print')}</span>
           </button>
         </div>
       </div>
 
       <section className="print:hidden">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="font-bold text-slate-900">كل الفواتير (بيع + شراء)</h3>
-          <span className="text-xs text-slate-500">{filteredInvoices.length} نتيجة</span>
+          <h3 className="font-bold text-slate-900">{t('allInvoices.title')}</h3>
+          <span className="text-xs text-slate-500">{t('allInvoices.resultCount', { count: filteredInvoices.length })}</span>
         </div>
         <table className="w-full text-sm bg-transparent">
           <thead className="text-slate-600 border-b border-slate-200">
             <tr>
-              <th className="px-2 py-2 text-right">النوع</th>
-              <th className="px-2 py-2 text-right">رقم الفاتورة</th>
-              <th className="px-2 py-2 text-right">التاريخ</th>
-              <th className="px-2 py-2 text-right">الجهة</th>
-              <th className="px-2 py-2 text-right">الإجمالي</th>
-              <th className="px-2 py-2 text-right">إجراء</th>
+              <th className="px-2 py-2 text-right">{t('allInvoices.colType')}</th>
+              <th className="px-2 py-2 text-right">{t('allInvoices.colInvoiceNo')}</th>
+              <th className="px-2 py-2 text-right">{t('allInvoices.colDate')}</th>
+              <th className="px-2 py-2 text-right">{t('allInvoices.colParty')}</th>
+              <th className="px-2 py-2 text-right">{t('allInvoices.colTotal')}</th>
+              <th className="px-2 py-2 text-right">{t('allInvoices.colAction')}</th>
             </tr>
           </thead>
           <tbody>
             {allInvoicesLoading ? (
               <tr>
-                <td colSpan={6} className="px-2 py-6 text-center text-slate-400">جاري تحميل الفواتير...</td>
+                <td colSpan={6} className="px-2 py-6 text-center text-slate-400">{t('allInvoices.loading')}</td>
               </tr>
             ) : filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-2 py-6 text-center text-slate-400">لا توجد نتائج مطابقة.</td>
+                <td colSpan={6} className="px-2 py-6 text-center text-slate-400">{t('allInvoices.noResults')}</td>
               </tr>
             ) : (
               filteredInvoices.map((row) => (
                 <tr key={row.id} className="border-b border-slate-100">
                   <td className="px-2 py-2">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${row.invoiceType === 'sale' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
-                      {row.invoiceType === 'sale' ? 'بيع' : 'شراء'}
+                      {row.invoiceType === 'sale' ? t('allInvoices.typeSale') : t('allInvoices.typePurchase')}
                     </span>
                   </td>
                   <td className="px-2 py-2 font-mono">{row.invoiceNo || '—'}</td>
@@ -703,7 +705,7 @@ export const InvoiceStatement = () => {
                       onClick={() => navigate(`/invoices/statement/${row.id}`)}
                       className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-bold"
                     >
-                      عرض الكشف
+                      {t('allInvoices.viewStatement')}
                     </button>
                   </td>
                 </tr>
@@ -720,15 +722,15 @@ export const InvoiceStatement = () => {
             dir="rtl"
           >
             <div className="flex flex-wrap items-center gap-2 text-sm text-slate-800">
-              <span className="font-bold text-slate-600">إجراءات الفاتورة</span>
+              <span className="font-bold text-slate-600">{t('statusBar.actionsLabel')}</span>
               {documentStatus === 'DRAFT' ? (
-                <span className="text-xs text-amber-900 bg-amber-100 px-2 py-0.5 rounded font-bold">مسودة — يمكن التعديل أو التأكيد</span>
+                <span className="text-xs text-amber-900 bg-amber-100 px-2 py-0.5 rounded font-bold">{t('statusBar.draftBadge')}</span>
               ) : null}
               {documentStatus === 'CONFIRMED' ? (
-                <span className="text-xs text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded font-bold">مؤكدة</span>
+                <span className="text-xs text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded font-bold">{t('statusBar.confirmedBadge')}</span>
               ) : null}
               {documentStatus === 'VOIDED' ? (
-                <span className="text-xs text-slate-700 bg-slate-200 px-2 py-0.5 rounded font-bold">ملغاة — عرض فقط</span>
+                <span className="text-xs text-slate-700 bg-slate-200 px-2 py-0.5 rounded font-bold">{t('statusBar.voidedBadge')}</span>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2 justify-end">
@@ -737,7 +739,7 @@ export const InvoiceStatement = () => {
                   to={draftEditPath}
                   className="text-amber-900 font-bold bg-amber-100 px-3 py-2 rounded-lg hover:bg-amber-200 transition text-sm"
                 >
-                  {documentStatus === 'DRAFT' ? 'تعديل المسودة' : 'تعديل الفاتورة'}
+                  {documentStatus === 'DRAFT' ? t('statusBar.editDraft') : t('statusBar.editInvoice')}
                 </Link>
               ) : null}
               {documentStatus === 'DRAFT' && Number(invoice.paidAmount ?? 0) > 1e-4 ? (
@@ -746,7 +748,7 @@ export const InvoiceStatement = () => {
                   onChange={(e) => setConfirmCashboxId(e.target.value)}
                   className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500"
                 >
-                  <option value="">-- اختر الصندوق --</option>
+                  <option value="">{t('statusBar.chooseCashboxOption')}</option>
                   {cashboxOptions.map((box) => (
                     <option key={box.id} value={box.id}>
                       {box.name} ({box.code})
@@ -762,7 +764,7 @@ export const InvoiceStatement = () => {
                     onClick={() => void handleStatementConfirmDraft()}
                     className="text-white font-bold bg-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-700 transition text-sm disabled:opacity-50"
                   >
-                    تأكيد الفاتورة
+                    {t('statusBar.confirmInvoice')}
                   </button>
                   <button
                     type="button"
@@ -770,7 +772,7 @@ export const InvoiceStatement = () => {
                     onClick={() => void handleStatementDeleteDraft()}
                     className="text-rose-900 font-bold bg-rose-100 px-3 py-2 rounded-lg hover:bg-rose-200 transition text-sm disabled:opacity-50"
                   >
-                    حذف المسودة
+                    {t('statusBar.deleteDraft')}
                   </button>
                 </>
               ) : null}
@@ -781,7 +783,7 @@ export const InvoiceStatement = () => {
                   onClick={() => void handleStatementVoid()}
                   className="text-slate-900 font-bold bg-slate-200 px-3 py-2 rounded-lg hover:bg-slate-300 transition text-sm disabled:opacity-50"
                 >
-                  إلغاء الفاتورة
+                  {t('statusBar.voidInvoice')}
                 </button>
               ) : null}
             </div>
@@ -809,14 +811,14 @@ export const InvoiceStatement = () => {
               <InfoBox label={AR_INVOICE_STATEMENT.date} value={invoice.date} />
               <InfoBox label={AR_INVOICE_STATEMENT.currency} value={currency} />
               <InfoBox label={AR_INVOICE_STATEMENT.warehouse} value={invoice.warehouse || '-'} />
-              <InfoBox label="حالة المستند" value={arDocumentStatus(documentStatus)} />
+              <InfoBox label={t('info.documentStatus')} value={arDocumentStatus(documentStatus)} />
               {!hideFinancialColumns && (
                 <>
                   <InfoBox
-                    label="سعر الصرف مقابل الدولار"
+                    label={t('info.exchangeRateToUsd')}
                     value={currency === 'USD' ? '1' : exchangeRateToUsd > 0 ? formatRate(exchangeRateToUsd) : '—'}
                   />
-                  <InfoBox label="حالة الدفع" value={arInvoicePaymentStatusCode(paymentCode)} />
+                  <InfoBox label={t('info.paymentStatus')} value={arInvoicePaymentStatusCode(paymentCode)} />
                   <InfoBox label={AR_INVOICE_STATEMENT.saleTerms} value={arSaleTermsFromInvoice(invoice)} />
                 </>
               )}
@@ -849,7 +851,7 @@ export const InvoiceStatement = () => {
                   <React.Fragment key={`${group.materialName}-${group.designCode}-${group.pricePerMeter}`}>
                     <tr className="bg-slate-100">
                       <td colSpan={hideFinancialColumns ? 8 : 10} className="p-2 border border-slate-300 font-black">
-                        {group.materialName} | {group.designCode} | {group.colorCount} ألوان
+                        {group.materialName} | {group.designCode} | {t('groupHeader.colorsCount', { count: group.colorCount })}
                       </td>
                     </tr>
                     {rows.map((item, index) => (
@@ -870,7 +872,7 @@ export const InvoiceStatement = () => {
                       <td colSpan={hideFinancialColumns ? 5 : 6} className="p-2 border border-indigo-100 text-right">{AR_INVOICE_STATEMENT.subtotalRow}</td>
                       <td className="p-2 border border-indigo-100 text-right font-mono">{formatNumber(group.totalMeters)}</td>
                       <td className="p-2 border border-indigo-100 text-right font-mono">{formatNumber(group.totalKg)}</td>
-                      <td className="p-2 border border-indigo-100 text-right font-mono">{group.rollCount} توب</td>
+                      <td className="p-2 border border-indigo-100 text-right font-mono">{t('groupHeader.rollsCount', { count: group.rollCount })}</td>
                       {!hideFinancialColumns && <td className="p-2 border border-indigo-100 text-right font-mono">{formatMoney(group.totalAmount, currency)}</td>}
                     </tr>
                   </React.Fragment>
@@ -890,14 +892,14 @@ export const InvoiceStatement = () => {
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700">
-                    <th className="p-2 border border-slate-200">الخامة / القماش</th>
-                    <th className="p-2 border border-slate-200">كود التصميم</th>
-                    <th className="p-2 border border-slate-200 text-right">عدد الألوان</th>
-                    <th className="p-2 border border-slate-200 text-right">عدد الأتواب</th>
-                    <th className="p-2 border border-slate-200 text-right">إجمالي الأمتار</th>
-                    {!hideFinancialColumns && <th className="p-2 border border-slate-200 text-right">سعر المتر</th>}
-                    {!hideFinancialColumns && <th className="p-2 border border-slate-200 text-right">الإجمالي {currency}</th>}
-                    <th className="p-2 border border-slate-200 text-right">إجمالي الوزن</th>
+                    <th className="p-2 border border-slate-200">{t('packingSummary.colMaterial')}</th>
+                    <th className="p-2 border border-slate-200">{t('packingSummary.colDesignCode')}</th>
+                    <th className="p-2 border border-slate-200 text-right">{t('packingSummary.colColorsCount')}</th>
+                    <th className="p-2 border border-slate-200 text-right">{t('packingSummary.colRollsCount')}</th>
+                    <th className="p-2 border border-slate-200 text-right">{t('packingSummary.colTotalMeters')}</th>
+                    {!hideFinancialColumns && <th className="p-2 border border-slate-200 text-right">{t('packingSummary.colPricePerMeter')}</th>}
+                    {!hideFinancialColumns && <th className="p-2 border border-slate-200 text-right">{t('packingSummary.colTotal', { currency })}</th>}
+                    <th className="p-2 border border-slate-200 text-right">{t('packingSummary.colTotalWeight')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -917,7 +919,7 @@ export const InvoiceStatement = () => {
                     <td className="p-2 border border-slate-700" colSpan={3}>{AR_INVOICE_STATEMENT.grandTotals}</td>
                     <td className="p-2 border border-slate-700 text-right">{summary.totals.rollCount}</td>
                     <td className="p-2 border border-slate-700 text-right font-mono">{formatNumber(summary.totals.totalMeters)}</td>
-                    {!hideFinancialColumns && <td className="p-2 border border-slate-700 text-right">{summary.totals.groupCount} مجموعات</td>}
+                    {!hideFinancialColumns && <td className="p-2 border border-slate-700 text-right">{t('packingSummary.groupsCount', { count: summary.totals.groupCount })}</td>}
                     {!hideFinancialColumns && (
                       <td className="p-2 border border-slate-700 text-right font-mono">
                         {formatMoney(financialTotals?.subtotal ?? summary.totals.totalAmount, currency)}
@@ -931,28 +933,28 @@ export const InvoiceStatement = () => {
 
             {!hideFinancialColumns && financialTotals && (
               <section className="rounded-lg border border-slate-200 bg-white p-4" dir="rtl">
-                <h3 className="text-lg font-black text-slate-950 mb-3">ملخص المبالغ</h3>
+                <h3 className="text-lg font-black text-slate-950 mb-3">{t('amountsSummary.title')}</h3>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm max-w-xl">
                   {financialTotals.discount > 0 && (
                     <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                      <dt className="text-slate-600">المجموع (قبل الخصم)</dt>
+                      <dt className="text-slate-600">{t('amountsSummary.subtotalBeforeDiscount')}</dt>
                       <dd className="font-mono font-bold">{formatMoney(financialTotals.subtotal, currency)}</dd>
                     </div>
                   )}
                   {financialTotals.discount > 0 && (
                     <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                      <dt className="text-slate-600">الخصم</dt>
+                      <dt className="text-slate-600">{t('amountsSummary.discount')}</dt>
                       <dd className="font-mono font-bold text-rose-700">−{formatMoney(financialTotals.discount, currency)}</dd>
                     </div>
                   )}
                   {financialTotals.tax > 0 && (
                     <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                      <dt className="text-slate-600">الضريبة</dt>
+                      <dt className="text-slate-600">{t('amountsSummary.tax')}</dt>
                       <dd className="font-mono font-bold">{formatMoney(financialTotals.tax, currency)}</dd>
                     </div>
                   )}
                   <div className="flex justify-between gap-4 border-b border-slate-200 pb-2">
-                    <dt className="font-black text-slate-900">الإجمالي النهائي</dt>
+                    <dt className="font-black text-slate-900">{t('amountsSummary.finalTotal')}</dt>
                     <dd className="font-mono font-black text-slate-900">{formatMoney(financialTotals.total, currency)}</dd>
                   </div>
                 </dl>
@@ -961,36 +963,36 @@ export const InvoiceStatement = () => {
 
             {!hideFinancialColumns && (
               <section className="rounded-lg border border-slate-200 bg-slate-50 p-4" dir="rtl">
-                <h3 className="text-lg font-black text-slate-950 mb-3">التسوية المالية</h3>
+                <h3 className="text-lg font-black text-slate-950 mb-3">{t('settlement.title')}</h3>
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                   <div>
-                    <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">إجمالي الفاتورة</dt>
+                    <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('settlement.invoiceTotal')}</dt>
                     <dd className="mt-1 font-mono font-black text-slate-900">{formatMoney(invoice.totalAmount, currency)}</dd>
                   </div>
                   <div>
-                    <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">المدفوع</dt>
+                    <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('settlement.paid')}</dt>
                     <dd className="mt-1 font-mono font-black text-emerald-800">{formatMoney(invoice.paidAmount ?? 0, currency)}</dd>
                   </div>
                   <div>
-                    <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">المتبقي</dt>
+                    <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('settlement.remaining')}</dt>
                     <dd className="mt-1 font-mono font-black text-amber-900">{formatMoney(invoice.remainingAmount ?? 0, currency)}</dd>
                   </div>
                   {currency !== 'USD' && (
                     <>
                       <div>
-                        <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">إجمالي الفاتورة بالدولار</dt>
+                        <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('settlement.invoiceTotalUsd')}</dt>
                         <dd className="mt-1 font-mono font-black text-slate-900">
                           {totalAmountUsd != null ? formatMoney(totalAmountUsd, 'USD') : '—'}
                         </dd>
                       </div>
                       <div>
-                        <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">المدفوع بالدولار</dt>
+                        <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('settlement.paidUsd')}</dt>
                         <dd className="mt-1 font-mono font-black text-emerald-800">
                           {paidAmountUsd != null ? formatMoney(paidAmountUsd, 'USD') : '—'}
                         </dd>
                       </div>
                       <div>
-                        <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">المتبقي بالدولار</dt>
+                        <dt className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{t('settlement.remainingUsd')}</dt>
                         <dd className="mt-1 font-mono font-black text-amber-900">
                           {remainingAmountUsd != null ? formatMoney(remainingAmountUsd, 'USD') : '—'}
                         </dd>
@@ -1012,8 +1014,8 @@ export const InvoiceStatement = () => {
       ) : (
         <div className="bg-white p-12 text-center rounded-xl border border-slate-200">
           <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-slate-700 mb-2">يرجى اختيار فاتورة</h3>
-          <p className="text-slate-500">قم بإدخال رقم الفاتورة أو اختيارها من القائمة للبدء.</p>
+          <h3 className="text-xl font-bold text-slate-700 mb-2">{t('emptyState.title')}</h3>
+          <p className="text-slate-500">{t('emptyState.subtitle')}</p>
         </div>
       )}
     </div>
