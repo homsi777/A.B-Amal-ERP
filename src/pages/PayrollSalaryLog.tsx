@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { ar, tr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import { ArrowRight, Briefcase, Filter, Loader2, Search } from 'lucide-react';
 import { listPayrollSalaryLog, type PayrollSalaryLogRow } from '../lib/api/payrollApi';
 import { ApiRequestError } from '../lib/api/client';
@@ -10,11 +11,11 @@ function money(value: string | number, currency = 'USD'): string {
   return `${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }
 
-function paymentTypeLabel(type: PayrollSalaryLogRow['payment_type']): string {
-  return type === 'ADVANCE' ? 'سلفة' : 'راتب';
-}
-
 export const PayrollSalaryLog = () => {
+  const { t, i18n } = useTranslation('payrollSalaryLog');
+  const dateLocale = i18n.language === 'ar' ? ar : tr;
+  const paymentTypeLabel = (type: PayrollSalaryLogRow['payment_type']): string =>
+    type === 'ADVANCE' ? t('paymentType.advance') : t('paymentType.salary');
   const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<PayrollSalaryLogRow[]>([]);
   const [totalsByCurrency, setTotalsByCurrency] = useState<Record<string, number>>({});
@@ -43,7 +44,7 @@ export const PayrollSalaryLog = () => {
       setTotal(res.total);
       setTotalsByCurrency(res.totalsByCurrency ?? {});
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل سجل الرواتب');
+      setError(e instanceof ApiRequestError ? e.message : t('loadError'));
     } finally {
       setLoading(false);
     }
@@ -62,11 +63,11 @@ export const PayrollSalaryLog = () => {
             className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-2"
           >
             <ArrowRight className="w-4 h-4" />
-            العودة إلى الموظفون والتسليم
+            {t('backToEmployees')}
           </Link>
-          <h2 className="text-2xl font-bold text-slate-900">سجل الرواتب</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
           <p className="text-slate-500 mt-1">
-            كل تسليمات الرواتب والسلف المدفوعة — حسب التاريخ أو اسم الموظف مع إجمالي المبالغ.
+            {t('pageSubtitle')}
           </p>
         </div>
         <Link
@@ -74,7 +75,7 @@ export const PayrollSalaryLog = () => {
           className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
         >
           <Briefcase className="w-4 h-4" />
-          الموظفون والتسليم
+          {t('employeesAndDelivery')}
         </Link>
       </div>
 
@@ -86,9 +87,9 @@ export const PayrollSalaryLog = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {Object.entries(totalsByCurrency).map(([currency, sum]) => (
             <div key={currency} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs text-slate-500 font-bold">إجمالي المدفوع ({currency})</p>
+              <p className="text-xs text-slate-500 font-bold">{t('totalPaidLabel', { currency })}</p>
               <p className="mt-1 text-xl font-black text-emerald-700">{money(sum, currency)}</p>
-              <p className="text-xs text-slate-400 mt-1">{total} عملية في السجل</p>
+              <p className="text-xs text-slate-400 mt-1">{t('operationsInLog', { count: total })}</p>
             </div>
           ))}
         </div>
@@ -102,12 +103,12 @@ export const PayrollSalaryLog = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث باسم الموظف أو الرمز..."
+              placeholder={t('searchPlaceholder')}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">من تاريخ</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('dateFromLabel')}</label>
             <input
               type="date"
               value={dateFrom}
@@ -116,7 +117,7 @@ export const PayrollSalaryLog = () => {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">إلى تاريخ</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('dateToLabel')}</label>
             <input
               type="date"
               value={dateTo}
@@ -125,26 +126,26 @@ export const PayrollSalaryLog = () => {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">نوع الدفعة</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('paymentTypeLabel')}</label>
             <select
               value={paymentType}
               onChange={(e) => setPaymentType(e.target.value as 'ALL' | 'SALARY' | 'ADVANCE')}
               className="px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm"
             >
-              <option value="ALL">الكل (رواتب + سلف)</option>
-              <option value="SALARY">رواتب فقط</option>
-              <option value="ADVANCE">سلف فقط</option>
+              <option value="ALL">{t('paymentTypeOptions.all')}</option>
+              <option value="SALARY">{t('paymentTypeOptions.salaryOnly')}</option>
+              <option value="ADVANCE">{t('paymentTypeOptions.advanceOnly')}</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">ترتيب</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('sortLabel')}</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'date' | 'name')}
               className="px-3 py-2 border border-slate-200 rounded-lg bg-white text-sm"
             >
-              <option value="date">التاريخ (الأحدث أولاً)</option>
-              <option value="name">اسم الموظف</option>
+              <option value="date">{t('sortOptions.date')}</option>
+              <option value="name">{t('sortOptions.name')}</option>
             </select>
           </div>
           <button
@@ -153,7 +154,7 @@ export const PayrollSalaryLog = () => {
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm"
           >
             <Filter className="w-4 h-4" />
-            تطبيق
+            {t('applyButton')}
           </button>
         </div>
 
@@ -161,14 +162,14 @@ export const PayrollSalaryLog = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-5 py-4">اسم الموظف</th>
-                <th className="px-5 py-4">النوع</th>
-                <th className="px-5 py-4">تاريخ الدفع</th>
-                <th className="px-5 py-4">الفترة</th>
-                <th className="px-5 py-4">رقم المستند</th>
-                <th className="px-5 py-4">المبلغ</th>
-                <th className="px-5 py-4">الصندوق</th>
-                <th className="px-5 py-4">البيان</th>
+                <th className="px-5 py-4">{t('table.employeeName')}</th>
+                <th className="px-5 py-4">{t('table.type')}</th>
+                <th className="px-5 py-4">{t('table.paymentDate')}</th>
+                <th className="px-5 py-4">{t('table.period')}</th>
+                <th className="px-5 py-4">{t('table.documentNo')}</th>
+                <th className="px-5 py-4">{t('table.amount')}</th>
+                <th className="px-5 py-4">{t('table.cashbox')}</th>
+                <th className="px-5 py-4">{t('table.notes')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -176,13 +177,13 @@ export const PayrollSalaryLog = () => {
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                     <Loader2 className="w-6 h-6 animate-spin inline ml-2" />
-                    جاري التحميل...
+                    {t('loading')}
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
-                    لا توجد دفعات (رواتب أو سلف) في السجل.
+                    {t('noPaymentsInLog')}
                   </td>
                 </tr>
               ) : (
@@ -204,7 +205,7 @@ export const PayrollSalaryLog = () => {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-slate-700 whitespace-nowrap">
-                      {format(new Date(row.payment_date), 'PP', { locale: ar })}
+                      {format(new Date(row.payment_date), 'PP', { locale: dateLocale })}
                     </td>
                     <td className="px-5 py-4 text-slate-600 whitespace-nowrap">
                       {row.period_month}/{row.period_year}
@@ -227,7 +228,7 @@ export const PayrollSalaryLog = () => {
               <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200">
                 <tr>
                   <td colSpan={5} className="px-5 py-4 text-slate-700">
-                    الإجمالي ({total} سجل)
+                    {t('totalRecords', { count: total })}
                   </td>
                   <td colSpan={3} className="px-5 py-4">
                     {Object.entries(totalsByCurrency).map(([currency, sum]) => (

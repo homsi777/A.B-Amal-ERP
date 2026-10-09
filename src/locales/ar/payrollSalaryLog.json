@@ -1,0 +1,41 @@
+{
+  "backToEmployees": "العودة إلى الموظفون والتسليم",
+  "pageTitle": "سجل الرواتب",
+  "pageSubtitle": "كل تسليمات الرواتب والسلف المدفوعة — حسب التاريخ أو اسم الموظف مع إجمالي المبالغ.",
+  "employeesAndDelivery": "الموظفون والتسليم",
+  "loadError": "تعذر تحميل سجل الرواتب",
+  "totalPaidLabel": "إجمالي المدفوع ({{currency}})",
+  "operationsInLog": "{{count}} عملية في السجل",
+  "searchPlaceholder": "بحث باسم الموظف أو الرمز...",
+  "dateFromLabel": "من تاريخ",
+  "dateToLabel": "إلى تاريخ",
+  "paymentTypeLabel": "نوع الدفعة",
+  "paymentTypeOptions": {
+    "all": "الكل (رواتب + سلف)",
+    "salaryOnly": "رواتب فقط",
+    "advanceOnly": "سلف فقط"
+  },
+  "sortLabel": "ترتيب",
+  "sortOptions": {
+    "date": "التاريخ (الأحدث أولاً)",
+    "name": "اسم الموظف"
+  },
+  "applyButton": "تطبيق",
+  "table": {
+    "employeeName": "اسم الموظف",
+    "type": "النوع",
+    "paymentDate": "تاريخ الدفع",
+    "period": "الفترة",
+    "documentNo": "رقم المستند",
+    "amount": "المبلغ",
+    "cashbox": "الصندوق",
+    "notes": "البيان"
+  },
+  "loading": "جاري التحميل...",
+  "noPaymentsInLog": "لا توجد دفعات (رواتب أو سلف) في السجل.",
+  "totalRecords": "الإجمالي ({{count}} سجل)",
+  "paymentType": {
+    "advance": "سلفة",
+    "salary": "راتب"
+  }
+}

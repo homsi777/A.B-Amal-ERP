@@ -1,0 +1,41 @@
+{
+  "backToEmployees": "Çalışanlar ve Teslimata Dön",
+  "pageTitle": "Maaş Kayıt Defteri",
+  "pageSubtitle": "Ödenen tüm maaş ve avans teslimatları — tarihe veya çalışan adına göre, toplam tutarlarla birlikte.",
+  "employeesAndDelivery": "Çalışanlar ve Teslimat",
+  "loadError": "Maaş kaydı yüklenemedi",
+  "totalPaidLabel": "Toplam Ödenen ({{currency}})",
+  "operationsInLog": "Kayıtta {{count}} işlem",
+  "searchPlaceholder": "Çalışan adı veya koduna göre ara...",
+  "dateFromLabel": "Başlangıç tarihi",
+  "dateToLabel": "Bitiş tarihi",
+  "paymentTypeLabel": "Ödeme Türü",
+  "paymentTypeOptions": {
+    "all": "Tümü (maaş + avans)",
+    "salaryOnly": "Sadece maaşlar",
+    "advanceOnly": "Sadece avanslar"
+  },
+  "sortLabel": "Sıralama",
+  "sortOptions": {
+    "date": "Tarih (önce en yeni)",
+    "name": "Çalışan adı"
+  },
+  "applyButton": "Uygula",
+  "table": {
+    "employeeName": "Çalışan Adı",
+    "type": "Tür",
+    "paymentDate": "Ödeme Tarihi",
+    "period": "Dönem",
+    "documentNo": "Belge No",
+    "amount": "Tutar",
+    "cashbox": "Kasa",
+    "notes": "Açıklama"
+  },
+  "loading": "Yükleniyor...",
+  "noPaymentsInLog": "Kayıtta hiç ödeme (maaş veya avans) yok.",
+  "totalRecords": "Toplam ({{count}} kayıt)",
+  "paymentType": {
+    "advance": "Avans",
+    "salary": "Maaş"
+  }
+}
