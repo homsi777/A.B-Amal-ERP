@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   fetchUnifiedReport,
   getCashboxSummary,
@@ -35,84 +36,82 @@ type TabId = 'executive' | 'financial' | 'sales' | 'purchases' | 'inventory' | '
 
 interface ReportCardDef {
   id: string;
-  title: string;
-  desc: string;
   /** Path after /api/reports */
   path: string;
   tab: TabId;
 }
 
 const ALL_REPORT_CARDS: ReportCardDef[] = [
-  { id: 'executive_summary', title: 'التقرير التنفيذي الموحّد', desc: 'جدول مؤشرات من PostgreSQL', path: '/executive/summary-report', tab: 'executive' },
+  { id: 'executive_summary', path: '/executive/summary-report', tab: 'executive' },
 
-  { id: 'financial_cashboxes', title: 'أرصدة الصناديق', desc: 'أرصدة حسب العملة', path: '/financial/cashboxes', tab: 'financial' },
-  { id: 'financial_cb_mov', title: 'حركة الصندوق', desc: 'حركات نقدية', path: '/financial/cashbox-movements', tab: 'financial' },
-  { id: 'financial_vouchers', title: 'سجل السندات', desc: 'قبض وصرف', path: '/financial/vouchers', tab: 'financial' },
-  { id: 'fin_rec_pay', title: 'ملخص المقبوضات والمدفوعات', desc: 'سندات مفصّلة', path: '/financial/receipts-payments', tab: 'financial' },
-  { id: 'fin_acct_act', title: 'تقرير حركة الحساب المخصص', desc: 'دفتر تشغيلي مع فلاتر', path: '/financial/account-activity', tab: 'financial' },
-  { id: 'payroll_summary', title: 'ملخص الرواتب (بطاقات)', desc: 'مسيرات وصافي', path: '/payroll/summary', tab: 'financial' },
-  { id: 'pay_emp', title: 'قائمة الموظفين', desc: 'بيانات الموظفين', path: '/payroll/employees', tab: 'financial' },
-  { id: 'pay_runs', title: 'مسيرات الرواتب', desc: 'سجل المسيرات', path: '/payroll/runs-list', tab: 'financial' },
-  { id: 'pay_month', title: 'ملخص رواتب شهري', desc: 'تجميع شهري', path: '/payroll/monthly-summary', tab: 'financial' },
-  { id: 'gl', title: 'دفتر الأستاذ (تشغيلي)', desc: 'سندات + صناديق + مرتجعات + رواتب + أنشطة', path: '/financial/operational-ledger', tab: 'financial' },
-  { id: 'tb', title: 'ميزان مراجعة (تشغيلي)', desc: 'تجميع صناديق وسندات', path: '/financial/operational-balance-summary', tab: 'financial' },
-  { id: 'pl', title: 'قائمة دخل/مصروف (تشغيلي)', desc: 'من السندات والمرتجعات والرواتب', path: '/financial/operational-income-expense', tab: 'financial' },
-  { id: 'bs', title: 'مركز مالي (تشغيلي)', desc: 'نقد ومخزون ومسودات', path: '/financial/operational-position', tab: 'financial' },
-  { id: 'cf', title: 'التدفقات النقدية (تشغيلي)', desc: 'من حركات الصناديق', path: '/financial/cash-flow', tab: 'financial' },
-  { id: 'fx', title: 'تعرّض العملات', desc: 'أرصدة وسندات لكل عملة', path: '/financial/currency-differences', tab: 'financial' },
+  { id: 'financial_cashboxes', path: '/financial/cashboxes', tab: 'financial' },
+  { id: 'financial_cb_mov', path: '/financial/cashbox-movements', tab: 'financial' },
+  { id: 'financial_vouchers', path: '/financial/vouchers', tab: 'financial' },
+  { id: 'fin_rec_pay', path: '/financial/receipts-payments', tab: 'financial' },
+  { id: 'fin_acct_act', path: '/financial/account-activity', tab: 'financial' },
+  { id: 'payroll_summary', path: '/payroll/summary', tab: 'financial' },
+  { id: 'pay_emp', path: '/payroll/employees', tab: 'financial' },
+  { id: 'pay_runs', path: '/payroll/runs-list', tab: 'financial' },
+  { id: 'pay_month', path: '/payroll/monthly-summary', tab: 'financial' },
+  { id: 'gl', path: '/financial/operational-ledger', tab: 'financial' },
+  { id: 'tb', path: '/financial/operational-balance-summary', tab: 'financial' },
+  { id: 'pl', path: '/financial/operational-income-expense', tab: 'financial' },
+  { id: 'bs', path: '/financial/operational-position', tab: 'financial' },
+  { id: 'cf', path: '/financial/cash-flow', tab: 'financial' },
+  { id: 'fx', path: '/financial/currency-differences', tab: 'financial' },
 
-  { id: 'sa1', title: 'ملخص المبيعات', desc: 'سندات ومرتجعات ونشاط', path: '/sales/summary', tab: 'sales' },
-  { id: 'sa2', title: 'المبيعات التفصيلية', desc: 'نشاط العملاء', path: '/sales/details', tab: 'sales' },
-  { id: 'sa_item', title: 'المبيعات حسب الصنف', desc: 'هيكل جاهز لربط فواتير البيع', path: '/sales/by-item', tab: 'sales' },
-  { id: 'sa_cust', title: 'المبيعات حسب العميل', desc: 'تجميع نشاط عملاء', path: '/sales/by-customer', tab: 'sales' },
-  { id: 'sa_agent', title: 'المبيعات حسب المندوب', desc: '', path: '/sales/by-agent', tab: 'sales' },
-  { id: 'sa_color', title: 'المبيعات حسب اللون', desc: '', path: '/sales/by-color', tab: 'sales' },
-  { id: 'sa_margins', title: 'تحليل هوامش الربح', desc: 'يتطلب تكلفة وبيع', path: '/sales/margins', tab: 'sales' },
+  { id: 'sa1', path: '/sales/summary', tab: 'sales' },
+  { id: 'sa2', path: '/sales/details', tab: 'sales' },
+  { id: 'sa_item', path: '/sales/by-item', tab: 'sales' },
+  { id: 'sa_cust', path: '/sales/by-customer', tab: 'sales' },
+  { id: 'sa_agent', path: '/sales/by-agent', tab: 'sales' },
+  { id: 'sa_color', path: '/sales/by-color', tab: 'sales' },
+  { id: 'sa_margins', path: '/sales/margins', tab: 'sales' },
 
-  { id: 'purchases_batches', title: 'سجل دفعات استيراد Excel', desc: 'ملفات وحالة الدفعة', path: '/purchases/import-batches', tab: 'purchases' },
-  { id: 'purchases_rows', title: 'صفوف دفعة الاستيراد', desc: 'أدخل UUID الدفعة في الفلاتر', path: '/purchases/import-rows', tab: 'purchases' },
-  { id: 'pur_sum', title: 'ملخص المشتريات', desc: 'استيراد وأدواب', path: '/purchases/summary', tab: 'purchases' },
-  { id: 'pur_det', title: 'المشتريات التفصيلية', desc: 'أدواب في المخزون', path: '/purchases/details', tab: 'purchases' },
-  { id: 'pur_sup', title: 'المشتريات حسب المورد', desc: '', path: '/purchases/by-supplier', tab: 'purchases' },
-  { id: 'pur_item', title: 'المشتريات حسب الصنف', desc: '', path: '/purchases/by-item', tab: 'purchases' },
-  { id: 'pur_batch', title: 'المشتريات حسب الدفعة/اللوط', desc: '', path: '/purchases/by-batch', tab: 'purchases' },
-  { id: 'pur_cost', title: 'اتجاه التكلفة', desc: 'متوسط تكلفة وحدة', path: '/purchases/cost-trend', tab: 'purchases' },
+  { id: 'purchases_batches', path: '/purchases/import-batches', tab: 'purchases' },
+  { id: 'purchases_rows', path: '/purchases/import-rows', tab: 'purchases' },
+  { id: 'pur_sum', path: '/purchases/summary', tab: 'purchases' },
+  { id: 'pur_det', path: '/purchases/details', tab: 'purchases' },
+  { id: 'pur_sup', path: '/purchases/by-supplier', tab: 'purchases' },
+  { id: 'pur_item', path: '/purchases/by-item', tab: 'purchases' },
+  { id: 'pur_batch', path: '/purchases/by-batch', tab: 'purchases' },
+  { id: 'pur_cost', path: '/purchases/cost-trend', tab: 'purchases' },
 
-  { id: 'inventory_rolls', title: 'كشف أتواب المخزون', desc: 'المخزون التشغيلي — يستبعد المباع والتالف والصفرية؛ استخدم فلتر الحالة عند الحاجة.', path: '/inventory/rolls', tab: 'inventory' },
-  { id: 'inventory_stock_audit_page', title: 'جرد مخزون المخزون', desc: 'التصميم التشغيلي السابق (صفحة كاملة)', path: '/inventory', tab: 'inventory' },
-  { id: 'inventory_movements', title: 'حركة الأتواب', desc: '', path: '/inventory/movements', tab: 'inventory' },
-  { id: 'inventory_by_wh', title: 'الأدواب حسب المستودع', desc: '', path: '/inventory/by-warehouse', tab: 'inventory' },
-  { id: 'inventory_item_color', title: 'الأدواب حسب الخامة واللون', desc: '', path: '/inventory/by-item-color', tab: 'inventory' },
-  { id: 'inv_balance', title: 'أرصدة المخزون', desc: 'تجميع تشغيلي', path: '/inventory/balances', tab: 'inventory' },
-  { id: 'inv_move_old', title: 'تقييم المخزون', desc: 'طول × تكلفة وحدة', path: '/inventory/valuation', tab: 'inventory' },
-  { id: 'inv_by_color', title: 'المخزون حسب اللون', desc: '', path: '/inventory/by-color', tab: 'inventory' },
-  { id: 'inv_aging', title: 'أعمار المخزون', desc: '_buckets زمنية', path: '/inventory/aging', tab: 'inventory' },
-  { id: 'inv_slow', title: 'أصناف بطيئة الحركة', desc: 'بدون حركة مخزون طويلة', path: '/inventory/slow-moving', tab: 'inventory' },
-  { id: 'inv_negative', title: 'شذوذ سالب (طول/وزن)', desc: '', path: '/inventory/negative-stock', tab: 'inventory' },
-  { id: 'tx1', title: 'المخزون على مستوى الطاقة', desc: 'تفاصيل ثوب', path: '/inventory/roll-level', tab: 'inventory' },
-  { id: 'inv_batch_tr', title: 'تتبع الدفعات', desc: 'دفعات استيراد', path: '/inventory/batch-tracking', tab: 'inventory' },
-  { id: 'inv_fabric_types', title: 'أنواع الأقمشة', desc: 'حسب فئة الكatalog', path: '/inventory/fabric-types', tab: 'inventory' },
-  { id: 'inv_waste', title: 'ملخص سجلات التوالف', desc: 'سجلات WST المؤكدة مجمّعة', path: '/inventory/waste-analysis', tab: 'inventory' },
-  { id: 'inv_damaged', title: 'كشف الهالك (أثواب تالفة)', desc: 'إهلاك كامل — خارج المخزون والجرد التشغيلي', path: '/inventory/damaged-stock', tab: 'inventory' },
-  { id: 'inv_cut', title: 'كفاءة القص', desc: '', path: '/inventory/cutting-efficiency', tab: 'inventory' },
-  { id: 'inv_rem_len', title: 'الأطوال المتبقية', desc: 'ثوب غير مباع', path: '/inventory/remaining-lengths', tab: 'inventory' },
+  { id: 'inventory_rolls', path: '/inventory/rolls', tab: 'inventory' },
+  { id: 'inventory_stock_audit_page', path: '/inventory', tab: 'inventory' },
+  { id: 'inventory_movements', path: '/inventory/movements', tab: 'inventory' },
+  { id: 'inventory_by_wh', path: '/inventory/by-warehouse', tab: 'inventory' },
+  { id: 'inventory_item_color', path: '/inventory/by-item-color', tab: 'inventory' },
+  { id: 'inv_balance', path: '/inventory/balances', tab: 'inventory' },
+  { id: 'inv_move_old', path: '/inventory/valuation', tab: 'inventory' },
+  { id: 'inv_by_color', path: '/inventory/by-color', tab: 'inventory' },
+  { id: 'inv_aging', path: '/inventory/aging', tab: 'inventory' },
+  { id: 'inv_slow', path: '/inventory/slow-moving', tab: 'inventory' },
+  { id: 'inv_negative', path: '/inventory/negative-stock', tab: 'inventory' },
+  { id: 'tx1', path: '/inventory/roll-level', tab: 'inventory' },
+  { id: 'inv_batch_tr', path: '/inventory/batch-tracking', tab: 'inventory' },
+  { id: 'inv_fabric_types', path: '/inventory/fabric-types', tab: 'inventory' },
+  { id: 'inv_waste', path: '/inventory/waste-analysis', tab: 'inventory' },
+  { id: 'inv_damaged', path: '/inventory/damaged-stock', tab: 'inventory' },
+  { id: 'inv_cut', path: '/inventory/cutting-efficiency', tab: 'inventory' },
+  { id: 'inv_rem_len', path: '/inventory/remaining-lengths', tab: 'inventory' },
 
-  { id: 'parties_activity', title: 'نشاط العملاء والموردين', desc: 'سجل الأنشطة', path: '/parties/activity', tab: 'customers' },
-  { id: 'cust_act', title: 'نشاط العملاء فقط', desc: '', path: '/customers/activity', tab: 'customers' },
-  { id: 'c1', title: 'كشف حساب عميل', desc: 'سندات عملاء', path: '/customers/statement', tab: 'customers' },
-  { id: 'c2', title: 'أعمار ديون العملاء', desc: '', path: '/customers/aging', tab: 'customers' },
-  { id: 'c_status', title: 'العملاء حسب الحالة', desc: '', path: '/customers/by-status', tab: 'customers' },
-  { id: 'c_sum', title: 'ملخص تعاملات العملاء', desc: '', path: '/customers/summary', tab: 'customers' },
+  { id: 'parties_activity', path: '/parties/activity', tab: 'customers' },
+  { id: 'cust_act', path: '/customers/activity', tab: 'customers' },
+  { id: 'c1', path: '/customers/statement', tab: 'customers' },
+  { id: 'c2', path: '/customers/aging', tab: 'customers' },
+  { id: 'c_status', path: '/customers/by-status', tab: 'customers' },
+  { id: 'c_sum', path: '/customers/summary', tab: 'customers' },
 
-  { id: 'sup_act', title: 'نشاط الموردين', desc: '', path: '/suppliers/activity', tab: 'suppliers' },
-  { id: 's1', title: 'كشف حساب مورد', desc: 'سندات موردين', path: '/suppliers/statement', tab: 'suppliers' },
-  { id: 's2', title: 'أعمار ذمم الموردين', desc: '', path: '/suppliers/aging', tab: 'suppliers' },
-  { id: 'sup_status', title: 'الموردون حسب الحالة', desc: '', path: '/suppliers/by-status', tab: 'suppliers' },
-  { id: 'sup_sum', title: 'ملخص تعاملات الموردين', desc: '', path: '/suppliers/summary', tab: 'suppliers' },
+  { id: 'sup_act', path: '/suppliers/activity', tab: 'suppliers' },
+  { id: 's1', path: '/suppliers/statement', tab: 'suppliers' },
+  { id: 's2', path: '/suppliers/aging', tab: 'suppliers' },
+  { id: 'sup_status', path: '/suppliers/by-status', tab: 'suppliers' },
+  { id: 'sup_sum', path: '/suppliers/summary', tab: 'suppliers' },
 
-  { id: 'printing_jobs', title: 'سجل مهام الطباعة', desc: '', path: '/printing/jobs', tab: 'textile' },
-  { id: 'print_labels', title: 'اللصاقات المطبوعة', desc: '', path: '/printing/printed-labels', tab: 'textile' },
-  { id: 'print_unprinted', title: 'أدواب بدون لصاقة', desc: '', path: '/printing/unprinted-rolls', tab: 'textile' },
+  { id: 'printing_jobs', path: '/printing/jobs', tab: 'textile' },
+  { id: 'print_labels', path: '/printing/printed-labels', tab: 'textile' },
+  { id: 'print_unprinted', path: '/printing/unprinted-rolls', tab: 'textile' },
 ];
 
 const PAGE_NAVIGATION_CARDS = new Set<string>(['inventory_stock_audit_page']);
@@ -225,7 +224,10 @@ function sortInventoryRollRows(rows: ReportRow[], sortBy: string, sortDir: 'asc'
 }
 
 export const ReportsCenter = () => {
+  const { t, i18n } = useTranslation('reportsCenter');
   const navigate = useNavigate();
+  const getReportTitle = useCallback((id: string) => t(`reportTypes.${id}.title`), [t]);
+  const getReportDesc = useCallback((id: string) => t(`reportTypes.${id}.desc`), [t]);
   const [activeTab, setActiveTab] = useState<TabId>('executive');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -251,14 +253,14 @@ export const ReportsCenter = () => {
   const [page, setPage] = useState(1);
 
   const tabs = [
-    { id: 'executive' as const, name: 'لوحة القيادة التنفيذية', icon: Activity },
-    { id: 'financial' as const, name: 'التقارير المالية', icon: TrendingUp },
-    { id: 'sales' as const, name: 'تقارير المبيعات', icon: ShoppingCart },
-    { id: 'purchases' as const, name: 'تقارير المشتريات', icon: Truck },
-    { id: 'inventory' as const, name: 'تقارير المخزون', icon: PackageSearch },
-    { id: 'customers' as const, name: 'تقارير العملاء', icon: Users },
-    { id: 'suppliers' as const, name: 'تقارير الموردين', icon: Wallet },
-    { id: 'textile' as const, name: 'تقارير النسيج التخصصية', icon: Scissors },
+    { id: 'executive' as const, name: t('tabs.executive'), icon: Activity },
+    { id: 'financial' as const, name: t('tabs.financial'), icon: TrendingUp },
+    { id: 'sales' as const, name: t('tabs.sales'), icon: ShoppingCart },
+    { id: 'purchases' as const, name: t('tabs.purchases'), icon: Truck },
+    { id: 'inventory' as const, name: t('tabs.inventory'), icon: PackageSearch },
+    { id: 'customers' as const, name: t('tabs.customers'), icon: Users },
+    { id: 'suppliers' as const, name: t('tabs.suppliers'), icon: Wallet },
+    { id: 'textile' as const, name: t('tabs.textile'), icon: Scissors },
   ];
 
   useEffect(() => {
@@ -295,11 +297,11 @@ export const ReportsCenter = () => {
       setReport({ ...res.report, key: selectedCard.id });
     } catch (e) {
       setReport(null);
-      setRepErr(e instanceof ApiRequestError ? e.message : 'تعذر تحميل التقرير');
+      setRepErr(e instanceof ApiRequestError ? e.message : t('toast.reportLoadError'));
     } finally {
       setRepLoading(false);
     }
-  }, [selectedCard, page, applyNonce, dateFrom, dateTo, search, warehouseId, cashboxId, batchId]);
+  }, [selectedCard, page, applyNonce, dateFrom, dateTo, search, warehouseId, cashboxId, batchId, t]);
 
    useEffect(() => {
      void loadLiveReport();
@@ -316,7 +318,7 @@ export const ReportsCenter = () => {
      setPage(1);
    }, [columnSortBy, columnSortDir]);
 
-   const selectedTitle = selectedCard?.title ?? '';
+   const selectedTitle = selectedCard ? getReportTitle(selectedCard.id) : '';
 
    // Sorting logic for reports
    const sortedReport = useMemo<UnifiedReportPayload | null>(() => {
@@ -367,14 +369,14 @@ export const ReportsCenter = () => {
   const handleExport = async () => {
     if (!sortedReport || !selectedKey || exporting) return;
     setExporting('excel');
-    setExportNotice({ type: 'info', text: 'جاري تجهيز ملف Excel...' });
+    setExportNotice({ type: 'info', text: t('toast.preparingExcel') });
     try {
       await waitForPaint();
       exportReportToExcel(sortedReport, safeReportFilename(selectedKey));
-      setExportNotice({ type: 'success', text: 'تم تصدير ملف Excel بنجاح.' });
+      setExportNotice({ type: 'success', text: t('toast.excelSuccess') });
     } catch (error) {
       console.error('Report Excel export failed', error);
-      setExportNotice({ type: 'error', text: 'تعذر تصدير ملف Excel. جرّب تحديث التقرير ثم التصدير مرة أخرى.' });
+      setExportNotice({ type: 'error', text: t('toast.excelError') });
     } finally {
       setExporting(null);
     }
@@ -383,14 +385,14 @@ export const ReportsCenter = () => {
   const handlePrint = async () => {
     if (!sortedReport || !selectedKey || exporting) return;
     setExporting('pdf');
-    setExportNotice({ type: 'info', text: 'جاري تجهيز ملف PDF...' });
+    setExportNotice({ type: 'info', text: t('toast.preparingPdf') });
     try {
       await waitForPaint();
       await exportReportPdf(sortedReport, `${safeReportFilename(selectedKey)}.pdf`);
-      setExportNotice({ type: 'success', text: 'تم تصدير ملف PDF بنجاح.' });
+      setExportNotice({ type: 'success', text: t('toast.pdfSuccess') });
     } catch (error) {
       console.error('Report print failed', error);
-      setExportNotice({ type: 'error', text: 'تعذر تصدير ملف PDF. جرّب مرة أخرى.' });
+      setExportNotice({ type: 'error', text: t('toast.pdfError') });
     } finally {
       setExporting(null);
     }
@@ -424,10 +426,10 @@ export const ReportsCenter = () => {
           >
             <h4 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
               <FileText className="w-4 h-4 text-slate-400" />
-              {reportItem.title}
-              <span className="mr-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">جاهز</span>
+              {getReportTitle(reportItem.id)}
+              <span className="mr-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{t('badges.ready')}</span>
             </h4>
-            <p className="text-sm text-slate-500 leading-relaxed mt-auto border-t border-slate-50 pt-3">{reportItem.desc}</p>
+            <p className="text-sm text-slate-500 leading-relaxed mt-auto border-t border-slate-50 pt-3">{getReportDesc(reportItem.id)}</p>
           </button>
         ))}
       </div>
@@ -442,16 +444,16 @@ export const ReportsCenter = () => {
         {selectedKey === 'purchases_rows' ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 flex flex-wrap gap-3 items-end">
             <div className="space-y-1 flex-1 min-w-[200px]">
-              <label className="text-xs font-bold text-slate-500">معرف دفعة الاستيراد (UUID)</label>
+              <label className="text-xs font-bold text-slate-500">{t('filters.batchId')}</label>
               <input
                 value={batchId}
                 onChange={(e) => setBatchId(e.target.value)}
-                placeholder="من سجل دفعات الاستيراد"
+                placeholder={t('filters.batchIdPlaceholder')}
                 className="w-full p-2 border border-slate-200 rounded-lg text-sm font-mono"
               />
             </div>
             <button type="button" onClick={applyFilters} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm">
-              تحميل الصفوف
+              {t('filters.loadRows')}
             </button>
           </div>
         ) : null}
@@ -461,12 +463,14 @@ export const ReportsCenter = () => {
             <h3 className="text-base font-bold text-slate-900">{report?.title ?? selectedTitle}</h3>
             {sortedReport?.subtitle ? <p className="text-xs text-indigo-700 font-medium mt-0.5">{sortedReport.subtitle}</p> : null}
             <p className="text-xs text-slate-500">
-              {sortedReport?.generatedAt ? new Date(sortedReport.generatedAt).toLocaleDateString('ar-SY') : ''}
+              {sortedReport?.generatedAt
+                ? new Date(sortedReport.generatedAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-SY' : 'tr-TR')
+                : ''}
             </p>
           </div>
           <ReportToolbar
             disabled={repLoading || Boolean(exporting)}
-            disableReason={exporting ? 'جاري تنفيذ التصدير...' : undefined}
+            disableReason={exporting ? t('toast.exportingInProgress') : undefined}
             onExportExcel={sortedReport ? handleExport : undefined}
             onExportPdf={sortedReport ? handlePrint : undefined}
           />
@@ -488,7 +492,7 @@ export const ReportsCenter = () => {
               onClick={() => setExportNotice(null)}
               className="text-xs font-bold opacity-70 hover:opacity-100"
             >
-              إخفاء
+              {t('toast.hide')}
             </button>
           </div>
         ) : null}
@@ -518,7 +522,7 @@ export const ReportsCenter = () => {
         <div className="space-y-8">
           <ExecutiveDashboardPanel />
           <div>
-            <h3 className="text-lg font-bold text-slate-900 mb-3">تقارير تنفيذية</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-3">{t('executiveTab.sectionTitle')}</h3>
             {renderCards('executive')}
           </div>
         </div>
@@ -538,9 +542,9 @@ export const ReportsCenter = () => {
     <div className="w-full max-w-none flex flex-col p-6">
       <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">مركز التقارير المتطور</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
           <p className="text-slate-500 mt-1">
-            كل تقرير ظاهر مرتبط بـ PostgreSQL — تصدير Excel وطباعة. التقارير «التشغيلية» توضح أنها ليست محاسبة Journal كاملة حيث ينطبق ذلك.
+            {t('page.subtitle')}
           </p>
         </div>
       </div>
@@ -571,7 +575,7 @@ export const ReportsCenter = () => {
         <div className="w-full lg:flex-1 min-w-0 flex flex-col relative">
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 mb-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-2 shrink-0 items-end">
             <div className="space-y-0.5 xl:col-span-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">من تاريخ</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('filters.dateFrom')}</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -580,7 +584,7 @@ export const ReportsCenter = () => {
               />
             </div>
             <div className="space-y-0.5 xl:col-span-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">إلى تاريخ</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('filters.dateTo')}</label>
               <input
                 type="date"
                 value={dateTo}
@@ -589,13 +593,13 @@ export const ReportsCenter = () => {
               />
             </div>
             <div className="space-y-0.5 xl:col-span-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">المستودع</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('filters.warehouse')}</label>
               <select
                 value={warehouseId}
                 onChange={(e) => setWarehouseId(e.target.value)}
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="">كل المستودعات</option>
+                <option value="">{t('filters.allWarehouses')}</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -604,11 +608,11 @@ export const ReportsCenter = () => {
               </select>
             </div>
             <div className={`space-y-0.5 ${selectedCard?.id === 'inventory_rolls' ? 'xl:col-span-2' : 'xl:col-span-4'}`}>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">بحث نصّي</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('filters.searchText')}</label>
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="باركود، اسم، رقم..."
+                placeholder={t('filters.searchPlaceholder')}
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               />
              </div>
@@ -616,7 +620,7 @@ export const ReportsCenter = () => {
                <div className="flex items-end justify-start xl:col-span-2">
                  <ReportToolbar
                    disabled={repLoading || Boolean(exporting)}
-                   disableReason={exporting ? 'ط¬ط§ط±ظٹ طھظ†ظپظٹط° ط§ظ„طھطµط¯ظٹط±...' : undefined}
+                   disableReason={exporting ? t('toast.exportingInProgress') : undefined}
                    onExportExcel={sortedReport ? handleExport : undefined}
                    onExportPdf={sortedReport ? handlePrint : undefined}
                  />
@@ -625,28 +629,28 @@ export const ReportsCenter = () => {
              {/* Column sorting is available directly in the table headers for inventory rolls */}
              {selectedCard?.id !== 'inventory_rolls' && (
                <div className="space-y-0.5 xl:col-span-2">
-                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">فرز التقرير</label>
+                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('filters.sortReport')}</label>
                  <select
                    value={sortMode}
                    onChange={(e) => setSortMode(e.target.value as 'default' | 'alpha_asc' | 'alpha_desc' | 'date_desc' | 'date_asc')}
                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                  >
-                   <option value="default">افتراضي</option>
-                   <option value="alpha_asc">أبجديًا (أ-ي)</option>
-                   <option value="alpha_desc">أبجديًا (ي-أ)</option>
-                   <option value="date_desc">تاريخ الإدخال (الأحدث)</option>
-                   <option value="date_asc">تاريخ الإدخال (الأقدم)</option>
+                   <option value="default">{t('filters.sortDefault')}</option>
+                   <option value="alpha_asc">{t('filters.sortAlphaAsc')}</option>
+                   <option value="alpha_desc">{t('filters.sortAlphaDesc')}</option>
+                   <option value="date_desc">{t('filters.sortDateDesc')}</option>
+                   <option value="date_asc">{t('filters.sortDateAsc')}</option>
                  </select>
                </div>
              )}
             {selectedCard?.id !== 'inventory_rolls' && (
             <>
             <div className="space-y-0.5 xl:col-span-4">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">صندوق (حركة/سندات/مقبوضات)</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('filters.cashbox')}</label>
               <input
                 value={cashboxId}
                 onChange={(e) => setCashboxId(e.target.value)}
-                placeholder="UUID صندوق — اختياري"
+                placeholder={t('filters.cashboxPlaceholder')}
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -656,7 +660,7 @@ export const ReportsCenter = () => {
                 onClick={applyFilters}
                 className="flex-1 bg-slate-800 text-white py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition shadow-sm"
               >
-                تطبيق وحساب
+                {t('filters.apply')}
               </button>
             </div>
             </>
@@ -694,6 +698,7 @@ export const ReportsCenter = () => {
 };
 
 function ExecutiveDashboardPanel() {
+  const { t } = useTranslation('reportsCenter');
   const [dash, setDash] = useState<DashboardSummary | null>(null);
   const [inv, setInv] = useState<Awaited<ReturnType<typeof getInventorySummary>>['data'] | null>(null);
   const [vch, setVch] = useState<Awaited<ReturnType<typeof getVouchersSummary>>['data'] | null>(null);
@@ -717,77 +722,77 @@ function ExecutiveDashboardPanel() {
         setPay(p.data);
         setCashDetail(c.data);
       } catch (e) {
-        setErr(e instanceof ApiRequestError ? e.message : 'تعذر تحميل الملخص');
+        setErr(e instanceof ApiRequestError ? e.message : t('toast.summaryLoadError'));
       }
     })();
-  }, []);
+  }, [t]);
 
   const kpis =
     dash && inv && vch
       ? [
-          { label: 'العملاء', value: dash.customers_count.toLocaleString(), icon: Users, bg: 'bg-indigo-50', color: 'text-indigo-600' },
-          { label: 'الموردون', value: dash.suppliers_count.toLocaleString(), icon: Truck, bg: 'bg-slate-50', color: 'text-slate-600' },
-          { label: 'أدواب المخزون', value: dash.fabric_rolls_count.toLocaleString(), icon: PackageSearch, bg: 'bg-cyan-50', color: 'text-cyan-600' },
+          { label: t('dashboard.kpis.customers'), value: dash.customers_count.toLocaleString(), icon: Users, bg: 'bg-indigo-50', color: 'text-indigo-600' },
+          { label: t('dashboard.kpis.suppliers'), value: dash.suppliers_count.toLocaleString(), icon: Truck, bg: 'bg-slate-50', color: 'text-slate-600' },
+          { label: t('dashboard.kpis.fabricRolls'), value: dash.fabric_rolls_count.toLocaleString(), icon: PackageSearch, bg: 'bg-cyan-50', color: 'text-cyan-600' },
           {
-            label: 'أدواب نشطة',
+            label: t('dashboard.kpis.activeFabricRolls'),
             value: (dash.active_fabric_rolls_count ?? 0).toLocaleString(),
             icon: Package,
             bg: 'bg-teal-50',
             color: 'text-teal-700',
           },
           {
-            label: 'إجمالي أمتار الأدواب',
+            label: t('dashboard.kpis.totalRollLength'),
             value: Number(inv.totalLengthM).toLocaleString(undefined, { maximumFractionDigits: 2 }),
-            unit: 'م',
+            unit: t('dashboard.units.m'),
             icon: Activity,
             bg: 'bg-emerald-50',
             color: 'text-emerald-600',
           },
           {
-            label: 'وزن الأدواب (تقدير)',
+            label: t('dashboard.kpis.rollWeight'),
             value: Number(dash.total_roll_weight_kg ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 }),
-            unit: 'kg',
+            unit: t('dashboard.units.kg'),
             icon: Package,
             bg: 'bg-lime-50',
             color: 'text-lime-700',
           },
           {
-            label: 'قبض مؤكد / صرف مؤكد',
+            label: t('dashboard.kpis.receiptPayment'),
             value: `${Number(dash.receipt_total ?? 0).toLocaleString()} / ${Number(dash.payment_total ?? 0).toLocaleString()}`,
             icon: Wallet,
             bg: 'bg-violet-50',
             color: 'text-violet-700',
           },
           {
-            label: 'حركات المخزون',
+            label: t('dashboard.kpis.inventoryMovements'),
             value: (dash.inventory_movements_count ?? inv.movementsCount).toLocaleString(),
             icon: TrendingUp,
             bg: 'bg-amber-50',
             color: 'text-amber-600',
           },
           {
-            label: 'أدواب تالفة',
+            label: t('dashboard.kpis.damagedRolls'),
             value: (dash.damaged_or_waste_rolls_count ?? dash.damaged_rolls_count ?? 0).toLocaleString(),
             icon: AlertCircle,
             bg: 'bg-rose-50',
             color: 'text-rose-600',
           },
           {
-            label: 'الصناديق / السندات',
+            label: t('dashboard.kpis.cashboxesVouchers'),
             value: `${dash.cashboxes_count} / ${dash.vouchers_count}`,
             icon: Wallet,
             bg: 'bg-rose-50',
             color: 'text-rose-600',
           },
           {
-            label: 'دفعات استيراد / طباعة',
+            label: t('dashboard.kpis.importBatchesPrintJobs'),
             value: `${dash.purchase_import_batches_count} / ${dash.print_jobs_count}`,
             icon: FileText,
             bg: 'bg-violet-50',
             color: 'text-violet-700',
           },
           {
-            label: 'مسيرات رواتب',
+            label: t('dashboard.kpis.payrollRuns'),
             value: (dash.payroll_runs_count ?? 0).toLocaleString(),
             icon: Activity,
             bg: 'bg-sky-50',
@@ -798,13 +803,13 @@ function ExecutiveDashboardPanel() {
 
   return (
     <div className="animation-fade-in pb-8 pr-2">
-      <h3 className="text-xl font-bold text-slate-900 mb-2">الملخص التنفيذي العام</h3>
-      <p className="text-sm text-slate-500 mb-6">أعداد ومؤشرات حقيقية من PostgreSQL — صفر عند عدم وجود بيانات.</p>
+      <h3 className="text-xl font-bold text-slate-900 mb-2">{t('dashboard.sectionTitle')}</h3>
+      <p className="text-sm text-slate-500 mb-6">{t('dashboard.sectionSubtitle')}</p>
 
       {err && <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm">{err}</div>}
 
       {!dash ? (
-        <p className="text-slate-500 text-sm">جاري تحميل البيانات...</p>
+        <p className="text-slate-500 text-sm">{t('dashboard.loading')}</p>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -830,23 +835,23 @@ function ExecutiveDashboardPanel() {
             <div className="bg-white p-6 rounded-xl border border-slate-200">
               <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <Package className="w-5 h-5 text-indigo-500" />
-                ملخص السندات النقدية
+                {t('dashboard.vouchers.title')}
               </h4>
               <div className="divide-y divide-slate-100 text-sm">
                 <div className="py-3 flex justify-between">
-                  <span className="text-slate-600">مسودات</span>
+                  <span className="text-slate-600">{t('dashboard.vouchers.draft')}</span>
                   <span className="font-bold">{vch?.draft ?? 0}</span>
                 </div>
                 <div className="py-3 flex justify-between">
-                  <span className="text-slate-600">مؤكدة</span>
+                  <span className="text-slate-600">{t('dashboard.vouchers.confirmed')}</span>
                   <span className="font-bold text-emerald-700">{vch?.confirmed ?? 0}</span>
                 </div>
                 <div className="py-3 flex justify-between">
-                  <span className="text-slate-600">إجمالي قبض مؤكد</span>
+                  <span className="text-slate-600">{t('dashboard.vouchers.totalConfirmedReceipts')}</span>
                   <span className="font-mono">{Number(vch?.confirmed_receipts ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="py-3 flex justify-between">
-                  <span className="text-slate-600">إجمالي صرف مؤكد</span>
+                  <span className="text-slate-600">{t('dashboard.vouchers.totalConfirmedPayments')}</span>
                   <span className="font-mono">{Number(vch?.confirmed_payments ?? 0).toLocaleString()}</span>
                 </div>
               </div>
@@ -855,11 +860,11 @@ function ExecutiveDashboardPanel() {
             <div className="bg-white p-6 rounded-xl border border-slate-200">
               <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-emerald-600" />
-                أرصدة الصناديق حسب العملة
+                {t('dashboard.cashBalances.title')}
               </h4>
               <div className="divide-y divide-slate-100 text-sm">
                 {(dash.total_cash_by_currency ?? []).length === 0 ? (
-                  <p className="text-slate-500 py-2">لا توجد صناديق نشطة أو أرصدة صفر.</p>
+                  <p className="text-slate-500 py-2">{t('dashboard.cashBalances.empty')}</p>
                 ) : (
                   (dash.total_cash_by_currency ?? []).map((row, i) => (
                     <div key={i} className="py-2 flex justify-between">
@@ -869,17 +874,17 @@ function ExecutiveDashboardPanel() {
                   ))
                 )}
                 {cashDetail?.cashboxes?.length ? (
-                  <p className="text-xs text-slate-400 pt-2">صناديق نشطة: {cashDetail.cashboxes.length}</p>
+                  <p className="text-xs text-slate-400 pt-2">{t('dashboard.cashBalances.activeCashboxes', { count: cashDetail.cashboxes.length })}</p>
                 ) : null}
               </div>
             </div>
           </div>
 
           <div className="mt-6 bg-white p-6 rounded-xl border border-slate-200">
-            <h4 className="font-bold text-slate-900 mb-2">الموارد البشرية (ملخص)</h4>
+            <h4 className="font-bold text-slate-900 mb-2">{t('dashboard.hr.title')}</h4>
             <p className="text-sm text-slate-600">
-              موظفون نشطون: <strong>{pay?.active_employees ?? '—'}</strong> — مسيرات:{' '}
-              <strong>{pay?.payroll_runs_count ?? '—'}</strong> — مدفوعة:{' '}
+              {t('dashboard.hr.activeEmployees')}: <strong>{pay?.active_employees ?? '—'}</strong> — {t('dashboard.hr.payrollRuns')}:{' '}
+              <strong>{pay?.payroll_runs_count ?? '—'}</strong> — {t('dashboard.hr.paidRuns')}:{' '}
               <strong>{pay?.paid_runs ?? '—'}</strong>
             </p>
           </div>

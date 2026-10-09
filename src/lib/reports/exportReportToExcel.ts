@@ -1,16 +1,21 @@
 import * as XLSX from 'xlsx';
+import i18n from '../../i18n/config';
 import type { UnifiedReportPayload } from './types';
 
-function arTotalLabel(label: string): string {
+function t(key: string, options?: Record<string, unknown>): string {
+  return i18n.t(key, { ns: 'reportsCenter', ...options });
+}
+
+function exportTotalLabel(label: string): string {
   const map: Record<string, string> = {
-    total_materials: 'مجموع الخامات',
-    total_rolls: 'مجموع الاتواب',
-    total_length_m: 'مجموع اطوال',
-    total_remaining_length_m: 'مجموع المتبقي',
-    total_sold_length_m: 'مجموع المباع',
-    total_weight_kg: 'مجموع اوزان',
-    sold_meters: 'إجمالي الأمتار المباعة',
-    remaining_receivable_meters: 'أمتار ضمن الذمم',
+    total_materials: t('export.totals.totalMaterials'),
+    total_rolls: t('export.totals.totalRolls'),
+    total_length_m: t('export.totals.totalLengthM'),
+    total_remaining_length_m: t('export.totals.totalRemainingLengthM'),
+    total_sold_length_m: t('export.totals.totalSoldLengthM'),
+    total_weight_kg: t('export.totals.totalWeightKg'),
+    sold_meters: t('export.totals.soldMeters'),
+    remaining_receivable_meters: t('export.totals.remainingReceivableMeters'),
   };
   return map[label] || label;
 }
@@ -31,11 +36,11 @@ export function exportReportToExcel(report: UnifiedReportPayload, filename: stri
 
   wsData.push(['CLOTEX ERP']);
   wsData.push([report.title]);
-  if (report.subtitle) wsData.push(['وصف', report.subtitle]);
-  if (report.meta?.note) wsData.push(['ملاحظة', report.meta.note]);
-  wsData.push(['تاريخ التوليد', new Date(report.generatedAt).toLocaleDateString('ar-SY')]);
+  if (report.subtitle) wsData.push([t('export.descriptionLabel'), report.subtitle]);
+  if (report.meta?.note) wsData.push([t('export.noteLabel'), report.meta.note]);
+  wsData.push([t('export.generatedDateLabel'), new Date(report.generatedAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-SY' : 'tr-TR')]);
   wsData.push([
-    'الفلاتر',
+    t('export.filtersLabel'),
     Object.entries(report.filtersApplied || {})
       .filter(([, v]) => v !== undefined && v !== null && v !== '')
       .map(([k, v]) => `${k}: ${String(v)}`)
@@ -59,15 +64,15 @@ export function exportReportToExcel(report: UnifiedReportPayload, filename: stri
 
   if (report.totals && Object.keys(report.totals).length > 0) {
     wsData.push([]);
-    wsData.push(['الإجماليات']);
+    wsData.push([t('export.totalsSectionLabel')]);
     for (const [k, v] of Object.entries(report.totals)) {
-      wsData.push([arTotalLabel(k), String(v)]);
+      wsData.push([exportTotalLabel(k), String(v)]);
     }
   }
 
   if (report.summaryCards?.length) {
     wsData.push([]);
-    wsData.push(['ملخص']);
+    wsData.push([t('export.summarySectionLabel')]);
     for (const c of report.summaryCards) {
       wsData.push([c.label, String(c.value), c.hint ?? '']);
     }
@@ -77,6 +82,6 @@ export function exportReportToExcel(report: UnifiedReportPayload, filename: stri
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const colWidths = headers.map((h) => ({ wch: Math.min(40, Math.max(10, String(h).length + 2)) }));
   ws['!cols'] = colWidths;
-  XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
+  XLSX.utils.book_append_sheet(wb, ws, t('export.sheetName'));
   XLSX.writeFile(wb, filename);
 }

@@ -1,0 +1,198 @@
+{
+  "page": {
+    "title": "Gelişmiş Rapor Merkezi",
+    "subtitle": "Görüntülenen her rapor PostgreSQL ile bağlantılıdır — Excel'e aktarma ve yazdırma mevcuttur. «Operasyonel» raporlar, geçerli olduğu durumlarda tam bir muhasebe defteri (Journal) olmadığını belirtir."
+  },
+  "tabs": {
+    "executive": "Yönetici Kontrol Paneli",
+    "financial": "Mali Raporlar",
+    "sales": "Satış Raporları",
+    "purchases": "Satın Alma Raporları",
+    "inventory": "Stok Raporları",
+    "customers": "Müşteri Raporları",
+    "suppliers": "Tedarikçi Raporları",
+    "textile": "Tekstile Özel Raporlar"
+  },
+  "executiveTab": {
+    "sectionTitle": "Yönetici Raporları"
+  },
+  "badges": {
+    "ready": "Hazır"
+  },
+  "filters": {
+    "dateFrom": "Başlangıç tarihi",
+    "dateTo": "Bitiş tarihi",
+    "warehouse": "Depo",
+    "allWarehouses": "Tüm depolar",
+    "searchText": "Metin araması",
+    "searchPlaceholder": "Barkod, isim, numara...",
+    "sortReport": "Raporu sırala",
+    "sortDefault": "Varsayılan",
+    "sortAlphaAsc": "Alfabetik (A-Z)",
+    "sortAlphaDesc": "Alfabetik (Z-A)",
+    "sortDateDesc": "Giriş tarihi (en yeni)",
+    "sortDateAsc": "Giriş tarihi (en eski)",
+    "cashbox": "Kasa (hareket/fiş/tahsilat)",
+    "cashboxPlaceholder": "Kasa UUID — isteğe bağlı",
+    "apply": "Uygula ve Hesapla",
+    "batchId": "İçe aktarma parti kimliği (UUID)",
+    "batchIdPlaceholder": "İçe aktarma parti kaydından",
+    "loadRows": "Satırları Yükle"
+  },
+  "toast": {
+    "preparingExcel": "Excel dosyası hazırlanıyor...",
+    "excelSuccess": "Excel dosyası başarıyla dışa aktarıldı.",
+    "excelError": "Excel dosyası dışa aktarılamadı. Raporu yenileyip tekrar deneyin.",
+    "preparingPdf": "PDF dosyası hazırlanıyor...",
+    "pdfSuccess": "PDF dosyası başarıyla dışa aktarıldı.",
+    "pdfError": "PDF dosyası dışa aktarılamadı. Tekrar deneyin.",
+    "hide": "Gizle",
+    "exportingInProgress": "Dışa aktarma yapılıyor...",
+    "reportLoadError": "Rapor yüklenemedi",
+    "summaryLoadError": "Özet yüklenemedi"
+  },
+  "dashboard": {
+    "sectionTitle": "Genel Yönetici Özeti",
+    "sectionSubtitle": "PostgreSQL'den gerçek sayılar ve göstergeler — veri yoksa sıfır gösterilir.",
+    "loading": "Veriler yükleniyor...",
+    "kpis": {
+      "customers": "Müşteriler",
+      "suppliers": "Tedarikçiler",
+      "fabricRolls": "Stok Topları",
+      "activeFabricRolls": "Aktif Toplar",
+      "totalRollLength": "Toplam Top Metresi",
+      "rollWeight": "Top Ağırlığı (Tahmini)",
+      "receiptPayment": "Onaylı Tahsilat / Onaylı Ödeme",
+      "inventoryMovements": "Stok Hareketleri",
+      "damagedRolls": "Hasarlı Toplar",
+      "cashboxesVouchers": "Kasalar / Fişler",
+      "importBatchesPrintJobs": "İçe Aktarma Partileri / Baskı İşleri",
+      "payrollRuns": "Bordro Dönemleri"
+    },
+    "units": {
+      "m": "m",
+      "kg": "kg"
+    },
+    "vouchers": {
+      "title": "Nakit Fiş Özeti",
+      "draft": "Taslaklar",
+      "confirmed": "Onaylanan",
+      "totalConfirmedReceipts": "Toplam Onaylı Tahsilat",
+      "totalConfirmedPayments": "Toplam Onaylı Ödeme"
+    },
+    "cashBalances": {
+      "title": "Para Birimine Göre Kasa Bakiyeleri",
+      "empty": "Aktif kasa veya sıfırdan farklı bakiye bulunmuyor.",
+      "activeCashboxes": "Aktif kasalar: {{count}}"
+    },
+    "hr": {
+      "title": "İnsan Kaynakları (Özet)",
+      "activeEmployees": "Aktif personel",
+      "payrollRuns": "Bordro dönemleri",
+      "paidRuns": "Ödenen"
+    }
+  },
+  "reportTypes": {
+    "executive_summary": { "title": "Birleşik Yönetici Raporu", "desc": "PostgreSQL'den gösterge tablosu" },
+    "financial_cashboxes": { "title": "Kasa Bakiyeleri", "desc": "Para birimine göre bakiyeler" },
+    "financial_cb_mov": { "title": "Kasa Hareketi", "desc": "Nakit hareketleri" },
+    "financial_vouchers": { "title": "Fiş Kayıtları", "desc": "Tahsilat ve ödeme" },
+    "fin_rec_pay": { "title": "Tahsilat ve Ödeme Özeti", "desc": "Detaylı fişler" },
+    "fin_acct_act": { "title": "Özel Hesap Hareketi Raporu", "desc": "Filtrelerle operasyonel defter" },
+    "payroll_summary": { "title": "Bordro Özeti (Kartlar)", "desc": "Bordro dönemleri ve net tutar" },
+    "pay_emp": { "title": "Personel Listesi", "desc": "Personel bilgileri" },
+    "pay_runs": { "title": "Bordro Dönemleri", "desc": "Bordro dönemleri kaydı" },
+    "pay_month": { "title": "Aylık Bordro Özeti", "desc": "Aylık toplulaştırma" },
+    "gl": { "title": "Büyük Defter (Operasyonel)", "desc": "Fişler + kasalar + iadeler + bordro + faaliyetler" },
+    "tb": { "title": "Mizan (Operasyonel)", "desc": "Kasa ve fiş toplulaştırması" },
+    "pl": { "title": "Gelir/Gider Tablosu (Operasyonel)", "desc": "Fişler, iadeler ve bordrodan" },
+    "bs": { "title": "Mali Durum (Operasyonel)", "desc": "Nakit, stok ve taslaklar" },
+    "cf": { "title": "Nakit Akışı (Operasyonel)", "desc": "Kasa hareketlerinden" },
+    "fx": { "title": "Döviz Riski", "desc": "Her para birimi için bakiye ve fişler" },
+    "sa1": { "title": "Satış Özeti", "desc": "Fişler, iadeler ve faaliyet" },
+    "sa2": { "title": "Detaylı Satışlar", "desc": "Müşteri faaliyeti" },
+    "sa_item": { "title": "Kaleme Göre Satışlar", "desc": "Satış faturalarıyla bağlantı için hazır yapı" },
+    "sa_cust": { "title": "Müşteriye Göre Satışlar", "desc": "Müşteri faaliyeti toplulaştırması" },
+    "sa_agent": { "title": "Temsilciye Göre Satışlar", "desc": "" },
+    "sa_color": { "title": "Renge Göre Satışlar", "desc": "" },
+    "sa_margins": { "title": "Kâr Marjı Analizi", "desc": "Maliyet ve satış verisi gerektirir" },
+    "purchases_batches": { "title": "Excel İçe Aktarma Parti Kaydı", "desc": "Dosyalar ve parti durumu" },
+    "purchases_rows": { "title": "İçe Aktarma Partisi Satırları", "desc": "Parti UUID'sini filtrelere girin" },
+    "pur_sum": { "title": "Satın Alma Özeti", "desc": "İçe aktarma ve toplar" },
+    "pur_det": { "title": "Detaylı Satın Almalar", "desc": "Stoktaki toplar" },
+    "pur_sup": { "title": "Tedarikçiye Göre Satın Almalar", "desc": "" },
+    "pur_item": { "title": "Kaleme Göre Satın Almalar", "desc": "" },
+    "pur_batch": { "title": "Partiye/Lota Göre Satın Almalar", "desc": "" },
+    "pur_cost": { "title": "Maliyet Eğilimi", "desc": "Ortalama birim maliyet" },
+    "inventory_rolls": { "title": "Stok Topları Dökümü", "desc": "Operasyonel stok — satılan, hasarlı ve sıfır uzunluklu toplar hariçtir; gerektiğinde durum filtresini kullanın." },
+    "inventory_stock_audit_page": { "title": "Stok Sayımı", "desc": "Önceki operasyonel tasarım (tam sayfa)" },
+    "inventory_movements": { "title": "Top Hareketleri", "desc": "" },
+    "inventory_by_wh": { "title": "Depoya Göre Toplar", "desc": "" },
+    "inventory_item_color": { "title": "Kumaş Türü ve Renge Göre Toplar", "desc": "" },
+    "inv_balance": { "title": "Stok Bakiyeleri", "desc": "Operasyonel toplulaştırma" },
+    "inv_move_old": { "title": "Stok Değerlemesi", "desc": "Uzunluk × birim maliyet" },
+    "inv_by_color": { "title": "Renge Göre Stok", "desc": "" },
+    "inv_aging": { "title": "Stok Yaşlandırması", "desc": "Zaman aralıklarına göre dağılım" },
+    "inv_slow": { "title": "Hareketi Yavaş Kalemler", "desc": "Uzun süre stok hareketi olmayan" },
+    "inv_negative": { "title": "Negatif Anomaliler (Uzunluk/Ağırlık)", "desc": "" },
+    "tx1": { "title": "Top Seviyesinde Stok", "desc": "Top detayları" },
+    "inv_batch_tr": { "title": "Parti Takibi", "desc": "İçe aktarma partileri" },
+    "inv_fabric_types": { "title": "Kumaş Türleri", "desc": "Katalog kategorisine göre" },
+    "inv_waste": { "title": "Fire Kayıtları Özeti", "desc": "Onaylanmış WST kayıtlarının toplulaştırması" },
+    "inv_damaged": { "title": "Hurda Dökümü (Hasarlı Toplar)", "desc": "Tam amortisman — stok ve operasyonel sayımın dışında" },
+    "inv_cut": { "title": "Kesim Verimliliği", "desc": "" },
+    "inv_rem_len": { "title": "Kalan Uzunluklar", "desc": "Satılmamış top" },
+    "parties_activity": { "title": "Müşteri ve Tedarikçi Faaliyeti", "desc": "Faaliyet kaydı" },
+    "cust_act": { "title": "Sadece Müşteri Faaliyeti", "desc": "" },
+    "c1": { "title": "Müşteri Hesap Ekstresi", "desc": "Müşteri fişleri" },
+    "c2": { "title": "Müşteri Borç Yaşlandırması", "desc": "" },
+    "c_status": { "title": "Duruma Göre Müşteriler", "desc": "" },
+    "c_sum": { "title": "Müşteri İşlemleri Özeti", "desc": "" },
+    "sup_act": { "title": "Tedarikçi Faaliyeti", "desc": "" },
+    "s1": { "title": "Tedarikçi Hesap Ekstresi", "desc": "Tedarikçi fişleri" },
+    "s2": { "title": "Tedarikçi Borç Yaşlandırması", "desc": "" },
+    "sup_status": { "title": "Duruma Göre Tedarikçiler", "desc": "" },
+    "sup_sum": { "title": "Tedarikçi İşlemleri Özeti", "desc": "" },
+    "printing_jobs": { "title": "Baskı İşleri Kaydı", "desc": "" },
+    "print_labels": { "title": "Basılan Etiketler", "desc": "" },
+    "print_unprinted": { "title": "Etiketsiz Toplar", "desc": "" }
+  },
+  "viewer": {
+    "totals": {
+      "totalMaterials": "Toplam Malzeme",
+      "totalRolls": "Toplam Top",
+      "totalLengthM": "Toplam Uzunluk",
+      "totalRemainingLengthM": "Toplam Kalan",
+      "totalSoldLengthM": "Toplam Satılan",
+      "totalWeightKg": "Toplam Ağırlık"
+    },
+    "emptyMessageDefault": "Veri bulunmuyor",
+    "loading": "Yükleniyor...",
+    "selectReport": "Görüntülemek için bir rapor seçin",
+    "clickToSort": "Sıralamak için tıklayın",
+    "pagination": {
+      "showing": "{{total}} kayıttan {{from}} - {{to}} gösteriliyor",
+      "prev": "Önceki",
+      "next": "Sonraki"
+    }
+  },
+  "export": {
+    "totals": {
+      "totalMaterials": "Toplam Malzeme",
+      "totalRolls": "Toplam Top",
+      "totalLengthM": "Toplam Uzunluk",
+      "totalRemainingLengthM": "Toplam Kalan",
+      "totalSoldLengthM": "Toplam Satılan",
+      "totalWeightKg": "Toplam Ağırlık",
+      "soldMeters": "Toplam Satılan Metre",
+      "remainingReceivableMeters": "Alacaklar İçindeki Metre"
+    },
+    "descriptionLabel": "Açıklama",
+    "noteLabel": "Not",
+    "generatedDateLabel": "Oluşturulma Tarihi",
+    "filtersLabel": "Filtreler",
+    "totalsSectionLabel": "Toplamlar",
+    "summarySectionLabel": "Özet",
+    "sheetName": "Rapor"
+  }
+}

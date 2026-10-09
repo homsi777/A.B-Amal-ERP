@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Loader2, ArrowUp, ArrowDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { UnifiedReportPayload, ReportColumnDef } from '../../lib/reports/types';
 
 interface Props {
@@ -14,14 +16,14 @@ interface Props {
   onSortChange?: (sortBy: string, sortDir: 'asc' | 'desc') => void; // Notify parent
 }
 
-function arTotalLabel(label: string): string {
+function totalLabel(t: TFunction, label: string): string {
   const map: Record<string, string> = {
-    total_materials: 'مجموع الخامات',
-    total_rolls: 'مجموع الاتواب',
-    total_length_m: 'مجموع اطوال',
-    total_remaining_length_m: 'مجموع المتبقي',
-    total_sold_length_m: 'مجموع المباع',
-    total_weight_kg: 'مجموع اوزان',
+    total_materials: t('viewer.totals.totalMaterials'),
+    total_rolls: t('viewer.totals.totalRolls'),
+    total_length_m: t('viewer.totals.totalLengthM'),
+    total_remaining_length_m: t('viewer.totals.totalRemainingLengthM'),
+    total_sold_length_m: t('viewer.totals.totalSoldLengthM'),
+    total_weight_kg: t('viewer.totals.totalWeightKg'),
   };
   return map[label] || label;
 }
@@ -43,29 +45,19 @@ function formatCell(col: ReportColumnDef, value: unknown): string {
   return String(value);
 }
 
-interface Props {
-  report: UnifiedReportPayload | null;
-  loading: boolean;
-  error: string | null;
-  emptyMessage?: string;
-  onPageChange?: (page: number) => void;
-  enableSorting?: boolean;          // Enable column click sorting
-  sortBy?: string;                  // Current sort column key
-  sortDir?: 'asc' | 'desc';        // Current sort direction
-  onSortChange?: (sortBy: string, sortDir: 'asc' | 'desc') => void; // Notify parent
-}
-
 export const ReportViewer = ({
   report,
   loading,
   error,
-  emptyMessage = 'لا توجد بيانات لهذا التقرير ضمن الفلاتر الحالية',
+  emptyMessage,
   onPageChange,
   enableSorting = false,
   sortBy: controlledSortBy,
   sortDir: controlledSortDir,
   onSortChange,
 }: Props) => {
+  const { t } = useTranslation('reportsCenter');
+  const resolvedEmptyMessage = emptyMessage ?? t('viewer.emptyMessageDefault');
   // ── Sorting state ──────────────────────────────────────────────────────
   // Internal fallback when parent doesn't control sorting
   const [internalSortBy, setInternalSortBy] = useState<string>('');
@@ -87,10 +79,10 @@ export const ReportViewer = ({
   const totalsCards = useMemo(
     () =>
       Object.entries(report?.totals || {}).map(([label, value]) => ({
-        label: arTotalLabel(label),
+        label: totalLabel(t, label),
         value: String(value),
       })),
-    [report?.totals],
+    [report?.totals, t],
   );
 
   const pageInfo = useMemo(() => {
@@ -105,7 +97,7 @@ export const ReportViewer = ({
     return (
       <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
         <Loader2 className="w-6 h-6 animate-spin" />
-        جاري تحميل التقرير...
+        {t('viewer.loading')}
       </div>
     );
   }
@@ -119,7 +111,7 @@ export const ReportViewer = ({
   }
 
   if (!report) {
-    return <p className="text-slate-500 text-sm text-center py-12">اختر تقريراً من القائمة</p>;
+    return <p className="text-slate-500 text-sm text-center py-12">{t('viewer.selectReport')}</p>;
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -168,7 +160,7 @@ export const ReportViewer = ({
                     enableSorting ? 'cursor-pointer hover:bg-slate-700 transition-colors select-none' : ''
                   }`}
                   onClick={() => enableSorting && handleHeaderClick(col.key)}
-                  title={enableSorting ? 'انقر للفرز' : undefined}
+                  title={enableSorting ? t('viewer.clickToSort') : undefined}
                 >
                   {enableSorting ? (
                     <div className="flex items-center gap-1">
@@ -188,7 +180,7 @@ export const ReportViewer = ({
             {displayRows.length === 0 ? (
               <tr>
                 <td colSpan={report.columns.length} className="px-4 py-12 text-center text-slate-600 font-medium">
-                  {emptyMessage}
+                  {resolvedEmptyMessage}
                 </td>
               </tr>
             ) : (
@@ -217,8 +209,11 @@ export const ReportViewer = ({
       {pageInfo && onPageChange && pageInfo.ps < 10000 ? (
         <div className="flex items-center justify-between text-xs text-slate-600 flex-wrap gap-2">
           <span>
-            عرض {(pageInfo.p - 1) * pageInfo.ps + 1}–
-            {Math.min(pageInfo.p * pageInfo.ps, pageInfo.total)} من {pageInfo.total}
+            {t('viewer.pagination.showing', {
+              from: (pageInfo.p - 1) * pageInfo.ps + 1,
+              to: Math.min(pageInfo.p * pageInfo.ps, pageInfo.total),
+              total: pageInfo.total,
+            })}
           </span>
           <div className="flex gap-2">
             <button
@@ -227,7 +222,7 @@ export const ReportViewer = ({
               onClick={() => onPageChange(pageInfo.p - 1)}
               className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40"
             >
-              السابق
+              {t('viewer.pagination.prev')}
             </button>
             <button
               type="button"
@@ -235,7 +230,7 @@ export const ReportViewer = ({
               onClick={() => onPageChange(pageInfo.p + 1)}
               className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40"
             >
-              التالي
+              {t('viewer.pagination.next')}
             </button>
           </div>
         </div>

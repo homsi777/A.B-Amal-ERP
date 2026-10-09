@@ -1,0 +1,198 @@
+{
+  "page": {
+    "title": "مركز التقارير المتطور",
+    "subtitle": "كل تقرير ظاهر مرتبط بـ PostgreSQL — تصدير Excel وطباعة. التقارير «التشغيلية» توضح أنها ليست محاسبة Journal كاملة حيث ينطبق ذلك."
+  },
+  "tabs": {
+    "executive": "لوحة القيادة التنفيذية",
+    "financial": "التقارير المالية",
+    "sales": "تقارير المبيعات",
+    "purchases": "تقارير المشتريات",
+    "inventory": "تقارير المخزون",
+    "customers": "تقارير العملاء",
+    "suppliers": "تقارير الموردين",
+    "textile": "تقارير النسيج التخصصية"
+  },
+  "executiveTab": {
+    "sectionTitle": "تقارير تنفيذية"
+  },
+  "badges": {
+    "ready": "جاهز"
+  },
+  "filters": {
+    "dateFrom": "من تاريخ",
+    "dateTo": "إلى تاريخ",
+    "warehouse": "المستودع",
+    "allWarehouses": "كل المستودعات",
+    "searchText": "بحث نصّي",
+    "searchPlaceholder": "باركود، اسم، رقم...",
+    "sortReport": "فرز التقرير",
+    "sortDefault": "افتراضي",
+    "sortAlphaAsc": "أبجديًا (أ-ي)",
+    "sortAlphaDesc": "أبجديًا (ي-أ)",
+    "sortDateDesc": "تاريخ الإدخال (الأحدث)",
+    "sortDateAsc": "تاريخ الإدخال (الأقدم)",
+    "cashbox": "صندوق (حركة/سندات/مقبوضات)",
+    "cashboxPlaceholder": "UUID صندوق — اختياري",
+    "apply": "تطبيق وحساب",
+    "batchId": "معرف دفعة الاستيراد (UUID)",
+    "batchIdPlaceholder": "من سجل دفعات الاستيراد",
+    "loadRows": "تحميل الصفوف"
+  },
+  "toast": {
+    "preparingExcel": "جاري تجهيز ملف Excel...",
+    "excelSuccess": "تم تصدير ملف Excel بنجاح.",
+    "excelError": "تعذر تصدير ملف Excel. جرّب تحديث التقرير ثم التصدير مرة أخرى.",
+    "preparingPdf": "جاري تجهيز ملف PDF...",
+    "pdfSuccess": "تم تصدير ملف PDF بنجاح.",
+    "pdfError": "تعذر تصدير ملف PDF. جرّب مرة أخرى.",
+    "hide": "إخفاء",
+    "exportingInProgress": "جاري تنفيذ التصدير...",
+    "reportLoadError": "تعذر تحميل التقرير",
+    "summaryLoadError": "تعذر تحميل الملخص"
+  },
+  "dashboard": {
+    "sectionTitle": "الملخص التنفيذي العام",
+    "sectionSubtitle": "أعداد ومؤشرات حقيقية من PostgreSQL — صفر عند عدم وجود بيانات.",
+    "loading": "جاري تحميل البيانات...",
+    "kpis": {
+      "customers": "العملاء",
+      "suppliers": "الموردون",
+      "fabricRolls": "أدواب المخزون",
+      "activeFabricRolls": "أدواب نشطة",
+      "totalRollLength": "إجمالي أمتار الأدواب",
+      "rollWeight": "وزن الأدواب (تقدير)",
+      "receiptPayment": "قبض مؤكد / صرف مؤكد",
+      "inventoryMovements": "حركات المخزون",
+      "damagedRolls": "أدواب تالفة",
+      "cashboxesVouchers": "الصناديق / السندات",
+      "importBatchesPrintJobs": "دفعات استيراد / طباعة",
+      "payrollRuns": "مسيرات رواتب"
+    },
+    "units": {
+      "m": "م",
+      "kg": "kg"
+    },
+    "vouchers": {
+      "title": "ملخص السندات النقدية",
+      "draft": "مسودات",
+      "confirmed": "مؤكدة",
+      "totalConfirmedReceipts": "إجمالي قبض مؤكد",
+      "totalConfirmedPayments": "إجمالي صرف مؤكد"
+    },
+    "cashBalances": {
+      "title": "أرصدة الصناديق حسب العملة",
+      "empty": "لا توجد صناديق نشطة أو أرصدة صفر.",
+      "activeCashboxes": "صناديق نشطة: {{count}}"
+    },
+    "hr": {
+      "title": "الموارد البشرية (ملخص)",
+      "activeEmployees": "موظفون نشطون",
+      "payrollRuns": "مسيرات",
+      "paidRuns": "مدفوعة"
+    }
+  },
+  "reportTypes": {
+    "executive_summary": { "title": "التقرير التنفيذي الموحّد", "desc": "جدول مؤشرات من PostgreSQL" },
+    "financial_cashboxes": { "title": "أرصدة الصناديق", "desc": "أرصدة حسب العملة" },
+    "financial_cb_mov": { "title": "حركة الصندوق", "desc": "حركات نقدية" },
+    "financial_vouchers": { "title": "سجل السندات", "desc": "قبض وصرف" },
+    "fin_rec_pay": { "title": "ملخص المقبوضات والمدفوعات", "desc": "سندات مفصّلة" },
+    "fin_acct_act": { "title": "تقرير حركة الحساب المخصص", "desc": "دفتر تشغيلي مع فلاتر" },
+    "payroll_summary": { "title": "ملخص الرواتب (بطاقات)", "desc": "مسيرات وصافي" },
+    "pay_emp": { "title": "قائمة الموظفين", "desc": "بيانات الموظفين" },
+    "pay_runs": { "title": "مسيرات الرواتب", "desc": "سجل المسيرات" },
+    "pay_month": { "title": "ملخص رواتب شهري", "desc": "تجميع شهري" },
+    "gl": { "title": "دفتر الأستاذ (تشغيلي)", "desc": "سندات + صناديق + مرتجعات + رواتب + أنشطة" },
+    "tb": { "title": "ميزان مراجعة (تشغيلي)", "desc": "تجميع صناديق وسندات" },
+    "pl": { "title": "قائمة دخل/مصروف (تشغيلي)", "desc": "من السندات والمرتجعات والرواتب" },
+    "bs": { "title": "مركز مالي (تشغيلي)", "desc": "نقد ومخزون ومسودات" },
+    "cf": { "title": "التدفقات النقدية (تشغيلي)", "desc": "من حركات الصناديق" },
+    "fx": { "title": "تعرّض العملات", "desc": "أرصدة وسندات لكل عملة" },
+    "sa1": { "title": "ملخص المبيعات", "desc": "سندات ومرتجعات ونشاط" },
+    "sa2": { "title": "المبيعات التفصيلية", "desc": "نشاط العملاء" },
+    "sa_item": { "title": "المبيعات حسب الصنف", "desc": "هيكل جاهز لربط فواتير البيع" },
+    "sa_cust": { "title": "المبيعات حسب العميل", "desc": "تجميع نشاط عملاء" },
+    "sa_agent": { "title": "المبيعات حسب المندوب", "desc": "" },
+    "sa_color": { "title": "المبيعات حسب اللون", "desc": "" },
+    "sa_margins": { "title": "تحليل هوامش الربح", "desc": "يتطلب تكلفة وبيع" },
+    "purchases_batches": { "title": "سجل دفعات استيراد Excel", "desc": "ملفات وحالة الدفعة" },
+    "purchases_rows": { "title": "صفوف دفعة الاستيراد", "desc": "أدخل UUID الدفعة في الفلاتر" },
+    "pur_sum": { "title": "ملخص المشتريات", "desc": "استيراد وأدواب" },
+    "pur_det": { "title": "المشتريات التفصيلية", "desc": "أدواب في المخزون" },
+    "pur_sup": { "title": "المشتريات حسب المورد", "desc": "" },
+    "pur_item": { "title": "المشتريات حسب الصنف", "desc": "" },
+    "pur_batch": { "title": "المشتريات حسب الدفعة/اللوط", "desc": "" },
+    "pur_cost": { "title": "اتجاه التكلفة", "desc": "متوسط تكلفة وحدة" },
+    "inventory_rolls": { "title": "كشف أتواب المخزون", "desc": "المخزون التشغيلي — يستبعد المباع والتالف والصفرية؛ استخدم فلتر الحالة عند الحاجة." },
+    "inventory_stock_audit_page": { "title": "جرد مخزون المخزون", "desc": "التصميم التشغيلي السابق (صفحة كاملة)" },
+    "inventory_movements": { "title": "حركة الأتواب", "desc": "" },
+    "inventory_by_wh": { "title": "الأدواب حسب المستودع", "desc": "" },
+    "inventory_item_color": { "title": "الأدواب حسب الخامة واللون", "desc": "" },
+    "inv_balance": { "title": "أرصدة المخزون", "desc": "تجميع تشغيلي" },
+    "inv_move_old": { "title": "تقييم المخزون", "desc": "طول × تكلفة وحدة" },
+    "inv_by_color": { "title": "المخزون حسب اللون", "desc": "" },
+    "inv_aging": { "title": "أعمار المخزون", "desc": "_buckets زمنية" },
+    "inv_slow": { "title": "أصناف بطيئة الحركة", "desc": "بدون حركة مخزون طويلة" },
+    "inv_negative": { "title": "شذوذ سالب (طول/وزن)", "desc": "" },
+    "tx1": { "title": "المخزون على مستوى الطاقة", "desc": "تفاصيل ثوب" },
+    "inv_batch_tr": { "title": "تتبع الدفعات", "desc": "دفعات استيراد" },
+    "inv_fabric_types": { "title": "أنواع الأقمشة", "desc": "حسب فئة الكatalog" },
+    "inv_waste": { "title": "ملخص سجلات التوالف", "desc": "سجلات WST المؤكدة مجمّعة" },
+    "inv_damaged": { "title": "كشف الهالك (أثواب تالفة)", "desc": "إهلاك كامل — خارج المخزون والجرد التشغيلي" },
+    "inv_cut": { "title": "كفاءة القص", "desc": "" },
+    "inv_rem_len": { "title": "الأطوال المتبقية", "desc": "ثوب غير مباع" },
+    "parties_activity": { "title": "نشاط العملاء والموردين", "desc": "سجل الأنشطة" },
+    "cust_act": { "title": "نشاط العملاء فقط", "desc": "" },
+    "c1": { "title": "كشف حساب عميل", "desc": "سندات عملاء" },
+    "c2": { "title": "أعمار ديون العملاء", "desc": "" },
+    "c_status": { "title": "العملاء حسب الحالة", "desc": "" },
+    "c_sum": { "title": "ملخص تعاملات العملاء", "desc": "" },
+    "sup_act": { "title": "نشاط الموردين", "desc": "" },
+    "s1": { "title": "كشف حساب مورد", "desc": "سندات موردين" },
+    "s2": { "title": "أعمار ذمم الموردين", "desc": "" },
+    "sup_status": { "title": "الموردون حسب الحالة", "desc": "" },
+    "sup_sum": { "title": "ملخص تعاملات الموردين", "desc": "" },
+    "printing_jobs": { "title": "سجل مهام الطباعة", "desc": "" },
+    "print_labels": { "title": "اللصاقات المطبوعة", "desc": "" },
+    "print_unprinted": { "title": "أدواب بدون لصاقة", "desc": "" }
+  },
+  "viewer": {
+    "totals": {
+      "totalMaterials": "مجموع الخامات",
+      "totalRolls": "مجموع الاتواب",
+      "totalLengthM": "مجموع اطوال",
+      "totalRemainingLengthM": "مجموع المتبقي",
+      "totalSoldLengthM": "مجموع المباع",
+      "totalWeightKg": "مجموع اوزان"
+    },
+    "emptyMessageDefault": "لا توجد بيانات",
+    "loading": "جاري التحميل...",
+    "selectReport": "اختر تقريراً لعرضه",
+    "clickToSort": "اضغط للترتيب",
+    "pagination": {
+      "showing": "عرض {{from}} - {{to}} من {{total}}",
+      "prev": "السابق",
+      "next": "التالي"
+    }
+  },
+  "export": {
+    "totals": {
+      "totalMaterials": "مجموع الخامات",
+      "totalRolls": "مجموع الاتواب",
+      "totalLengthM": "مجموع اطوال",
+      "totalRemainingLengthM": "مجموع المتبقي",
+      "totalSoldLengthM": "مجموع المباع",
+      "totalWeightKg": "مجموع اوزان",
+      "soldMeters": "إجمالي الأمتار المباعة",
+      "remainingReceivableMeters": "أمتار ضمن الذمم"
+    },
+    "descriptionLabel": "الوصف",
+    "noteLabel": "ملاحظة",
+    "generatedDateLabel": "تاريخ التوليد",
+    "filtersLabel": "الفلاتر",
+    "totalsSectionLabel": "الإجماليات",
+    "summarySectionLabel": "الملخص",
+    "sheetName": "تقرير"
+  }
+}
