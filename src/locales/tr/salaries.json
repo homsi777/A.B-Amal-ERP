@@ -1,0 +1,138 @@
+{
+  "pageTitle": "Maaşlar ve Çalışanlar",
+  "pageSubtitle": "Çalışan bilgilerini yönetin ve kasadan maaş teslimatı yapın; A4/Excel baskı ve dışa aktarma dahil.",
+  "buttons": {
+    "payrollLog": "Maaş Kaydı",
+    "printA4": "A4 Yazdır",
+    "exportExcel": "Excel'e Aktar",
+    "manageEmployees": "Çalışanları Yönet",
+    "addEmployee": "Çalışan Ekle"
+  },
+  "errors": {
+    "loadFailed": "Yüklenemedi",
+    "nameRequired": "Çalışanın tam adı gereklidir.",
+    "phoneRequired": "Telefon numarası gereklidir.",
+    "salaryInvalid": "Maaş sıfırdan büyük olmalıdır.",
+    "saveFailed": "Kaydetme başarısız oldu",
+    "cashboxesLoadFailed": "Kasalar yüklenemedi",
+    "employeeCashboxesLoadFailed": "Çalışan kasaları yüklenemedi",
+    "chooseCashbox": "Hazineden bir kasa seçin.",
+    "exchangeRateInvalid": "Maaş para birimi için geçerli bir döviz kuru girin.",
+    "advanceAmountInvalid": "Geçerli bir avans tutarı girin.",
+    "cashOutFailed": "Ödeme kaydedilemedi"
+  },
+  "salaryPeriod": {
+    "weekly": "Haftalık",
+    "monthly": "Aylık"
+  },
+  "status": {
+    "active": "Aktif",
+    "suspended": "Askıya Alındı"
+  },
+  "totals": {
+    "totalByCurrency": "Toplam {{currency}} Maaşları"
+  },
+  "runs": {
+    "title": "Maaş Dönemleri",
+    "net": "Net",
+    "payFromCashbox": "Kasadan Öde"
+  },
+  "search": {
+    "placeholder": "Çalışan adı, telefon veya adrese göre ara..."
+  },
+  "filter": "Filtrele",
+  "table": {
+    "employeeCode": "Çalışan Kodu",
+    "fullName": "Çalışanın Tam Adı",
+    "address": "Adres",
+    "phone": "Telefon Numarası",
+    "salary": "Maaş",
+    "paidSalaries": "Ödenen Maaşlar",
+    "advances": "Avanslar",
+    "salaryPeriod": "Maaş Türü",
+    "status": "Durum",
+    "actions": "İşlemler",
+    "loading": "Yükleniyor...",
+    "noData": "Kayıtlı çalışan bulunamadı",
+    "paymentCount": "{{count}} ödeme",
+    "footerSummary": "Para birimine göre toplam maaşlar yukarıda",
+    "employeeCount": "{{count}} çalışan",
+    "deliver": "Teslim Et",
+    "advance": "Avans"
+  },
+  "modal": {
+    "addEmployeeTitle": "Profesyonel Çalışan Ekle",
+    "addEmployeeSubtitle": "Maaş ve kasadan teslimat için gereken temel bilgiler.",
+    "fields": {
+      "employeeCode": "Çalışan Kodu",
+      "fullName": "Çalışanın Tam Adı",
+      "address": "Adres",
+      "phone": "Telefon Numarası",
+      "salary": "Maaş",
+      "salaryCurrency": "Maaş Para Birimi",
+      "salaryPeriod": "Maaş Türü"
+    },
+    "equivalentApprox": "Yaklaşık karşılığı: {{amount}}",
+    "currency": {
+      "syp": "Suriye Lirası",
+      "try": "Türk Lirası",
+      "usd": "Dolar"
+    },
+    "period": {
+      "monthly": "Aylık",
+      "weekly": "Haftalık"
+    },
+    "cancel": "İptal",
+    "saveThenDeliver": "Kaydet ve Teslim Et",
+    "saving": "Kaydediliyor...",
+    "saveEmployee": "Çalışanı Kaydet"
+  },
+  "payModal": {
+    "titleAdvance": "Çalışan Avansı Ekle",
+    "titleDeliver": "Çalışan Maaşı Teslim Et",
+    "titleRun": "Maaş Dönemini Öde",
+    "advanceAmountLabel": "Avans Tutarı",
+    "deliveryAmountLabel": "Teslimat Tutarı",
+    "amountInCurrency": "Maaş para biriminde tutar: {{currency}}",
+    "equivalent": "— eşdeğeri {{amount}}",
+    "exchangeRateLabel": "{{currency}} / 1 Dolar döviz kuru",
+    "cashboxLabel": "Kasa",
+    "chooseCashboxOption": "— Bir kasa seçin —",
+    "cashboxOption": "{{name}} ({{code}}) — {{currency}} — bakiye {{balance}}",
+    "noActiveCashboxes": "Aktif kasa bulunamadı — önce Hazine bölümünden bir kasa oluşturun.",
+    "deductionNote": "Kasadan kesilecek: {{amount}} {{currency}}",
+    "dateLabel": "Teslim Tarihi",
+    "cancel": "İptal",
+    "confirmAdvance": "Avansı Onayla",
+    "confirmDelivery": "Teslimatı Onayla",
+    "registering": "Kaydediliyor..."
+  },
+  "notes": {
+    "advance": "{{name}} çalışanına avans",
+    "payment": "{{name}} maaş teslimatı"
+  },
+  "export": {
+    "employeeCode": "Çalışan Kodu",
+    "fullName": "Çalışanın Tam Adı",
+    "address": "Adres",
+    "phone": "Telefon",
+    "salary": "Maaş",
+    "currency": "Para Birimi",
+    "salaryPeriod": "Maaş Türü",
+    "status": "Durum"
+  },
+  "print": {
+    "documentTitle": "Çalışan Listesi",
+    "heading": "Çalışan Listesi",
+    "colIndex": "#",
+    "colEmployeeCode": "Çalışan Kodu",
+    "colFullName": "Çalışanın Tam Adı",
+    "colAddress": "Adres",
+    "colPhone": "Telefon",
+    "colSalary": "Maaş",
+    "colSalaryPeriod": "Maaş Türü",
+    "colStatus": "Durum",
+    "noData": "Veri bulunamadı",
+    "printDate": "Yazdırma Tarihi: {{date}}"
+  }
+}

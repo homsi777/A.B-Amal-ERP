@@ -1,0 +1,138 @@
+{
+  "pageTitle": "الرواتب والموظفون",
+  "pageSubtitle": "إدارة بيانات الموظفين وتسليم الرواتب من الخزينة مع طباعة وتصدير A4/Excel.",
+  "buttons": {
+    "payrollLog": "سجل الرواتب",
+    "printA4": "طباعة A4",
+    "exportExcel": "تصدير Excel",
+    "manageEmployees": "إدارة الموظفين",
+    "addEmployee": "إضافة موظف"
+  },
+  "errors": {
+    "loadFailed": "تعذر التحميل",
+    "nameRequired": "اسم الموظف الثلاثي مطلوب.",
+    "phoneRequired": "رقم الهاتف مطلوب.",
+    "salaryInvalid": "الراتب يجب أن يكون أكبر من صفر.",
+    "saveFailed": "فشل الحفظ",
+    "cashboxesLoadFailed": "تعذر تحميل الصناديق",
+    "employeeCashboxesLoadFailed": "تعذر تحميل صناديق الموظفين",
+    "chooseCashbox": "اختر صندوقاً من الخزينة.",
+    "exchangeRateInvalid": "أدخل سعر صرف صحيحاً لعملة الراتب.",
+    "advanceAmountInvalid": "أدخل قيمة سلفة صحيحة.",
+    "cashOutFailed": "تعذر تسجيل الصرف"
+  },
+  "salaryPeriod": {
+    "weekly": "أسبوعي",
+    "monthly": "شهري"
+  },
+  "status": {
+    "active": "نشط",
+    "suspended": "موقوف"
+  },
+  "totals": {
+    "totalByCurrency": "إجمالي رواتب {{currency}}"
+  },
+  "runs": {
+    "title": "مسيرات الرواتب",
+    "net": "صافي",
+    "payFromCashbox": "صرف من الخزينة"
+  },
+  "search": {
+    "placeholder": "بحث باسم الموظف أو الهاتف أو العنوان..."
+  },
+  "filter": "تصفية",
+  "table": {
+    "employeeCode": "رمز الموظف",
+    "fullName": "اسم الموظف الثلاثي",
+    "address": "العنوان",
+    "phone": "رقم الهاتف",
+    "salary": "الراتب",
+    "paidSalaries": "رواتب مدفوعة",
+    "advances": "سلف",
+    "salaryPeriod": "نوع الراتب",
+    "status": "الحالة",
+    "actions": "إجراءات",
+    "loading": "جاري التحميل...",
+    "noData": "لا توجد بيانات موظفين",
+    "paymentCount": "{{count}} دفعة",
+    "footerSummary": "إجمالي الرواتب حسب العملة في الأعلى",
+    "employeeCount": "{{count}} موظف",
+    "deliver": "تسليم",
+    "advance": "سلفة"
+  },
+  "modal": {
+    "addEmployeeTitle": "إضافة موظف احترافية",
+    "addEmployeeSubtitle": "البيانات الأساسية المطلوبة للرواتب والتسليم من الخزينة.",
+    "fields": {
+      "employeeCode": "رمز الموظف",
+      "fullName": "اسم الموظف الثلاثي",
+      "address": "العنوان",
+      "phone": "رقم الهاتف",
+      "salary": "الراتب",
+      "salaryCurrency": "عملة الراتب",
+      "salaryPeriod": "نوع الراتب"
+    },
+    "equivalentApprox": "يعادل تقريباً: {{amount}}",
+    "currency": {
+      "syp": "ليرة سورية",
+      "try": "ليرة تركية",
+      "usd": "دولار"
+    },
+    "period": {
+      "monthly": "شهري",
+      "weekly": "أسبوعي"
+    },
+    "cancel": "إلغاء",
+    "saveThenDeliver": "حفظ ثم تسليم",
+    "saving": "جاري الحفظ...",
+    "saveEmployee": "حفظ الموظف"
+  },
+  "payModal": {
+    "titleAdvance": "إضافة سلفة موظف",
+    "titleDeliver": "تسليم راتب موظف",
+    "titleRun": "صرف مسير الرواتب",
+    "advanceAmountLabel": "قيمة السلفة",
+    "deliveryAmountLabel": "قيمة التسليم",
+    "amountInCurrency": "المبلغ بعملة الراتب: {{currency}}",
+    "equivalent": "— يعادل {{amount}}",
+    "exchangeRateLabel": "سعر صرف {{currency}} مقابل 1 دولار",
+    "cashboxLabel": "الصندوق",
+    "chooseCashboxOption": "— اختر صندوقاً —",
+    "cashboxOption": "{{name}} ({{code}}) — {{currency}} — رصيد {{balance}}",
+    "noActiveCashboxes": "لا توجد صناديق نشطة — أنشئ صندوقاً من قسم الخزينة أولاً.",
+    "deductionNote": "سيُخصم من الصندوق: {{amount}} {{currency}}",
+    "dateLabel": "تاريخ التسليم",
+    "cancel": "إلغاء",
+    "confirmAdvance": "تأكيد السلفة",
+    "confirmDelivery": "تأكيد التسليم",
+    "registering": "جاري التسجيل..."
+  },
+  "notes": {
+    "advance": "سلفة للموظف {{name}}",
+    "payment": "تسليم راتب {{name}}"
+  },
+  "export": {
+    "employeeCode": "رمز الموظف",
+    "fullName": "اسم الموظف الثلاثي",
+    "address": "العنوان",
+    "phone": "الهاتف",
+    "salary": "الراتب",
+    "currency": "العملة",
+    "salaryPeriod": "نوع الراتب",
+    "status": "الحالة"
+  },
+  "print": {
+    "documentTitle": "قائمة الموظفين",
+    "heading": "قائمة الموظفين",
+    "colIndex": "#",
+    "colEmployeeCode": "رمز الموظف",
+    "colFullName": "اسم الموظف الثلاثي",
+    "colAddress": "العنوان",
+    "colPhone": "الهاتف",
+    "colSalary": "الراتب",
+    "colSalaryPeriod": "نوع الراتب",
+    "colStatus": "الحالة",
+    "noData": "لا توجد بيانات",
+    "printDate": "تاريخ الطباعة: {{date}}"
+  }
+}
