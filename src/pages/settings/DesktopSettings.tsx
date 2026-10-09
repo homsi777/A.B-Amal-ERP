@@ -17,6 +17,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Server, Wifi, WifiOff, Save, RefreshCw, Printer,
   Monitor, CheckCircle2, AlertTriangle, Info, ToggleLeft, ToggleRight,
@@ -36,6 +37,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
  * No outer page header, no breadcrumb. Only its own form sections.
  */
 export const DesktopSettingsBody: React.FC = () => {
+  const { t, i18n } = useTranslation('settings');
   const { settings, loading, updateSettings, isElectron } = useElectronSettings();
 
   // API URL state
@@ -103,14 +105,14 @@ export const DesktopSettingsBody: React.FC = () => {
       if (res.ok) {
         const data = (await res.json()) as { status?: string };
         setConnStatus('ok');
-        setConnMessage(`متصل — الحالة: ${data.status ?? 'ok'}`);
+        setConnMessage(t('desktop.conn.connected', { status: data.status ?? 'ok' }));
       } else {
         setConnStatus('error');
-        setConnMessage(`فشل الاتصال — HTTP ${res.status}`);
+        setConnMessage(t('desktop.conn.failedHttp', { status: res.status }));
       }
     } catch (err: unknown) {
       setConnStatus('error');
-      setConnMessage(`تعذر الاتصال — ${err instanceof Error ? err.message : 'خطأ في الشبكة'}`);
+      setConnMessage(t('desktop.conn.unreachable', { message: err instanceof Error ? err.message : t('desktop.conn.networkError') }));
     }
   };
 
@@ -129,8 +131,8 @@ p { margin: 2mm 0; font-size: 10pt; }
 <body><div class="box">
 <h2 style="letter-spacing:3px;">CLOTEX</h2>
 <p style="font-size:9pt;letter-spacing:4px;color:#64748b;margin-top:-2mm;">CLOTHES TEXTILE</p>
-<p>اختبار الطابعة: ${labelPrinter}</p>
-<p style="font-size:8pt;color:#64748b">${new Date().toLocaleDateString('ar-SA')}</p>
+<p>${t('desktop.testPrint.printerLabel', { printer: labelPrinter })}</p>
+<p style="font-size:8pt;color:#64748b">${new Date().toLocaleDateString(i18n.language === 'ar' ? 'ar-SA' : 'tr-TR')}</p>
 </div></body></html>`;
     try {
       const res = await window.fabricApp.printHtml(testHtml, {
@@ -144,14 +146,14 @@ p { margin: 2mm 0; font-size: 10pt; }
       });
       if (res.ok) {
         setTestPrintStatus('ok');
-        setTestPrintMsg('تم اختبار الطباعة بنجاح ✓');
+        setTestPrintMsg(t('desktop.testPrint.success'));
       } else {
         setTestPrintStatus('error');
-        setTestPrintMsg(res.error ?? 'فشل اختبار الطباعة');
+        setTestPrintMsg(res.error ?? t('desktop.testPrint.failed'));
       }
     } catch {
       setTestPrintStatus('error');
-      setTestPrintMsg('خطأ غير متوقع أثناء اختبار الطباعة');
+      setTestPrintMsg(t('desktop.testPrint.unexpectedError'));
     }
   };
 
@@ -169,7 +171,7 @@ p { margin: 2mm 0; font-size: 10pt; }
           rollNo: '597089894496',
           itemName: '101',
           internalCode: '101',
-          colorNameAr: 'احمر',
+          colorNameAr: t('desktop.samplePrint.sampleColorName'),
           colorCode: 'v-1',
           lengthM: 96,
           actualWeightKg: 21.6,
@@ -188,14 +190,14 @@ p { margin: 2mm 0; font-size: 10pt; }
       });
       if (res.ok) {
         setTestPrintStatus('ok');
-        setTestPrintMsg('تم طباعة نموذج اللصاقة ✓');
+        setTestPrintMsg(t('desktop.samplePrint.success'));
       } else {
         setTestPrintStatus('error');
-        setTestPrintMsg(res.error ?? 'فشل طباعة النموذج');
+        setTestPrintMsg(res.error ?? t('desktop.samplePrint.failed'));
       }
     } catch {
       setTestPrintStatus('error');
-      setTestPrintMsg('خطأ أثناء طباعة نموذج اللصاقة');
+      setTestPrintMsg(t('desktop.samplePrint.error'));
     }
   };
 
@@ -239,8 +241,8 @@ p { margin: 2mm 0; font-size: 10pt; }
       {/* Embedded sub-header — no top-level page chrome (the host page provides it) */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h3 className="text-lg font-bold text-slate-900">تطبيق سطح المكتب</h3>
-          <p className="text-xs text-slate-500 mt-0.5">تهيئة الاتصال، الطابعات، والطباعة الصامتة</p>
+          <h3 className="text-lg font-bold text-slate-900">{t('desktop.header.title')}</h3>
+          <p className="text-xs text-slate-500 mt-0.5">{t('desktop.header.subtitle')}</p>
         </div>
         {isElectron && (
           <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-xs font-bold">
@@ -254,8 +256,8 @@ p { margin: 2mm 0; font-size: 10pt; }
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
           <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">
-            <strong>ملاحظة:</strong> قائمة الطابعات والطباعة الصامتة متاحة داخل تطبيق Windows فقط.
-            في وضع المتصفح، يُستخدم متغير البيئة <code className="bg-amber-100 px-1 rounded text-xs">VITE_API_BASE_URL</code> مع localStorage.
+            <strong>{t('desktop.browserNotice.label')}</strong> {t('desktop.browserNotice.textBefore')}
+            {t('desktop.browserNotice.textAfter')} <code className="bg-amber-100 px-1 rounded text-xs">VITE_API_BASE_URL</code> {t('desktop.browserNotice.withLocalStorage')}
           </p>
         </div>
       )}
@@ -264,12 +266,12 @@ p { margin: 2mm 0; font-size: 10pt; }
       <div className={sectionCard}>
         <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
           <Tag className="w-4 h-4 text-slate-500" />
-          <h3 className="font-bold text-slate-800 text-sm">إعدادات الطباعة الصامتة للصاقات</h3>
+          <h3 className="font-bold text-slate-800 text-sm">{t('desktop.label.sectionTitle')}</h3>
         </div>
 
         {/* Default label printer */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">طابعة اللصاقات الافتراضية</label>
+          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{t('desktop.label.defaultPrinter')}</label>
           {isElectron ? (
             <div className="flex gap-2">
               <select
@@ -278,7 +280,7 @@ p { margin: 2mm 0; font-size: 10pt; }
                 className={`${inputCls} flex-1`}
                 disabled={printersLoading}
               >
-                <option value="">— لا توجد طابعة محددة —</option>
+                <option value="">{t('desktop.label.noPrinterSelected')}</option>
                 {printers.map((p) => (
                   <option key={p.name} value={p.name}>
                     {p.displayName || p.name}{p.isDefault ? ' ★' : ''}
@@ -289,7 +291,7 @@ p { margin: 2mm 0; font-size: 10pt; }
                 onClick={loadPrinters}
                 disabled={printersLoading}
                 className="px-3 py-2 border border-slate-300 rounded-xl text-slate-600 hover:bg-slate-50 transition disabled:opacity-50 flex-shrink-0"
-                title="تحديث قائمة الطابعات"
+                title={t('desktop.label.refreshPrinters')}
               >
                 <RefreshCw className={`w-4 h-4 ${printersLoading ? 'animate-spin' : ''}`} />
               </button>
@@ -297,13 +299,13 @@ p { margin: 2mm 0; font-size: 10pt; }
           ) : (
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-500">
               <Printer className="w-4 h-4" />
-              قائمة الطابعات متاحة فقط داخل تطبيق Windows
+              {t('desktop.label.windowsOnlyPrinterList')}
             </div>
           )}
           {printers.length === 0 && isElectron && !printersLoading && (
             <p className="text-xs text-amber-600 flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
-              لم يتم العثور على طابعات. تأكد من تثبيت طابعة على هذا الجهاز.
+              {t('desktop.label.noPrintersFound')}
             </p>
           )}
         </div>
@@ -311,9 +313,9 @@ p { margin: 2mm 0; font-size: 10pt; }
         {/* Silent label printing toggle */}
         <div className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
           <div>
-            <p className="font-bold text-sm text-slate-800">تفعيل الطباعة الصامتة للصاقات</p>
+            <p className="font-bold text-sm text-slate-800">{t('desktop.label.enableSilentPrinting')}</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              ترسَل اللصاقات مباشرة إلى الطابعة دون إظهار نافذة الطباعة
+              {t('desktop.label.silentPrintingDescription')}
             </p>
           </div>
           <button
@@ -330,14 +332,14 @@ p { margin: 2mm 0; font-size: 10pt; }
         {silentLabel && !labelPrinter && isElectron && (
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 text-xs">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-            الطباعة الصامتة مفعّلة لكن لم يتم تحديد طابعة لصاقات. يرجى اختيار طابعة.
+            {t('desktop.label.silentEnabledNoPrinter')}
           </div>
         )}
 
         {/* Label dimensions */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-600">عرض اللصاقة (mm)</label>
+            <label className="text-xs font-bold text-slate-600">{t('desktop.label.widthMm')}</label>
             <input
               type="number"
               min={30} max={300}
@@ -347,7 +349,7 @@ p { margin: 2mm 0; font-size: 10pt; }
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-600">ارتفاع اللصاقة (mm)</label>
+            <label className="text-xs font-bold text-slate-600">{t('desktop.label.heightMm')}</label>
             <input
               type="number"
               min={20} max={300}
@@ -369,17 +371,17 @@ p { margin: 2mm 0; font-size: 10pt; }
               {testPrintStatus === 'printing'
                 ? <RefreshCw className="w-4 h-4 animate-spin" />
                 : <TestTube2 className="w-4 h-4" />}
-              اختبار الطباعة
+              {t('desktop.label.testPrintButton')}
             </button>
             <button
               type="button"
               onClick={handleSampleRollLabelPrint}
               disabled={!labelPrinter || testPrintStatus === 'printing'}
               className="flex items-center gap-2 px-4 py-2 border border-indigo-200 bg-indigo-50/80 rounded-xl text-sm text-indigo-900 hover:bg-indigo-100 transition disabled:opacity-50"
-              title="طباعة نموذج لصاقة ثوب (قالب CLOTEX الفعلي)"
+              title={t('desktop.label.samplePrintTitle')}
             >
               <Tag className="w-4 h-4" />
-              نموذج لصاقة 100×80
+              {t('desktop.label.samplePrintButton')}
             </button>
             {testPrintStatus === 'ok' && (
               <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
@@ -399,14 +401,14 @@ p { margin: 2mm 0; font-size: 10pt; }
       <div className={sectionCard}>
         <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
           <FileText className="w-4 h-4 text-slate-500" />
-          <h3 className="font-bold text-slate-800 text-sm">إعدادات طباعة A4</h3>
+          <h3 className="font-bold text-slate-800 text-sm">{t('desktop.a4.sectionTitle')}</h3>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">طابعة A4 الافتراضية (اختياري)</label>
+          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{t('desktop.a4.defaultPrinter')}</label>
           {isElectron ? (
             <select value={a4Printer} onChange={(e) => setA4Printer(e.target.value)} className={inputCls}>
-              <option value="">— نفس طابعة اللصاقات / الافتراضية —</option>
+              <option value="">{t('desktop.a4.sameAsLabelPrinter')}</option>
               {printers.map((p) => (
                 <option key={p.name} value={p.name}>
                   {p.displayName || p.name}{p.isDefault ? ' ★' : ''}
@@ -415,15 +417,15 @@ p { margin: 2mm 0; font-size: 10pt; }
             </select>
           ) : (
             <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-500">
-              متاحة داخل تطبيق Windows فقط
+              {t('desktop.a4.windowsOnly')}
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
           <div>
-            <p className="font-bold text-sm text-slate-800">تفعيل الطباعة الصامتة لـ A4</p>
-            <p className="text-xs text-slate-500 mt-0.5">طباعة صفحات A4 مباشرةً بدون حوار</p>
+            <p className="font-bold text-sm text-slate-800">{t('desktop.a4.enableSilentPrinting')}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('desktop.a4.silentPrintingDescription')}</p>
           </div>
           <button
             onClick={() => setSilentA4(!silentA4)}
@@ -437,10 +439,10 @@ p { margin: 2mm 0; font-size: 10pt; }
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">وضع الطباعة الافتراضي</label>
+          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{t('desktop.a4.defaultPrintMode')}</label>
           <select value={printMode} onChange={(e) => setPrintMode(e.target.value as 'A4' | 'ROLL_LABEL')} className={inputCls}>
-            <option value="ROLL_LABEL">لصاقة منفصلة (100×80mm)</option>
-            <option value="A4">A4 — طباعة متعددة في ورقة واحدة</option>
+            <option value="ROLL_LABEL">{t('desktop.a4.modeRollLabel')}</option>
+            <option value="A4">{t('desktop.a4.modeA4')}</option>
           </select>
         </div>
       </div>
@@ -449,11 +451,11 @@ p { margin: 2mm 0; font-size: 10pt; }
       <div className={sectionCard}>
         <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
           <Server className="w-4 h-4 text-slate-500" />
-          <h3 className="font-bold text-slate-800 text-sm">رابط خادم الـ API</h3>
+          <h3 className="font-bold text-slate-800 text-sm">{t('desktop.api.sectionTitle')}</h3>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">رابط الخادم</label>
+          <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">{t('desktop.api.serverUrl')}</label>
           <input
             type="url"
             value={apiUrl}
@@ -472,7 +474,7 @@ p { margin: 2mm 0; font-size: 10pt; }
             {connStatus === 'testing' && <RefreshCw className="w-4 h-4 animate-spin" />}
             {connStatus === 'ok' && <CheckCircle2 className="w-4 h-4" />}
             {connStatus === 'error' && <AlertTriangle className="w-4 h-4" />}
-            {connStatus === 'testing' ? 'جاري الاختبار...' : connMessage}
+            {connStatus === 'testing' ? t('desktop.api.testing') : connMessage}
           </div>
         )}
 
@@ -482,10 +484,10 @@ p { margin: 2mm 0; font-size: 10pt; }
           className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition disabled:opacity-50"
         >
           {connStatus === 'ok'
-            ? <><Wifi className="w-4 h-4 text-emerald-600" /> متصل</>
+            ? <><Wifi className="w-4 h-4 text-emerald-600" /> {t('desktop.api.connected')}</>
             : connStatus === 'testing'
-            ? <><RefreshCw className="w-4 h-4 animate-spin" /> جاري الاختبار...</>
-            : <><WifiOff className="w-4 h-4" /> اختبار الاتصال</>}
+            ? <><RefreshCw className="w-4 h-4 animate-spin" /> {t('desktop.api.testing')}</>
+            : <><WifiOff className="w-4 h-4" /> {t('desktop.api.testConnection')}</>}
         </button>
       </div>
 
@@ -497,32 +499,32 @@ p { margin: 2mm 0; font-size: 10pt; }
           className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50"
         >
           {saveStatus === 'saving'
-            ? <><RefreshCw className="w-4 h-4 animate-spin" /> جاري الحفظ...</>
-            : <><Save className="w-4 h-4" /> حفظ الإعدادات</>}
+            ? <><RefreshCw className="w-4 h-4 animate-spin" /> {t('desktop.save.saving')}</>
+            : <><Save className="w-4 h-4" /> {t('desktop.save.saveSettings')}</>}
         </button>
         {saveStatus === 'saved' && (
           <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-bold">
-            <CheckCircle2 className="w-4 h-4" /> تم الحفظ بنجاح
+            <CheckCircle2 className="w-4 h-4" /> {t('desktop.save.savedSuccess')}
           </span>
         )}
         {saveStatus === 'error' && (
-          <span className="text-sm text-rose-600 font-bold">فشل الحفظ</span>
+          <span className="text-sm text-rose-600 font-bold">{t('desktop.save.saveFailed')}</span>
         )}
       </div>
 
       {/* Security footer */}
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700 space-y-1.5">
         <p className="font-bold text-blue-800 flex items-center gap-1.5">
-          <Info className="w-3.5 h-3.5" /> ملاحظة أمنية
+          <Info className="w-3.5 h-3.5" /> {t('desktop.security.title')}
         </p>
-        <p>لا يتم تخزين أي من البيانات التالية في هذا التطبيق:</p>
+        <p>{t('desktop.security.intro')}</p>
         <ul className="list-disc list-inside space-y-0.5 mr-2">
-          <li>كلمة مرور قاعدة البيانات PostgreSQL</li>
-          <li>مفتاح JWT_SECRET</li>
-          <li>بيانات اعتماد SSH أو VPS</li>
-          <li>توكن Telegram</li>
+          <li>{t('desktop.security.dbPassword')}</li>
+          <li>{t('desktop.security.jwtSecret')}</li>
+          <li>{t('desktop.security.sshVpnCreds')}</li>
+          <li>{t('desktop.security.telegramToken')}</li>
         </ul>
-        <p className="text-blue-600">الاتصال بـ PostgreSQL يتم فقط من جانب الخادم (Backend API).</p>
+        <p className="text-blue-600">{t('desktop.security.serverSideOnly')}</p>
       </div>
     </div>
   );

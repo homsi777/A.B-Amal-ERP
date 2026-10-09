@@ -250,7 +250,7 @@ export const SystemSettings = () => {
       showToast({ type: 'warning', message: t('toast.purgeNeedsAck') });
       return;
     }
-    if (purgeConfirmPhrase.trim() !== 'مسح البيانات') {
+    if (purgeConfirmPhrase.trim() !== t('purge.confirmPhrase')) {
       showToast({ type: 'warning', message: t('toast.purgeNeedsExactPhrase') });
       return;
     }
@@ -480,15 +480,15 @@ export const SystemSettings = () => {
 
   const handleTelegramTest = async () => {
     setTelegramLoading(true);
-    setTelegramStatus('جاري اختبار بوت تيليغرام...');
+    setTelegramStatus(t('mail.telegramStatusTesting'));
     try {
       const bot = await testTelegramBot({
         botToken: String(settingsValues.mail.telegramBotToken || ''),
         chatId: String(settingsValues.mail.telegramTestChatId || ''),
       });
-      setTelegramStatus(`تم الاتصال بالبوت بنجاح: ${bot.username ? `@${bot.username}` : bot.first_name || bot.id}`);
+      setTelegramStatus(t('mail.telegramStatusConnected', { identity: bot.username ? `@${bot.username}` : bot.first_name || bot.id }));
     } catch (error) {
-      setTelegramStatus(error instanceof Error ? error.message : 'فشل اختبار تيليغرام');
+      setTelegramStatus(error instanceof Error ? error.message : t('mail.telegramStatusTestFailed'));
     } finally {
       setTelegramLoading(false);
     }
@@ -496,13 +496,13 @@ export const SystemSettings = () => {
 
   const handleFetchTelegramUpdates = async () => {
     setTelegramLoading(true);
-    setTelegramStatus('جاري جلب آخر المحادثات من تيليغرام...');
+    setTelegramStatus(t('mail.telegramStatusFetching'));
     try {
       const updates = await fetchTelegramUpdates();
       setTelegramUpdates(updates);
-      setTelegramStatus(updates.length ? `تم جلب ${updates.length} محادثة.` : 'لا توجد محادثات جديدة.');
+      setTelegramStatus(updates.length ? t('mail.telegramStatusFetched', { count: updates.length }) : t('mail.telegramStatusNoNewChats'));
     } catch (error) {
-      setTelegramStatus(error instanceof Error ? error.message : 'فشل جلب محادثات تيليغرام');
+      setTelegramStatus(error instanceof Error ? error.message : t('mail.telegramStatusFetchFailed'));
     } finally {
       setTelegramLoading(false);
     }
@@ -631,14 +631,14 @@ export const SystemSettings = () => {
 
           {false && activeSection === 'mail' && (
             <SettingsPanel
-              title="إعدادات المراسلة"
-              description="بيانات البريد والإرسال الخارجي مع إبقاء الأسرار خارج الواجهة."
+              title={t('mail.title')}
+              description={t('mail.description')}
               rows={[
-                { label: 'اسم المرسل', type: 'text', value: settingsValues.mail.senderName, onChange: (value) => updateSetting('mail', 'senderName', value) },
-                { label: 'بريد المرسل', type: 'text', value: settingsValues.mail.senderEmail, onChange: (value) => updateSetting('mail', 'senderEmail', value) },
+                { label: t('mail.senderNameLabel'), type: 'text', value: settingsValues.mail.senderName, onChange: (value) => updateSetting('mail', 'senderName', value) },
+                { label: t('mail.senderEmailLabel'), type: 'text', value: settingsValues.mail.senderEmail, onChange: (value) => updateSetting('mail', 'senderEmail', value) },
                 { label: 'SMTP Host', type: 'text', value: settingsValues.mail.smtpHost, onChange: (value) => updateSetting('mail', 'smtpHost', value) },
                 { label: 'SMTP Port', type: 'number', value: settingsValues.mail.smtpPort, onChange: (value) => updateSetting('mail', 'smtpPort', value) },
-                { label: 'تفعيل تيليغرام للتنبيهات', type: 'checkbox', value: settingsValues.mail.telegramEnabled, onChange: (value) => updateSetting('mail', 'telegramEnabled', value) },
+                { label: t('mail.telegramEnableLabel'), type: 'checkbox', value: settingsValues.mail.telegramEnabled, onChange: (value) => updateSetting('mail', 'telegramEnabled', value) },
               ]}
             />
           )}
@@ -649,15 +649,15 @@ export const SystemSettings = () => {
                 <div>
                   <h3 className="text-xl font-bold text-[var(--text-heading)] flex items-center gap-2">
                     <Bot className="w-5 h-5 text-[var(--ui-accent)]" />
-                    بوت تيليغرام
+                    {t('mail.telegramBotTitle')}
                   </h3>
                   <p className="text-sm text-[var(--text-muted)] mt-1">
-                    احفظ التوكن، ثم اطلب من العميل أو المورد إرسال رسالة للبوت، وبعدها اجلب Chat ID تلقائيا.
+                    {t('mail.telegramBotHelp')}
                   </p>
                 </div>
                 {settingsValues.mail.telegramBotTokenConfigured && (
                   <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
-                    التوكن محفوظ: {settingsValues.mail.telegramBotTokenMasked || 'مخفي'}
+                    {t('mail.telegramTokenSavedBadge', { tokenMasked: settingsValues.mail.telegramBotTokenMasked || t('mail.telegramTokenHidden') })}
                   </span>
                 )}
               </div>
@@ -669,13 +669,13 @@ export const SystemSettings = () => {
                     type="password"
                     value={String(settingsValues.mail.telegramBotToken || '')}
                     onChange={(event) => updateSetting('mail', 'telegramBotToken', event.target.value)}
-                    placeholder={settingsValues.mail.telegramBotTokenConfigured ? 'اتركه فارغا للإبقاء على التوكن المحفوظ' : '123456:ABC...'}
+                    placeholder={settingsValues.mail.telegramBotTokenConfigured ? t('mail.telegramTokenPlaceholderKeep') : '123456:ABC...'}
                     className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg text-[var(--text-heading)] ${ringCls}`}
                     dir="ltr"
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="font-bold text-[var(--text-heading)] text-sm">Chat ID للاختبار</span>
+                  <span className="font-bold text-[var(--text-heading)] text-sm">{t('mail.telegramTestChatIdLabel')}</span>
                   <input
                     type="text"
                     value={String(settingsValues.mail.telegramTestChatId || '')}
@@ -688,11 +688,11 @@ export const SystemSettings = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <label className="flex items-center justify-between gap-3 p-3 border border-[var(--border-default)] rounded-lg">
-                  <span className="font-bold text-sm text-[var(--text-heading)]">إرسال فواتير البيع PDF</span>
+                  <span className="font-bold text-sm text-[var(--text-heading)]">{t('mail.telegramSendInvoicesLabel')}</span>
                   <input type="checkbox" checked={Boolean(settingsValues.mail.telegramSendInvoices)} onChange={(event) => updateSetting('mail', 'telegramSendInvoices', event.target.checked)} className="w-4 h-4 accent-[var(--ui-accent)]" />
                 </label>
                 <label className="flex items-center justify-between gap-3 p-3 border border-[var(--border-default)] rounded-lg">
-                  <span className="font-bold text-sm text-[var(--text-heading)]">إرسال سندات القبض والدفع PDF</span>
+                  <span className="font-bold text-sm text-[var(--text-heading)]">{t('mail.telegramSendPaymentsLabel')}</span>
                   <input type="checkbox" checked={Boolean(settingsValues.mail.telegramSendPayments)} onChange={(event) => updateSetting('mail', 'telegramSendPayments', event.target.checked)} className="w-4 h-4 accent-[var(--ui-accent)]" />
                 </label>
               </div>
@@ -700,11 +700,11 @@ export const SystemSettings = () => {
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={handleTelegramTest} disabled={telegramLoading} className="bg-[var(--ui-accent)] text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:opacity-95 transition disabled:opacity-60">
                   <MessageCircle className="w-4 h-4" />
-                  اختبار البوت
+                  {t('mail.telegramTestButton')}
                 </button>
                 <button type="button" onClick={handleFetchTelegramUpdates} disabled={telegramLoading} className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition disabled:opacity-60">
                   <RefreshCw className={`w-4 h-4 ${telegramLoading ? 'animate-spin' : ''}`} />
-                  جلب Chat ID تلقائيا
+                  {t('mail.telegramFetchChatIdButton')}
                 </button>
               </div>
 
@@ -717,16 +717,16 @@ export const SystemSettings = () => {
               {telegramUpdates.length > 0 && (
                 <div className="border border-[var(--border-default)] rounded-xl overflow-hidden">
                   <div className="px-4 py-3 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] font-bold text-[var(--text-heading)]">
-                    آخر المحادثات الواردة للبوت
+                    {t('mail.telegramRecentChatsTitle')}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
                         <tr>
-                          <th className="p-3 text-right">الاسم</th>
+                          <th className="p-3 text-right">{t('mail.telegramColName')}</th>
                           <th className="p-3 text-right">Chat ID</th>
                           <th className="p-3 text-right">Username</th>
-                          <th className="p-3 text-right">آخر رسالة</th>
+                          <th className="p-3 text-right">{t('mail.telegramColLastMessage')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -813,12 +813,12 @@ export const SystemSettings = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">{t('purge.typeConfirmLabel', { phrase: 'مسح البيانات' })}</label>
+                      <label className="block text-sm font-bold text-[var(--text-heading)] mb-2">{t('purge.typeConfirmLabel', { phrase: t('purge.confirmPhrase') })}</label>
                       <input
                         className={`w-full p-2.5 bg-[var(--surface-header)] border border-[var(--border-default)] rounded-lg ${ringCls}`}
                         value={purgeConfirmPhrase}
                         onChange={(e) => setPurgeConfirmPhrase(e.target.value)}
-                        placeholder="مسح البيانات"
+                        placeholder={t('purge.confirmPhrase')}
                         autoComplete="off"
                       />
                     </div>
@@ -836,7 +836,7 @@ export const SystemSettings = () => {
 
                   <button
                     type="button"
-                    disabled={purgeLoading || !purgeAcknowledged || purgeConfirmPhrase.trim() !== 'مسح البيانات' || !purgePassword.trim()}
+                    disabled={purgeLoading || !purgeAcknowledged || purgeConfirmPhrase.trim() !== t('purge.confirmPhrase') || !purgePassword.trim()}
                     onClick={() => void handlePurgeBusinessData()}
                     className="bg-red-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
