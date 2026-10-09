@@ -679,15 +679,21 @@ export const returnInvoiceRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      const osId = r.original_sales_invoice_id as string | null;
-      const opId = r.original_purchase_invoice_id as string | null;
-      if (osId) await refreshSalesInvoiceReturnFulfillment(client, companyId, osId);
-      if (opId) await refreshPurchaseInvoiceReturnFulfillment(client, companyId, opId);
-
       await client.query(
         `UPDATE return_invoices SET status='CONFIRMED', posted_at=now(), updated_at=now() WHERE id=$1 AND company_id=$2`,
         [id, companyId],
       );
+
+      // Must run AFTER the status flip above: refresh*ReturnFulfillment sums
+      // CONFIRMED return_invoice_lines for the original invoice/lines, and
+      // this very return row has to already read back as CONFIRMED within
+      // this same transaction or it gets excluded from its own sum —
+      // leaving the original invoice stuck at NOT_RETURNED despite a
+      // just-confirmed return (observed in production for FB0000014 / RTN-MUZGVHJ6-428983).
+      const osId = r.original_sales_invoice_id as string | null;
+      const opId = r.original_purchase_invoice_id as string | null;
+      if (osId) await refreshSalesInvoiceReturnFulfillment(client, companyId, osId);
+      if (opId) await refreshPurchaseInvoiceReturnFulfillment(client, companyId, opId);
 
       if (r.customer_id && r.cname) {
         await insertPartyActivityLog(client, {
