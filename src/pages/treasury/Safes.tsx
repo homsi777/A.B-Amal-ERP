@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Search, Wallet, ArrowUpRight, ArrowDownRight, Loader2, ArrowLeftRight } from 'lucide-react';
 import { listCashboxes, createCashbox, type CashboxDto } from '../../lib/api/cashboxesApi';
 import { ApiRequestError } from '../../lib/api/client';
@@ -16,6 +17,7 @@ import { SUPPORTED_CURRENCIES } from '../../lib/currency';
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const Safes = () => {
+  const { t } = useTranslation('safes');
   const { showToast } = useToast();
   const [safes, setSafes] = useState<CashboxDto[]>([]);
   const [transfers, setTransfers] = useState<CashboxTransferDto[]>([]);
@@ -48,7 +50,7 @@ export const Safes = () => {
       setSafes(cashboxRes.data);
       setTransfers(transferRes.data);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : 'تعذر تحميل الصناديق');
+      setError(e instanceof ApiRequestError ? e.message : t('loadError'));
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ export const Safes = () => {
     try {
       await createCashbox({
         code: code.trim() || `CB-${Date.now()}`,
-        name: name.trim() || 'صندوق جديد',
+        name: name.trim() || t('defaultBoxName'),
         openingBalance: Number(opening) || 0,
         currencyCode,
       });
@@ -85,10 +87,10 @@ export const Safes = () => {
       setCode('');
       setName('');
       setOpening('0');
-      showToast({ type: 'success', message: 'تم إنشاء الصندوق بنجاح' });
+      showToast({ type: 'success', message: t('createSuccess') });
       await load();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'فشل إنشاء الصندوق' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('createError') });
     } finally {
       setSaving(false);
     }
@@ -97,15 +99,15 @@ export const Safes = () => {
   const saveTransfer = async (confirmImmediately: boolean) => {
     const amount = Number(transferAmount);
     if (!fromCashboxId || !toCashboxId) {
-      showToast({ type: 'warning', message: 'يجب اختيار الصندوق المصدر والصندوق الوجهة' });
+      showToast({ type: 'warning', message: t('transfer.selectBoxesWarning') });
       return;
     }
     if (fromCashboxId === toCashboxId) {
-      showToast({ type: 'warning', message: 'لا يمكن المناقلة إلى نفس الصندوق' });
+      showToast({ type: 'warning', message: t('transfer.sameBoxWarning') });
       return;
     }
     if (!Number.isFinite(amount) || amount <= 0) {
-      showToast({ type: 'warning', message: 'قيمة المناقلة يجب أن تكون أكبر من صفر' });
+      showToast({ type: 'warning', message: t('transfer.amountWarning') });
       return;
     }
     const source = safes.find((safe) => safe.id === fromCashboxId);
@@ -121,15 +123,15 @@ export const Safes = () => {
       });
       if (confirmImmediately) {
         await confirmCashboxTransfer(created.data.id);
-        showToast({ type: 'success', message: 'تم تأكيد المناقلة بنجاح' });
+        showToast({ type: 'success', message: t('transfer.confirmSuccess') });
       } else {
-        showToast({ type: 'success', message: 'تم حفظ المناقلة بنجاح' });
+        showToast({ type: 'success', message: t('transfer.saveSuccess') });
       }
       setTransferOpen(false);
       resetTransferForm();
       await load();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر حفظ المناقلة' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('transfer.saveError') });
     } finally {
       setTransferSaving(false);
     }
@@ -138,27 +140,27 @@ export const Safes = () => {
   const confirmExistingTransfer = async (id: string) => {
     try {
       await confirmCashboxTransfer(id);
-      showToast({ type: 'success', message: 'تم تأكيد المناقلة بنجاح' });
+      showToast({ type: 'success', message: t('transfer.confirmSuccess') });
       await load();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر تأكيد المناقلة' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('transfer.confirmError') });
     }
   };
 
   const voidExistingTransfer = async (id: string) => {
     try {
       await voidCashboxTransfer(id);
-      showToast({ type: 'success', message: 'تم إلغاء المناقلة بنجاح' });
+      showToast({ type: 'success', message: t('transfer.voidSuccess') });
       await load();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر إلغاء المناقلة' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('transfer.voidError') });
     }
   };
 
   const statusLabel = (status: CashboxTransferDto['status']) => {
-    if (status === 'CONFIRMED') return 'مؤكدة';
-    if (status === 'VOID') return 'ملغاة';
-    return 'مسودة';
+    if (status === 'CONFIRMED') return t('status.confirmed');
+    if (status === 'VOID') return t('status.void');
+    return t('status.draft');
   };
 
   const statusClass = (status: CashboxTransferDto['status']) => {
@@ -171,8 +173,8 @@ export const Safes = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">الصناديق</h2>
-          <p className="text-slate-500 mt-1">إدارة الصناديق وأرصدة المناقلات الفعلية من قاعدة البيانات</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('pageSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <ExchangeRatePopupButton />
@@ -185,7 +187,7 @@ export const Safes = () => {
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm"
           >
             <ArrowLeftRight className="w-4 h-4" />
-            <span>مناقلة بين الصناديق</span>
+            <span>{t('transferBetweenBoxes')}</span>
           </button>
           <button
             type="button"
@@ -193,7 +195,7 @@ export const Safes = () => {
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            <span>إضافة صندوق جديد</span>
+            <span>{t('addNewBox')}</span>
           </button>
         </div>
       </div>
@@ -203,17 +205,17 @@ export const Safes = () => {
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200">
-            <h3 className="text-lg font-bold">صندوق جديد</h3>
+            <h3 className="text-lg font-bold">{t('modal.newBoxTitle')}</h3>
             <div className="space-y-1">
-              <label className="text-sm text-slate-700">الكود</label>
-              <input value={code} onChange={(e) => setCode(e.target.value)} className="w-full border rounded-lg px-3 py-2" placeholder="مثال: BRANCH-1" />
+              <label className="text-sm text-slate-700">{t('modal.codeLabel')}</label>
+              <input value={code} onChange={(e) => setCode(e.target.value)} className="w-full border rounded-lg px-3 py-2" placeholder={t('modal.codePlaceholder')} />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-700">الاسم</label>
+              <label className="text-sm text-slate-700">{t('modal.nameLabel')}</label>
               <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-700">عملة الصندوق</label>
+              <label className="text-sm text-slate-700">{t('modal.currencyLabel')}</label>
               <select
                 value={currencyCode}
                 onChange={(e) => setCurrencyCode(e.target.value as typeof currencyCode)}
@@ -227,7 +229,7 @@ export const Safes = () => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-700">رصيد افتتاحي</label>
+              <label className="text-sm text-slate-700">{t('modal.openingBalanceLabel')}</label>
               <input
                 type="number"
                 value={opening}
@@ -237,10 +239,10 @@ export const Safes = () => {
             </div>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded-lg">
-                إلغاء
+                {t('cancel')}
               </button>
               <button type="button" disabled={saving} onClick={() => void submit()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg">
-                {saving ? '...' : 'حفظ'}
+                {saving ? t('saving') : t('save')}
               </button>
             </div>
           </div>
@@ -251,12 +253,12 @@ export const Safes = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 space-y-4 border border-slate-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">مناقلة بين الصناديق</h3>
-              <span className="text-xs text-slate-500">تسجل كحركة صادرة وواردة بعد التأكيد</span>
+              <h3 className="text-lg font-bold">{t('transferModal.title')}</h3>
+              <span className="text-xs text-slate-500">{t('transferModal.hint')}</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-sm text-slate-700">من الصندوق</label>
+                <label className="text-sm text-slate-700">{t('transferModal.fromBoxLabel')}</label>
                 <select value={fromCashboxId} onChange={(e) => setFromCashboxId(e.target.value)} className="w-full border rounded-lg px-3 py-2">
                   {activeSafes.map((safe) => (
                     <option key={safe.id} value={safe.id}>
@@ -266,7 +268,7 @@ export const Safes = () => {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-slate-700">إلى الصندوق</label>
+                <label className="text-sm text-slate-700">{t('transferModal.toBoxLabel')}</label>
                 <select value={toCashboxId} onChange={(e) => setToCashboxId(e.target.value)} className="w-full border rounded-lg px-3 py-2">
                   {activeSafes.map((safe) => (
                     <option key={safe.id} value={safe.id}>
@@ -276,11 +278,11 @@ export const Safes = () => {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-slate-700">التاريخ</label>
+                <label className="text-sm text-slate-700">{t('transferModal.dateLabel')}</label>
                 <input type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-slate-700">المبلغ</label>
+                <label className="text-sm text-slate-700">{t('transferModal.amountLabel')}</label>
                 <input
                   type="number"
                   value={transferAmount}
@@ -292,18 +294,18 @@ export const Safes = () => {
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-700">ملاحظات</label>
+              <label className="text-sm text-slate-700">{t('transferModal.notesLabel')}</label>
               <textarea value={transferNotes} onChange={(e) => setTransferNotes(e.target.value)} className="w-full border rounded-lg px-3 py-2 min-h-20" />
             </div>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setTransferOpen(false)} className="px-4 py-2 border rounded-lg">
-                إلغاء
+                {t('cancel')}
               </button>
               <button type="button" disabled={transferSaving} onClick={() => void saveTransfer(false)} className="px-4 py-2 border border-indigo-200 text-indigo-700 rounded-lg">
-                حفظ مسودة
+                {t('transferModal.saveDraft')}
               </button>
               <button type="button" disabled={transferSaving} onClick={() => void saveTransfer(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg">
-                {transferSaving ? '...' : 'حفظ وتأكيد'}
+                {transferSaving ? t('saving') : t('transferModal.saveAndConfirm')}
               </button>
             </div>
           </div>
@@ -313,10 +315,10 @@ export const Safes = () => {
       {loading ? (
         <div className="flex items-center justify-center py-20 text-slate-500">
           <Loader2 className="w-8 h-8 animate-spin mr-2" />
-          جاري التحميل...
+          {t('loading')}
         </div>
       ) : safes.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500">لا توجد صناديق بعد - أنشئ صندوقاً أو شغل البذرة للصندوق الافتراضي.</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500">{t('noBoxesYet')}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {safes.map((safe) => (
@@ -330,11 +332,11 @@ export const Safes = () => {
                   <span
                     className={`px-2 py-1 text-xs rounded-full font-medium ${safe.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}
                   >
-                    {safe.is_active ? 'نشط' : 'موقوف'}
+                    {safe.is_active ? t('active') : t('suspended')}
                   </span>
                 </div>
                 <div className="mb-6">
-                  <span className="block text-slate-500 text-sm mb-1">الرصيد الحالي</span>
+                  <span className="block text-slate-500 text-sm mb-1">{t('currentBalance')}</span>
                   <div className="text-3xl font-bold text-indigo-600">
                     {Number(safe.current_balance).toLocaleString()}{' '}
                     <span className="text-sm text-slate-500 font-normal">{safe.currency_code}</span>
@@ -348,7 +350,7 @@ export const Safes = () => {
                     disabled
                   >
                     <ArrowDownRight className="w-4 h-4 inline ml-1" />
-                    إيداع
+                    {t('deposit')}
                   </button>
                   <button
                     type="button"
@@ -356,7 +358,7 @@ export const Safes = () => {
                     disabled
                   >
                     <ArrowUpRight className="w-4 h-4 inline ml-1" />
-                    سحب
+                    {t('withdraw')}
                   </button>
                 </div>
               </div>
@@ -368,8 +370,8 @@ export const Safes = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-slate-900">مناقلات الصناديق</h3>
-            <p className="text-sm text-slate-500 mt-1">آخر المناقلات المسجلة بين الصناديق</p>
+            <h3 className="font-bold text-slate-900">{t('transfersTable.title')}</h3>
+            <p className="text-sm text-slate-500 mt-1">{t('transfersTable.subtitle')}</p>
           </div>
           <button
             type="button"
@@ -379,27 +381,27 @@ export const Safes = () => {
             }}
             className="text-sm bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg hover:bg-indigo-100"
           >
-            مناقلة جديدة
+            {t('newTransfer')}
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="px-4 py-3 font-semibold">رقم المناقلة</th>
-                <th className="px-4 py-3 font-semibold">التاريخ</th>
-                <th className="px-4 py-3 font-semibold">من</th>
-                <th className="px-4 py-3 font-semibold">إلى</th>
-                <th className="px-4 py-3 font-semibold">المبلغ</th>
-                <th className="px-4 py-3 font-semibold">الحالة</th>
-                <th className="px-4 py-3 font-semibold">إجراءات</th>
+                <th className="px-4 py-3 font-semibold">{t('table.transferNo')}</th>
+                <th className="px-4 py-3 font-semibold">{t('table.date')}</th>
+                <th className="px-4 py-3 font-semibold">{t('table.from')}</th>
+                <th className="px-4 py-3 font-semibold">{t('table.to')}</th>
+                <th className="px-4 py-3 font-semibold">{t('table.amount')}</th>
+                <th className="px-4 py-3 font-semibold">{t('table.status')}</th>
+                <th className="px-4 py-3 font-semibold">{t('table.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {transfers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                    لا توجد مناقلات مسجلة بعد
+                    {t('noTransfersYet')}
                   </td>
                 </tr>
               ) : (
@@ -425,7 +427,7 @@ export const Safes = () => {
                             onClick={() => void confirmExistingTransfer(transfer.id)}
                             className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded border border-emerald-100"
                           >
-                            تأكيد
+                            {t('confirmAction')}
                           </button>
                         )}
                         {transfer.status === 'CONFIRMED' && (
@@ -434,10 +436,10 @@ export const Safes = () => {
                             onClick={() => void voidExistingTransfer(transfer.id)}
                             className="text-xs bg-rose-50 text-rose-700 px-2 py-1 rounded border border-rose-100"
                           >
-                            إلغاء
+                            {t('voidAction')}
                           </button>
                         )}
-                        {transfer.status === 'VOID' && <span className="text-xs text-slate-400">لا إجراء</span>}
+                        {transfer.status === 'VOID' && <span className="text-xs text-slate-400">{t('noAction')}</span>}
                       </div>
                     </td>
                   </tr>
@@ -450,7 +452,7 @@ export const Safes = () => {
 
       <div className="flex items-center gap-2 text-slate-400 text-sm">
         <Search className="w-4 h-4" />
-        الإيداع والسحب المباشر من البطاقات ينفذ عبر سندات القبض والصرف، أما المناقلة فتسجل هنا كحركة خزينة مستقلة.
+        {t('footerNote')}
       </div>
     </div>
   );

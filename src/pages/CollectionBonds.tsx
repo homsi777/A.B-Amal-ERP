@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Printer, FileText, Search, CreditCard, Loader2 } from 'lucide-react';
 import { createVoucher, confirmVoucher, getVoucher, type VoucherRow } from '../lib/api/vouchersApi';
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
@@ -12,13 +13,14 @@ import { convertToUsd, getCurrencyLabel, normalizeExchangeRate, round2 } from '.
 import { useToast } from '../components/NonBlockingToast';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
 import {
-  RECEIPT_PURPOSE_OPTIONS,
+  getReceiptPurposeOptions,
   type VoucherPurpose,
 } from '../lib/voucherPurpose';
 
 type PartyKind = 'CUSTOMER' | 'SUPPLIER' | 'OTHER';
 
 export const CollectionBonds = () => {
+  const { t, i18n } = useTranslation('collectionBonds');
   const { showToast } = useToast();
   const [cashboxes, setCashboxes] = useState<CashboxDto[]>([]);
   const [customers, setCustomers] = useState<ApiCustomer[]>([]);
@@ -47,8 +49,8 @@ export const CollectionBonds = () => {
   );
 
   const purposeHint = useMemo(
-    () => RECEIPT_PURPOSE_OPTIONS.find((o) => o.value === purpose)?.hint ?? '',
-    [purpose],
+    () => getReceiptPurposeOptions().find((o) => o.value === purpose)?.hint ?? '',
+    [purpose, i18n.language],
   );
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export const CollectionBonds = () => {
         setExchangeRates(r.data);
         if (c.data.length && !cashboxId) setCashboxId(c.data[0].id);
       } catch {
-        showToast({ type: 'error', message: 'تعذر تحميل الصناديق أو الأطراف' });
+        showToast({ type: 'error', message: t('errors.loadMetaFailed') });
       } finally {
         setLoadingMeta(false);
       }
@@ -105,7 +107,7 @@ export const CollectionBonds = () => {
       return {
         partyType: partyId ? ('CUSTOMER' as const) : ('OTHER' as const),
         partyId: partyId || null,
-        partyName: cust?.name || partyName.trim() || 'دافع',
+        partyName: cust?.name || partyName.trim() || t('defaultPartyName'),
       };
     }
     if (partyKind === 'SUPPLIER') {
@@ -113,32 +115,32 @@ export const CollectionBonds = () => {
       return {
         partyType: partyId ? ('SUPPLIER' as const) : ('OTHER' as const),
         partyId: partyId || null,
-        partyName: sup?.name || partyName.trim() || 'دافع',
+        partyName: sup?.name || partyName.trim() || t('defaultPartyName'),
       };
     }
     return {
       partyType: 'OTHER' as const,
       partyId: null,
-      partyName: partyName.trim() || 'دافع',
+      partyName: partyName.trim() || t('defaultPartyName'),
     };
   };
 
   const saveAndConfirm = async () => {
     if (!cashboxId) {
-      showToast({ type: 'warning', message: 'الرجاء اختيار صندوقاً' });
+      showToast({ type: 'warning', message: t('errors.chooseCashbox') });
       return;
     }
     setSaving(true);
     try {
       const boxCurrency = cashboxes.find((c) => c.id === (cashboxId || ''))?.currency_code;
       if (boxCurrency && String(boxCurrency).trim().toUpperCase() !== String(currencyCode).trim().toUpperCase()) {
-        showToast({ type: 'error', message: 'عملة السند يجب أن تطابق عملة الصندوق المحدد' });
+        showToast({ type: 'error', message: t('errors.currencyMismatch') });
         return;
       }
       const party = resolveParty();
       const rate = currencyCode === 'USD' ? 1 : normalizeExchangeRate(exchangeRateToUsd);
       if (!rate) {
-        showToast({ type: 'error', message: 'يرجى إدخال سعر صرف صحيح' });
+        showToast({ type: 'error', message: t('errors.invalidExchangeRate') });
         return;
       }
       const amountOriginal = Number(amount) || 0;
@@ -167,7 +169,7 @@ export const CollectionBonds = () => {
       };
       setCurrentVoucher(voucherSnapshot);
       setPrintModalOpen(true);
-      showToast({ type: 'success', message: `تم تسجيل السند #${created.data.voucher_no} بنجاح في الصندوق` });
+      showToast({ type: 'success', message: t('success.saved', { voucherNo: created.data.voucher_no }) });
 
       setAmount('');
       setDescription('');
@@ -183,7 +185,7 @@ export const CollectionBonds = () => {
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'فشل التسجيل في الصندوق',
+        message: e instanceof ApiRequestError ? e.message : t('errors.saveFailed'),
       });
     } finally {
       setSaving(false);
@@ -194,15 +196,15 @@ export const CollectionBonds = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">سند قبض</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
           <p className="text-slate-500 mt-1">
-            قبض من عميل أو مورد — عربون، دفعة، تعويض… يسجَّل في الصندوق والذمم عند التأكيد
+            {t('pageSubtitle')}
           </p>
         </div>
         <div className="flex gap-2">
           <button type="button" className="bg-white border px-4 py-2 rounded-lg opacity-60 cursor-not-allowed" disabled>
             <Search className="w-4 h-4 inline ml-1" />
-            بحث عن سند
+            {t('searchButton')}
           </button>
         </div>
       </div>
@@ -211,23 +213,23 @@ export const CollectionBonds = () => {
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
           <h3 className="font-bold text-slate-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-emerald-500" />
-            بيانات السند:{' '}
-            <span className="text-emerald-600 font-mono">{voucherNo || (loadingMeta ? '...' : 'يُولَّد بعد الحفظ')}</span>
+            {t('voucherDataLabel')}{' '}
+            <span className="text-emerald-600 font-mono">{voucherNo || (loadingMeta ? '...' : t('voucherNoPending'))}</span>
           </h3>
-          <div className="text-sm text-slate-500">التاريخ: {new Date().toLocaleDateString('ar-SA')}</div>
+          <div className="text-sm text-slate-500">{t('dateLabel')} {new Date().toLocaleDateString(i18n.language === 'ar' ? 'ar-SA' : 'tr-TR')}</div>
         </div>
 
         <div className="p-6 space-y-6" data-enter-scope>
           {loadingMeta ? (
             <div className="flex text-slate-500 items-center">
               <Loader2 className="w-5 h-5 animate-spin ml-2" />
-              جاري التحميل...
+              {t('loading')}
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2 relative">
-                  <label className="block text-sm font-medium text-slate-700">المبلغ</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('amountLabel')}</label>
                   <input
                     type="number"
                     value={amount}
@@ -238,7 +240,7 @@ export const CollectionBonds = () => {
                   <span className="absolute right-3 top-9 text-slate-400 text-sm">{currencyCode}</span>
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="block text-xs font-medium text-slate-600">العملة (حسب الصندوق)</label>
+                      <label className="block text-xs font-medium text-slate-600">{t('currencyLabel')}</label>
                       <input
                         type="text"
                         readOnly
@@ -247,7 +249,7 @@ export const CollectionBonds = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-xs font-medium text-slate-600">سعر الصرف مقابل الدولار</label>
+                      <label className="block text-xs font-medium text-slate-600">{t('exchangeRateLabel')}</label>
                       <input
                         type="number"
                         step="0.000001"
@@ -262,7 +264,7 @@ export const CollectionBonds = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">التاريخ</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('dateFieldLabel')}</label>
                   <input
                     type="date"
                     value={voucherDate}
@@ -274,9 +276,9 @@ export const CollectionBonds = () => {
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">الصندوق المستلم</h4>
+                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">{t('cashboxSectionTitle')}</h4>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">الصندوق</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('cashboxLabel')}</label>
                   <div className="relative">
                     <CreditCard className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
                     <select
@@ -285,7 +287,7 @@ export const CollectionBonds = () => {
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-lg"
                     >
-                      <option value="">— اختر —</option>
+                      <option value="">{t('chooseOption')}</option>
                       {cashboxes.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} ({String(c.currency_code || 'USD').toUpperCase()})
@@ -297,30 +299,30 @@ export const CollectionBonds = () => {
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">الدافع وغرض العملية</h4>
+                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">{t('partySectionTitle')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">نوع الطرف</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('partyTypeLabel')}</label>
                     <select
                       value={partyKind}
                       onChange={(e) => setPartyKind(e.target.value as PartyKind)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                     >
-                      <option value="CUSTOMER">عميل</option>
-                      <option value="SUPPLIER">مورد</option>
-                      <option value="OTHER">أخرى</option>
+                      <option value="CUSTOMER">{t('partyTypeCustomer')}</option>
+                      <option value="SUPPLIER">{t('partyTypeSupplier')}</option>
+                      <option value="OTHER">{t('partyTypeOther')}</option>
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">غرض العملية</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('purposeLabel')}</label>
                     <select
                       value={purpose}
                       onChange={(e) => setPurpose(e.target.value as VoucherPurpose)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                     >
-                      {RECEIPT_PURPOSE_OPTIONS.map((o) => (
+                      {getReceiptPurposeOptions().map((o) => (
                         <option key={o.value} value={o.value}>
                           {o.label}
                         </option>
@@ -337,7 +339,7 @@ export const CollectionBonds = () => {
                     onKeyDown={focusNextFormControl}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                   >
-                    <option value="">— عميل مسجّل —</option>
+                    <option value="">{t('registeredCustomerOption')}</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -353,7 +355,7 @@ export const CollectionBonds = () => {
                     onKeyDown={focusNextFormControl}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                   >
-                    <option value="">— مورد مسجّل —</option>
+                    <option value="">{t('registeredSupplierOption')}</option>
                     {suppliers.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
@@ -366,19 +368,19 @@ export const CollectionBonds = () => {
                   value={partyName}
                   onChange={(e) => setPartyName(e.target.value)}
                   onKeyDown={focusNextFormControl}
-                  placeholder={partyKind === 'OTHER' ? 'اسم الدافع' : 'أو اسم يدوي إن لم يُختر من القائمة'}
+                  placeholder={partyKind === 'OTHER' ? t('payerNamePlaceholder') : t('manualNamePlaceholder')}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                 />
                 <input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   onKeyDown={focusNextFormControl}
-                  placeholder="البيان (اختياري — يُدمج مع الغرض تلقائياً)"
+                  placeholder={t('descriptionPlaceholder')}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                 />
                 {purpose === 'ADVANCE' ? (
                   <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-                    العربون يظهر رصيداً دائناً في كشف الطرف ويمكن رده لاحقاً بسند صرف بغرض «رد عربون».
+                    {t('advanceHint')}
                   </p>
                 ) : null}
               </div>
@@ -391,7 +393,7 @@ export const CollectionBonds = () => {
                   className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700"
                 >
                   <Printer className="w-4 h-4" />
-                  حفظ وتسجيل في الصندوق
+                  {t('saveButton')}
                 </button>
               </div>
             </>

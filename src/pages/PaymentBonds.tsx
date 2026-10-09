@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Printer, FileText, Search, CreditCard, Loader2 } from 'lucide-react';
 import { createVoucher, confirmVoucher, getVoucher, type VoucherRow } from '../lib/api/vouchersApi';
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
@@ -12,13 +13,15 @@ import { convertToUsd, getCurrencyLabel, normalizeExchangeRate, round2 } from '.
 import { useToast } from '../components/NonBlockingToast';
 import { VoucherPrintModal } from '../components/VoucherPrintModal';
 import {
-  PAYMENT_PURPOSE_OPTIONS,
+  getPaymentPurposeOptions,
   type VoucherPurpose,
 } from '../lib/voucherPurpose';
 
 type PartyKind = 'CUSTOMER' | 'SUPPLIER' | 'OTHER';
 
 export const PaymentBonds = () => {
+  const { t, i18n } = useTranslation('paymentBonds');
+  const dateLocale = i18n.language === 'ar' ? 'ar-SA' : 'tr-TR';
   const { showToast } = useToast();
   const [cashboxes, setCashboxes] = useState<CashboxDto[]>([]);
   const [customers, setCustomers] = useState<ApiCustomer[]>([]);
@@ -48,8 +51,8 @@ export const PaymentBonds = () => {
   );
 
   const purposeHint = useMemo(
-    () => PAYMENT_PURPOSE_OPTIONS.find((o) => o.value === purpose)?.hint ?? '',
-    [purpose],
+    () => getPaymentPurposeOptions().find((o) => o.value === purpose)?.hint ?? '',
+    [purpose, i18n.language],
   );
 
   useEffect(() => {
@@ -68,7 +71,7 @@ export const PaymentBonds = () => {
         setExchangeRates(r.data);
         if (c.data.length && !cashboxId) setCashboxId(c.data[0].id);
       } catch {
-        showToast({ type: 'error', message: 'تعذر تحميل الصناديق أو الأطراف' });
+        showToast({ type: 'error', message: t('errors.loadFailed') });
       } finally {
         setLoadingMeta(false);
       }
@@ -106,7 +109,7 @@ export const PaymentBonds = () => {
       return {
         partyType: partyId ? ('CUSTOMER' as const) : ('OTHER' as const),
         partyId: partyId || null,
-        partyName: cust?.name || partyName.trim() || 'مستفيد',
+        partyName: cust?.name || partyName.trim() || t('defaults.beneficiary'),
       };
     }
     if (partyKind === 'SUPPLIER') {
@@ -114,13 +117,13 @@ export const PaymentBonds = () => {
       return {
         partyType: partyId ? ('SUPPLIER' as const) : ('OTHER' as const),
         partyId: partyId || null,
-        partyName: sup?.name || partyName.trim() || 'مستفيد',
+        partyName: sup?.name || partyName.trim() || t('defaults.beneficiary'),
       };
     }
     return {
       partyType: 'OTHER' as const,
       partyId: null,
-      partyName: partyName.trim() || 'مستفيد',
+      partyName: partyName.trim() || t('defaults.beneficiary'),
     };
   };
 
@@ -138,12 +141,12 @@ export const PaymentBonds = () => {
     try {
       const boxCurrency = cashboxes.find((c) => c.id === (cashboxId || ''))?.currency_code;
       if (boxCurrency && String(boxCurrency).trim().toUpperCase() !== String(currencyCode).trim().toUpperCase()) {
-        setErr('عملة السند يجب أن تطابق عملة الصندوق المحدد');
+        setErr(t('errors.currencyMismatch'));
         return;
       }
       const { party, rate, amountOriginal, amountUsd } = buildPayload();
       if (!rate) {
-        setErr('يرجى إدخال سعر صرف صحيح');
+        setErr(t('errors.invalidRate'));
         return;
       }
       const res = await createVoucher({
@@ -161,9 +164,9 @@ export const PaymentBonds = () => {
         description: description || null,
       });
       setVoucherNo(res.data.voucher_no);
-      showToast({ type: 'success', message: `تم حفظ المسودة #${res.data.voucher_no}` });
+      showToast({ type: 'success', message: t('toasts.draftSaved', { no: res.data.voucher_no }) });
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'فشل الحفظ');
+      setErr(e instanceof ApiRequestError ? e.message : t('errors.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -171,7 +174,7 @@ export const PaymentBonds = () => {
 
   const saveAndConfirm = async () => {
     if (!cashboxId) {
-      showToast({ type: 'warning', message: 'الرجاء اختيار صندوقاً للتأكيد' });
+      showToast({ type: 'warning', message: t('errors.selectCashboxToConfirm') });
       return;
     }
     setSaving(true);
@@ -179,12 +182,12 @@ export const PaymentBonds = () => {
     try {
       const boxCurrency = cashboxes.find((c) => c.id === (cashboxId || ''))?.currency_code;
       if (boxCurrency && String(boxCurrency).trim().toUpperCase() !== String(currencyCode).trim().toUpperCase()) {
-        showToast({ type: 'error', message: 'عملة السند يجب أن تطابق عملة الصندوق المحدد' });
+        showToast({ type: 'error', message: t('errors.currencyMismatch') });
         return;
       }
       const { party, rate, amountOriginal, amountUsd } = buildPayload();
       if (!rate) {
-        showToast({ type: 'error', message: 'يرجى إدخال سعر صرف صحيح' });
+        showToast({ type: 'error', message: t('errors.invalidRate') });
         return;
       }
       const created = await createVoucher({
@@ -211,7 +214,7 @@ export const PaymentBonds = () => {
       };
       setCurrentVoucher(voucherSnapshot);
       setPrintModalOpen(true);
-      showToast({ type: 'success', message: `تم تسجيل السند #${created.data.voucher_no} بنجاح في الصندوق` });
+      showToast({ type: 'success', message: t('toasts.registered', { no: created.data.voucher_no }) });
 
       setAmount('');
       setDescription('');
@@ -227,7 +230,7 @@ export const PaymentBonds = () => {
     } catch (e) {
       showToast({
         type: 'error',
-        message: e instanceof ApiRequestError ? e.message : 'فشل التسجيل في الصندوق',
+        message: e instanceof ApiRequestError ? e.message : t('errors.registerFailed'),
       });
       setErr(null);
     } finally {
@@ -239,9 +242,9 @@ export const PaymentBonds = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">سند صرف</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
           <p className="text-slate-500 mt-1">
-            صرف لمورد أو عميل — رد عربون، دفعة، تعويض… يسجَّل في الصندوق والذمم عند التأكيد
+            {t('page.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -251,7 +254,7 @@ export const PaymentBonds = () => {
             disabled
           >
             <Search className="w-4 h-4" />
-            <span>بحث عن سند</span>
+            <span>{t('page.searchVoucher')}</span>
           </button>
         </div>
       </div>
@@ -260,12 +263,12 @@ export const PaymentBonds = () => {
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
           <h3 className="font-bold text-slate-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-rose-500" />
-            بيانات السند:{' '}
+            {t('page.voucherDataLabel')}{' '}
             <span className="text-rose-600 font-mono">
-              {voucherNo || (loadingMeta ? '...' : 'يُولَّد بعد الحفظ')}
+              {voucherNo || (loadingMeta ? '...' : t('page.generatedAfterSave'))}
             </span>
           </h3>
-          <div className="text-sm text-slate-500">التاريخ: {new Date().toLocaleDateString('ar-SA')}</div>
+          <div className="text-sm text-slate-500">{t('page.dateLabel')} {new Date().toLocaleDateString(dateLocale)}</div>
         </div>
 
         <div className="p-6 space-y-6" data-enter-scope>
@@ -275,13 +278,13 @@ export const PaymentBonds = () => {
           {loadingMeta ? (
             <div className="flex text-slate-500 items-center">
               <Loader2 className="w-5 h-5 animate-spin ml-2" />
-              جاري تحميل الصناديق...
+              {t('page.loadingCashboxes')}
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2 relative">
-                  <label className="block text-sm font-medium text-slate-700">المبلغ</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('fields.amount')}</label>
                   <input
                     type="number"
                     value={amount}
@@ -292,7 +295,7 @@ export const PaymentBonds = () => {
                   <span className="absolute right-3 top-9 text-slate-400 text-sm">{currencyCode}</span>
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="block text-xs font-medium text-slate-600">العملة (حسب الصندوق)</label>
+                      <label className="block text-xs font-medium text-slate-600">{t('fields.currency')}</label>
                       <input
                         type="text"
                         readOnly
@@ -301,7 +304,7 @@ export const PaymentBonds = () => {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="block text-xs font-medium text-slate-600">سعر الصرف مقابل الدولار</label>
+                      <label className="block text-xs font-medium text-slate-600">{t('fields.exchangeRate')}</label>
                       <input
                         type="number"
                         step="0.000001"
@@ -316,7 +319,7 @@ export const PaymentBonds = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">التاريخ</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('fields.date')}</label>
                   <input
                     type="date"
                     value={voucherDate}
@@ -328,10 +331,10 @@ export const PaymentBonds = () => {
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">طريقة الدفع والصندوق</h4>
+                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">{t('sections.paymentMethod')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">الصندوق</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('fields.cashbox')}</label>
                     <div className="relative">
                       <CreditCard className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
                       <select
@@ -340,8 +343,8 @@ export const PaymentBonds = () => {
                         onKeyDown={focusNextFormControl}
                         className="w-full p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-lg"
                       >
-                        <option value="">— اختر الصندوق —</option>
-                        {cashboxes.length === 0 && <option value="" disabled>لا توجد صناديق</option>}
+                        <option value="">{t('fields.selectCashboxPlaceholder')}</option>
+                        {cashboxes.length === 0 && <option value="" disabled>{t('fields.noCashboxes')}</option>}
                         {cashboxes.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name} ({String(c.currency_code || 'USD').toUpperCase()})
@@ -354,30 +357,30 @@ export const PaymentBonds = () => {
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">المستفيد وغرض العملية</h4>
+                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">{t('sections.beneficiaryAndPurpose')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">نوع الطرف</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('fields.partyKind')}</label>
                     <select
                       value={partyKind}
                       onChange={(e) => setPartyKind(e.target.value as PartyKind)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                     >
-                      <option value="SUPPLIER">مورد</option>
-                      <option value="CUSTOMER">عميل</option>
-                      <option value="OTHER">أخرى</option>
+                      <option value="SUPPLIER">{t('partyKindOptions.supplier')}</option>
+                      <option value="CUSTOMER">{t('partyKindOptions.customer')}</option>
+                      <option value="OTHER">{t('partyKindOptions.other')}</option>
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">غرض العملية</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('fields.purpose')}</label>
                     <select
                       value={purpose}
                       onChange={(e) => setPurpose(e.target.value as VoucherPurpose)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                     >
-                      {PAYMENT_PURPOSE_OPTIONS.map((o) => (
+                      {getPaymentPurposeOptions().map((o) => (
                         <option key={o.value} value={o.value}>
                           {o.label}
                         </option>
@@ -389,14 +392,14 @@ export const PaymentBonds = () => {
 
                 {partyKind === 'SUPPLIER' ? (
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">مورد مسجّل</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('fields.registeredSupplier')}</label>
                     <select
                       value={partyId}
                       onChange={(e) => setPartyId(e.target.value)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                     >
-                      <option value="">— بدون اختيار —</option>
+                      <option value="">{t('fields.noSelectionPlaceholder')}</option>
                       {suppliers.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
@@ -408,14 +411,14 @@ export const PaymentBonds = () => {
 
                 {partyKind === 'CUSTOMER' ? (
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">عميل مسجّل</label>
+                    <label className="block text-sm font-medium text-slate-700">{t('fields.registeredCustomer')}</label>
                     <select
                       value={partyId}
                       onChange={(e) => setPartyId(e.target.value)}
                       onKeyDown={focusNextFormControl}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
                     >
-                      <option value="">— بدون اختيار —</option>
+                      <option value="">{t('fields.noSelectionPlaceholder')}</option>
                       {customers.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -427,7 +430,7 @@ export const PaymentBonds = () => {
 
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    {partyKind === 'OTHER' ? 'اسم المستفيد' : 'اسم المستفيد (إذا لم يُختر من القائمة)'}
+                    {partyKind === 'OTHER' ? t('fields.beneficiaryName') : t('fields.beneficiaryNameWithFallback')}
                   </label>
                   <input
                     value={partyName}
@@ -437,23 +440,23 @@ export const PaymentBonds = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">البيان</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('fields.description')}</label>
                   <input
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     onKeyDown={focusNextFormControl}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
-                    placeholder="شرح السند (اختياري — يُدمج مع الغرض تلقائياً)"
+                    placeholder={t('fields.descriptionPlaceholder')}
                   />
                 </div>
                 {purpose === 'ADVANCE_REFUND' ? (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                    رد العربون يقلّل الرصيد الدائن للطرف في كشف الحساب (عميل أو مورد حسب الاختيار).
+                    {t('hints.advanceRefund')}
                   </p>
                 ) : null}
                 {partyKind === 'CUSTOMER' && purpose === 'COMPENSATION' ? (
                   <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                    صرف تعويض للعميل يزيد مديونيته / يقلّل رصيده الدائن على ذمم العملاء.
+                    {t('hints.compensationCustomer')}
                   </p>
                 ) : null}
               </div>
@@ -465,7 +468,7 @@ export const PaymentBonds = () => {
                   onClick={() => void saveDraft()}
                   className="bg-white border border-slate-200 px-4 py-2 rounded-lg"
                 >
-                  حفظ مسودة
+                  {t('actions.saveDraft')}
                 </button>
                 <button
                   type="button"
@@ -474,7 +477,7 @@ export const PaymentBonds = () => {
                   className="bg-rose-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-700"
                 >
                   <Printer className="w-4 h-4" />
-                  حفظ وتسجيل في الصندوق
+                  {t('actions.saveAndRegister')}
                 </button>
               </div>
             </>

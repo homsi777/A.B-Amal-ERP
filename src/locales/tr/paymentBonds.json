@@ -1,0 +1,61 @@
+{
+  "page": {
+    "title": "Ödeme Fişi",
+    "subtitle": "Tedarikçiye veya müşteriye ödeme — kapora iadesi, taksit, tazminat… onaylandığında kasaya ve cari hesaba işlenir",
+    "searchVoucher": "Fiş ara",
+    "voucherDataLabel": "Fiş bilgileri:",
+    "generatedAfterSave": "Kaydedildikten sonra oluşturulur",
+    "dateLabel": "Tarih:",
+    "loadingCashboxes": "Kasalar yükleniyor..."
+  },
+  "fields": {
+    "amount": "Tutar",
+    "currency": "Para birimi (kasaya göre)",
+    "exchangeRate": "Dolar karşısında kur",
+    "date": "Tarih",
+    "cashbox": "Kasa",
+    "selectCashboxPlaceholder": "— Kasa seçin —",
+    "noCashboxes": "Kasa bulunmuyor",
+    "partyKind": "Taraf türü",
+    "purpose": "İşlem amacı",
+    "registeredSupplier": "Kayıtlı tedarikçi",
+    "registeredCustomer": "Kayıtlı müşteri",
+    "noSelectionPlaceholder": "— Seçim yok —",
+    "beneficiaryName": "Alıcı adı",
+    "beneficiaryNameWithFallback": "Alıcı adı (listeden seçilmediyse)",
+    "description": "Açıklama",
+    "descriptionPlaceholder": "Fiş açıklaması (isteğe bağlı — amaçla otomatik birleştirilir)"
+  },
+  "partyKindOptions": {
+    "supplier": "Tedarikçi",
+    "customer": "Müşteri",
+    "other": "Diğer"
+  },
+  "sections": {
+    "paymentMethod": "Ödeme yöntemi ve kasa",
+    "beneficiaryAndPurpose": "Alıcı ve işlem amacı"
+  },
+  "hints": {
+    "advanceRefund": "Kapora iadesi, tarafın cari hesabındaki alacak bakiyesini azaltır (seçime göre müşteri veya tedarikçi).",
+    "compensationCustomer": "Müşteriye ödenen tazminat, borcunu artırır / müşteri cari hesabındaki alacak bakiyesini azaltır."
+  },
+  "actions": {
+    "saveDraft": "Taslak kaydet",
+    "saveAndRegister": "Kaydet ve kasaya işle"
+  },
+  "toasts": {
+    "draftSaved": "#{{no}} taslağı kaydedildi",
+    "registered": "#{{no}} fişi kasaya başarıyla işlendi"
+  },
+  "errors": {
+    "loadFailed": "Kasalar veya taraflar yüklenemedi",
+    "currencyMismatch": "Fiş para birimi seçilen kasanın para birimiyle eşleşmelidir",
+    "invalidRate": "Lütfen geçerli bir kur girin",
+    "saveFailed": "Kaydetme başarısız",
+    "selectCashboxToConfirm": "Onaylamak için lütfen bir kasa seçin",
+    "registerFailed": "Kasaya işleme başarısız"
+  },
+  "defaults": {
+    "beneficiary": "Alıcı"
+  }
+}

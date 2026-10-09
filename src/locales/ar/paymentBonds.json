@@ -1,0 +1,61 @@
+{
+  "page": {
+    "title": "سند صرف",
+    "subtitle": "صرف لمورد أو عميل — رد عربون، دفعة، تعويض… يسجَّل في الصندوق والذمم عند التأكيد",
+    "searchVoucher": "بحث عن سند",
+    "voucherDataLabel": "بيانات السند:",
+    "generatedAfterSave": "يُولَّد بعد الحفظ",
+    "dateLabel": "التاريخ:",
+    "loadingCashboxes": "جاري تحميل الصناديق..."
+  },
+  "fields": {
+    "amount": "المبلغ",
+    "currency": "العملة (حسب الصندوق)",
+    "exchangeRate": "سعر الصرف مقابل الدولار",
+    "date": "التاريخ",
+    "cashbox": "الصندوق",
+    "selectCashboxPlaceholder": "— اختر الصندوق —",
+    "noCashboxes": "لا توجد صناديق",
+    "partyKind": "نوع الطرف",
+    "purpose": "غرض العملية",
+    "registeredSupplier": "مورد مسجّل",
+    "registeredCustomer": "عميل مسجّل",
+    "noSelectionPlaceholder": "— بدون اختيار —",
+    "beneficiaryName": "اسم المستفيد",
+    "beneficiaryNameWithFallback": "اسم المستفيد (إذا لم يُختر من القائمة)",
+    "description": "البيان",
+    "descriptionPlaceholder": "شرح السند (اختياري — يُدمج مع الغرض تلقائياً)"
+  },
+  "partyKindOptions": {
+    "supplier": "مورد",
+    "customer": "عميل",
+    "other": "أخرى"
+  },
+  "sections": {
+    "paymentMethod": "طريقة الدفع والصندوق",
+    "beneficiaryAndPurpose": "المستفيد وغرض العملية"
+  },
+  "hints": {
+    "advanceRefund": "رد العربون يقلّل الرصيد الدائن للطرف في كشف الحساب (عميل أو مورد حسب الاختيار).",
+    "compensationCustomer": "صرف تعويض للعميل يزيد مديونيته / يقلّل رصيده الدائن على ذمم العملاء."
+  },
+  "actions": {
+    "saveDraft": "حفظ مسودة",
+    "saveAndRegister": "حفظ وتسجيل في الصندوق"
+  },
+  "toasts": {
+    "draftSaved": "تم حفظ المسودة #{{no}}",
+    "registered": "تم تسجيل السند #{{no}} بنجاح في الصندوق"
+  },
+  "errors": {
+    "loadFailed": "تعذر تحميل الصناديق أو الأطراف",
+    "currencyMismatch": "عملة السند يجب أن تطابق عملة الصندوق المحدد",
+    "invalidRate": "يرجى إدخال سعر صرف صحيح",
+    "saveFailed": "فشل الحفظ",
+    "selectCashboxToConfirm": "الرجاء اختيار صندوقاً للتأكيد",
+    "registerFailed": "فشل التسجيل في الصندوق"
+  },
+  "defaults": {
+    "beneficiary": "مستفيد"
+  }
+}
