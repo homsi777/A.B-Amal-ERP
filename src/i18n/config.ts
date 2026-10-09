@@ -33,6 +33,7 @@ import arCustomStickerPrinting from '../locales/ar/customStickerPrinting.json';
 import arDepreciation from '../locales/ar/depreciation.json';
 import arBulkPricing from '../locales/ar/bulkPricing.json';
 import arCartelaLabels from '../locales/ar/cartelaLabels.json';
+import arExchangeInvoices from '../locales/ar/exchangeInvoices.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -66,6 +67,7 @@ import trCustomStickerPrinting from '../locales/tr/customStickerPrinting.json';
 import trDepreciation from '../locales/tr/depreciation.json';
 import trBulkPricing from '../locales/tr/bulkPricing.json';
 import trCartelaLabels from '../locales/tr/cartelaLabels.json';
+import trExchangeInvoices from '../locales/tr/exchangeInvoices.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -107,6 +109,7 @@ void i18n.use(initReactI18next).init({
       depreciation: arDepreciation,
       bulkPricing: arBulkPricing,
       cartelaLabels: arCartelaLabels,
+      exchangeInvoices: arExchangeInvoices,
     },
     tr: {
       common: trCommon,
@@ -142,12 +145,13 @@ void i18n.use(initReactI18next).init({
       depreciation: trDepreciation,
       bulkPricing: trBulkPricing,
       cartelaLabels: trCartelaLabels,
+      exchangeInvoices: trExchangeInvoices,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices'],
   interpolation: {
     escapeValue: false,
   },

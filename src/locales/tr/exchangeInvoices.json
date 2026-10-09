@@ -1,0 +1,23 @@
+{
+  "pageTitle": "Çıkış Faturaları",
+  "pageSubtitle": "İç mal çıkış faturaları ve teslimat izinlerinin yönetimi",
+  "issueExchangeInvoice": "Çıkış Faturası / Teslimat İzni Düzenle",
+  "searchPlaceholder": "Fatura numarasına veya talep eden birime göre ara...",
+  "filter": "Filtrele",
+  "colInvoiceNo": "Fatura/İzin No",
+  "colDate": "Tarih",
+  "colRequester": "Talep Eden / Alıcı",
+  "colWarehouse": "Çıkış Yapılan Depo",
+  "colItemsCount": "Kalem Sayısı",
+  "colStatus": "Durum",
+  "colActions": "İşlemler",
+  "itemsCountUnit": "{{count}} kalem",
+  "viewDetails": "Detayları Görüntüle",
+  "noDataToShow": "Görüntülenecek veri yok",
+  "statusApproved": "Onaylandı",
+  "statusDraft": "Taslak",
+  "sampleRequester1": "Kesim Bölümü",
+  "sampleWarehouse1": "Ham Kumaş Deposu",
+  "sampleRequester2": "Olaya Şubesi",
+  "sampleWarehouse2": "Ana Depo"
+}

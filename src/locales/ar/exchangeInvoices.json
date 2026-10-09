@@ -1,0 +1,23 @@
+{
+  "pageTitle": "فواتير الصرف",
+  "pageSubtitle": "إدارة فواتير صرف البضائع الداخلي وإذن التسليم",
+  "issueExchangeInvoice": "إصدار فاتورة صرف / إذن تسليم",
+  "searchPlaceholder": "بحث برقم الفاتورة، أو الجهة الطالبة...",
+  "filter": "تصفية",
+  "colInvoiceNo": "رقم الفاتورة/الإذن",
+  "colDate": "التاريخ",
+  "colRequester": "الجهة الطالبة / المستلم",
+  "colWarehouse": "المستودع المصروف منه",
+  "colItemsCount": "عدد الأصناف",
+  "colStatus": "الحالة",
+  "colActions": "الإجراءات",
+  "itemsCountUnit": "{{count}} أصناف",
+  "viewDetails": "عرض التفاصيل",
+  "noDataToShow": "لا يوجد بيانات لعرضها",
+  "statusApproved": "مُعتمد",
+  "statusDraft": "مسودة",
+  "sampleRequester1": "قسم التفصيل",
+  "sampleWarehouse1": "مستودع الأقمشة الخام",
+  "sampleRequester2": "فرع العليا",
+  "sampleWarehouse2": "المستودع الرئيسي"
+}
