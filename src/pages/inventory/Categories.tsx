@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, ChevronLeft, Loader2, Pencil, Plus, RefreshCw, Search, X } from 'lucide-react';
 import {
   categoryUiSubtitle,
@@ -28,7 +29,6 @@ function nodesForColumn(nodes: ApiCategory[], colLevel: number): ApiCategory[] {
   return nodes;
 }
 const MAX_COLUMNS = 4;
-const COLUMN_LABELS = ['اسم خامة', 'كود الخامة', 'اللون', 'كود اللون'] as const;
 const ROOT_KEY = 'root';
 
 const emptyForm = (parentId?: string | null): CategoryPayload => ({
@@ -70,6 +70,13 @@ function sortCategories(list: ApiCategory[]): ApiCategory[] {
 }
 
 export const Categories = () => {
+  const { t } = useTranslation('categories');
+  const COLUMN_LABELS = [
+    t('columnLabels.materialName'),
+    t('columnLabels.materialCode'),
+    t('columnLabels.color'),
+    t('columnLabels.colorCode'),
+  ] as const;
   const [childrenCache, setChildrenCache] = useState<Record<string, ApiCategory[]>>({});
   const [allCategoriesFlat, setAllCategoriesFlat] = useState<ApiCategory[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -141,7 +148,7 @@ export const Categories = () => {
       setAllCategoriesFlat(all);
       roots.forEach(mergeFlat);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'خطأ في تحميل التصنيفات');
+      setError(e instanceof Error ? e.message : t('loadError'));
     } finally {
       setInitialLoading(false);
     }
@@ -158,7 +165,7 @@ export const Categories = () => {
         }
         pendingScrollId.current = categoryId;
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'تعذر فتح مسار التصنيف');
+        setError(e instanceof Error ? e.message : t('expandPathFailed'));
       }
     },
     [ensureChildren],
@@ -181,13 +188,19 @@ export const Categories = () => {
     try {
       const result = await syncCategoriesFromMaterials();
       setSyncSummary(
-        `تمت مزامنة التصنيفات: أُضيف ${result.totalCreated} (اسم خامة ${result.createdLevel1}، كود خامة ${result.createdLevel2}، لون ${result.createdLevel3}، كود لون ${result.createdLevel4}).`,
+        t('syncSummary', {
+          total: result.totalCreated,
+          level1: result.createdLevel1,
+          level2: result.createdLevel2,
+          level3: result.createdLevel3,
+          level4: result.createdLevel4,
+        }),
       );
       setError(null);
       setChildrenCache({});
       await loadRoots(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'فشلت مزامنة التصنيفات من المواد الحالية');
+      setError(e instanceof Error ? e.message : t('syncFailed'));
     } finally {
       setAutoSyncing(false);
     }
@@ -297,7 +310,7 @@ export const Categories = () => {
       const created = await createCategory(buildQuickPayload(level, value, parentId));
       afterCreate(created, level, parentId, key);
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'فشل الحفظ');
+      setSaveError(e instanceof Error ? e.message : t('saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -317,7 +330,11 @@ export const Categories = () => {
         const sync = updated.sync;
         if (sync && (sync.itemsUpdated > 0 || sync.colorsUpdated > 0 || (sync.cartelaColorsUpdated ?? 0) > 0)) {
           setSyncSummary(
-            `تم تطبيق التعديل على المخزون والستيكر: ${sync.itemsUpdated} خامة، ${sync.colorsUpdated} لون، ${sync.cartelaColorsUpdated ?? 0} لون كارتيلة.`,
+            t('editSyncSummary', {
+              items: sync.itemsUpdated,
+              colors: sync.colorsUpdated,
+              cartela: sync.cartelaColorsUpdated ?? 0,
+            }),
           );
         }
       } else {
@@ -328,7 +345,7 @@ export const Categories = () => {
       }
       closeModal();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'فشل الحفظ');
+      setSaveError(e instanceof Error ? e.message : t('saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -380,7 +397,7 @@ export const Categories = () => {
   }
 
   const parentOptions = [
-    { id: '', name: 'بلا أصل — مستوى اسم الخامة' },
+    { id: '', name: t('noParentLevelOption') },
     ...allCategoriesFlat
       .filter((c) => !editTarget || c.id !== editTarget.id)
       .filter((c) => depthFromRoot(c.id, byIdMap) <= 2)
@@ -398,14 +415,14 @@ export const Categories = () => {
     <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
       <div className="flex justify-between items-start shrink-0 gap-4 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">تصنيفات الأقمشة</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
           <p className="text-slate-500 mt-1">
-            أربع مستويات: <strong>اسم خامة</strong> → <strong>كود الخامة</strong> → <strong>اللون</strong> →{' '}
-            <strong>كود اللون</strong>. الإضافة السريعة لا تُخفِي القائمة ولا تُعيدك لبداية البحث.
+            {t('pageSubtitlePrefix')} <strong>{t('levelMaterialName')}</strong> {t('pageSubtitleArrow')} <strong>{t('levelMaterialCode')}</strong> {t('pageSubtitleArrow')} <strong>{t('levelColor')}</strong> {t('pageSubtitleArrow')}{' '}
+            <strong>{t('levelColorCode')}</strong>. {t('quickAddHint')}
           </p>
           {breadcrumb ? (
             <p className="text-xs text-indigo-700 mt-2 bg-indigo-50 inline-block px-2 py-1 rounded-lg">
-              المسار الحالي: {breadcrumb}
+              {t('currentPathLabel', { path: breadcrumb })}
             </p>
           ) : null}
         </div>
@@ -417,9 +434,9 @@ export const Categories = () => {
             }}
             disabled={autoSyncing}
             className="px-3 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition"
-            title="إنشاء التصنيفات من المواد الموجودة حاليًا"
+            title={t('syncFromMaterialsTitle')}
           >
-            {autoSyncing ? 'جاري المزامنة...' : 'مزامنة من المواد الحالية'}
+            {autoSyncing ? t('syncing') : t('syncFromMaterials')}
           </button>
           <button
             type="button"
@@ -427,7 +444,7 @@ export const Categories = () => {
               void refreshKeepingPath();
             }}
             className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-            title="تحديث"
+            title={t('refresh')}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -435,7 +452,7 @@ export const Categories = () => {
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
             <input
               type="text"
-              placeholder="بحث سريع للانتقال..."
+              placeholder={t('quickSearchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pr-9 pl-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56"
@@ -459,12 +476,12 @@ export const Categories = () => {
       {search.trim() ? (
         <div className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50/50 overflow-hidden">
           <div className="px-4 py-2 border-b border-indigo-100 flex justify-between items-center text-sm">
-            <span className="font-medium text-indigo-900">نتائج البحث للانتقال — الأعمدة تبقى ظاهرة</span>
-            <span className="text-indigo-600 text-xs">{searchResults.length.toLocaleString()} نتيجة</span>
+            <span className="font-medium text-indigo-900">{t('searchResultsTitle')}</span>
+            <span className="text-indigo-600 text-xs">{t('resultsCount', { count: searchResults.length })}</span>
           </div>
           <div className="max-h-36 overflow-y-auto divide-y divide-indigo-100">
             {searchResults.length === 0 ? (
-              <p className="p-4 text-sm text-slate-500 text-center">لا توجد نتائج</p>
+              <p className="p-4 text-sm text-slate-500 text-center">{t('noResults')}</p>
             ) : (
               searchResults.map((r) => {
                 const depth = depthFromRoot(r.id, byIdMap);
@@ -524,7 +541,7 @@ export const Categories = () => {
                         onChange={(e) =>
                           setColumnFilters((prev) => ({ ...prev, [colKey]: e.target.value }))
                         }
-                        placeholder={`تصفية ${COLUMN_LABELS[col.level]}...`}
+                        placeholder={t('filterPlaceholder', { label: COLUMN_LABELS[col.level] })}
                         className="w-full pr-7 pl-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
                     </div>
@@ -572,7 +589,7 @@ export const Categories = () => {
                                     openEdit(node);
                                   }}
                                   className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition"
-                                  title="تعديل"
+                                  title={t('editTitle')}
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
@@ -583,7 +600,7 @@ export const Categories = () => {
                                     void handleToggle(node);
                                   }}
                                   className={`p-1.5 rounded-lg transition ${node.is_active ? 'text-slate-400 hover:text-rose-500 hover:bg-rose-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
-                                  title={node.is_active ? 'تعطيل' : 'تفعيل'}
+                                  title={node.is_active ? t('disableTitle') : t('enableTitle')}
                                 >
                                   {node.is_active ? <X className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
                                 </button>
@@ -599,7 +616,7 @@ export const Categories = () => {
                       );
                     })}
                     {colFilter && visibleNodes.length === 0 && col.nodes.length > 0 ? (
-                      <p className="text-xs text-slate-400 text-center py-4">لا يطابق التصفية — غيّر النص أو امسحه</p>
+                      <p className="text-xs text-slate-400 text-center py-4">{t('noFilterMatch')}</p>
                     ) : null}
                     <form
                       onSubmit={(e) => {
@@ -621,14 +638,14 @@ export const Categories = () => {
                               [quickKey(col.level, col.parentId)]: e.target.value,
                             }))
                           }
-                          placeholder={`إضافة ${COLUMN_LABELS[col.level]}`}
+                          placeholder={t('addLabel', { label: COLUMN_LABELS[col.level] })}
                           className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm font-bold outline-none"
                         />
                         <button
                           type="submit"
                           disabled={saving || !(quickInputs[quickKey(col.level, col.parentId)] ?? '').trim()}
                           className="p-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-40"
-                          title="حفظ"
+                          title={t('saveTitle')}
                         >
                           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                         </button>
@@ -646,7 +663,7 @@ export const Categories = () => {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-lg">{editTarget ? 'تعديل تصنيف' : 'إضافة تصنيف جديد'}</h3>
+              <h3 className="font-bold text-lg">{editTarget ? t('editCategoryTitle') : t('addNewCategoryTitle')}</h3>
               <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
@@ -655,31 +672,31 @@ export const Categories = () => {
               {saveError && <p className="text-sm text-rose-600 bg-rose-50 p-2 rounded-lg">{saveError}</p>}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الاسم</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('nameLabel')}</label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    placeholder="أدخل الاسم..."
+                    placeholder={t('namePlaceholder')}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">الكود</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('codeLabel')}</label>
                   <input
                     type="text"
                     value={form.code}
                     onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     dir="ltr"
-                    placeholder="أدخل الكود..."
+                    placeholder={t('codePlaceholder')}
                   />
                 </div>
               </div>
-              <p className="text-xs text-slate-500">يجب إدخال الاسم أو الكود على الأقل واحداً.</p>
+              <p className="text-xs text-slate-500">{t('nameOrCodeHint')}</p>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">المستوى / الأصل</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('levelParentLabel')}</label>
                 <select
                   value={form.parent_id || ''}
                   onChange={(e) => setForm((f) => ({ ...f, parent_id: e.target.value || null }))}
@@ -691,7 +708,7 @@ export const Categories = () => {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">لا يمكن الإضافة تحت «كود اللون» — الحد أربع مستويات.</p>
+                <p className="text-xs text-slate-500 mt-1">{t('maxLevelsHint')}</p>
               </div>
               <div className="pt-2 flex justify-end gap-3">
                 <button
@@ -699,7 +716,7 @@ export const Categories = () => {
                   onClick={closeModal}
                   className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm"
                 >
-                  إلغاء
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
@@ -707,7 +724,7 @@ export const Categories = () => {
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2 disabled:opacity-60"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {editTarget ? 'حفظ التعديلات' : 'إضافة التصنيف'}
+                  {editTarget ? t('saveChanges') : t('addCategory')}
                 </button>
               </div>
             </form>

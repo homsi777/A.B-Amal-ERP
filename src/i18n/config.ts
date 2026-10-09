@@ -24,6 +24,10 @@ import arFabricMasterData from '../locales/ar/fabricMasterData.json';
 import arRollDetails from '../locales/ar/rollDetails.json';
 import arTransfers from '../locales/ar/transfers.json';
 import arInventorySettings from '../locales/ar/inventorySettings.json';
+import arWarehouses from '../locales/ar/warehouses.json';
+import arPrintJobs from '../locales/ar/printJobs.json';
+import arYarnManagement from '../locales/ar/yarnManagement.json';
+import arCategories from '../locales/ar/categories.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -48,6 +52,10 @@ import trFabricMasterData from '../locales/tr/fabricMasterData.json';
 import trRollDetails from '../locales/tr/rollDetails.json';
 import trTransfers from '../locales/tr/transfers.json';
 import trInventorySettings from '../locales/tr/inventorySettings.json';
+import trWarehouses from '../locales/tr/warehouses.json';
+import trPrintJobs from '../locales/tr/printJobs.json';
+import trYarnManagement from '../locales/tr/yarnManagement.json';
+import trCategories from '../locales/tr/categories.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -80,6 +88,10 @@ void i18n.use(initReactI18next).init({
       rollDetails: arRollDetails,
       transfers: arTransfers,
       inventorySettings: arInventorySettings,
+      warehouses: arWarehouses,
+      printJobs: arPrintJobs,
+      yarnManagement: arYarnManagement,
+      categories: arCategories,
     },
     tr: {
       common: trCommon,
@@ -106,12 +118,16 @@ void i18n.use(initReactI18next).init({
       rollDetails: trRollDetails,
       transfers: trTransfers,
       inventorySettings: trInventorySettings,
+      warehouses: trWarehouses,
+      printJobs: trPrintJobs,
+      yarnManagement: trYarnManagement,
+      categories: trCategories,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories'],
   interpolation: {
     escapeValue: false,
   },
