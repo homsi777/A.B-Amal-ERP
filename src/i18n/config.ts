@@ -22,6 +22,7 @@ import arPartiesLog from '../locales/ar/partiesLog.json';
 import arCustomerStatementImportModal from '../locales/ar/customerStatementImportModal.json';
 import arFabricMasterData from '../locales/ar/fabricMasterData.json';
 import arRollDetails from '../locales/ar/rollDetails.json';
+import arTransfers from '../locales/ar/transfers.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';

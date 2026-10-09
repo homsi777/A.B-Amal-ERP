@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, Loader2, Plus, QrCode, Search, ArrowRight, X } from 'lucide-react';
 import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
 import { listLocations, listWarehouses, type ApiWarehouse, type ApiWarehouseLocation } from '../../lib/api/warehousesApi';
@@ -10,12 +11,13 @@ import {
   type InventoryTransferRow,
 } from '../../lib/api/inventoryTransfersApi';
 import { ApiRequestError } from '../../lib/api/client';
+import i18n from '../../i18n/config';
 
-const STATUS_AR: Record<string, string> = {
-  DRAFT: 'مسودة',
-  CONFIRMED: 'مؤكدة',
-  CANCELLED: 'ملغاة',
-};
+const getStatusLabels = (): Record<string, string> => ({
+  DRAFT: i18n.t('status.draft', { ns: 'transfers' }),
+  CONFIRMED: i18n.t('status.confirmed', { ns: 'transfers' }),
+  CANCELLED: i18n.t('status.cancelled', { ns: 'transfers' }),
+});
 
 const STATUS_CLASS: Record<string, string> = {
   DRAFT: 'bg-amber-100 text-amber-800',
@@ -45,6 +47,7 @@ function findRollInResults(code: string, rolls: FabricRollDto[]): FabricRollDto 
 }
 
 export const Transfers = () => {
+  const { t } = useTranslation('transfers');
   const scanRef = useRef<HTMLInputElement>(null);
 
   const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
@@ -89,11 +92,11 @@ export const Transfers = () => {
       setRows(res.data);
       setTotal(res.total);
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر تحميل المناقلات');
+      setErr(e instanceof ApiRequestError ? e.message : t('errors.loadListFailed'));
     } finally {
       setBus((b) => ({ ...b, list: false }));
     }
-  }, [search, listFromWarehouseId, listToWarehouseId]);
+  }, [search, listFromWarehouseId, listToWarehouseId, t]);
 
   useEffect(() => {
     void (async () => {
@@ -226,9 +229,9 @@ export const Transfers = () => {
       if (prev.some((r) => r.id === roll.id)) return prev;
       return [...prev, roll];
     });
-    setScanHint(`تمت إضافة: ${roll.barcode}`);
+    setScanHint(t('scan.addedPrefix', { barcode: roll.barcode }));
     setErr(null);
-  }, []);
+  }, [t]);
 
   const removeRoll = (id: string) => {
     setSelectedRolls((prev) => prev.filter((r) => r.id !== id));
@@ -238,7 +241,7 @@ export const Transfers = () => {
     const code = scanInput.trim();
     if (!code) return;
     if (!fromWarehouseId) {
-      setErr('اختر مستودع المصدر أولاً');
+      setErr(t('errors.chooseSourceFirst'));
       return;
     }
     setScanBusy(true);
@@ -254,11 +257,11 @@ export const Transfers = () => {
       });
       const roll = findRollInResults(code, res.data);
       if (!roll) {
-        setErr('لم يُعثر على ثوب متاح بهذا الرمز في المستودع المحدد');
+        setErr(t('errors.rollNotFound'));
         return;
       }
       if (selectedIds.has(roll.id)) {
-        setScanHint(`مضاف مسبقاً: ${roll.barcode}`);
+        setScanHint(t('scan.alreadyAdded', { barcode: roll.barcode }));
         setScanInput('');
         scanRef.current?.focus();
         return;
@@ -267,7 +270,7 @@ export const Transfers = () => {
       setScanInput('');
       scanRef.current?.focus();
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر البحث عن الثوب');
+      setErr(e instanceof ApiRequestError ? e.message : t('errors.searchFailed'));
     } finally {
       setScanBusy(false);
     }
@@ -281,15 +284,15 @@ export const Transfers = () => {
   const handleCreate = async () => {
     setErr(null);
     if (!fromWarehouseId || !toWarehouseId) {
-      setErr('اختر مستودع المصدر والوجهة');
+      setErr(t('errors.chooseSourceAndDestination'));
       return;
     }
     if (fromWarehouseId === toWarehouseId && (fromLocationId || '') === (toLocationId || '')) {
-      setErr('يجب أن يختلف المستودع أو موقع الوجهة عن المصدر');
+      setErr(t('errors.sourceDestinationSame'));
       return;
     }
     if (selectedRolls.length === 0) {
-      setErr('أضف ثوباً واحداً على الأقل — امسح الباركود أو ابحث في الجدول');
+      setErr(t('errors.addAtLeastOneRoll'));
       return;
     }
     setBus((b) => ({ ...b, create: true }));
@@ -308,7 +311,7 @@ export const Transfers = () => {
       setRollSearch('');
       await loadList();
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر إنشاء المناقلة');
+      setErr(e instanceof ApiRequestError ? e.message : t('errors.createFailed'));
     } finally {
       setBus((b) => ({ ...b, create: false }));
     }
@@ -321,7 +324,7 @@ export const Transfers = () => {
       await confirmInventoryTransfer(id);
       await loadList();
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر تأكيد المناقلة');
+      setErr(e instanceof ApiRequestError ? e.message : t('errors.confirmFailed'));
     } finally {
       setBus((b) => ({ ...b, act: null }));
     }
@@ -334,7 +337,7 @@ export const Transfers = () => {
       await cancelInventoryTransfer(id);
       await loadList();
     } catch (e) {
-      setErr(e instanceof ApiRequestError ? e.message : 'تعذر إلغاء المناقلة');
+      setErr(e instanceof ApiRequestError ? e.message : t('errors.cancelFailed'));
     } finally {
       setBus((b) => ({ ...b, act: null }));
     }
@@ -344,8 +347,8 @@ export const Transfers = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">المناقلة بين المستودعات</h2>
-          <p className="text-slate-500 mt-1">نقل الأثواب بين المستودعات — امسح الباركود أو ابحث بالاسم/الكود</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+          <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
         </div>
       </div>
 
@@ -355,19 +358,19 @@ export const Transfers = () => {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100">
-          <h3 className="text-lg font-bold text-slate-900">طلب مناقلة جديد (مسودة)</h3>
+          <h3 className="text-lg font-bold text-slate-900">{t('form.newTransferTitle')}</h3>
         </div>
 
         <div className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">المستودع المحول منه (المصدر)</label>
+              <label className="block text-sm font-medium text-slate-700">{t('form.sourceWarehouseLabel')}</label>
               <select
                 value={fromWarehouseId}
                 onChange={(e) => setFromWarehouseId(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="">— اختر —</option>
+                <option value="">{t('form.chooseOption')}</option>
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {warehouseOptionLabel(w)}
@@ -378,13 +381,13 @@ export const Transfers = () => {
 
             {fromWarehouseId ? (
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">موقع المصدر (اختياري)</label>
+                <label className="block text-sm font-medium text-slate-700">{t('form.sourceLocationLabel')}</label>
                 <select
                   value={fromLocationId}
                   onChange={(e) => setFromLocationId(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">كل المواقع</option>
+                  <option value="">{t('form.allLocationsOption')}</option>
                   {fromLocations.map((loc) => (
                     <option key={loc.id} value={loc.id}>
                       {loc.name}
@@ -397,14 +400,14 @@ export const Transfers = () => {
             )}
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">المستودع المحول إليه (الوجهة)</label>
+              <label className="block text-sm font-medium text-slate-700">{t('form.destinationWarehouseLabel')}</label>
               <select
                 value={toWarehouseId}
                 onChange={(e) => setToWarehouseId(e.target.value)}
                 disabled={!fromWarehouseId}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
               >
-                <option value="">— اختر —</option>
+                <option value="">{t('form.chooseOption')}</option>
                 {destinationWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {warehouseOptionLabel(w)}
@@ -415,13 +418,13 @@ export const Transfers = () => {
 
             {toWarehouseId ? (
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">موقع الوجهة (اختياري)</label>
+                <label className="block text-sm font-medium text-slate-700">{t('form.destinationLocationLabel')}</label>
                 <select
                   value={toLocationId}
                   onChange={(e) => setToLocationId(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">بدون موقع محدد</option>
+                  <option value="">{t('form.noSpecificLocationOption')}</option>
                   {toLocations.map((loc) => (
                     <option key={loc.id} value={loc.id}>
                       {loc.name}
@@ -434,19 +437,19 @@ export const Transfers = () => {
 
           {fromWarehouseId && fromWarehouseId === toWarehouseId ? (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              نقل داخل نفس المستودع — اختر موقع وجهة مختلف عن موقع المصدر.
+              {t('form.sameWarehouseWarning')}
             </p>
           ) : null}
 
           <div className="border-t border-slate-100 pt-6 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-base font-bold text-slate-900">اختيار الأثواب للنقل</h4>
+              <h4 className="text-base font-bold text-slate-900">{t('form.selectRollsTitle')}</h4>
               {fromWarehouseId && availableTotal != null ? (
                 <span className="text-xs text-slate-500">
-                  {availableTotal.toLocaleString()} ثوب متاح في المصدر
+                  {t('form.availableRollsCount', { count: availableTotal.toLocaleString() })}
                   {selectedRolls.length > 0 ? (
                     <span className="text-indigo-600 font-medium mr-2">
-                      · {selectedRolls.length.toLocaleString()} محدد للنقل
+                      {t('form.selectedForTransferCount', { count: selectedRolls.length.toLocaleString() })}
                     </span>
                   ) : null}
                 </span>
@@ -457,7 +460,7 @@ export const Transfers = () => {
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
                   <QrCode className="w-4 h-4 text-indigo-600" />
-                  مسح / إدخال باركود الثوب
+                  {t('form.scanLabel')}
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -472,7 +475,7 @@ export const Transfers = () => {
                       }
                     }}
                     disabled={!fromWarehouseId || scanBusy}
-                    placeholder={fromWarehouseId ? 'امسح الباركود ثم Enter...' : 'اختر مستودع المصدر أولاً'}
+                    placeholder={fromWarehouseId ? t('form.scanPlaceholderReady') : t('form.scanPlaceholderChooseSource')}
                     className="flex-1 p-3 bg-indigo-50/50 border-2 border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm disabled:opacity-50"
                     autoComplete="off"
                   />
@@ -483,7 +486,7 @@ export const Transfers = () => {
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1"
                   >
                     {scanBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    إضافة
+                    {t('form.addButton')}
                   </button>
                 </div>
                 {scanHint ? <p className="text-xs text-emerald-700">{scanHint}</p> : null}
@@ -492,7 +495,7 @@ export const Transfers = () => {
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
                   <Search className="w-4 h-4 text-slate-500" />
-                  بحث بالباركود أو اسم الخامة أو الكود
+                  {t('form.searchLabel')}
                 </label>
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
@@ -501,7 +504,7 @@ export const Transfers = () => {
                     value={rollSearch}
                     onChange={(e) => setRollSearch(e.target.value)}
                     disabled={!fromWarehouseId}
-                    placeholder={fromWarehouseId ? 'اكتب حرفين على الأقل...' : 'اختر مستودع المصدر أولاً'}
+                    placeholder={fromWarehouseId ? t('form.searchPlaceholderReady') : t('form.searchPlaceholderChooseSource')}
                     className="w-full pr-9 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm disabled:opacity-50"
                   />
                 </div>
@@ -511,19 +514,19 @@ export const Transfers = () => {
             {fromWarehouseId && rollSearchDebounced.length >= 2 ? (
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-600 flex justify-between">
-                  <span>نتائج البحث</span>
+                  <span>{t('form.searchResultsLabel')}</span>
                   <span>
-                    {searchLoading ? 'جاري البحث...' : `${searchTotal.toLocaleString()} نتيجة (أول 50)`}
+                    {searchLoading ? t('form.searching') : t('form.resultsCount', { count: searchTotal.toLocaleString() })}
                   </span>
                 </div>
                 <div className="max-h-56 overflow-y-auto">
                   <table className="w-full text-right text-xs">
                     <thead className="bg-slate-100 text-slate-700 sticky top-0">
                       <tr>
-                        <th className="px-3 py-2 font-medium">باركود</th>
-                        <th className="px-3 py-2 font-medium">الخامة</th>
-                        <th className="px-3 py-2 font-medium">اللون</th>
-                        <th className="px-3 py-2 font-medium">متر</th>
+                        <th className="px-3 py-2 font-medium">{t('form.colBarcode')}</th>
+                        <th className="px-3 py-2 font-medium">{t('form.colMaterial')}</th>
+                        <th className="px-3 py-2 font-medium">{t('form.colColor')}</th>
+                        <th className="px-3 py-2 font-medium">{t('form.colMeter')}</th>
                         <th className="px-3 py-2 w-16" />
                       </tr>
                     </thead>
@@ -537,7 +540,7 @@ export const Transfers = () => {
                       ) : searchResults.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
-                            لا توجد نتائج
+                            {t('form.noResults')}
                           </td>
                         </tr>
                       ) : (
@@ -569,22 +572,22 @@ export const Transfers = () => {
               </div>
             ) : fromWarehouseId ? (
               <p className="text-xs text-slate-400">
-                للبحث في آلاف الأثواب: اكتب جزءاً من الباركود أو اسم الخامة — أو امسح الباركود مباشرة.
+                {t('form.searchHint')}
               </p>
             ) : null}
 
             {selectedRolls.length > 0 ? (
               <div className="border border-indigo-100 rounded-lg overflow-hidden">
                 <div className="px-3 py-2 bg-indigo-50 border-b border-indigo-100 text-xs font-medium text-indigo-900">
-                  الأثواب المحددة للنقل ({selectedRolls.length.toLocaleString()})
+                  {t('form.selectedRollsCount', { count: selectedRolls.length.toLocaleString() })}
                 </div>
                 <div className="max-h-48 overflow-y-auto">
                   <table className="w-full text-right text-xs">
                     <thead className="bg-slate-50 text-slate-600">
                       <tr>
-                        <th className="px-3 py-2">باركود</th>
-                        <th className="px-3 py-2">الخامة</th>
-                        <th className="px-3 py-2">متر</th>
+                        <th className="px-3 py-2">{t('form.colBarcode')}</th>
+                        <th className="px-3 py-2">{t('form.colMaterial')}</th>
+                        <th className="px-3 py-2">{t('form.colMeter')}</th>
                         <th className="px-3 py-2 w-10" />
                       </tr>
                     </thead>
@@ -599,7 +602,7 @@ export const Transfers = () => {
                               type="button"
                               onClick={() => removeRoll(r.id)}
                               className="text-rose-600 hover:text-rose-800"
-                              title="إزالة"
+                              title={t('form.remove')}
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -611,19 +614,19 @@ export const Transfers = () => {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-400">لم تُحدَّد أثواب بعد — امسح الباركود أو اختر من نتائج البحث</p>
+              <p className="text-xs text-slate-400">{t('form.noRollsSelected')}</p>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end border-t border-slate-100 pt-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700">ملاحظات</label>
+              <label className="block text-sm font-medium text-slate-700">{t('form.notesLabel')}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                placeholder="اختياري"
+                placeholder={t('form.notesPlaceholder')}
               />
             </div>
             <button
@@ -633,7 +636,7 @@ export const Transfers = () => {
               className="md:min-w-[200px] bg-indigo-600 text-white py-3 px-6 rounded-lg flex items-center justify-center gap-2 hover:bg-indigo-700 transition font-medium disabled:opacity-60"
             >
               {bus.create ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-              حفظ مسودة مناقلة
+              {t('form.saveDraftButton')}
             </button>
           </div>
         </div>
@@ -641,14 +644,14 @@ export const Transfers = () => {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-200 flex items-center gap-3 bg-slate-50 flex-wrap">
-          <h3 className="font-bold text-slate-900">سجل المناقلات</h3>
+          <h3 className="font-bold text-slate-900">{t('list.title')}</h3>
           <span className="text-xs text-slate-500">({total})</span>
           <select
             value={listFromWarehouseId}
             onChange={(e) => setListFromWarehouseId(e.target.value)}
             className="text-sm px-2 py-2 bg-white border border-slate-200 rounded-lg min-w-[140px]"
           >
-            <option value="">من: كل المستودعات</option>
+            <option value="">{t('list.fromAllWarehouses')}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {warehouseOptionLabel(w)}
@@ -660,7 +663,7 @@ export const Transfers = () => {
             onChange={(e) => setListToWarehouseId(e.target.value)}
             className="text-sm px-2 py-2 bg-white border border-slate-200 rounded-lg min-w-[140px]"
           >
-            <option value="">إلى: كل المستودعات</option>
+            <option value="">{t('list.toAllWarehouses')}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {warehouseOptionLabel(w)}
@@ -673,7 +676,7 @@ export const Transfers = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث برقم المناقلة..."
+              placeholder={t('list.searchPlaceholder')}
               className="w-full pr-9 pl-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
             />
           </div>
@@ -682,19 +685,19 @@ export const Transfers = () => {
             onClick={() => void loadList()}
             className="text-sm px-3 py-2 border border-slate-200 rounded-lg hover:bg-white bg-white"
           >
-            تحديث
+            {t('list.refresh')}
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-4 py-4">رقم المناقلة</th>
-                <th className="px-4 py-4">من مستودع</th>
-                <th className="px-4 py-4">إلى مستودع</th>
-                <th className="px-4 py-4">الأصناف المنقولة</th>
-                <th className="px-4 py-4">الحالة</th>
-                <th className="px-4 py-4 w-40">إجراءات</th>
+                <th className="px-4 py-4">{t('list.colTransferNo')}</th>
+                <th className="px-4 py-4">{t('list.colFromWarehouse')}</th>
+                <th className="px-4 py-4">{t('list.colToWarehouse')}</th>
+                <th className="px-4 py-4">{t('list.colItemsTransferred')}</th>
+                <th className="px-4 py-4">{t('list.colStatus')}</th>
+                <th className="px-4 py-4 w-40">{t('list.colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -707,7 +710,7 @@ export const Transfers = () => {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-slate-600 font-medium">
-                    لا توجد مناقلات بين المستودعات بعد
+                    {t('list.noTransfers')}
                   </td>
                 </tr>
               ) : (
@@ -716,12 +719,12 @@ export const Transfers = () => {
                     <td className="px-4 py-4 font-medium text-indigo-600">{tr.transfer_no}</td>
                     <td className="px-4 py-4 font-medium text-slate-700">{tr.from_warehouse_name ?? '—'}</td>
                     <td className="px-4 py-4 font-medium text-slate-700">{tr.to_warehouse_name ?? '—'}</td>
-                    <td className="px-4 py-4 text-slate-600">{(tr.line_count ?? 0).toLocaleString()} طاقة</td>
+                    <td className="px-4 py-4 text-slate-600">{t('list.unitCount', { count: (tr.line_count ?? 0).toLocaleString() })}</td>
                     <td className="px-4 py-4">
                       <span
                         className={`px-2 py-1 rounded text-xs font-bold ${STATUS_CLASS[tr.status] ?? 'bg-slate-100'}`}
                       >
-                        {STATUS_AR[tr.status] ?? tr.status}
+                        {getStatusLabels()[tr.status] ?? tr.status}
                       </span>
                     </td>
                     <td className="px-4 py-4">
@@ -733,7 +736,7 @@ export const Transfers = () => {
                             disabled={bus.act === tr.id}
                             className="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                           >
-                            تأكيد
+                            {t('list.confirmButton')}
                           </button>
                           <button
                             type="button"
@@ -741,7 +744,7 @@ export const Transfers = () => {
                             disabled={bus.act === tr.id}
                             className="text-xs px-2 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                           >
-                            إلغاء
+                            {t('list.cancelButton')}
                           </button>
                         </div>
                       ) : (
