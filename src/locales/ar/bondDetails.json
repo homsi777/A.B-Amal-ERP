@@ -1,0 +1,68 @@
+{
+  "page": {
+    "title": "تفاصيل السند",
+    "subtitle": "عرض السند كما هو محفوظ في قاعدة البيانات",
+    "backToRecords": "العودة للسجل"
+  },
+  "loading": "جاري التحميل...",
+  "notFound": "السند غير موجود",
+  "error": {
+    "loadFailed": "تعذر تحميل السند"
+  },
+  "toast": {
+    "confirmSuccess": "تم ترحيل السند بنجاح",
+    "confirmError": "تعذر ترحيل السند",
+    "cancelSuccess": "تم إلغاء السند بنجاح",
+    "cancelError": "تعذر إلغاء السند",
+    "telegramSent": "تم إرسال السند إلى تيليغرام.",
+    "telegramError": "تعذر إرسال السند إلى تيليغرام"
+  },
+  "confirmDialog": {
+    "cancelMessage": "هل أنت متأكد من إلغاء السند {{voucherNo}}؟\n\nسيتم إلغاء السند وعكس أثره على الصندوق والحسابات. لا يمكن التراجع عن هذا الإجراء بسهولة."
+  },
+  "header": {
+    "voucherNoLabel": "رقم السند",
+    "print": "طباعة / PDF",
+    "sendTelegram": "إرسال تيليغرام",
+    "confirm": "ترحيل",
+    "cancel": "إلغاء"
+  },
+  "type": {
+    "receipt": "قبض",
+    "payment": "صرف"
+  },
+  "partyType": {
+    "customer": "عميل",
+    "supplier": "مورد",
+    "employee": "موظف",
+    "other": "أخرى"
+  },
+  "status": {
+    "draft": "مسودة",
+    "confirmed": "مُرحل",
+    "cancelled": "ملغى"
+  },
+  "basic": {
+    "title": "بيانات أساسية",
+    "type": "النوع",
+    "date": "التاريخ",
+    "amount": "المبلغ",
+    "exchangeRate": "سعر الصرف مقابل الدولار",
+    "amountUsd": "المبلغ بالدولار",
+    "paymentMethod": "طريقة الدفع"
+  },
+  "party": {
+    "title": "الجهة والصندوق",
+    "party": "الجهة",
+    "partyType": "نوع الجهة",
+    "purpose": "غرض العملية",
+    "cashbox": "الصندوق",
+    "cashboxCode": "كود الصندوق"
+  },
+  "notes": {
+    "title": "البيان والملاحظات",
+    "description": "البيان",
+    "notes": "ملاحظات",
+    "reference": "مرجع"
+  }
+}

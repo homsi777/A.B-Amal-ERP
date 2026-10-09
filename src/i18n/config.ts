@@ -44,6 +44,9 @@ import arCollectionBonds from '../locales/ar/collectionBonds.json';
 import arSafes from '../locales/ar/safes.json';
 import arTreasuryLog from '../locales/ar/treasuryLog.json';
 import arBondRecords from '../locales/ar/bondRecords.json';
+import arBondDetails from '../locales/ar/bondDetails.json';
+import arExpenses from '../locales/ar/expenses.json';
+import arProfitDetails from '../locales/ar/profitDetails.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -88,6 +91,9 @@ import trCollectionBonds from '../locales/tr/collectionBonds.json';
 import trSafes from '../locales/tr/safes.json';
 import trTreasuryLog from '../locales/tr/treasuryLog.json';
 import trBondRecords from '../locales/tr/bondRecords.json';
+import trBondDetails from '../locales/tr/bondDetails.json';
+import trExpenses from '../locales/tr/expenses.json';
+import trProfitDetails from '../locales/tr/profitDetails.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -140,6 +146,9 @@ void i18n.use(initReactI18next).init({
       safes: arSafes,
       treasuryLog: arTreasuryLog,
       bondRecords: arBondRecords,
+      bondDetails: arBondDetails,
+      expenses: arExpenses,
+      profitDetails: arProfitDetails,
     },
     tr: {
       common: trCommon,
@@ -186,12 +195,15 @@ void i18n.use(initReactI18next).init({
       safes: trSafes,
       treasuryLog: trTreasuryLog,
       bondRecords: trBondRecords,
+      bondDetails: trBondDetails,
+      expenses: trExpenses,
+      profitDetails: trProfitDetails,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails'],
   interpolation: {
     escapeValue: false,
   },

@@ -1,0 +1,68 @@
+{
+  "page": {
+    "title": "Fiş Detayları",
+    "subtitle": "Fişin veritabanında kayıtlı hali",
+    "backToRecords": "Kayıtlara dön"
+  },
+  "loading": "Yükleniyor...",
+  "notFound": "Fiş bulunamadı",
+  "error": {
+    "loadFailed": "Fiş yüklenemedi"
+  },
+  "toast": {
+    "confirmSuccess": "Fiş başarıyla onaylandı",
+    "confirmError": "Fiş onaylanamadı",
+    "cancelSuccess": "Fiş başarıyla iptal edildi",
+    "cancelError": "Fiş iptal edilemedi",
+    "telegramSent": "Fiş Telegram'a gönderildi.",
+    "telegramError": "Fiş Telegram'a gönderilemedi"
+  },
+  "confirmDialog": {
+    "cancelMessage": "{{voucherNo}} numaralı fişi iptal etmek istediğinizden emin misiniz?\n\nFiş iptal edilecek ve kasa ile hesaplar üzerindeki etkisi geri alınacaktır. Bu işlem kolayca geri alınamaz."
+  },
+  "header": {
+    "voucherNoLabel": "Fiş no",
+    "print": "Yazdır / PDF",
+    "sendTelegram": "Telegram'a gönder",
+    "confirm": "Onayla",
+    "cancel": "İptal et"
+  },
+  "type": {
+    "receipt": "Tahsilat",
+    "payment": "Ödeme"
+  },
+  "partyType": {
+    "customer": "Müşteri",
+    "supplier": "Tedarikçi",
+    "employee": "Çalışan",
+    "other": "Diğer"
+  },
+  "status": {
+    "draft": "Taslak",
+    "confirmed": "Onaylandı",
+    "cancelled": "İptal edildi"
+  },
+  "basic": {
+    "title": "Temel bilgiler",
+    "type": "Tür",
+    "date": "Tarih",
+    "amount": "Tutar",
+    "exchangeRate": "USD kuru",
+    "amountUsd": "USD tutarı",
+    "paymentMethod": "Ödeme yöntemi"
+  },
+  "party": {
+    "title": "Taraf ve kasa",
+    "party": "Taraf",
+    "partyType": "Taraf türü",
+    "purpose": "İşlem amacı",
+    "cashbox": "Kasa",
+    "cashboxCode": "Kasa kodu"
+  },
+  "notes": {
+    "title": "Açıklama ve notlar",
+    "description": "Açıklama",
+    "notes": "Notlar",
+    "reference": "Referans"
+  }
+}
