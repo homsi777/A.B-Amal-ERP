@@ -9,5 +9,8 @@
   "apiLogin": "API Girişi",
   "systemAdmin": "Sistem Yöneticisi",
   "cancel": "İptal",
-  "save": "Kaydet"
+  "save": "Kaydet",
+  "noAlertsCurrently": "Şu anda uyarı bulunmuyor",
+  "customerFallback": "Müşteri",
+  "expectedSupplyDate": "Beklenen Teslim: {{date}}"
 }

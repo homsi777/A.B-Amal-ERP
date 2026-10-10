@@ -9,5 +9,8 @@
   "apiLogin": "دخول API",
   "systemAdmin": "مدير النظام",
   "cancel": "إلغاء",
-  "save": "حفظ"
+  "save": "حفظ",
+  "noAlertsCurrently": "لا توجد تنبيهات حالياً",
+  "customerFallback": "عميل",
+  "expectedSupplyDate": "متوقع التوريد: {{date}}"
 }

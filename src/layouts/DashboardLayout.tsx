@@ -24,7 +24,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { ar, tr } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import type { CustomerOrder } from '../types';
 import { ORDER_STATUS_LABELS } from '../pages/orders/orderStatusUi';
@@ -69,7 +69,8 @@ type NavItem =
     };
 
 const Topbar = () => {
-  const { t } = useTranslation(['nav', 'common']);
+  const { t, i18n } = useTranslation(['nav', 'common']);
+  const dateFnsLocale = i18n.language === 'ar' ? ar : tr;
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpandedKey, setMobileExpandedKey] = useState<string | null>(null);
@@ -288,7 +289,7 @@ const Topbar = () => {
           </div>
           <div className="max-h-[min(22rem,55vh)] overflow-y-auto custom-scrollbar">
             {!hasAlerts ? (
-              <p className="px-4 py-8 text-sm text-center text-[var(--text-muted)]">لا توجد تنبيهات حالياً</p>
+              <p className="px-4 py-8 text-sm text-center text-[var(--text-muted)]">{t('noAlertsCurrently', { ns: 'common' })}</p>
             ) : (
               <ul className="divide-y divide-[var(--border-subtle)] p-2 space-y-1">
                 {pickupAlerts.slice(0, 12).map((o) => {
@@ -309,10 +310,10 @@ const Topbar = () => {
                               {ORDER_STATUS_LABELS[o.status]}
                             </span>
                           </div>
-                          <p className="text-xs font-semibold text-[var(--text-heading)] truncate">{c?.name ?? 'عميل'}</p>
+                          <p className="text-xs font-semibold text-[var(--text-heading)] truncate">{c?.name ?? t('customerFallback', { ns: 'common' })}</p>
                           {o.expectedDate && (
                             <p className="text-[11px] text-[var(--text-muted)]">
-                              متوقع التوريد: {format(new Date(o.expectedDate), 'PP', { locale: ar })}
+                              {t('expectedSupplyDate', { ns: 'common', date: format(new Date(o.expectedDate), 'PP', { locale: dateFnsLocale }) })}
                             </p>
                           )}
                         </div>
