@@ -30,11 +30,13 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 import type { RollLabelPreviewDto } from '../../lib/api/labelsApi';
 import { BRAND } from '../../branding';
 import { displayLabelMaterialCode } from '../../lib/importDisplay';
 import { thermalBrandLogoHtml, thermalLogoImgReactStyle } from '../../lib/printing/thermalBrandLogo';
+import i18n from '../../i18n/config';
 
 // ─── Code128 SVG generator ───────────────────────────────────────────────────
 
@@ -117,7 +119,7 @@ const DEFAULT_CONFIG: Required<LabelConfig> = {
   showWarehouse: true, showBatchNo: true,
   showContainerNo: true, showPurchaseInvoiceNo: true,
   brandName: BRAND.name, subtitle: BRAND.tagline,
-  disclaimer: 'لا تُقبل المطالبات بعد قصّ البضاعة',
+  disclaimer: '',
   quality: '1',
 };
 
@@ -245,7 +247,9 @@ export const LabelCard: React.FC<LabelCardProps> = ({
   heightMm = 80,
   mode = 'preview',
 }) => {
+  const { t } = useTranslation('labelCard');
   const cfg: Required<LabelConfig> = { ...DEFAULT_CONFIG, ...(configProp ?? {}) };
+  cfg.disclaimer = configProp?.disclaimer !== undefined ? configProp.disclaimer : t('labelCard.defaultDisclaimer');
   const textDir = cfg.textDirection;
   const printableBarcode = pickPrintableBarcode(roll);
   const barcodeSvg = printableBarcode ? buildCode128Svg(printableBarcode, 38) : '';
@@ -314,20 +318,20 @@ export const LabelCard: React.FC<LabelCardProps> = ({
         flexShrink: 0,
       }}>
         <div>
-          {cfg.showItemName && <FieldRow label="رمز الصنف" value={roll.itemName} textDirection={textDir} />}
+          {cfg.showItemName && <FieldRow label={t('labelCard.itemNameLabel')} value={roll.itemName} textDirection={textDir} />}
           {cfg.showInternalCode && (
-            <FieldRow label="كود الخامة" value={pickMaterialCode(roll)} textDirection={textDir} />
+            <FieldRow label={t('labelCard.materialCodeLabel')} value={pickMaterialCode(roll)} textDirection={textDir} />
           )}
           {(cfg.showColorName || cfg.showSupplierCode) && (
-            <FieldRow label="اسم اللون" value={color} textDirection={textDir} />
+            <FieldRow label={t('labelCard.colorNameLabel')} value={color} textDirection={textDir} />
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingLeft: '2mm', borderLeft: '0.2mm dashed #999' }}>
           {cfg.showColorCode && (
-            <FieldRow label="رمز اللون" value={roll.colorCode ?? ''} textDirection={textDir} compact emphasize />
+            <FieldRow label={t('labelCard.colorCodeLabel')} value={roll.colorCode ?? ''} textDirection={textDir} compact emphasize />
           )}
           <div style={{ textAlign: 'center', marginTop: '0.35mm', direction: textDir, unicodeBidi: 'plaintext' }}>
-            <div style={{ fontSize: '6.5pt', color: '#1f2937', fontWeight: 500 }}>الجودة :</div>
+            <div style={{ fontSize: '6.5pt', color: '#1f2937', fontWeight: 500 }}>{t('labelCard.qualityLabel')}</div>
             <div style={{ fontSize: '11pt', fontWeight: 800, lineHeight: 1 }}>{cfg.quality}</div>
           </div>
         </div>
@@ -344,10 +348,10 @@ export const LabelCard: React.FC<LabelCardProps> = ({
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <div>
-            <FieldRow label="ملاحظة"       value="" textDirection={textDir} />
-            <FieldRow label="رقم الدفعة"     value={lot} textDirection={textDir} />
-            {cfg.showLength       && <FieldRow label="الأمتار"     value={meters} emphasize textDirection={textDir} />}
-            {cfg.showActualWeight && <FieldRow label="الوزن الصافي" value={weight} emphasize textDirection={textDir} />}
+            <FieldRow label={t('labelCard.noteLabel')} value="" textDirection={textDir} />
+            <FieldRow label={t('labelCard.batchNumberLabel')} value={lot} textDirection={textDir} />
+            {cfg.showLength       && <FieldRow label={t('labelCard.metersLabel')} value={meters} emphasize textDirection={textDir} />}
+            {cfg.showActualWeight && <FieldRow label={t('labelCard.netWeightLabel')} value={weight} emphasize textDirection={textDir} />}
           </div>
         </div>
 
@@ -462,6 +466,7 @@ export function buildPrintDocument(
     rollLayout = 'auto',
   } = opts;
   const cfg: Required<LabelConfig> = { ...DEFAULT_CONFIG, ...config };
+  cfg.disclaimer = config.disclaimer !== undefined ? config.disclaimer : i18n.t('labelCard.defaultDisclaimer');
   const textDir = cfg.textDirection;
   const rowClass = textDir === 'rtl' ? 'row row-rtl' : 'row row-ltr';
 
@@ -503,22 +508,22 @@ export function buildPrintDocument(
 
   <div class="block grid-2">
     <div>
-      ${cfg.showItemName ? fieldRow('رمز الصنف', roll.itemName) : ''}
+      ${cfg.showItemName ? fieldRow(i18n.t('labelCard.itemNameLabel'), roll.itemName) : ''}
       ${
         cfg.showInternalCode
-          ? fieldRow('كود الخامة', pickMaterialCode(roll))
+          ? fieldRow(i18n.t('labelCard.materialCodeLabel'), pickMaterialCode(roll))
           : ''
       }
       ${
         cfg.showColorName || cfg.showSupplierCode
-          ? fieldRow('اسم اللون', color)
+          ? fieldRow(i18n.t('labelCard.colorNameLabel'), color)
           : ''
       }
     </div>
     <div class="right-col">
-      ${cfg.showColorCode ? fieldRow('رمز اللون', roll.colorCode ?? '', false, true) : ''}
+      ${cfg.showColorCode ? fieldRow(i18n.t('labelCard.colorCodeLabel'), roll.colorCode ?? '', false, true) : ''}
       <div class="quality text-${textDir}">
-        <div class="ql">الجودة :</div>
+        <div class="ql">${i18n.t('labelCard.qualityLabel')}</div>
         <div class="qv">${cfg.quality}</div>
       </div>
     </div>
@@ -527,10 +532,10 @@ export function buildPrintDocument(
   <div class="lower">
     <div class="lower-fields">
       <div class="lower-list">
-        ${fieldRow('ملاحظة',       '')}
-        ${fieldRow('رقم الدفعة',     lot)}
-        ${cfg.showLength       ? fieldRow('الأمتار',     meters, true) : ''}
-        ${cfg.showActualWeight ? fieldRow('الوزن الصافي', weight, true) : ''}
+        ${fieldRow(i18n.t('labelCard.noteLabel'),       '')}
+        ${fieldRow(i18n.t('labelCard.batchNumberLabel'),     lot)}
+        ${cfg.showLength       ? fieldRow(i18n.t('labelCard.metersLabel'),     meters, true) : ''}
+        ${cfg.showActualWeight ? fieldRow(i18n.t('labelCard.netWeightLabel'), weight, true) : ''}
       </div>
     </div>
     ${cfg.showQr ? `<div class="qr">${qrSvg}</div>` : ''}

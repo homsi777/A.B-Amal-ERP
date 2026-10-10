@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { activateProject, type ActivationStatusDto } from '../../lib/api/activationApi';
 import { ApiRequestError } from '../../lib/api/client';
@@ -30,6 +31,7 @@ export function ActivationKeyInput({
   className = '',
   autoFocus = false,
 }: ActivationKeyInputProps) {
+  const { t } = useTranslation('settings');
   const [key, setKey] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
@@ -41,19 +43,19 @@ export function ActivationKeyInput({
     setError('');
     setStatus('');
     if (!isValid) {
-      setError('صيغة المفتاح يجب أن تكون XXXX.XXXX.XXXX.XXXX');
+      setError(t('activation.keyFormatError'));
       return;
     }
 
     setLoading(true);
     try {
       const result = await activateProject(key);
-      setStatus('تم تفعيل النظام بنجاح.');
+      setStatus(t('activation.activationSuccess'));
       setKey('');
       window.dispatchEvent(new CustomEvent('clotex:activation-updated'));
       window.setTimeout(() => onActivated?.(result), 400);
     } catch (err) {
-      const message = err instanceof ApiRequestError ? err.message : 'تعذر تفعيل النظام. تحقق من المفتاح وحاول مجدداً.';
+      const message = err instanceof ApiRequestError ? err.message : t('activation.activationFailed');
       setError(message);
     } finally {
       setLoading(false);
@@ -64,7 +66,7 @@ export function ActivationKeyInput({
     <form onSubmit={handleSubmit} className={`space-y-3 ${className}`}>
       <label className="space-y-1.5 block">
         <span className={`font-bold ${compact ? 'text-xs text-slate-200' : 'text-sm text-[var(--text-heading)]'}`}>
-          مفتاح التفعيل
+          {t('activation.keyLabel')}
         </span>
         <div className="relative">
           <input
@@ -108,7 +110,7 @@ export function ActivationKeyInput({
         }`}
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-        تفعيل النظام
+        {t('activation.title')}
       </button>
     </form>
   );

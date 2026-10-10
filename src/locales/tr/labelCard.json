@@ -1,0 +1,12 @@
+{
+  "labelCard.defaultDisclaimer": "Mal kesildikten sonra şikayetler kabul edilmez",
+  "labelCard.itemNameLabel": "Ürün Kodu",
+  "labelCard.materialCodeLabel": "Malzeme Kodu",
+  "labelCard.colorNameLabel": "Renk Adı",
+  "labelCard.colorCodeLabel": "Renk Kodu",
+  "labelCard.qualityLabel": "Kalite :",
+  "labelCard.noteLabel": "Not",
+  "labelCard.batchNumberLabel": "Parti No",
+  "labelCard.metersLabel": "Metre",
+  "labelCard.netWeightLabel": "Net Ağırlık"
+}

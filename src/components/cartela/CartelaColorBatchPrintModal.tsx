@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Eye, Loader2, Printer, Save, VolumeX, X } from 'lucide-react';
 import type { CartelaColorSwatchDto } from '../../lib/api/cartelaColorApi';
 import { cartelaColorDisplayName } from '../../lib/api/cartelaColorApi';
@@ -28,11 +29,11 @@ type Props = {
   onClose: () => void;
 };
 
-function PreviewFrame({ html }: { html: string }) {
+function PreviewFrame({ html, title }: { html: string; title: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-100 p-3 overflow-auto max-h-[320px]">
       <iframe
-        title="معاينة باركود الألوان"
+        title={title}
         srcDoc={html}
         className="w-full min-h-[120px] bg-white border-0"
         style={{ height: '200px' }}
@@ -42,6 +43,7 @@ function PreviewFrame({ html }: { html: string }) {
 }
 
 export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }) => {
+  const { t } = useTranslation('cartelaLabels');
   const { showToast } = useToast();
   const { settings: electronSettings } = useElectronSettings();
   const canSilent = canUseSilentLabelPrinting({
@@ -78,12 +80,12 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
   const handleSaveDefaults = () => {
     const saved = saveCartelaColorPrintSettings(printSettings);
     setPrintSettings(saved);
-    showToast({ type: 'success', message: 'تم حفظ إعدادات طباعة الألوان كافتراضي' });
+    showToast({ type: 'success', message: t('batchPrintModal.saveDefaultsToast') });
   };
 
   const runPrint = async (mode: PrintMode) => {
     if (!colors.length) {
-      showToast({ type: 'warning', message: 'اختر لوناً واحداً على الأقل' });
+      showToast({ type: 'warning', message: t('batchPrintModal.selectAtLeastOneColor') });
       return;
     }
     setBusy(mode);
@@ -105,12 +107,12 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
       showToast({
         type: result.ok ? 'success' : 'error',
         message: result.ok
-          ? `تم إرسال ${stripCount} سطر (3×1) للطباعة`
-          : result.error || 'فشلت الطباعة',
+          ? t('batchPrintModal.printSentMessage', { count: stripCount })
+          : result.error || t('batchPrintModal.printFailed'),
       });
       if (result.ok) onClose();
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'فشلت الطباعة' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('batchPrintModal.printFailed') });
     } finally {
       setBusy(null);
     }
@@ -124,9 +126,14 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
       <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[95vh] overflow-hidden border border-slate-200 flex flex-col">
         <div className="px-5 py-4 border-b border-slate-200 bg-violet-50 flex items-center justify-between gap-3">
           <div>
-            <h4 className="font-bold text-slate-900">طباعة باركود الألوان — 3 مربعات في السطر</h4>
+            <h4 className="font-bold text-slate-900">{t('batchPrintModal.title')}</h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              {colors.length} لون · {stripCount} سطر/ستيكer · Code128 فقط · {pageWidth.toFixed(1)}×{pageHeight.toFixed(1)} mm
+              {t('batchPrintModal.subtitle', {
+                colorCount: colors.length,
+                stripCount,
+                width: pageWidth.toFixed(1),
+                height: pageHeight.toFixed(1),
+              })}
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-white/80 text-slate-600">
@@ -136,10 +143,10 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
 
         <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5 overflow-y-auto">
           <div className="space-y-3">
-            <h5 className="text-sm font-bold text-slate-800">إعدادات الطباعة</h5>
+            <h5 className="text-sm font-bold text-slate-800">{t('batchPrintModal.printSettingsHeading')}</h5>
             <div className="grid grid-cols-2 gap-3">
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">عرض المربع (mm)</span>
+                <span className="text-xs font-bold text-slate-600">{t('batchPrintModal.cellWidthLabel')}</span>
                 <input
                   type="number"
                   min={12}
@@ -152,7 +159,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">ارتفاع المربع (mm)</span>
+                <span className="text-xs font-bold text-slate-600">{t('batchPrintModal.cellHeightLabel')}</span>
                 <input
                   type="number"
                   min={8}
@@ -165,7 +172,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">المسافة بين المربعات (mm)</span>
+                <span className="text-xs font-bold text-slate-600">{t('batchPrintModal.gapLabel')}</span>
                 <input
                   type="number"
                   min={0}
@@ -178,7 +185,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">ارتفاع الباركود (mm)</span>
+                <span className="text-xs font-bold text-slate-600">{t('batchPrintModal.barcodeHeightLabel')}</span>
                 <input
                   type="number"
                   min={4}
@@ -191,7 +198,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">حجم خط كود اللون (pt)</span>
+                <span className="text-xs font-bold text-slate-600">{t('batchPrintModal.codeFontSizeLabel')}</span>
                 <input
                   type="number"
                   min={4}
@@ -204,7 +211,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">عدد النسخ</span>
+                <span className="text-xs font-bold text-slate-600">{t('batchPrintModal.copiesLabel')}</span>
                 <input
                   type="number"
                   min={1}
@@ -223,7 +230,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
                 onChange={(e) => patchSetting('showColorName', e.target.checked)}
                 className="accent-violet-600"
               />
-              إظهار اسم اللون تحت الكود (اختياري)
+              {t('batchPrintModal.showColorNameLabel')}
             </label>
             <button
               type="button"
@@ -231,26 +238,28 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
               className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-800 hover:bg-violet-100"
             >
               <Save className="w-3.5 h-3.5" />
-              حفظ الإعدادات كافتراضي
+              {t('batchPrintModal.saveDefaultsButton')}
             </button>
             <button
               type="button"
               onClick={() => setPrintSettings(DEFAULT_CARTELA_COLOR_PRINT_SETTINGS)}
               className="block text-xs text-slate-500 hover:text-slate-700 underline"
             >
-              استعادة الافتراضي ({DEFAULT_CARTELA_COLOR_PRINT_SETTINGS.cellWidthMm}×
-              {DEFAULT_CARTELA_COLOR_PRINT_SETTINGS.cellHeightMm} mm)
+              {t('batchPrintModal.restoreDefaultsButton', {
+                width: DEFAULT_CARTELA_COLOR_PRINT_SETTINGS.cellWidthMm,
+                height: DEFAULT_CARTELA_COLOR_PRINT_SETTINGS.cellHeightMm,
+              })}
             </button>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
               <Eye className="w-4 h-4 text-violet-600" />
-              معاينة قبل الطباعة
+              {t('batchPrintModal.previewHeading')}
             </div>
-            <PreviewFrame html={previewHtml} />
+            <PreviewFrame html={previewHtml} title={t('batchPrintModal.previewIframeTitle')} />
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              أول مرة على Zebra: عدّل عرض/ارتفاع المربع حتى يطابق الستيكer الفعلي، ثم «حفظ كافتراضي» — الطباعة تستخدم Code128 فقط بدون QR.
+              {t('batchPrintModal.zebraHint')}
             </p>
             <ul className="text-xs text-slate-600 space-y-1 max-h-28 overflow-y-auto">
               {colors.map((color) => (
@@ -268,7 +277,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
             onClick={onClose}
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700"
           >
-            إلغاء
+            {t('batchPrintModal.cancelButton')}
           </button>
           <button
             type="button"
@@ -277,7 +286,7 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
             className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-black disabled:opacity-50"
           >
             {busy === 'dialog' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-            طباعة
+            {t('batchPrintModal.printButton')}
           </button>
           {canSilent && (
             <button
@@ -287,11 +296,11 @@ export const CartelaColorBatchPrintModal: React.FC<Props> = ({ colors, onClose }
               className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               {busy === 'silent' ? <Loader2 className="w-4 h-4 animate-spin" /> : <VolumeX className="w-4 h-4" />}
-              طباعة صامتة (Zebra)
+              {t('batchPrintModal.silentPrintButton')}
             </button>
           )}
           {!canSilent && isElectronRenderer() && (
-            <span className="text-xs text-slate-500 self-center">فعّل الطابعة الافتراضية للصامت</span>
+            <span className="text-xs text-slate-500 self-center">{t('batchPrintModal.enableSilentPrinterHint')}</span>
           )}
         </div>
       </div>

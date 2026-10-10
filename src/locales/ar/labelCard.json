@@ -1,0 +1,12 @@
+{
+  "labelCard.defaultDisclaimer": "لا تُقبل المطالبات بعد قصّ البضاعة",
+  "labelCard.itemNameLabel": "رمز الصنف",
+  "labelCard.materialCodeLabel": "كود الخامة",
+  "labelCard.colorNameLabel": "اسم اللون",
+  "labelCard.colorCodeLabel": "رمز اللون",
+  "labelCard.qualityLabel": "الجودة :",
+  "labelCard.noteLabel": "ملاحظة",
+  "labelCard.batchNumberLabel": "رقم الدفعة",
+  "labelCard.metersLabel": "الأمتار",
+  "labelCard.netWeightLabel": "الوزن الصافي"
+}

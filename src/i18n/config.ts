@@ -57,6 +57,7 @@ import arPartners from '../locales/ar/partners.json';
 import arManufacturing from '../locales/ar/manufacturing.json';
 import arImportBatches from '../locales/ar/importBatches.json';
 import arDocumentFileNames from '../locales/ar/documentFileNames.json';
+import arLabelCard from '../locales/ar/labelCard.json';
 import trCommon from '../locales/tr/common.json';
 import trDashboard from '../locales/tr/dashboard.json';
 import trLogin from '../locales/tr/login.json';
@@ -114,6 +115,7 @@ import trPartners from '../locales/tr/partners.json';
 import trManufacturing from '../locales/tr/manufacturing.json';
 import trImportBatches from '../locales/tr/importBatches.json';
 import trDocumentFileNames from '../locales/tr/documentFileNames.json';
+import trLabelCard from '../locales/tr/labelCard.json';
 import { applyDocumentLanguage, DEFAULT_LANGUAGE, readStoredLanguage } from './constants';
 
 const initialLanguage = readStoredLanguage();
@@ -179,6 +181,7 @@ void i18n.use(initReactI18next).init({
       manufacturing: arManufacturing,
       importBatches: arImportBatches,
       documentFileNames: arDocumentFileNames,
+      labelCard: arLabelCard,
     },
     tr: {
       common: trCommon,
@@ -238,12 +241,13 @@ void i18n.use(initReactI18next).init({
       manufacturing: trManufacturing,
       importBatches: trImportBatches,
       documentFileNames: trDocumentFileNames,
+      labelCard: trLabelCard,
     },
   },
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames', 'labelCard'],
   interpolation: {
     escapeValue: false,
   },

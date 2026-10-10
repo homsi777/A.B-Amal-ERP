@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Check,
   Contrast,
@@ -22,6 +23,7 @@ const FONT_IDS = Object.keys(ARABIC_FONT_LABELS) as ArabicFontId[];
 const THEME_IDS = Object.keys(THEME_META) as ThemePresetId[];
 
 export const ThemeDisplaySettings = () => {
+  const { t } = useTranslation('settings');
   const themeId = useUiPreferences((s) => s.themeId);
   const appearance = useUiPreferences((s) => s.appearance);
   const arabicFontId = useUiPreferences((s) => s.arabicFontId);
@@ -39,14 +41,14 @@ export const ThemeDisplaySettings = () => {
         <div>
           <h3 className="text-xl font-bold text-[var(--text-heading)] flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-[var(--ui-accent)]" />
-            الثيمات والعرض
+            {t('themeDisplay.title')}
           </h3>
           <p className="text-[var(--text-muted)] mt-1 text-sm">
-            تخصيص ألوان الواجهة والخط العربي مع الحفاظ على تناسق الجداول والبطاقات الحالية في النظام.
+            {t('themeDisplay.subtitle')}
           </p>
         </div>
         <span className="text-xs font-medium px-3 py-1 rounded-full bg-[var(--ui-accent-soft-bg)] text-[var(--ui-accent)] border border-[var(--ui-accent-border)]">
-          يُحفظ تلقائياً على هذا المتصفح
+          {t('themeDisplay.autoSaveBadge')}
         </span>
       </div>
 
@@ -54,7 +56,7 @@ export const ThemeDisplaySettings = () => {
       <section className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-[var(--border-subtle)] bg-[var(--surface-muted-nav)] flex items-center gap-2">
           <Contrast className="w-5 h-5 text-[var(--ui-accent)]" />
-          <h4 className="font-bold text-[var(--text-heading)]">المظهر العام</h4>
+          <h4 className="font-bold text-[var(--text-heading)]">{t('themeDisplay.appearanceSectionTitle')}</h4>
         </div>
         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
@@ -67,9 +69,9 @@ export const ThemeDisplaySettings = () => {
             }`}
           >
             <SunMedium className="w-8 h-8 text-amber-500" />
-            <span className="font-bold text-[var(--text-heading)]">نهاري</span>
+            <span className="font-bold text-[var(--text-heading)]">{t('themeDisplay.appearanceLight')}</span>
             <span className="text-xs text-[var(--text-muted)] leading-relaxed">
-              خلفيات فاتحة مع المحافظة على بطاقات المحتوى كما هي في النظام.
+              {t('themeDisplay.appearanceLightDesc')}
             </span>
             {appearance === 'light' && (
               <Check className="absolute left-3 top-3 w-5 h-5 text-[var(--ui-accent)]" aria-hidden />
@@ -86,9 +88,9 @@ export const ThemeDisplaySettings = () => {
             }`}
           >
             <MoonStar className="w-8 h-8 text-indigo-400" />
-            <span className="font-bold text-[var(--text-heading)]">ليلي</span>
+            <span className="font-bold text-[var(--text-heading)]">{t('themeDisplay.appearanceDark')}</span>
             <span className="text-xs text-[var(--text-muted)] leading-relaxed">
-              إطار داكن للشريط والخلفية؛ الشاشات الداخلية تحافظ على بطاقاتها الفاتحة للقراءة.
+              {t('themeDisplay.appearanceDarkDesc')}
             </span>
             {appearance === 'dark' && (
               <Check className="absolute left-3 top-3 w-5 h-5 text-[var(--ui-accent)]" aria-hidden />
@@ -101,7 +103,7 @@ export const ThemeDisplaySettings = () => {
       <section className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-[var(--border-subtle)] bg-[var(--surface-muted-nav)] flex items-center gap-2">
           <MonitorSmartphone className="w-5 h-5 text-[var(--ui-accent)]" />
-          <h4 className="font-bold text-[var(--text-heading)]">لوحة الألوان (٤ ثيمات)</h4>
+          <h4 className="font-bold text-[var(--text-heading)]">{t('themeDisplay.themesSectionTitle')}</h4>
         </div>
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           {THEME_IDS.map((id) => {
@@ -128,7 +130,7 @@ export const ThemeDisplaySettings = () => {
                     <span className="font-bold text-[var(--text-heading)]">{meta.labelAr}</span>
                     {selected && (
                       <span className="flex items-center gap-1 text-xs font-semibold text-[var(--ui-accent)] shrink-0">
-                        <Check className="w-4 h-4" /> نشط
+                        <Check className="w-4 h-4" /> {t('themeDisplay.activeBadge')}
                       </span>
                     )}
                   </div>
@@ -138,7 +140,7 @@ export const ThemeDisplaySettings = () => {
                       <span className="w-4 h-4 rounded bg-[var(--ui-accent)]" aria-hidden />
                     </span>
                     <span className="flex-1 rounded-lg border border-[var(--border-default)] bg-[var(--surface-header)] px-2 py-1 text-[10px] text-[var(--text-muted)] flex items-center justify-center">
-                      معاينة أيقونة
+                      {t('themeDisplay.iconPreview')}
                     </span>
                   </div>
                 </div>
@@ -152,7 +154,7 @@ export const ThemeDisplaySettings = () => {
       <section className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-header)] shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-[var(--border-subtle)] bg-[var(--surface-muted-nav)] flex items-center gap-2">
           <Languages className="w-5 h-5 text-[var(--ui-accent)]" />
-          <h4 className="font-bold text-[var(--text-heading)]">خط اللغة العربية</h4>
+          <h4 className="font-bold text-[var(--text-heading)]">{t('themeDisplay.fontSectionTitle')}</h4>
         </div>
         <div className="p-5 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -173,7 +175,7 @@ export const ThemeDisplaySettings = () => {
           </div>
 
           <div className="rounded-xl border border-[var(--border-default)] bg-[var(--page-bg)] p-5 space-y-3">
-            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">معاينة حية</p>
+            <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">{t('themeDisplay.livePreviewLabel')}</p>
             <p
               className="text-lg leading-relaxed text-[var(--text-heading)]"
               style={{
@@ -182,7 +184,7 @@ export const ThemeDisplaySettings = () => {
                 letterSpacing: `${letterSpacingEm}em`
               }}
             >
-              هذه معاينة لنص عربي طويل: إدارة مستودعات الأقمشة، فواتير البيع والشراء، وتقارير المخزون — لتقييم الخط قبل الحفظ.
+              {t('themeDisplay.previewText')}
             </p>
           </div>
 
@@ -190,7 +192,7 @@ export const ThemeDisplaySettings = () => {
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-heading)]">
                 <Weight className="w-4 h-4 text-[var(--ui-accent)]" />
-                سمك الخط ({fontWeight})
+                {t('themeDisplay.fontWeightLabel', { weight: fontWeight })}
               </label>
               <input
                 type="range"
@@ -202,16 +204,18 @@ export const ThemeDisplaySettings = () => {
                 className="w-full accent-[var(--ui-accent)]"
               />
               <div className="flex justify-between text-xs text-[var(--text-muted)]">
-                <span>أخف 300</span>
-                <span>أثقل 700</span>
+                <span>{t('themeDisplay.fontWeightLight')}</span>
+                <span>{t('themeDisplay.fontWeightHeavy')}</span>
               </div>
             </div>
 
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-heading)]">
                 <Type className="w-4 h-4 text-[var(--ui-accent)]" />
-                تباعد الأحرف ({letterSpacingEm >= 0 ? '+' : ''}
-                {letterSpacingEm.toFixed(3)} em)
+                {t('themeDisplay.letterSpacingLabel', {
+                  sign: letterSpacingEm >= 0 ? '+' : '',
+                  value: letterSpacingEm.toFixed(3)
+                })}
               </label>
               <input
                 type="range"
@@ -223,11 +227,11 @@ export const ThemeDisplaySettings = () => {
                 className="w-full accent-[var(--ui-accent)]"
               />
               <div className="flex justify-between text-xs text-[var(--text-muted)]">
-                <span>أضيق −0.04</span>
-                <span>أوسع +0.09</span>
+                <span>{t('themeDisplay.letterSpacingNarrow')}</span>
+                <span>{t('themeDisplay.letterSpacingWide')}</span>
               </div>
               <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                يتحكم في مسافة الحروف العربية أفقيًا؛ استخدم قيمًا صغيرة لتجنّب تشويش القراءة في الجداول.
+                {t('themeDisplay.letterSpacingHelp')}
               </p>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Globe, LogOut, Monitor, RefreshCw, Smartphone, Wifi } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   fetchActiveSessions,
   revokeActiveSession,
@@ -49,6 +50,7 @@ function platformBadgeClass(code: ActiveSessionDto['clientPlatform']): string {
 }
 
 export const ActiveDevicesPanel: React.FC = () => {
+  const { t } = useTranslation('settings');
   const { showToast } = useToast();
   const [rows, setRows] = useState<ActiveSessionDto[]>([]);
   const [currentSessionKey, setCurrentSessionKey] = useState<string | null>(null);
@@ -64,12 +66,12 @@ export const ActiveDevicesPanel: React.FC = () => {
     } catch (error) {
       showToast({
         type: 'error',
-        message: error instanceof Error ? error.message : 'تعذر تحميل الأجهزة النشطة',
+        message: error instanceof Error ? error.message : t('activeDevices.loadFailed'),
       });
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   useEffect(() => {
     void load();
@@ -89,19 +91,19 @@ export const ActiveDevicesPanel: React.FC = () => {
 
   const handleRevoke = async (row: ActiveSessionDto) => {
     const isSelf = row.sessionKey === currentSessionKey;
-    const label = isSelf ? 'جلستك الحالية' : `حساب ${row.username}`;
-    const ok = window.confirm(`تسجيل خروج ${label} من هذا الجهاز؟`);
+    const label = isSelf ? t('activeDevices.currentSessionLabel') : t('activeDevices.accountLabel', { username: row.username });
+    const ok = window.confirm(t('activeDevices.confirmLogout', { label }));
     if (!ok) return;
 
     setRevokingKey(row.sessionKey);
     try {
       await revokeActiveSession(row.sessionKey);
-      showToast({ type: 'success', message: `تم تسجيل خروج ${row.username} من الجهاز` });
+      showToast({ type: 'success', message: t('activeDevices.logoutSuccess', { username: row.username }) });
       await load();
     } catch (error) {
       showToast({
         type: 'error',
-        message: error instanceof Error ? error.message : 'تعذر تسجيل الخروج عن الجهاز',
+        message: error instanceof Error ? error.message : t('activeDevices.logoutFailed'),
       });
     } finally {
       setRevokingKey(null);
@@ -112,9 +114,9 @@ export const ActiveDevicesPanel: React.FC = () => {
     <div className="space-y-4" dir="rtl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-xl font-black text-[var(--text-heading)]">الأجهزة النشطة</h3>
+          <h3 className="text-xl font-black text-[var(--text-heading)]">{t('activeDevices.title')}</h3>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            جميع الأجهزة المتصلة خلال آخر 5 دقائق — مع إمكانية تسجيل الخروج عن أي جهاز.
+            {t('activeDevices.subtitle')}
           </p>
         </div>
         <button
@@ -124,7 +126,7 @@ export const ActiveDevicesPanel: React.FC = () => {
           className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-default)] bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          تحديث
+          {t('activeDevices.refresh')}
         </button>
       </div>
 
@@ -132,14 +134,14 @@ export const ActiveDevicesPanel: React.FC = () => {
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
           <div className="flex items-center gap-2 text-emerald-800">
             <Wifi className="h-5 w-5" />
-            <span className="text-sm font-bold">متصل الآن</span>
+            <span className="text-sm font-bold">{t('activeDevices.onlineNow')}</span>
           </div>
           <p className="mt-2 text-2xl font-black text-emerald-900">{loading ? '...' : onlineRows.length}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="flex items-center gap-2 text-slate-700">
             <Monitor className="h-5 w-5" />
-            <span className="text-sm font-bold">إجمالي الجلسات (5 دقائق)</span>
+            <span className="text-sm font-bold">{t('activeDevices.totalSessions')}</span>
           </div>
           <p className="mt-2 text-2xl font-black text-slate-900">{loading ? '...' : rows.length}</p>
         </div>
@@ -149,26 +151,26 @@ export const ActiveDevicesPanel: React.FC = () => {
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="p-3 text-right font-black">الحالة</th>
-              <th className="p-3 text-right font-black">حساب المستخدم</th>
-              <th className="p-3 text-right font-black">الاسم</th>
-              <th className="p-3 text-right font-black">آلية الدخول</th>
-              <th className="p-3 text-right font-black">عنوان IP</th>
-              <th className="p-3 text-right font-black">آخر نشاط</th>
-              <th className="p-3 text-center font-black">إجراء</th>
+              <th className="p-3 text-right font-black">{t('activeDevices.colStatus')}</th>
+              <th className="p-3 text-right font-black">{t('activeDevices.colUser')}</th>
+              <th className="p-3 text-right font-black">{t('activeDevices.colName')}</th>
+              <th className="p-3 text-right font-black">{t('activeDevices.colPlatform')}</th>
+              <th className="p-3 text-right font-black">{t('activeDevices.colIp')}</th>
+              <th className="p-3 text-right font-black">{t('activeDevices.colLastActivity')}</th>
+              <th className="p-3 text-center font-black">{t('activeDevices.colAction')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td colSpan={7} className="p-8 text-center font-bold text-slate-500">
-                  جاري التحميل...
+                  {t('activeDevices.loading')}
                 </td>
               </tr>
             ) : sortedRows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-8 text-center font-bold text-slate-500">
-                  لا توجد أجهزة نشطة حالياً
+                  {t('activeDevices.noActiveDevices')}
                 </td>
               </tr>
             ) : (
@@ -187,11 +189,11 @@ export const ActiveDevicesPanel: React.FC = () => {
                           online ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                         }`}
                       >
-                        {online ? 'متصل الآن' : 'خامل'}
+                        {online ? t('activeDevices.onlineNow') : t('activeDevices.idle')}
                       </span>
                       {isSelf && (
                         <span className="mr-2 inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">
-                          جهازك
+                          {t('activeDevices.yourDevice')}
                         </span>
                       )}
                     </td>
@@ -215,10 +217,10 @@ export const ActiveDevicesPanel: React.FC = () => {
                         disabled={revokingKey === row.sessionKey}
                         onClick={() => void handleRevoke(row)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-                        title={isSelf ? 'تسجيل خروج من هذا الجهاز' : `تسجيل خروج ${row.username}`}
+                        title={isSelf ? t('activeDevices.logoutThisDevice') : t('activeDevices.logoutUser', { username: row.username })}
                       >
                         <LogOut className="h-3.5 w-3.5" />
-                        {revokingKey === row.sessionKey ? 'جاري...' : 'تسجيل خروج'}
+                        {revokingKey === row.sessionKey ? t('activeDevices.loggingOut') : t('activeDevices.logoutButton')}
                       </button>
                     </td>
                   </tr>
@@ -230,7 +232,7 @@ export const ActiveDevicesPanel: React.FC = () => {
       </div>
 
       <p className="text-xs text-slate-500">
-        يُحدَّث النشاط تلقائياً كل 45 ثانية لكل مستخدم داخل النظام. تُزال الجلسة بعد 5 دقائق بدون نشاط.
+        {t('activeDevices.footerNote')}
       </p>
     </div>
   );

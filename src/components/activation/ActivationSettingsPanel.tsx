@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, KeyRound, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { ActivationKeyInput } from './ActivationKeyInput';
 import {
@@ -31,6 +32,7 @@ function formatDate(value?: string | null) {
 }
 
 export function ActivationSettingsPanel() {
+  const { t } = useTranslation('settings');
   const [status, setStatus] = useState<ActivationStatusDto>({ active: false });
   const [keys, setKeys] = useState<ActivationKeyAdminDto[]>([]);
   const [events, setEvents] = useState<ActivationEventDto[]>([]);
@@ -57,7 +59,7 @@ export function ActivationSettingsPanel() {
         setEvents(nextEvents);
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'تعذر تحميل حالة التفعيل.');
+      setMessage(error instanceof Error ? error.message : t('activation.loadStatusFailed'));
     } finally {
       setLoading(false);
     }
@@ -87,7 +89,7 @@ export function ActivationSettingsPanel() {
       setMessage(result.warning);
       await load(isPlatformAdmin);
     } catch (error) {
-      setMessage(error instanceof ApiRequestError ? error.message : 'تعذر توليد مفاتيح جديدة.');
+      setMessage(error instanceof ApiRequestError ? error.message : t('activation.generateFailed'));
     } finally {
       setBusy(false);
     }
@@ -99,9 +101,9 @@ export function ActivationSettingsPanel() {
     try {
       await revokeActivationKey(id);
       await load(isPlatformAdmin);
-      setMessage('تم إيقاف مفتاح التفعيل.');
+      setMessage(t('activation.keyRevoked'));
     } catch (error) {
-      setMessage(error instanceof ApiRequestError ? error.message : 'تعذر إيقاف المفتاح.');
+      setMessage(error instanceof ApiRequestError ? error.message : t('activation.revokeFailed'));
     } finally {
       setBusy(false);
     }
@@ -113,10 +115,10 @@ export function ActivationSettingsPanel() {
         <div>
           <h3 className="text-xl font-bold text-[var(--text-heading)] flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-[var(--ui-accent)]" />
-            تفعيل النظام
+            {t('activation.title')}
           </h3>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            التفعيل يدار من الخادم فقط: التوليد من لوحة المسؤول أدناه، التخزين في قاعدة البيانات كـ hash، ولا يُستخدم ملف محلي مثل activation-keys.txt. الجدول يعرض لاحقة المفتاح والحالة فقط.
+            {t('activation.description')}
           </p>
         </div>
         <button
@@ -126,7 +128,7 @@ export function ActivationSettingsPanel() {
           className="bg-[var(--surface-header)] border border-[var(--border-default)] text-[var(--text-heading)] px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-[var(--surface-muted-nav)] transition text-sm font-bold disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          تحديث
+          {t('activation.refresh')}
         </button>
       </div>
 
@@ -138,22 +140,22 @@ export function ActivationSettingsPanel() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="border border-[var(--border-default)] rounded-xl p-4">
-          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">حالة التفعيل</div>
+          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">{t('activation.statusLabel')}</div>
           <div className="flex items-center gap-2 text-lg font-black text-[var(--text-heading)]">
             {status.active ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <XCircle className="w-5 h-5 text-rose-500" />}
-            {status.active ? 'النظام مفعّل' : 'غير مفعّل'}
+            {status.active ? t('activation.statusActive') : t('activation.statusInactive')}
           </div>
         </div>
         <div className="border border-[var(--border-default)] rounded-xl p-4">
-          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">الخطة</div>
+          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">{t('activation.planLabel')}</div>
           <div className="text-lg font-black text-[var(--text-heading)]">{status.planCode ? planLabels[status.planCode] : '-'}</div>
         </div>
         <div className="border border-[var(--border-default)] rounded-xl p-4">
-          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">تاريخ التفعيل</div>
+          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">{t('activation.activatedAtLabel')}</div>
           <div className="text-sm font-bold text-[var(--text-heading)]">{formatDate(status.activatedAt)}</div>
         </div>
         <div className="border border-[var(--border-default)] rounded-xl p-4">
-          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">آخر 4 رموز</div>
+          <div className="text-xs text-[var(--text-muted)] font-bold mb-2">{t('activation.lastFourLabel')}</div>
           <div className="text-lg font-black text-[var(--ui-accent)] font-mono" dir="ltr">{status.keySuffix ? `****${status.keySuffix}` : '-'}</div>
         </div>
       </div>
@@ -169,7 +171,7 @@ export function ActivationSettingsPanel() {
         <div className="px-4 py-3 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] flex items-center justify-between gap-3 flex-wrap">
           <div className="font-bold text-[var(--text-heading)] flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-[var(--ui-accent)]" />
-            مفاتيح التفعيل
+            {t('activation.keysTitle')}
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -190,14 +192,14 @@ export function ActivationSettingsPanel() {
               <option value="LITE">LITE</option>
             </select>
             <button type="button" onClick={handleGenerate} disabled={busy} className="bg-[var(--ui-accent)] text-white px-3 py-2 rounded-lg font-bold text-sm disabled:opacity-60">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'توليد'}
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : t('activation.generateButton')}
             </button>
           </div>
         </div>
 
         {generatedKeys.length > 0 && (
           <div className="m-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-            <div className="font-black mb-2">انسخ المفاتيح الآن. لن تظهر مرة أخرى.</div>
+            <div className="font-black mb-2">{t('activation.copyKeysWarning')}</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 font-mono text-sm" dir="ltr">
               {generatedKeys.map((key) => <div key={key} className="rounded bg-white px-3 py-2 border border-amber-100">{key}</div>)}
             </div>
@@ -208,12 +210,12 @@ export function ActivationSettingsPanel() {
           <table className="w-full text-sm">
             <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
               <tr>
-                <th className="p-3 text-right">آخر 4 رموز</th>
-                <th className="p-3 text-right">الحالة</th>
-                <th className="p-3 text-right">الخطة</th>
-                <th className="p-3 text-right">الاستخدام</th>
-                <th className="p-3 text-right">تاريخ التفعيل</th>
-                <th className="p-3 text-right">إجراء</th>
+                <th className="p-3 text-right">{t('activation.lastFourLabel')}</th>
+                <th className="p-3 text-right">{t('activation.statusColumn')}</th>
+                <th className="p-3 text-right">{t('activation.planLabel')}</th>
+                <th className="p-3 text-right">{t('activation.usageColumn')}</th>
+                <th className="p-3 text-right">{t('activation.activatedAtLabel')}</th>
+                <th className="p-3 text-right">{t('activation.actionColumn')}</th>
               </tr>
             </thead>
             <tbody>
@@ -231,16 +233,16 @@ export function ActivationSettingsPanel() {
                       onClick={() => handleRevoke(item.id)}
                       className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 font-bold text-xs disabled:opacity-50"
                     >
-                      إيقاف
+                      {t('activation.revokeButton')}
                     </button>
                   </td>
                 </tr>
               ))}
               {!loading && keys.length === 0 && (
-                <tr><td colSpan={6} className="p-6 text-center text-[var(--text-muted)]">لا توجد مفاتيح تفعيل.</td></tr>
+                <tr><td colSpan={6} className="p-6 text-center text-[var(--text-muted)]">{t('activation.noKeys')}</td></tr>
               )}
               {loading && (
-                <tr><td colSpan={6} className="p-6 text-center text-[var(--text-muted)]">جاري التحميل...</td></tr>
+                <tr><td colSpan={6} className="p-6 text-center text-[var(--text-muted)]">{t('activation.loading')}</td></tr>
               )}
             </tbody>
           </table>
@@ -251,16 +253,16 @@ export function ActivationSettingsPanel() {
       {isPlatformAdmin && (
       <div className="border border-[var(--border-default)] rounded-xl overflow-hidden">
         <div className="px-4 py-3 bg-[var(--surface-muted-nav)] border-b border-[var(--border-default)] font-bold text-[var(--text-heading)]">
-          سجل أحداث التفعيل
+          {t('activation.eventsLogTitle')}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-[var(--surface-muted-nav)] text-[var(--text-muted)]">
               <tr>
-                <th className="p-3 text-right">الحدث</th>
-                <th className="p-3 text-right">آخر 4 رموز</th>
-                <th className="p-3 text-right">الرسالة</th>
-                <th className="p-3 text-right">التاريخ</th>
+                <th className="p-3 text-right">{t('activation.eventColumn')}</th>
+                <th className="p-3 text-right">{t('activation.lastFourLabel')}</th>
+                <th className="p-3 text-right">{t('activation.messageColumn')}</th>
+                <th className="p-3 text-right">{t('activation.dateColumn')}</th>
               </tr>
             </thead>
             <tbody>
@@ -273,7 +275,7 @@ export function ActivationSettingsPanel() {
                 </tr>
               ))}
               {!loading && events.length === 0 && (
-                <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">لا توجد أحداث تفعيل.</td></tr>
+                <tr><td colSpan={4} className="p-6 text-center text-[var(--text-muted)]">{t('activation.noEvents')}</td></tr>
               )}
             </tbody>
           </table>
