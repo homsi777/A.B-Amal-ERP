@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Layers, Loader2, Palette, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
 import {
   cartelaColorDisplayName,
@@ -41,6 +42,7 @@ type Props = {
 };
 
 export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintColor }) => {
+  const { t } = useTranslation('cartelaLabels');
   const { showToast } = useToast();
   const scanRef = useRef<HTMLInputElement>(null);
   const [scan, setScan] = useState('');
@@ -51,7 +53,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
   const runLookup = useCallback(async (raw?: string) => {
     const value = (raw ?? scan).trim();
     if (!value) {
-      setError('أدخل باركود اللون');
+      setError(t('colorPanels.scan.enterBarcode'));
       return;
     }
     setScan(value);
@@ -62,11 +64,11 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       setResult(data);
     } catch (e) {
       setResult(null);
-      setError(e instanceof ApiRequestError ? e.message : 'لم يُعثر على باركود');
+      setError(e instanceof ApiRequestError ? e.message : t('colorPanels.scan.notFound'));
     } finally {
       setLoading(false);
     }
-  }, [scan]);
+  }, [scan, t]);
 
   useEffect(() => {
     scanRef.current?.focus();
@@ -102,7 +104,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
     });
     showToast({
       type: printResult.ok ? 'success' : 'error',
-      message: printResult.ok ? 'تم إرسال ستيكر اللون للطباعة' : printResult.error || 'فشلت الطباعة',
+      message: printResult.ok ? t('colorPanels.colorStickerPrintSent') : printResult.error || t('toast.printFailed'),
     });
   };
 
@@ -111,8 +113,8 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       <div className="px-4 py-3 border-b border-indigo-100 bg-indigo-50/80 flex items-center gap-2">
         <Search className="w-5 h-5 text-indigo-600" />
         <div>
-          <h3 className="font-bold text-slate-900 text-sm">مسح باركود لون الكارتيلة (Code128)</h3>
-          <p className="text-xs text-slate-500">مثال: 0013-C01 — يجلب الخامة الكاملة + اللون من السيرفر.</p>
+          <h3 className="font-bold text-slate-900 text-sm">{t('colorPanels.scan.title')}</h3>
+          <p className="text-xs text-slate-500">{t('colorPanels.scan.subtitle')}</p>
         </div>
       </div>
       <div className="p-4 space-y-4">
@@ -134,7 +136,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            بحث
+            {t('colorPanels.scan.searchButton')}
           </button>
         </div>
 
@@ -145,7 +147,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-bold text-indigo-700 uppercase">
-                  {result.match_type === 'color' ? 'لون كارتيلة' : 'كارتيلة رئيسية'}
+                  {result.match_type === 'color' ? t('colorPanels.scan.resultTypeColor') : t('colorPanels.scan.resultTypeMain')}
                 </p>
                 <h4 className="text-lg font-black text-slate-900">{result.art_code || result.title}</h4>
                 <p className="text-sm text-slate-600">
@@ -153,7 +155,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
                 </p>
                 {result.color && (
                   <p className="text-sm font-bold text-emerald-700 mt-1">
-                    اللون: {cartelaColorDisplayName(result.color)} ({result.color.color_code})
+                    {t('colorPanels.scan.colorLabel', { name: cartelaColorDisplayName(result.color), code: result.color.color_code })}
                   </p>
                 )}
               </div>
@@ -179,7 +181,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
               >
                 <Pencil className="w-3.5 h-3.5" />
-                تعديل الكارتيلة
+                {t('colorPanels.scan.editCartela')}
               </button>
               {result.color && (
                 <button
@@ -188,7 +190,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
                   className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-black"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  طباعة باركود اللون
+                  {t('colorPanels.scan.printColorBarcode')}
                 </button>
               )}
             </div>
@@ -206,6 +208,7 @@ type SwatchPanelProps = {
 };
 
 export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaId, serialNo, onChanged }) => {
+  const { t } = useTranslation('cartelaLabels');
   const { showToast } = useToast();
   const [rows, setRows] = useState<CartelaColorSwatchDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -232,11 +235,11 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
         return new Set([...prev].filter((id) => valid.has(id)));
       });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر تحميل الألوان' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('colorPanels.swatches.loadFailed') });
     } finally {
       setLoading(false);
     }
-  }, [cartelaId, showToast]);
+  }, [cartelaId, showToast, t]);
 
   useEffect(() => {
     void load();
@@ -262,7 +265,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
 
   const submit = async () => {
     if (!form.colorCode.trim()) {
-      showToast({ type: 'warning', message: 'كود اللون مطلوب — مثال C-01' });
+      showToast({ type: 'warning', message: t('colorPanels.swatches.colorCodeRequired') });
       return;
     }
     setSaving(true);
@@ -282,23 +285,23 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
       setFormOpen(false);
       await load();
       onChanged?.();
-      showToast({ type: 'success', message: editId ? 'تم تحديث اللون' : 'تمت إضافة اللون' });
+      showToast({ type: 'success', message: editId ? t('colorPanels.swatches.updated') : t('colorPanels.swatches.added') });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر الحفظ' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('colorPanels.swatches.saveFailed') });
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (row: CartelaColorSwatchDto) => {
-    if (!window.confirm(`حذف اللون ${row.color_code}؟`)) return;
+    if (!window.confirm(t('colorPanels.swatches.confirmDelete', { code: row.color_code }))) return;
     try {
       await deleteCartelaColor(row.id);
       await load();
       onChanged?.();
-      showToast({ type: 'success', message: 'تم الحذف' });
+      showToast({ type: 'success', message: t('toast.deleted') });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : 'تعذر الحذف' });
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.deleteFailed') });
     }
   };
 
@@ -321,10 +324,10 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
       });
       showToast({
         type: result.ok ? 'success' : 'error',
-        message: result.ok ? 'تم إرسال ستيكر اللون للطباعة' : result.error || 'فشلت الطباعة',
+        message: result.ok ? t('colorPanels.colorStickerPrintSent') : result.error || t('toast.printFailed'),
       });
     } catch (e) {
-      showToast({ type: 'error', message: e instanceof Error ? e.message : 'فشلت الطباعة' });
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.printFailed') });
     } finally {
       setPrintingId(null);
     }
@@ -350,7 +353,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
 
   const openBatchPrint = () => {
     if (selectedColors.length === 0) {
-      showToast({ type: 'warning', message: 'اختر لوناً واحداً على الأقل للطباعة 3×1' });
+      showToast({ type: 'warning', message: t('colorPanels.swatches.selectAtLeastOneFor3x1') });
       return;
     }
     setBatchOpen(true);
@@ -362,8 +365,8 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
         <div className="flex items-center gap-2">
           <Palette className="w-5 h-5 text-violet-600" />
           <div>
-            <h3 className="font-bold text-slate-900 text-sm">كارتيلة الألوان</h3>
-            <p className="text-xs text-slate-500">ألوان فرعية — باركود Code128 قصير لكل لون (بدون QR).</p>
+            <h3 className="font-bold text-slate-900 text-sm">{t('colorPanels.swatches.title')}</h3>
+            <p className="text-xs text-slate-500">{t('colorPanels.swatches.subtitle')}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -374,7 +377,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
             className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-black disabled:opacity-40"
           >
             <Layers className="w-3.5 h-3.5" />
-            طباعة باركود الألوان (3×1)
+            {t('colorPanels.swatches.batchPrintButton')}
           </button>
           <button
             type="button"
@@ -383,14 +386,14 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
             className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-40"
           >
             <Plus className="w-3.5 h-3.5" />
-            إضافة لون
+            {t('colorPanels.swatches.addColorButton')}
           </button>
         </div>
       </div>
 
       {!serialReady && (
         <div className="px-4 py-3 text-sm text-amber-800 bg-amber-50 border-b border-amber-100">
-          احفظ الكارتيلة برقم تسلسلي (SERIAL) قبل إضافة ألوان — الباركود يكون مثل{' '}
+          {t('colorPanels.swatches.noSerialWarning')}{' '}
           <span className="font-mono font-bold" dir="ltr">
             {serialNo.trim() ? `${serialNo.trim()}-C01` : '{SERIAL}-C01'}
           </span>
@@ -400,7 +403,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
 
       {serialReady && rows.length === 0 && !loading && (
         <div className="px-4 py-3 text-sm text-violet-900 bg-violet-50 border-b border-violet-100">
-          الخطوة التالية: أضف ألواناً (C-01, C-02…) ثم حدّدها واضغط «طباعة باركود الألوان (3×1)».
+          {t('colorPanels.swatches.nextStepHint')}
         </div>
       )}
 
@@ -414,14 +417,14 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                   checked={rows.length > 0 && rows.every((row) => selectedIds.has(row.id))}
                   onChange={toggleAll}
                   className="accent-violet-600"
-                  aria-label="تحديد كل الألوان"
+                  aria-label={t('colorPanels.swatches.selectAllAria')}
                 />
               </th>
               <th className="p-3 text-right font-bold">#</th>
-              <th className="p-3 text-right font-bold">كود اللون</th>
-              <th className="p-3 text-right font-bold">الاسم</th>
-              <th className="p-3 text-right font-bold">الباركود</th>
-              <th className="p-3 text-right font-bold w-44">إجراءات</th>
+              <th className="p-3 text-right font-bold">{t('colorPanels.swatches.colColorCode')}</th>
+              <th className="p-3 text-right font-bold">{t('colorPanels.swatches.colName')}</th>
+              <th className="p-3 text-right font-bold">{t('colorPanels.swatches.colBarcode')}</th>
+              <th className="p-3 text-right font-bold w-44">{t('registry.colActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -429,14 +432,14 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
               <tr>
                 <td colSpan={6} className="p-6 text-center text-slate-500">
                   <Loader2 className="w-5 h-5 animate-spin inline ml-2" />
-                  جاري التحميل...
+                  {t('registry.loading')}
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-6 text-center text-slate-500">
-                  لا توجد ألوان — أضف ألواناً يدوياً لهذه الكارتيلة.
+                  {t('colorPanels.swatches.emptyState')}
                 </td>
               </tr>
             )}
@@ -448,7 +451,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                     checked={selectedIds.has(row.id)}
                     onChange={() => toggleOne(row.id)}
                     className="accent-violet-600"
-                    aria-label={`تحديد ${row.color_code}`}
+                    aria-label={t('colorPanels.swatches.selectRowAria', { code: row.color_code })}
                   />
                 </td>
                 <td className="p-3 font-mono font-bold text-slate-700">{row.color_no}</td>
@@ -472,7 +475,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                       ) : (
                         <Printer className="w-3.5 h-3.5" />
                       )}
-                      طباعة
+                      {t('print')}
                     </button>
                     <button
                       type="button"
@@ -480,7 +483,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                       className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white"
                     >
                       <Pencil className="w-3.5 h-3.5" />
-                      تعديل
+                      {t('registry.edit')}
                     </button>
                     <button
                       type="button"
@@ -488,7 +491,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                       className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      حذف
+                      {t('delete')}
                     </button>
                   </div>
                 </td>
@@ -506,11 +509,11 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl">
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full border border-slate-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-200 bg-violet-50">
-              <h4 className="font-bold text-slate-900">{editId ? 'تعديل لون' : 'إضافة لون للكارتيلة'}</h4>
+              <h4 className="font-bold text-slate-900">{editId ? t('colorPanels.swatches.editColorTitle') : t('colorPanels.swatches.addColorTitle')}</h4>
             </div>
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1 block sm:col-span-2">
-                <span className="text-xs font-bold text-slate-600">كود اللون *</span>
+                <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.colorCodeLabel')}</span>
                 <input
                   value={form.colorCode}
                   onChange={(e) => setForm((prev) => ({ ...prev, colorCode: e.target.value }))}
@@ -520,7 +523,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">الاسم (عربي)</span>
+                <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.nameArLabel')}</span>
                 <input
                   value={form.nameAr}
                   onChange={(e) => setForm((prev) => ({ ...prev, nameAr: e.target.value }))}
@@ -528,7 +531,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="text-xs font-bold text-slate-600">الاسم (تركي)</span>
+                <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.nameTrLabel')}</span>
                 <input
                   value={form.nameTr}
                   onChange={(e) => setForm((prev) => ({ ...prev, nameTr: e.target.value }))}
@@ -536,7 +539,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                 />
               </label>
               <label className="space-y-1 block sm:col-span-2">
-                <span className="text-xs font-bold text-slate-600">رابط صورة اللون (اختياري)</span>
+                <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.imageUrlLabel')}</span>
                 <input
                   value={form.imageUrl}
                   onChange={(e) => setForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
@@ -546,7 +549,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                 />
               </label>
               <label className="space-y-1 block sm:col-span-2">
-                <span className="text-xs font-bold text-slate-600">ملاحظة</span>
+                <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.notesLabel')}</span>
                 <input
                   value={form.notes}
                   onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
@@ -560,7 +563,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                 onClick={() => setFormOpen(false)}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700"
               >
-                إلغاء
+                {t('colorPanels.swatches.cancelButton')}
               </button>
               <button
                 type="button"
@@ -568,7 +571,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                 onClick={() => void submit()}
                 className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"
               >
-                {saving ? 'جاري الحفظ...' : 'حفظ'}
+                {saving ? t('colorPanels.swatches.saving') : t('colorPanels.swatches.saveButton')}
               </button>
             </div>
           </div>
