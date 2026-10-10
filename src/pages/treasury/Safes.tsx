@@ -12,7 +12,7 @@ import {
 } from '../../lib/api/cashboxTransfersApi';
 import { useToast } from '../../components/NonBlockingToast';
 import { ExchangeRatePopupButton } from '../../components/treasury/ExchangeRatePopupButton';
-import { SUPPORTED_CURRENCIES } from '../../lib/currency';
+import { SUPPORTED_CURRENCIES, getCurrencyName } from '../../lib/currency';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -223,7 +223,7 @@ export const Safes = () => {
               >
                 {SUPPORTED_CURRENCIES.map((c) => (
                   <option key={c.code} value={c.code}>
-                    {c.nameAr} ({c.code})
+                    {getCurrencyName(c.code)} ({c.code})
                   </option>
                 ))}
               </select>

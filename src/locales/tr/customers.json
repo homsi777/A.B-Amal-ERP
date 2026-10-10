@@ -105,5 +105,7 @@
   "telegram.preparingProgress": "{{index}} / {{total}} - {{name}} ekstresi hazırlanıyor",
   "telegram.pdfSaveFailed": "{{name}} müşterisi için PDF kaydedilemedi",
   "telegram.sentSuccess": "Seçilen ekstreler Telegram'a ve yetkiye göre yönetici kopyasına gönderildi.",
-  "telegram.sendFailed": "Müşteri ekstreleri Telegram'a gönderilemedi"
+  "telegram.sendFailed": "Müşteri ekstreleri Telegram'a gönderilemedi",
+  "fileName.customerDuesPrefix": "Musteri_Alacaklari",
+  "fileName.accountStatementPrefix": "Hesap_Ozeti"
 }

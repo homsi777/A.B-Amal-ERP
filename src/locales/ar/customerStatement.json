@@ -177,5 +177,8 @@
 
   "voucherDescription.statementSuffix": "من كشف حساب عميل",
   "voucherDescription.customerFallback": "عميل",
-  "discount.defaultDescription": "حسم منحة — {{name}}"
+  "discount.defaultDescription": "حسم منحة — {{name}}",
+  "fileName.duesOnlySuffix": "ذمم_فقط",
+  "fileName.comprehensiveSuffix": "شامل",
+  "fileName.customerDuesPrefix": "ذمم_العملاء"
 }

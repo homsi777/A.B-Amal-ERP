@@ -177,5 +177,8 @@
 
   "voucherDescription.statementSuffix": "müşteri hesap özetinden",
   "voucherDescription.customerFallback": "Müşteri",
-  "discount.defaultDescription": "İndirim — {{name}}"
+  "discount.defaultDescription": "İndirim — {{name}}",
+  "fileName.duesOnlySuffix": "Sadece_Alacaklar",
+  "fileName.comprehensiveSuffix": "Kapsamli",
+  "fileName.customerDuesPrefix": "Musteri_Alacaklari"
 }

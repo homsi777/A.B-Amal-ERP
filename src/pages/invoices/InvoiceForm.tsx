@@ -51,7 +51,7 @@ import {
   resolveWarehouseIdFromStored,
   warehouseNameById,
 } from '../../lib/warehouseSelect';
-import { convertToUsd, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../../lib/currency';
+import { convertToUsd, getCurrencyName, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../../lib/currency';
 import {
   ParsedSupplierLabel,
   isLikelyBarcodePayload,
@@ -3228,7 +3228,7 @@ export const InvoiceForm = () => {
             >
               {SUPPORTED_CURRENCIES.map((c) => (
                 <option key={c.code} value={c.code}>
-                  {c.nameAr} ({c.code})
+                  {getCurrencyName(c.code)} ({c.code})
                 </option>
               ))}
             </select>

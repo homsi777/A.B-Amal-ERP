@@ -26,7 +26,7 @@ import { ApiRequestError } from '../lib/api/client';
 import { arDocumentStatus } from '../lib/i18n/arTerminology';
 import { useToast } from '../components/NonBlockingToast';
 import { listExchangeRates, type ExchangeRateDto, type SupportedCurrencyCode } from '../lib/api/exchangeRatesApi';
-import { SUPPORTED_CURRENCIES, normalizeExchangeRate } from '../lib/currency';
+import { SUPPORTED_CURRENCIES, getCurrencyName, normalizeExchangeRate } from '../lib/currency';
 import type { Invoice } from '../types';
 import { renderInvoiceStatementA4Html } from '../lib/printing/renderInvoiceStatementA4';
 import { A4PreviewModal } from '../components/printing/A4PreviewModal';
@@ -1277,7 +1277,7 @@ export const ReturnInvoices = () => {
                 >
                   {SUPPORTED_CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.code} — {c.nameAr}
+                      {c.code} — {getCurrencyName(c.code)}
                     </option>
                   ))}
                 </select>

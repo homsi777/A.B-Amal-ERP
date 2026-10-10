@@ -99,5 +99,6 @@
   "paymentModal.saveAndRecord": "Kaydet ve Kaydı Gir",
 
   "labels.supplierFallback": "Tedarikçi",
-  "voucherDescription.statementSuffix": "tedarikçi hesap özetinden"
+  "voucherDescription.statementSuffix": "tedarikçi hesap özetinden",
+  "fileName.supplierDuesPrefix": "Tedarikci_Alacaklari"
 }

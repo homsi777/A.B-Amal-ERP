@@ -651,10 +651,10 @@ export const CustomerStatement = () => {
         showToast({ type: 'warning', message: t('toast.noDuesToExport') });
         return;
       }
-      const fileSuffix = mode === 'non-zero' ? 'ذمم_فقط' : 'شامل';
+      const fileSuffix = mode === 'non-zero' ? t('fileName.duesOnlySuffix') : t('fileName.comprehensiveSuffix');
       await exportPdfFromHtmlString(
         renderCustomerDuesPdfHtml(exportRows),
-        `ذمم_العملاء_${fileSuffix}_${toDate}`,
+        `${t('fileName.customerDuesPrefix')}_${fileSuffix}_${toDate}`,
         { orientation: 'portrait' },
       );
       showToast({

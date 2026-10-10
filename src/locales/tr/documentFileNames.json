@@ -1,0 +1,16 @@
+{
+  "fallback.document": "Belge",
+  "fallback.customer": "Musteri",
+  "fallback.supplier": "Tedarikci",
+  "fallback.party": "Taraf",
+  "fallback.invoice": "Fatura",
+  "fallback.voucher": "Fis",
+  "fallback.order": "Siparis",
+  "prefix.accountStatement": "Hesap_Ozeti",
+  "prefix.supplierAccountStatement": "Tedarikci_Hesap_Ozeti",
+  "prefix.invoiceStatement": "Fatura_Ozeti",
+  "prefix.voucher": "Fis",
+  "prefix.order": "Siparis",
+  "voucherType.payment": "Odeme",
+  "voucherType.receipt": "Tahsilat"
+}

@@ -7,7 +7,7 @@ import {
 } from '../../lib/api/externalJobsApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
-import { SUPPORTED_CURRENCIES } from '../../lib/currency';
+import { SUPPORTED_CURRENCIES, getCurrencyName } from '../../lib/currency';
 import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
 
@@ -293,7 +293,7 @@ const CreateExternalJobModal = ({
                 className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
               >
                 {SUPPORTED_CURRENCIES.map((c) => (
-                  <option key={c.code} value={c.code}>{c.nameAr} ({c.code})</option>
+                  <option key={c.code} value={c.code}>{getCurrencyName(c.code)} ({c.code})</option>
                 ))}
               </select>
             </div>

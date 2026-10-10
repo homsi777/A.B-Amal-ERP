@@ -290,7 +290,7 @@ export const Customers = () => {
 
   const handleExportCustomersPdf = async () => {
     const html = renderCustomersReminderHtml();
-    await exportPdfFromHtmlString(html, `ذمم_العملاء_${reminderDate}`, { orientation: 'portrait' });
+    await exportPdfFromHtmlString(html, `${t('fileName.customerDuesPrefix')}_${reminderDate}`, { orientation: 'portrait' });
   };
 
   const handlePrintCustomersA4 = () => {
@@ -390,7 +390,7 @@ export const Customers = () => {
           saleInvoices: invoiceDetails.invoices,
         });
         const closing = statement.totals.closingBalance;
-        const fileName = `كشف_حساب_${safePdfName(partyName)}_${telegramFromDate}_${telegramToDate}.pdf`;
+        const fileName = `${t('fileName.accountStatementPrefix')}_${safePdfName(partyName)}_${telegramFromDate}_${telegramToDate}.pdf`;
         const pdfResult = await window.fabricApp.printToPdf(pdfHtml, {
           pageSize: 'A4',
           defaultFileName: fileName,
@@ -415,7 +415,7 @@ export const Customers = () => {
           currency: statement.rows[0]?.currency ?? 'USD',
           rowsCount: statement.rows.length,
           pdfHtml,
-          fileName: `كشف_حساب_${partyName.replace(/[\\/:*?"<>|]+/g, '_')}_${telegramFromDate}_${telegramToDate}.pdf`,
+          fileName: `${t('fileName.accountStatementPrefix')}_${partyName.replace(/[\\/:*?"<>|]+/g, '_')}_${telegramFromDate}_${telegramToDate}.pdf`,
         });
         sent += 1;
       }
@@ -442,7 +442,7 @@ export const Customers = () => {
         title={t('page.title')}
         html={renderCustomersReminderHtml()}
         pageSize="A4"
-        defaultFileName={`ذمم_العملاء_${reminderDate}.pdf`}
+        defaultFileName={`${t('fileName.customerDuesPrefix')}_${reminderDate}.pdf`}
         onClose={() => setIsA4PreviewOpen(false)}
         onPrinted={() => setIsA4PreviewOpen(false)}
         onExported={() => setIsA4PreviewOpen(false)}

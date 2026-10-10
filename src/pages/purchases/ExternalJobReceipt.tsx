@@ -6,7 +6,7 @@ import {
   getExternalJob, receiveExternalJobLine, setExternalJobFee, postExternalJobFee, voidExternalJob,
   type ExternalJobDetail, type ExternalJobLine,
 } from '../../lib/api/externalJobsApi';
-import { SUPPORTED_CURRENCIES } from '../../lib/currency';
+import { SUPPORTED_CURRENCIES, getCurrencyName } from '../../lib/currency';
 import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
 
@@ -156,7 +156,7 @@ export const ExternalJobReceipt = () => {
               className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {SUPPORTED_CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>{c.nameAr} ({c.code})</option>
+                <option key={c.code} value={c.code}>{getCurrencyName(c.code)} ({c.code})</option>
               ))}
             </select>
           </div>

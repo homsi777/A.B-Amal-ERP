@@ -1,0 +1,16 @@
+{
+  "fallback.document": "مستند",
+  "fallback.customer": "عميل",
+  "fallback.supplier": "مورد",
+  "fallback.party": "طرف",
+  "fallback.invoice": "فاتورة",
+  "fallback.voucher": "سند",
+  "fallback.order": "طلبية",
+  "prefix.accountStatement": "كشف_حساب",
+  "prefix.supplierAccountStatement": "كشف_حساب_مورد",
+  "prefix.invoiceStatement": "كشف_فاتورة",
+  "prefix.voucher": "سند",
+  "prefix.order": "طلبية",
+  "voucherType.payment": "صرف",
+  "voucherType.receipt": "قبض"
+}

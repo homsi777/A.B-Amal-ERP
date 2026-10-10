@@ -105,5 +105,7 @@
   "telegram.preparingProgress": "{{index}} / {{total}} - تجهيز كشف {{name}}",
   "telegram.pdfSaveFailed": "تعذر حفظ PDF للعميل {{name}}",
   "telegram.sentSuccess": "تم إرسال الكشوفات المحددة إلى تيليغرام ونسخة المدير حسب الصلاحيات.",
-  "telegram.sendFailed": "تعذر إرسال كشوف العملاء إلى تيليغرام"
+  "telegram.sendFailed": "تعذر إرسال كشوف العملاء إلى تيليغرام",
+  "fileName.customerDuesPrefix": "ذمم_العملاء",
+  "fileName.accountStatementPrefix": "كشف_حساب"
 }

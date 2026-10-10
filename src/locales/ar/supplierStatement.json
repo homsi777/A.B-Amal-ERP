@@ -99,5 +99,6 @@
   "paymentModal.saveAndRecord": "حفظ وتسجيل القيد",
 
   "labels.supplierFallback": "مورد",
-  "voucherDescription.statementSuffix": "من كشف حساب مورد"
+  "voucherDescription.statementSuffix": "من كشف حساب مورد",
+  "fileName.supplierDuesPrefix": "ذمم_الموردين"
 }

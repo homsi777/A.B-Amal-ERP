@@ -571,7 +571,7 @@ export const SupplierStatement = () => {
           }
         }),
       );
-      await exportPdfFromHtmlString(renderSupplierDuesPdfHtml(rows), `ذمم_الموردين_${toDate}`, { orientation: 'portrait' });
+      await exportPdfFromHtmlString(renderSupplierDuesPdfHtml(rows), `${t('fileName.supplierDuesPrefix')}_${toDate}`, { orientation: 'portrait' });
       showToast({ type: 'success', message: t('toast.duesExportedSuccess') });
     } catch (error) {
       showToast({ type: 'error', message: error instanceof Error ? error.message : t('toast.duesExportFailed') });

@@ -14,7 +14,7 @@ import {
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
 import { listExchangeRates, type ExchangeRateDto } from '../lib/api/exchangeRatesApi';
 import { ApiRequestError } from '../lib/api/client';
-import { convertToUsd, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../lib/currency';
+import { convertToUsd, getCurrencyName, normalizeExchangeRate, round2, SUPPORTED_CURRENCIES } from '../lib/currency';
 import { useToast } from '../components/NonBlockingToast';
 
 export const Expenses = () => {
@@ -353,7 +353,7 @@ export const Expenses = () => {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-600"
                   >
                     {SUPPORTED_CURRENCIES.map((c) => (
-                      <option key={c.code} value={c.code}>{c.nameAr} ({c.code})</option>
+                      <option key={c.code} value={c.code}>{getCurrencyName(c.code)} ({c.code})</option>
                     ))}
                   </select>
                 </div>
