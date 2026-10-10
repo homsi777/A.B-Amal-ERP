@@ -134,6 +134,7 @@ function buildManagerNoteLines(): string[] {
 export function renderInvoiceStatementA4Html(opts: {
   invoice: Invoice;
   partyName: string;
+  partyPhone?: string;
   hideFinancialColumns?: boolean;
   title?: string;
   subtitle?: string;
@@ -156,6 +157,7 @@ export function renderInvoiceStatementA4Html(opts: {
   const invoiceNo = normalizeText(displayStoredInvoiceNo(invoice.invoiceNumber), '—');
   const invoiceDate = formatInvoiceDate(invoice.date);
   const partyName = normalizeText(opts.partyName, '—');
+  const partyPhone = normalizeText(opts.partyPhone, '—');
   const warehouse = normalizeText(invoice.warehouse, '—');
   const hideFinancialColumns = Boolean(opts.hideFinancialColumns);
 
@@ -328,16 +330,16 @@ export function renderInvoiceStatementA4Html(opts: {
             <td class="meta-val">${escapeHtml(partyName)}</td>
           </tr>
           <tr>
+            <td class="meta-lbl">${t('invoiceStatement.phoneLabel')}</td>
+            <td class="meta-val mono">${escapeHtml(partyPhone)}</td>
+          </tr>
+          <tr>
             <td class="meta-lbl">${t('invoiceStatement.shippingAddress')}</td>
             <td class="meta-val">${escapeHtml(shippingAddress)}</td>
           </tr>
           <tr>
             <td class="meta-lbl">${t('invoiceStatement.invoiceNoLabel')}</td>
             <td class="meta-val mono">${escapeHtml(invoiceNo)}</td>
-          </tr>
-          <tr>
-            <td class="meta-lbl">${t('invoiceStatement.statementLabel')}</td>
-            <td class="meta-val">${escapeHtml(subtitle)}</td>
           </tr>
         </tbody>
       </table>
@@ -356,8 +358,8 @@ export function renderInvoiceStatementA4Html(opts: {
             <td class="meta-val mono">${escapeHtml(invoiceNo)} / ${escapeHtml(invoiceDate)}</td>
           </tr>
           <tr>
-            <td class="meta-lbl">${t('invoiceStatement.shippingMethod')}</td>
-            <td class="meta-val">—</td>
+            <td class="meta-lbl">${t('invoiceStatement.statementLabel')}</td>
+            <td class="meta-val">${escapeHtml(subtitle)}</td>
           </tr>
         </tbody>
       </table>

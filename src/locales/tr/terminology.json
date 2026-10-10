@@ -64,6 +64,7 @@
   "invoiceStatement.typePurchase": "Alış",
   "invoiceStatement.typeSale": "Satış",
   "invoiceStatement.supplierNameLabel": "Tedarikçi Adı",
+  "invoiceStatement.phoneLabel": "Telefon Numarası",
   "invoiceStatement.customerNameLabel": "Müşteri Adı",
   "invoiceStatement.shippingAddress": "Teslimat Adresi",
   "invoiceStatement.invoiceNoLabel": "Fatura No",

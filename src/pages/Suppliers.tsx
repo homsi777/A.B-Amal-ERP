@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+/** يبقى آخر نص بحث حياً عبر الملاحة (عند الرجوع من كشف حساب مورد) بدون إعادة كتابته. */
+let lastSuppliersSearchTerm = '';
 import { useTranslation } from 'react-i18next';
 import { Check, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import {
@@ -22,7 +24,7 @@ export const Suppliers = () => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(lastSuppliersSearchTerm);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -119,7 +121,7 @@ export const Suppliers = () => {
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
             <input type="text" placeholder={t('table.searchPlaceholder')} value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={e => { setSearch(e.target.value); lastSuppliersSearchTerm = e.target.value; setPage(1); }}
               className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as typeof statusFilter); setPage(1); }}

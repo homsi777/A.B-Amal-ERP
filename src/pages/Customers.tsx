@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+/** يبقى آخر نص بحث حياً عبر الملاحة (عند الرجوع من كشف حساب عميل) بدون إعادة كتابته. */
+let lastCustomersSearchTerm = '';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n/config';
 import { arAccountingCreditSide, arAccountingDebitSide } from '../lib/i18n/arTerminology';
@@ -41,7 +43,7 @@ export const Customers = () => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(lastCustomersSearchTerm);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -676,7 +678,7 @@ export const Customers = () => {
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
             <input type="text" placeholder={t('table.searchPlaceholder')} value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={e => { setSearch(e.target.value); lastCustomersSearchTerm = e.target.value; setPage(1); }}
               className="w-full pr-9 pl-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as typeof statusFilter); setPage(1); }}

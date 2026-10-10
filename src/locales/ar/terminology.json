@@ -64,6 +64,7 @@
   "invoiceStatement.typePurchase": "شراء",
   "invoiceStatement.typeSale": "بيع",
   "invoiceStatement.supplierNameLabel": "اسم المورد",
+  "invoiceStatement.phoneLabel": "رقم الهاتف",
   "invoiceStatement.customerNameLabel": "اسم العميل",
   "invoiceStatement.shippingAddress": "عنوان الشحن",
   "invoiceStatement.invoiceNoLabel": "رقم الفاتورة",

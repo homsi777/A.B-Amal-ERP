@@ -46,6 +46,12 @@ const formatRate = (value: number) => value.toLocaleString(undefined, { minimumF
 
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * يبقى آخر نص بحث كتبه المستخدم حياً عبر الملاحة (حتى لو أُعيد تركيب المكوّن
+ * عند الرجوع من كشف فاتورة محددة إلى القائمة) — بدون الحاجة لإعادة كتابته.
+ */
+let lastInvoiceStatementSearchTerm = '';
+
 type InvoiceListEntry = {
   id: string;
   invoiceNo: string;
@@ -62,7 +68,7 @@ export const InvoiceStatement = () => {
   const navigate = useNavigate();
   const { invoices, customers, suppliers } = useStore();
   const { showToast } = useToast();
-  const [searchId, setSearchId] = useState(id || '');
+  const [searchId, setSearchId] = useState(id || lastInvoiceStatementSearchTerm);
   const [hideFinancialColumns, setHideFinancialColumns] = useState(false);
   const [apiInvoice, setApiInvoice] = useState<Invoice | null>(null);
   const [apiLoading, setApiLoading] = useState(false);
@@ -484,6 +490,7 @@ export const InvoiceStatement = () => {
     return renderInvoiceStatementA4Html({
       invoice,
       partyName,
+      partyPhone: party?.phone,
       hideFinancialColumns,
       title: AR_INVOICE_STATEMENT.printTitle,
       subtitle: AR_INVOICE_STATEMENT.printSubtitle,
@@ -508,6 +515,7 @@ export const InvoiceStatement = () => {
         const html = renderInvoiceStatementA4Html({
           invoice,
           partyName,
+          partyPhone: party?.phone,
           hideFinancialColumns,
           title: AR_INVOICE_STATEMENT.printTitle,
           subtitle: AR_INVOICE_STATEMENT.printSubtitle,
@@ -620,7 +628,7 @@ export const InvoiceStatement = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <form onSubmit={handleSearch} className="flex bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden text-sm">
-            <input type="text" placeholder={t('search.placeholder')} value={searchId} onChange={(e) => setSearchId(e.target.value)} className="px-3 py-2 w-48 outline-none" />
+            <input type="text" placeholder={t('search.placeholder')} value={searchId} onChange={(e) => { setSearchId(e.target.value); lastInvoiceStatementSearchTerm = e.target.value; }} className="px-3 py-2 w-48 outline-none" />
             <button type="submit" className="bg-slate-100 hover:bg-slate-200 px-3 text-slate-700 font-medium border-r border-slate-200 transition">{t('search.submit')}</button>
           </form>
 
