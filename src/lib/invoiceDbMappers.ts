@@ -109,6 +109,7 @@ function mapLineToInvoiceItem(l: Record<string, unknown>): InvoiceItem {
     lineDate: stringFromMeta(meta, ['rowDate']) || undefined,
     excelUnitPrice: optionalNumFromDb(meta.excelUnitPrice),
     statementImport: meta.statementImport === true,
+    returnedQuantity: optionalNumFromDb(l.returned_quantity),
   };
 }
 

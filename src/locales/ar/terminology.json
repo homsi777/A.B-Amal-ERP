@@ -73,6 +73,8 @@
   "invoiceStatement.shippingMethod": "طريقة النقل",
   "invoiceStatement.rollUnitNoob": "نوب",
   "invoiceStatement.rollUnitToub": "توب",
+  "invoiceStatement.returnedTag": "مرتجع",
+  "invoiceStatement.soldReturnedNet": "مباع: {{sold}} — مرتجع: {{returned}} — الصافي: {{net}}",
   "invoiceStatement.colorUnit": "لون",
   "invoiceStatement.colMaterialName": "اسم الخامة",
   "invoiceStatement.colMaterialCode": "كود الخامة",

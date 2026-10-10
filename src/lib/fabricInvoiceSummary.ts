@@ -23,6 +23,8 @@ export interface FabricInvoiceSummaryLine {
   unitPrice?: number | string | null;
   lineTotal?: number | string | null;
   total?: number | string | null;
+  /** كمية هذا السطر المُرجَعة فعلياً (مرتجعات مؤكدة) — بنفس وحدة الكمية. */
+  returnedQuantity?: number | string | null;
 }
 
 export interface FabricInvoiceSummaryGroup {
@@ -30,8 +32,17 @@ export interface FabricInvoiceSummaryGroup {
   designCode: string;
   pricePerMeter: number;
   colorCount: number;
+  /** عدد الأتواب المباعة إجمالاً (قبل خصم المرتجع). */
   rollCount: number;
+  /** عدد الأتواب المُرجَعة من ضمن rollCount. */
+  returnedRollCount: number;
+  /** عدد الأتواب الصافي بعد خصم المرتجع = rollCount - returnedRollCount. */
+  netRollCount: number;
   totalMeters: number;
+  /** أمتار مرتجَعة من ضمن totalMeters. */
+  returnedMeters: number;
+  /** أمتار صافية بعد خصم المرتجع = totalMeters - returnedMeters. */
+  netMeters: number;
   totalKg: number;
   totalAmount: number;
 }
@@ -41,7 +52,11 @@ export interface FabricInvoiceSummary {
   totals: {
     groupCount: number;
     rollCount: number;
+    returnedRollCount: number;
+    netRollCount: number;
     totalMeters: number;
+    returnedMeters: number;
+    netMeters: number;
     totalKg: number;
     totalAmount: number;
   };
@@ -69,6 +84,13 @@ export function calculateFabricWeightKg(lengthMeters: number, widthCm: number, g
   return roundMoney((safeLength * safeWidthMeters * safeGsm) / 1000);
 }
 
+/** سطر يُعتبر "مرتجعاً" بصرياً إذا أُرجع منه أي كمية تُذكر (حتى مرتجع جزئي). */
+export const RETURN_EPSILON = 1e-4;
+
+export function isLineReturned(returnedQuantity: number | string | null | undefined): boolean {
+  return toNumber(returnedQuantity) > RETURN_EPSILON;
+}
+
 export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[]): FabricInvoiceSummary {
   const groupsByKey = new Map<string, FabricInvoiceSummaryGroup & { colorKeys: Set<string> }>();
 
@@ -82,6 +104,9 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
     const totalKg = isYarnLine ? quantity : Math.max(0, toNumber(line.weightKg ?? line.weight));
     const explicitTotal = toNumber(line.lineTotal ?? line.total);
     const totalAmount = explicitTotal > 0 ? explicitTotal : quantity * pricePerMeter;
+    const returnedQuantity = Math.min(quantity, Math.max(0, toNumber(line.returnedQuantity)));
+    const returnedMeters = isYarnLine ? 0 : returnedQuantity;
+    const lineReturned = isLineReturned(returnedQuantity);
     const key = `${materialName}|||${designCode}|||${pricePerMeter}`;
     const group = groupsByKey.get(key) ?? {
       materialName,
@@ -89,7 +114,11 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
       pricePerMeter,
       colorCount: 0,
       rollCount: 0,
+      returnedRollCount: 0,
+      netRollCount: 0,
       totalMeters: 0,
+      returnedMeters: 0,
+      netMeters: 0,
       totalKg: 0,
       totalAmount: 0,
       colorKeys: new Set<string>(),
@@ -99,6 +128,8 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
     group.totalMeters += totalMeters;
     group.totalKg += totalKg;
     group.totalAmount += totalAmount;
+    if (lineReturned) group.returnedRollCount += 1;
+    group.returnedMeters += returnedMeters;
 
     const colorKey = cleanText(line.colorCode) || cleanText(line.colorName);
     if (colorKey) {
@@ -111,7 +142,10 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
   const groups = Array.from(groupsByKey.values()).map(({ colorKeys, ...group }) => ({
     ...group,
     colorCount: colorKeys.size,
+    netRollCount: group.rollCount - group.returnedRollCount,
     totalMeters: roundMoney(group.totalMeters),
+    returnedMeters: roundMoney(group.returnedMeters),
+    netMeters: roundMoney(group.totalMeters - group.returnedMeters),
     totalKg: roundMoney(group.totalKg),
     totalAmount: roundMoney(group.totalAmount),
   }));
@@ -120,11 +154,13 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
     (sum, group) => ({
       groupCount: sum.groupCount + 1,
       rollCount: sum.rollCount + group.rollCount,
+      returnedRollCount: sum.returnedRollCount + group.returnedRollCount,
       totalMeters: sum.totalMeters + group.totalMeters,
+      returnedMeters: sum.returnedMeters + group.returnedMeters,
       totalKg: sum.totalKg + group.totalKg,
       totalAmount: sum.totalAmount + group.totalAmount,
     }),
-    { groupCount: 0, rollCount: 0, totalMeters: 0, totalKg: 0, totalAmount: 0 },
+    { groupCount: 0, rollCount: 0, returnedRollCount: 0, totalMeters: 0, returnedMeters: 0, totalKg: 0, totalAmount: 0 },
   );
 
   return {
@@ -132,7 +168,11 @@ export function calculateFabricInvoiceSummary(lines: FabricInvoiceSummaryLine[])
     totals: {
       groupCount: totals.groupCount,
       rollCount: totals.rollCount,
+      returnedRollCount: totals.returnedRollCount,
+      netRollCount: totals.rollCount - totals.returnedRollCount,
       totalMeters: roundMoney(totals.totalMeters),
+      returnedMeters: roundMoney(totals.returnedMeters),
+      netMeters: roundMoney(totals.totalMeters - totals.returnedMeters),
       totalKg: roundMoney(totals.totalKg),
       totalAmount: roundMoney(totals.totalAmount),
     },

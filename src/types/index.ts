@@ -163,6 +163,8 @@ export interface InvoiceItem {
   excelUnitPrice?: number;
   /** بند مستورد من كشف ذمم قديمة — بدون ربط مخزون */
   statementImport?: boolean;
+  /** كمية هذا البند التي أُرجعت فعلياً (مرتجعات مؤكدة) — بنفس وحدة `quantity`. 0 أو undefined يعني لم يُرجع شيء. */
+  returnedQuantity?: number;
 }
 
 export interface Expense {

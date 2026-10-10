@@ -90,5 +90,8 @@
   "settlement.paidUsd": "المدفوع بالدولار",
   "settlement.remainingUsd": "المتبقي بالدولار",
   "emptyState.title": "يرجى اختيار فاتورة",
-  "emptyState.subtitle": "قم بإدخال رقم الفاتورة أو اختيارها من القائمة للبدء."
+  "emptyState.subtitle": "قم بإدخال رقم الفاتورة أو اختيارها من القائمة للبدء.",
+  "returnBadge.returned": "مرتجع",
+  "returnBadge.soldReturnedNet": "مباع: {{sold}} — مرتجع: {{returned}} — الصافي: {{net}}",
+  "returnBadge.grossMinusReturned": "إجمالي: {{gross}} — مرتجع: {{returned}}"
 }

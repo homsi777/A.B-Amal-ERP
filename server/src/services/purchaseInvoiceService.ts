@@ -490,10 +490,19 @@ export async function getPurchaseInvoiceById(
   const lines = await db.query(
     `SELECT pil.*,
             fi.internal_code AS item_internal_code,
-            fi.supplier_code AS item_supplier_code
+            fi.supplier_code AS item_supplier_code,
+            COALESCE(ret.returned_qty, 0) AS returned_quantity
      FROM purchase_invoice_lines pil
      LEFT JOIN fabric_rolls fr ON fr.id = pil.fabric_roll_id AND fr.company_id = pil.company_id
      LEFT JOIN fabric_items fi ON fi.id = COALESCE(pil.fabric_item_id, fr.item_id) AND fi.company_id = pil.company_id
+     LEFT JOIN (
+       SELECT ril.original_purchase_invoice_line_id AS line_id,
+              SUM(CASE WHEN ril.unit = 'yard' THEN ril.quantity * 0.9144 ELSE ril.quantity END) AS returned_qty
+       FROM return_invoice_lines ril
+       INNER JOIN return_invoices ri ON ri.id = ril.return_invoice_id AND ri.company_id = ril.company_id
+       WHERE ri.company_id = $2 AND ri.status = 'CONFIRMED'
+       GROUP BY ril.original_purchase_invoice_line_id
+     ) ret ON ret.line_id = pil.id
      WHERE pil.invoice_id=$1 AND pil.company_id=$2
      ORDER BY pil.line_no`,
     [id, companyId],

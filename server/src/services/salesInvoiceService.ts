@@ -807,10 +807,19 @@ export async function getSalesInvoiceById(
   const lines = await db.query(
     `SELECT sil.*,
             fi.internal_code AS item_internal_code,
-            fi.supplier_code AS item_supplier_code
+            fi.supplier_code AS item_supplier_code,
+            COALESCE(ret.returned_qty, 0) AS returned_quantity
      FROM sales_invoice_lines sil
      LEFT JOIN fabric_rolls fr ON fr.id = sil.fabric_roll_id AND fr.company_id = sil.company_id
      LEFT JOIN fabric_items fi ON fi.id = COALESCE(sil.fabric_item_id, fr.item_id) AND fi.company_id = sil.company_id
+     LEFT JOIN (
+       SELECT ril.original_sales_invoice_line_id AS line_id,
+              SUM(CASE WHEN ril.unit = 'yard' THEN ril.quantity * 0.9144 ELSE ril.quantity END) AS returned_qty
+       FROM return_invoice_lines ril
+       INNER JOIN return_invoices ri ON ri.id = ril.return_invoice_id AND ri.company_id = ril.company_id
+       WHERE ri.company_id = $2 AND ri.status = 'CONFIRMED'
+       GROUP BY ril.original_sales_invoice_line_id
+     ) ret ON ret.line_id = sil.id
      WHERE sil.invoice_id=$1 AND sil.company_id=$2
      ORDER BY sil.line_no`,
     [id, companyId],

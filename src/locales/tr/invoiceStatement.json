@@ -90,5 +90,8 @@
   "settlement.paidUsd": "Ödenen (USD)",
   "settlement.remainingUsd": "Kalan (USD)",
   "emptyState.title": "Lütfen bir fatura seçin",
-  "emptyState.subtitle": "Başlamak için fatura numarasını girin veya listeden seçin."
+  "emptyState.subtitle": "Başlamak için fatura numarasını girin veya listeden seçin.",
+  "returnBadge.returned": "İade Edildi",
+  "returnBadge.soldReturnedNet": "Satılan: {{sold}} — İade: {{returned}} — Net: {{net}}",
+  "returnBadge.grossMinusReturned": "Toplam: {{gross}} — İade: {{returned}}"
 }

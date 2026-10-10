@@ -5,7 +5,7 @@ import { useStore } from '../../store/useStore';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Printer, Share2, FileText, ArrowRight } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { calculateFabricInvoiceSummary, FabricInvoiceSummaryLine } from '../../lib/fabricInvoiceSummary';
+import { calculateFabricInvoiceSummary, FabricInvoiceSummaryLine, isLineReturned } from '../../lib/fabricInvoiceSummary';
 import {
   getSalesInvoice,
   listSalesInvoices,
@@ -437,6 +437,7 @@ export const InvoiceStatement = () => {
         weightKg: item.weightKg ?? item.weight,
         pricePerMeter: item.unitPrice,
         lineTotal: item.total,
+        returnedQuantity: item.returnedQuantity,
       })) ?? [],
     [invoice],
   );
@@ -854,9 +855,14 @@ export const InvoiceStatement = () => {
                         {group.materialName} | {group.designCode} | {t('groupHeader.colorsCount', { count: group.colorCount })}
                       </td>
                     </tr>
-                    {rows.map((item, index) => (
-                      <tr key={`${item.rollNumber || item.barcode || index}`} className="odd:bg-white even:bg-slate-50">
-                        <td className="p-2 border border-slate-200 font-medium">{item.materialName || item.fabricName || 'غير محدد'}</td>
+                    {rows.map((item, index) => {
+                      const returned = isLineReturned(item.returnedQuantity);
+                      return (
+                      <tr key={`${item.rollNumber || item.barcode || index}`} className={returned ? 'bg-rose-50 text-rose-700' : 'odd:bg-white even:bg-slate-50'}>
+                        <td className="p-2 border border-slate-200 font-medium">
+                          {item.materialName || item.fabricName || 'غير محدد'}
+                          {returned && <span className="ml-1 text-[10px] font-black">({t('returnBadge.returned')})</span>}
+                        </td>
                         <td className="p-2 border border-slate-200 font-mono">{item.designCode || 'غير محدد'}</td>
                         <td className="p-2 border border-slate-200 font-mono">{item.rollNo || item.rollNumber || '-'}</td>
                         <td className="p-2 border border-slate-200 font-mono">{item.barcode || '-'}</td>
@@ -867,10 +873,23 @@ export const InvoiceStatement = () => {
                         {!hideFinancialColumns && <td className="p-2 border border-slate-200 text-right font-mono">{formatMoney(item.unitPrice, currency)}</td>}
                         {!hideFinancialColumns && <td className="p-2 border border-slate-200 text-right font-bold font-mono">{formatMoney(item.total, currency)}</td>}
                       </tr>
-                    ))}
+                      );
+                    })}
                     <tr className="bg-indigo-50 text-indigo-950 font-black">
-                      <td colSpan={hideFinancialColumns ? 5 : 6} className="p-2 border border-indigo-100 text-right">{AR_INVOICE_STATEMENT.subtotalRow}</td>
-                      <td className="p-2 border border-indigo-100 text-right font-mono">{formatNumber(group.totalMeters)}</td>
+                      <td colSpan={hideFinancialColumns ? 5 : 6} className="p-2 border border-indigo-100 text-right">
+                        <div>{AR_INVOICE_STATEMENT.subtotalRow}</div>
+                        <div className="font-normal text-[11px] mt-0.5">
+                          {t('returnBadge.soldReturnedNet', { sold: group.rollCount, returned: group.returnedRollCount, net: group.netRollCount })}
+                        </div>
+                      </td>
+                      <td className="p-2 border border-indigo-100 text-right font-mono">
+                        {formatNumber(group.netMeters)}
+                        {group.returnedMeters > 0 && (
+                          <div className="font-normal text-[10px] text-rose-600">
+                            {t('returnBadge.grossMinusReturned', { gross: formatNumber(group.totalMeters), returned: formatNumber(group.returnedMeters) })}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-2 border border-indigo-100 text-right font-mono">{formatNumber(group.totalKg)}</td>
                       <td className="p-2 border border-indigo-100 text-right font-mono">{t('groupHeader.rollsCount', { count: group.rollCount })}</td>
                       {!hideFinancialColumns && <td className="p-2 border border-indigo-100 text-right font-mono">{formatMoney(group.totalAmount, currency)}</td>}
@@ -908,8 +927,22 @@ export const InvoiceStatement = () => {
                       <td className="p-2 border border-slate-200 font-bold">{group.materialName}</td>
                       <td className="p-2 border border-slate-200 font-mono">{group.designCode}</td>
                       <td className="p-2 border border-slate-200 text-right">{group.colorCount}</td>
-                      <td className="p-2 border border-slate-200 text-right">{group.rollCount}</td>
-                      <td className="p-2 border border-slate-200 text-right font-mono">{formatNumber(group.totalMeters)}</td>
+                      <td className="p-2 border border-slate-200 text-right">
+                        {group.netRollCount}
+                        {group.returnedRollCount > 0 && (
+                          <div className="font-normal text-[10px] text-rose-600">
+                            {t('returnBadge.soldReturnedNet', { sold: group.rollCount, returned: group.returnedRollCount, net: group.netRollCount })}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-2 border border-slate-200 text-right font-mono">
+                        {formatNumber(group.netMeters)}
+                        {group.returnedMeters > 0 && (
+                          <div className="font-normal text-[10px] text-rose-600">
+                            {t('returnBadge.grossMinusReturned', { gross: formatNumber(group.totalMeters), returned: formatNumber(group.returnedMeters) })}
+                          </div>
+                        )}
+                      </td>
                       {!hideFinancialColumns && <td className="p-2 border border-slate-200 text-right font-mono">{formatMoney(group.pricePerMeter, currency)}</td>}
                       {!hideFinancialColumns && <td className="p-2 border border-slate-200 text-right font-bold font-mono">{formatMoney(group.totalAmount, currency)}</td>}
                       <td className="p-2 border border-slate-200 text-right font-mono">{formatNumber(group.totalKg)}</td>
@@ -917,8 +950,22 @@ export const InvoiceStatement = () => {
                   ))}
                   <tr className="bg-slate-900 text-white font-black">
                     <td className="p-2 border border-slate-700" colSpan={3}>{AR_INVOICE_STATEMENT.grandTotals}</td>
-                    <td className="p-2 border border-slate-700 text-right">{summary.totals.rollCount}</td>
-                    <td className="p-2 border border-slate-700 text-right font-mono">{formatNumber(summary.totals.totalMeters)}</td>
+                    <td className="p-2 border border-slate-700 text-right">
+                      {summary.totals.netRollCount}
+                      {summary.totals.returnedRollCount > 0 && (
+                        <div className="font-normal text-[10px] text-rose-300">
+                          {t('returnBadge.soldReturnedNet', { sold: summary.totals.rollCount, returned: summary.totals.returnedRollCount, net: summary.totals.netRollCount })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-2 border border-slate-700 text-right font-mono">
+                      {formatNumber(summary.totals.netMeters)}
+                      {summary.totals.returnedMeters > 0 && (
+                        <div className="font-normal text-[10px] text-rose-300">
+                          {t('returnBadge.grossMinusReturned', { gross: formatNumber(summary.totals.totalMeters), returned: formatNumber(summary.totals.returnedMeters) })}
+                        </div>
+                      )}
+                    </td>
                     {!hideFinancialColumns && <td className="p-2 border border-slate-700 text-right">{t('packingSummary.groupsCount', { count: summary.totals.groupCount })}</td>}
                     {!hideFinancialColumns && (
                       <td className="p-2 border border-slate-700 text-right font-mono">

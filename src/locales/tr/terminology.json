@@ -73,6 +73,8 @@
   "invoiceStatement.shippingMethod": "Nakliye Yöntemi",
   "invoiceStatement.rollUnitNoob": "top",
   "invoiceStatement.rollUnitToub": "top",
+  "invoiceStatement.returnedTag": "İade Edildi",
+  "invoiceStatement.soldReturnedNet": "Satılan: {{sold}} — İade: {{returned}} — Net: {{net}}",
   "invoiceStatement.colorUnit": "renk",
   "invoiceStatement.colMaterialName": "Malzeme Adı",
   "invoiceStatement.colMaterialCode": "Malzeme Kodu",

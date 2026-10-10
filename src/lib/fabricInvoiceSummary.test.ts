@@ -82,9 +82,63 @@ assert.equal(unknown.totalAmount, 0);
 assert.deepEqual(summary.totals, {
   groupCount: 4,
   rollCount: 6,
+  returnedRollCount: 0,
+  netRollCount: 6,
   totalMeters: 1172.7,
+  returnedMeters: 0,
+  netMeters: 1172.7,
   totalKg: 160.5,
   totalAmount: 2662.9,
 });
+
+// Returned-quantity handling: a fully-returned line and a partially-returned line.
+const withReturns = calculateFabricInvoiceSummary([
+  {
+    materialName: 'LONDRA',
+    designCode: 'KL-131',
+    colorCode: 'RED',
+    rollNo: 'R-1',
+    lengthMeters: 100,
+    weightKg: 15,
+    pricePerMeter: 2,
+    returnedQuantity: 100, // fully returned roll
+  },
+  {
+    materialName: 'LONDRA',
+    designCode: 'KL-131',
+    colorCode: 'RED',
+    rollNo: 'R-2',
+    lengthMeters: 200,
+    weightKg: 30,
+    pricePerMeter: 2,
+    returnedQuantity: 50, // partially returned roll — still counts as a "returned" line
+  },
+  {
+    materialName: 'LONDRA',
+    designCode: 'KL-131',
+    colorCode: 'RED',
+    rollNo: 'R-3',
+    lengthMeters: 50,
+    weightKg: 7.5,
+    pricePerMeter: 2,
+    // no returnedQuantity — untouched roll
+  },
+]);
+
+const londraReturns = withReturns.groups.find((group) => group.materialName === 'LONDRA');
+assert.ok(londraReturns);
+assert.equal(londraReturns.rollCount, 3);
+assert.equal(londraReturns.returnedRollCount, 2);
+assert.equal(londraReturns.netRollCount, 1);
+assert.equal(londraReturns.totalMeters, 350);
+assert.equal(londraReturns.returnedMeters, 150);
+assert.equal(londraReturns.netMeters, 200);
+
+assert.equal(withReturns.totals.rollCount, 3);
+assert.equal(withReturns.totals.returnedRollCount, 2);
+assert.equal(withReturns.totals.netRollCount, 1);
+assert.equal(withReturns.totals.totalMeters, 350);
+assert.equal(withReturns.totals.returnedMeters, 150);
+assert.equal(withReturns.totals.netMeters, 200);
 
 console.log('fabricInvoiceSummary tests passed');
