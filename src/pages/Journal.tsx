@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Filter, Plus, RefreshCw, X, Trash2 } from 'lucide-react';
 import {
   fetchJournalLines,
@@ -9,23 +10,18 @@ import {
 } from '../lib/api/financeApi';
 import { ApiRequestError } from '../lib/api/client';
 
-const SOURCE_TYPE_AR: Record<string, string> = {
-  VOUCHER: 'سند قبض / دفع',
-  VOUCHER_REVERSAL: 'عكس سند',
-  RETURN_INVOICE: 'فاتورة مرتجع',
-  RETURN_INVOICE_REVERSAL: 'عكس مرتجع',
-  PAYROLL_ACCRUAL: 'استحقاق رواتب',
-  PAYROLL_PAYMENT: 'صرف رواتب (خزينة)',
-  PAYROLL_REVERSAL: 'عكس رواتب',
-  MANUAL: 'قيد يدوي',
-  OPENING: 'افتتاحي',
-  SYSTEM: 'نظام',
+const SOURCE_TYPE_KEYS: Record<string, string> = {
+  VOUCHER: 'sourceType.voucher',
+  VOUCHER_REVERSAL: 'sourceType.voucherReversal',
+  RETURN_INVOICE: 'sourceType.returnInvoice',
+  RETURN_INVOICE_REVERSAL: 'sourceType.returnInvoiceReversal',
+  PAYROLL_ACCRUAL: 'sourceType.payrollAccrual',
+  PAYROLL_PAYMENT: 'sourceType.payrollPayment',
+  PAYROLL_REVERSAL: 'sourceType.payrollReversal',
+  MANUAL: 'sourceType.manual',
+  OPENING: 'sourceType.opening',
+  SYSTEM: 'sourceType.system',
 };
-
-function formatSourceType(st: string | null | undefined): string {
-  if (!st) return '—';
-  return SOURCE_TYPE_AR[st] ?? st;
-}
 
 type DraftLine = { glAccountId: string; debit: string; credit: string; lineDesc: string };
 
@@ -38,6 +34,16 @@ function todayIsoDate(): string {
 }
 
 export const Journal = () => {
+  const { t, i18n } = useTranslation('journal');
+  const dateLocale = i18n.language === 'ar' ? 'ar-SA' : 'tr-TR';
+  const formatSourceType = useCallback(
+    (st: string | null | undefined): string => {
+      if (!st) return t('table.dash');
+      const key = SOURCE_TYPE_KEYS[st];
+      return key ? t(key) : st;
+    },
+    [t],
+  );
   const [lines, setLines] = useState<JournalLineRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -71,7 +77,7 @@ export const Journal = () => {
       setLines(res.data ?? []);
       setMetaNote(res.meta?.note ?? null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'تعذر تحميل دفتر اليومية');
+      setErr(e instanceof Error ? e.message : t('errors.loadFailed'));
       setLines([]);
     } finally {
       setLoading(false);
@@ -109,7 +115,7 @@ export const Journal = () => {
       setGlAccounts(res.data ?? []);
     } catch (e) {
       setGlAccounts([]);
-      setManualErr(e instanceof Error ? e.message : 'تعذر تحميل دليل الحسابات');
+      setManualErr(e instanceof Error ? e.message : t('errors.loadAccountsFailed'));
     }
   }, []);
 
@@ -137,7 +143,7 @@ export const Journal = () => {
     setManualErr(null);
     const desc = entryDesc.trim();
     if (!desc) {
-      setManualErr('أدخل وصفاً للقيد.');
+      setManualErr(t('errors.descRequired'));
       return;
     }
     const built: { glAccountId: string; debit: number; credit: number; description: string | null }[] = [];
@@ -146,15 +152,15 @@ export const Journal = () => {
       const c = Math.round((parseFloat(row.credit.replace(/,/g, '')) || 0) * 100) / 100;
       if (!row.glAccountId && d === 0 && c === 0) continue;
       if (!row.glAccountId) {
-        setManualErr('كل سطر بمبلغ يجب أن يحدد الحساب.');
+        setManualErr(t('errors.lineNeedsAccount'));
         return;
       }
       if (d > 0 && c > 0) {
-        setManualErr('السطر لا يجمع مديناً ودائناً معاً.');
+        setManualErr(t('errors.lineBothDebitCredit'));
         return;
       }
       if (d === 0 && c === 0) {
-        setManualErr('احذف الأسطر الفارغة أو أدخل مبلغاً.');
+        setManualErr(t('errors.removeEmptyLine'));
         return;
       }
       built.push({
@@ -165,13 +171,13 @@ export const Journal = () => {
       });
     }
     if (built.length < 2) {
-      setManualErr('القيد يحتاج سطرين على الأقل متوازنين.');
+      setManualErr(t('errors.needTwoLines'));
       return;
     }
     const sumD = Math.round(built.reduce((s, x) => s + x.debit, 0) * 100) / 100;
     const sumC = Math.round(built.reduce((s, x) => s + x.credit, 0) * 100) / 100;
     if (sumD !== sumC) {
-      setManualErr(`القيد غير متوازن: مجموع المدين ${sumD} والدائن ${sumC}.`);
+      setManualErr(t('errors.unbalanced', { debit: sumD, credit: sumC }));
       return;
     }
     setManualLoading(true);
@@ -189,7 +195,7 @@ export const Journal = () => {
       closeManual();
       await load();
     } catch (e) {
-      const msg = e instanceof ApiRequestError ? e.message : e instanceof Error ? e.message : 'فشل حفظ القيد';
+      const msg = e instanceof ApiRequestError ? e.message : e instanceof Error ? e.message : t('errors.saveFailed');
       setManualErr(msg);
     } finally {
       setManualLoading(false);
@@ -200,8 +206,8 @@ export const Journal = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">دفتر اليومية</h2>
-          <p className="text-slate-500 mt-1">قيود مزدوجة مُرحَّلة من السندات والمرتجعات والرواتب والقيود اليدوية (مدين / دائن)</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
+          <p className="text-slate-500 mt-1">{t('page.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -210,7 +216,7 @@ export const Journal = () => {
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>تحديث</span>
+            <span>{t('page.refresh')}</span>
           </button>
           <button
             type="button"
@@ -218,7 +224,7 @@ export const Journal = () => {
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium"
           >
             <Plus className="w-4 h-4" />
-            <span>إنشاء قيد يدوي</span>
+            <span>{t('page.createManual')}</span>
           </button>
         </div>
       </div>
@@ -236,7 +242,7 @@ export const Journal = () => {
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="بحث برقم السند، الجهة، أو البيان..."
+              placeholder={t('filters.searchPlaceholder')}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
             />
           </div>
@@ -246,14 +252,14 @@ export const Journal = () => {
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
-              title="من تاريخ"
+              title={t('filters.dateFromTitle')}
             />
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
-              title="إلى تاريخ"
+              title={t('filters.dateToTitle')}
             />
             <button
               type="button"
@@ -261,61 +267,61 @@ export const Journal = () => {
               className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition shadow-sm font-medium"
             >
               <Filter className="w-4 h-4" />
-              <span>تطبيق الفلتر</span>
+              <span>{t('filters.apply')}</span>
             </button>
           </div>
-          {loading && <span className="text-sm text-slate-500 w-full sm:w-auto">جاري التحميل…</span>}
+          {loading && <span className="text-sm text-slate-500 w-full sm:w-auto">{t('filters.loading')}</span>}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-6 py-4">رقم القيد</th>
-                <th className="px-6 py-4">التاريخ</th>
-                <th className="px-6 py-4">مصدر القيد</th>
-                <th className="px-6 py-4">رقم واسم الحساب</th>
-                <th className="px-6 py-4">الجهة</th>
-                <th className="px-6 py-4">البيان</th>
-                <th className="px-6 py-4 text-left">مدين</th>
-                <th className="px-6 py-4 text-left">دائن</th>
-                <th className="px-6 py-4">ع.</th>
+                <th className="px-6 py-4">{t('table.entryNo')}</th>
+                <th className="px-6 py-4">{t('table.date')}</th>
+                <th className="px-6 py-4">{t('table.source')}</th>
+                <th className="px-6 py-4">{t('table.account')}</th>
+                <th className="px-6 py-4">{t('table.party')}</th>
+                <th className="px-6 py-4">{t('table.description')}</th>
+                <th className="px-6 py-4 text-left">{t('table.debit')}</th>
+                <th className="px-6 py-4 text-left">{t('table.credit')}</th>
+                <th className="px-6 py-4">{t('table.currency')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {!loading && sortedLines.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
-                    لا توجد قيود مطابقة للفلتر — أو لا بيانات مرحّلة بعد.
+                    {t('table.empty')}
                   </td>
                 </tr>
               ) : (
-                sortedLines.map((t, idx) => {
-                  const isSameEntry = idx > 0 && sortedLines[idx - 1].entry_id === t.entry_id;
+                sortedLines.map((line, idx) => {
+                  const isSameEntry = idx > 0 && sortedLines[idx - 1].entry_id === line.entry_id;
                   return (
                     <tr
-                      key={`${t.entry_id}-${t.line_no}-${t.account_id}`}
+                      key={`${line.entry_id}-${line.line_no}-${line.account_id}`}
                       className={`hover:bg-slate-50 transition-colors bg-white ${
                         isSameEntry ? 'border-t-0 bg-slate-50/30' : 'border-t-2 border-slate-200'
                       }`}
                     >
-                      <td className="px-6 py-4 font-mono font-medium text-slate-500">{t.entry_id}</td>
-                      <td className="px-6 py-4 text-slate-600 font-medium">{new Date(t.date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 text-slate-700 text-xs">{formatSourceType(t.source_type)}</td>
+                      <td className="px-6 py-4 font-mono font-medium text-slate-500">{line.entry_id}</td>
+                      <td className="px-6 py-4 text-slate-600 font-medium">{new Date(line.date).toLocaleDateString(dateLocale)}</td>
+                      <td className="px-6 py-4 text-slate-700 text-xs">{formatSourceType(line.source_type)}</td>
                       <td className="px-6 py-4 font-bold text-slate-900">
                         <span className="text-indigo-600 font-mono text-xs px-2 py-1 bg-indigo-50 rounded ml-2">
-                          {t.account_id}
+                          {line.account_id}
                         </span>
-                        {t.account_name}
+                        {line.account_name}
                       </td>
-                      <td className="px-6 py-4 text-slate-600 text-xs">{t.party_name ?? '—'}</td>
-                      <td className="px-6 py-4 text-slate-700">{t.description ?? '—'}</td>
+                      <td className="px-6 py-4 text-slate-600 text-xs">{line.party_name ?? t('table.dash')}</td>
+                      <td className="px-6 py-4 text-slate-700">{line.description ?? t('table.dash')}</td>
                       <td className="px-6 py-4 font-bold text-left text-emerald-600">
-                        {t.debit > 0 ? t.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                        {line.debit > 0 ? line.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
                       </td>
                       <td className="px-6 py-4 font-bold text-left text-rose-600">
-                        {t.credit > 0 ? t.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                        {line.credit > 0 ? line.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-xs text-slate-400">{t.currency_code}</td>
+                      <td className="px-6 py-4 text-xs text-slate-400">{line.currency_code}</td>
                     </tr>
                   );
                 })
@@ -338,17 +344,17 @@ export const Journal = () => {
               type="button"
               onClick={closeManual}
               className="absolute left-4 top-4 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition z-10"
-              aria-label="إغلاق"
+              aria-label={t('modal.close')}
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="border-b border-slate-200 px-6 pb-4 pt-6 pr-14 bg-slate-50/80">
               <h3 id="manual-journal-title" className="text-xl font-bold text-slate-900">
-                قيد يدوي في دفتر الأستاذ العام
+                {t('modal.title')}
               </h3>
               <p className="text-sm text-slate-600 mt-1">
-                قيد متوازن (مدين = دائن). يُستخدم للتسويات والافتتاحيات وما لا يولّده النظام تلقائياً.
+                {t('modal.description')}
               </p>
             </div>
 
@@ -359,7 +365,7 @@ export const Journal = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">تاريخ القيد</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('modal.entryDateLabel')}</label>
                   <input
                     type="date"
                     value={entryDate}
@@ -368,12 +374,12 @@ export const Journal = () => {
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-1">
-                  <label className="block text-sm font-medium text-slate-700">الوصف العام</label>
+                  <label className="block text-sm font-medium text-slate-700">{t('modal.descLabel')}</label>
                   <input
                     type="text"
                     value={entryDesc}
                     onChange={(e) => setEntryDesc(e.target.value)}
-                    placeholder="مثال: تسوية بنكية — رسوم الشهر"
+                    placeholder={t('modal.descPlaceholder')}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -381,7 +387,7 @@ export const Journal = () => {
 
               <div className="rounded-lg border border-slate-200 overflow-hidden">
                 <div className="bg-slate-50 px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200">
-                  <span className="text-sm font-semibold text-slate-800">أسطر القيد</span>
+                  <span className="text-sm font-semibold text-slate-800">{t('modal.linesTitle')}</span>
                   <button
                     type="button"
                     onClick={() =>
@@ -390,14 +396,14 @@ export const Journal = () => {
                     className="text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
                   >
                     <Plus className="w-4 h-4" />
-                    سطر
+                    {t('modal.addLine')}
                   </button>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {draftLines.map((row, i) => (
                     <div key={i} className="p-4 grid gap-3 sm:grid-cols-12 bg-white">
                       <div className="sm:col-span-5 space-y-1">
-                        <label className="text-xs font-medium text-slate-500">الحساب</label>
+                        <label className="text-xs font-medium text-slate-500">{t('modal.accountLabel')}</label>
                         <select
                           value={row.glAccountId}
                           onChange={(e) => {
@@ -406,7 +412,7 @@ export const Journal = () => {
                           }}
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
-                          <option value="">— اختر حساباً —</option>
+                          <option value="">{t('modal.chooseAccount')}</option>
                           {glAccounts.map((a) => (
                             <option key={a.id} value={a.id}>
                               {a.code} — {a.name}
@@ -415,7 +421,7 @@ export const Journal = () => {
                         </select>
                       </div>
                       <div className="sm:col-span-2 space-y-1">
-                        <label className="text-xs font-medium text-slate-500">مدين</label>
+                        <label className="text-xs font-medium text-slate-500">{t('modal.debitLabel')}</label>
                         <input
                           type="number"
                           min={0}
@@ -432,7 +438,7 @@ export const Journal = () => {
                         />
                       </div>
                       <div className="sm:col-span-2 space-y-1">
-                        <label className="text-xs font-medium text-slate-500">دائن</label>
+                        <label className="text-xs font-medium text-slate-500">{t('modal.creditLabel')}</label>
                         <input
                           type="number"
                           min={0}
@@ -449,7 +455,7 @@ export const Journal = () => {
                         />
                       </div>
                       <div className="sm:col-span-2 space-y-1">
-                        <label className="text-xs font-medium text-slate-500">بيان السطر</label>
+                        <label className="text-xs font-medium text-slate-500">{t('modal.lineDescLabel')}</label>
                         <input
                           type="text"
                           value={row.lineDesc}
@@ -458,7 +464,7 @@ export const Journal = () => {
                             setDraftLines((rows) => rows.map((r, j) => (j === i ? { ...r, lineDesc: v } : r)));
                           }}
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                          placeholder="اختياري"
+                          placeholder={t('modal.optionalPlaceholder')}
                         />
                       </div>
                       <div className="sm:col-span-1 flex items-end justify-end">
@@ -467,7 +473,7 @@ export const Journal = () => {
                           disabled={draftLines.length <= 2}
                           onClick={() => setDraftLines((rows) => rows.filter((_, j) => j !== i))}
                           className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:pointer-events-none"
-                          title="حذف السطر"
+                          title={t('modal.deleteLine')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -485,21 +491,21 @@ export const Journal = () => {
                 }`}
               >
                 <span>
-                  المجموع — مدين:{' '}
+                  {t('modal.totalsDebitLabel')}{' '}
                   <strong>{parsedDraftTotals.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                   {' · '}
-                  دائن:{' '}
+                  {t('modal.totalsCreditLabel')}{' '}
                   <strong>{parsedDraftTotals.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
                 </span>
                 {parsedDraftTotals.balanced ? (
-                  <span className="font-medium">متوازن ✓</span>
+                  <span className="font-medium">{t('modal.balancedLabel')}</span>
                 ) : (
-                  <span className="font-medium">يجب أن يتساوى المدين والدائن</span>
+                  <span className="font-medium">{t('modal.mustBalance')}</span>
                 )}
               </div>
 
               {glAccounts.length === 0 && !manualErr && (
-                <p className="text-xs text-amber-800">لا حسابات مرحّل إليها من الخادم — تأكد من تشغيل الترحيلات ووجود شركة نشطة.</p>
+                <p className="text-xs text-amber-800">{t('modal.noAccountsWarning')}</p>
               )}
 
               <div className="flex flex-wrap gap-2 justify-end pt-2 border-t border-slate-100">
@@ -508,7 +514,7 @@ export const Journal = () => {
                   onClick={closeManual}
                   className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-medium"
                 >
-                  إلغاء
+                  {t('modal.cancel')}
                 </button>
                 <button
                   type="button"
@@ -520,7 +526,7 @@ export const Journal = () => {
                   onClick={() => void submitManual()}
                   className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {manualLoading ? 'جاري الحفظ…' : 'ترحيل القيد'}
+                  {manualLoading ? t('modal.saving') : t('modal.postEntry')}
                 </button>
               </div>
             </div>

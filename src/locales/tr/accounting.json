@@ -1,0 +1,21 @@
+{
+  "accountType.asset": "Varlık",
+  "accountType.liability": "Borç",
+  "accountType.equity": "Özkaynak",
+  "accountType.revenue": "Gelir",
+  "accountType.expense": "Gider",
+  "loadError": "Hesap planı yüklenemedi",
+  "pageTitle": "Hesap Planı",
+  "pageSubtitle": "Veritabanına bağlı işletim kılavuzu — kasalar, fişler, iadeler ve maaşlar",
+  "refresh": "Yenile",
+  "manualEditDisabledTitle": "Kılavuzun manuel düzenlenmesi daha sonra eklenecek — bakiyeler şu anda otomatik oluşturuluyor",
+  "addNewAccount": "Yeni Hesap Ekle",
+  "searchPlaceholder": "Hesap numarası veya adına göre ara...",
+  "loading": "Yükleniyor…",
+  "colAccountNo": "Hesap No",
+  "colAccountName": "Hesap Adı",
+  "colTypeClassification": "Tür / Sınıflandırma",
+  "colBalance": "Bakiye",
+  "noFinancialDataYet": "Henüz mali veri bulunmuyor — sunucu bağlantısını ve kasa/fiş varlığını kontrol edin.",
+  "noMatchingResults": "Aramanızla eşleşen sonuç bulunmuyor."
+}

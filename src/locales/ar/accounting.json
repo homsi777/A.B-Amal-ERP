@@ -1,0 +1,21 @@
+{
+  "accountType.asset": "أصل",
+  "accountType.liability": "خصم",
+  "accountType.equity": "حقوق ملكية",
+  "accountType.revenue": "إيراد",
+  "accountType.expense": "مصروف",
+  "loadError": "تعذر تحميل شجرة الحسابات",
+  "pageTitle": "شجرة الحسابات",
+  "pageSubtitle": "الدليل التشغيلي مرتبط بقاعدة البيانات — صناديق، سندات، مرتجعات ورواتب",
+  "refresh": "تحديث",
+  "manualEditDisabledTitle": "التعديل اليدوي للدليل سيتم لاحقاً — حالياً الأرصدة مولَّدة آلياً",
+  "addNewAccount": "إضافة حساب جديد",
+  "searchPlaceholder": "بحث برقم الحساب أو اسمه...",
+  "loading": "جاري التحميل…",
+  "colAccountNo": "رقم الحساب",
+  "colAccountName": "اسم الحساب",
+  "colTypeClassification": "النوع / التصنيف",
+  "colBalance": "الرصيد",
+  "noFinancialDataYet": "لا تتوفر بيانات مالية بعد — تأكد من الاتصال بالخادم ووجود صناديق أو سندات.",
+  "noMatchingResults": "لا توجد نتائج مطابقة لبحثك."
+}

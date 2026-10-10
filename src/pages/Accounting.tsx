@@ -1,14 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderTree, Search, ChevronDown, ChevronLeft, Folder, FileText, RefreshCw } from 'lucide-react';
 import { fetchChartOfAccounts, type ChartAccountRow } from '../lib/api/financeApi';
-
-const typeTranslations: Record<string, string> = {
-  asset: 'أصل',
-  liability: 'خصم',
-  equity: 'حقوق ملكية',
-  revenue: 'إيراد',
-  expense: 'مصروف',
-};
 
 const AccountRow = ({
   account,
@@ -22,6 +15,14 @@ const AccountRow = ({
   level?: number;
   searchTerm: string;
 }) => {
+  const { t } = useTranslation('accounting');
+  const typeTranslations: Record<string, string> = {
+    asset: t('accountType.asset'),
+    liability: t('accountType.liability'),
+    equity: t('accountType.equity'),
+    revenue: t('accountType.revenue'),
+    expense: t('accountType.expense'),
+  };
   const [isExpanded, setIsExpanded] = useState(level < 1);
   const children = allAccounts.filter((a) => a.parentId === account.id);
   const hasChildren = children.length > 0;
@@ -90,6 +91,14 @@ const AccountRow = ({
 };
 
 export const Accounting = () => {
+  const { t } = useTranslation('accounting');
+  const typeTranslations: Record<string, string> = {
+    asset: t('accountType.asset'),
+    liability: t('accountType.liability'),
+    equity: t('accountType.equity'),
+    revenue: t('accountType.revenue'),
+    expense: t('accountType.expense'),
+  };
   const [accounts, setAccounts] = useState<ChartAccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -104,7 +113,7 @@ export const Accounting = () => {
       setAccounts(res.data ?? []);
       setMetaNote(res.meta?.note ?? null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'تعذر تحميل شجرة الحسابات');
+      setErr(e instanceof Error ? e.message : t('loadError'));
       setAccounts([]);
     } finally {
       setLoading(false);
@@ -125,8 +134,8 @@ export const Accounting = () => {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">شجرة الحسابات</h2>
-          <p className="text-slate-500 mt-1">الدليل التشغيلي مرتبط بقاعدة البيانات — صناديق، سندات، مرتجعات ورواتب</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('pageSubtitle')}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -135,15 +144,15 @@ export const Accounting = () => {
             className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>تحديث</span>
+            <span>{t('refresh')}</span>
           </button>
           <button
             type="button"
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm opacity-60 cursor-not-allowed"
-            title="التعديل اليدوي للدليل سيتم لاحقاً — حالياً الأرصدة مولَّدة آلياً"
+            title={t('manualEditDisabledTitle')}
           >
             <FolderTree className="w-4 h-4" />
-            <span>إضافة حساب جديد</span>
+            <span>{t('addNewAccount')}</span>
           </button>
         </div>
       </div>
@@ -163,20 +172,20 @@ export const Accounting = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="بحث برقم الحساب أو اسمه..."
+              placeholder={t('searchPlaceholder')}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
             />
           </div>
-          {loading && <span className="text-sm text-slate-500">جاري التحميل…</span>}
+          {loading && <span className="text-sm text-slate-500">{t('loading')}</span>}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-6 py-4 w-1/4">رقم الحساب</th>
-                <th className="px-6 py-4 w-1/3">اسم الحساب</th>
-                <th className="px-6 py-4 w-1/4">النوع / التصنيف</th>
-                <th className="px-6 py-4 w-1/4 text-left">الرصيد</th>
+                <th className="px-6 py-4 w-1/4">{t('colAccountNo')}</th>
+                <th className="px-6 py-4 w-1/3">{t('colAccountName')}</th>
+                <th className="px-6 py-4 w-1/4">{t('colTypeClassification')}</th>
+                <th className="px-6 py-4 w-1/4 text-left">{t('colBalance')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -212,14 +221,14 @@ export const Accounting = () => {
               {!loading && accounts.length === 0 && !err && (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
-                    لا تتوفر بيانات مالية بعد — تأكد من الاتصال بالخادم ووجود صناديق أو سندات.
+                    {t('noFinancialDataYet')}
                   </td>
                 </tr>
               )}
               {searchTerm && filteredAccounts.length === 0 && accounts.length > 0 && (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
-                    لا توجد نتائج مطابقة لبحثك.
+                    {t('noMatchingResults')}
                   </td>
                 </tr>
               )}

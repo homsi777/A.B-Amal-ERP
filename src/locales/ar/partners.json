@@ -1,0 +1,22 @@
+{
+  "partnerType.customer": "عميل",
+  "partnerType.supplier": "مورد",
+  "partnerType.strategicPartner": "شريك استراتيجي",
+  "samplePartner1.name": "مؤسسة الرواد التجارية",
+  "samplePartner1.tag": "VIP",
+  "samplePartner2.name": "مصنع الأقمشة الذهبية",
+  "samplePartner2.tag": "مورد معتمد",
+  "samplePartner3.name": "شركة الشحن السريع",
+  "samplePartner3.tag": "لوجستيات",
+  "pageTitle": "إدارة الشركاء (Business Partners)",
+  "pageSubtitle": "نظام موحد لإدارة بيانات العملاء، الموردين، وجهات الاتصال كـ SAP & Odoo",
+  "createNewPartner": "إنشاء شريك جديد",
+  "totalPartners": "إجمالي الشركاء",
+  "activeCustomers": "عملاء نشطون",
+  "approvedSuppliers": "موردين معتمدين",
+  "searchPlaceholder": "بحث بجهات الاتصال، العملاء، الموردين...",
+  "filterByTypeTags": "تصفية (النوع / الأوسمة)",
+  "outstandingBalance": "الرصيد المفتوح:",
+  "owedByThem": "(مطلوب)",
+  "owedToThem": "(لكم)"
+}

@@ -1,0 +1,22 @@
+{
+  "partnerType.customer": "Müşteri",
+  "partnerType.supplier": "Tedarikçi",
+  "partnerType.strategicPartner": "Stratejik Ortak",
+  "samplePartner1.name": "Al-Rowad Ticaret Kurumu",
+  "samplePartner1.tag": "VIP",
+  "samplePartner2.name": "Altın Kumaş Fabrikası",
+  "samplePartner2.tag": "Onaylı Tedarikçi",
+  "samplePartner3.name": "Hızlı Nakliye Şirketi",
+  "samplePartner3.tag": "Lojistik",
+  "pageTitle": "İş Ortakları Yönetimi (Business Partners)",
+  "pageSubtitle": "Müşteri, tedarikçi ve kişi verilerini SAP & Odoo gibi tek bir sistemde yönetin",
+  "createNewPartner": "Yeni Ortak Oluştur",
+  "totalPartners": "Toplam Ortak",
+  "activeCustomers": "Aktif Müşteriler",
+  "approvedSuppliers": "Onaylı Tedarikçiler",
+  "searchPlaceholder": "Kişi, müşteri veya tedarikçiye göre ara...",
+  "filterByTypeTags": "Filtrele (Tür / Etiketler)",
+  "outstandingBalance": "Açık Bakiye:",
+  "owedByThem": "(Borçlu)",
+  "owedToThem": "(Alacaklı)"
+}
