@@ -214,8 +214,130 @@ export async function reportSalesByItem(
     filters.push(`(fi.internal_code ILIKE $${p++} OR fv.variant_code ILIKE $${p++})`);
     params.push(`%${q.designCode.trim()}%`, `%${q.designCode.trim()}%`);
   }
+  if (q.search?.trim()) {
+    filters.push(`(fi.internal_code ILIKE $${p++} OR fi.name ILIKE $${p++})`);
+    params.push(`%${q.search.trim()}%`, `%${q.search.trim()}%`);
+  }
+
+  // When a specific material is targeted (by id, code, design or free-text search),
+  // switch from the material-level aggregate view to a full movement/detail view:
+  // one row per sale line, showing who bought it and who returned it, with dates.
+  const materialFilterActive =
+    isUuidLike(q.fabricItemId) ||
+    isUuidLike(q.itemId) ||
+    Boolean(q.materialCode?.trim()) ||
+    Boolean(q.designCode?.trim()) ||
+    Boolean(q.search?.trim());
 
   const where = filters.join(' AND ');
+
+  if (materialFilterActive) {
+    const detailBaseSql = `
+      WITH return_agg AS (
+        SELECT ril.original_sales_invoice_line_id AS line_id,
+               SUM(CASE WHEN ril.unit = 'yard' THEN ril.quantity * 0.9144 ELSE ril.quantity END)::numeric AS returned_meters,
+               STRING_AGG(DISTINCT ri.return_no, ', ' ORDER BY ri.return_no) AS return_nos,
+               STRING_AGG(DISTINCT ri.return_date::text, ', ' ORDER BY ri.return_date::text) AS return_dates
+        FROM return_invoice_lines ril
+        INNER JOIN return_invoices ri ON ri.id = ril.return_invoice_id AND ri.company_id = ril.company_id
+        WHERE ril.company_id = $1
+          AND ri.return_type = 'SALES_RETURN'
+          AND ri.status = 'CONFIRMED'
+          AND ril.original_sales_invoice_line_id IS NOT NULL
+        GROUP BY ril.original_sales_invoice_line_id
+      ),
+      detail_lines AS (
+        SELECT
+          si.invoice_no,
+          si.invoice_date::text AS sale_date,
+          si.invoice_date AS sort_date,
+          sil.line_no AS sort_line,
+          c.name AS customer_name,
+          COALESCE(NULLIF(fi.name, ''), 'بدون خامة') AS material_name,
+          COALESCE(fi.internal_code, '') AS material_code,
+          (CASE WHEN sil.unit = 'yard' THEN sil.quantity * 0.9144 ELSE sil.quantity END)::numeric AS quantity_meters_num,
+          ${SQL_NET_LINE_REVENUE_USD} AS net_sales_usd,
+          COALESCE(ra.returned_meters, 0)::numeric AS returned_meters_num,
+          ra.return_dates,
+          ra.return_nos
+        FROM sales_invoice_lines sil
+        INNER JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+        INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
+        LEFT JOIN fabric_rolls fr ON fr.id = sil.fabric_roll_id AND fr.company_id = sil.company_id
+        LEFT JOIN fabric_items fi ON fi.id = COALESCE(sil.fabric_item_id, fr.item_id) AND fi.company_id = sil.company_id
+        LEFT JOIN fabric_item_variants fv ON fv.id = sil.variant_id AND fv.company_id = sil.company_id
+        LEFT JOIN return_agg ra ON ra.line_id = sil.id
+        WHERE ${where}
+      )
+    `;
+
+    const cnt = await pool.query<{ c: string }>(`${detailBaseSql} SELECT COUNT(*)::int AS c FROM detail_lines`, params);
+    const data = await pool.query(
+      `${detailBaseSql}
+       SELECT
+         invoice_no,
+         sale_date,
+         customer_name,
+         material_name,
+         material_code,
+         ROUND(quantity_meters_num, 2)::text AS quantity_meters,
+         ROUND(net_sales_usd, 2)::text AS net_sales_amount,
+         ROUND(returned_meters_num, 2)::text AS returned_meters,
+         COALESCE(return_dates, '—') AS return_date,
+         COALESCE(return_nos, '—') AS return_no,
+         ROUND(quantity_meters_num - returned_meters_num, 2)::text AS net_meters,
+         CASE
+           WHEN returned_meters_num <= 0.0001 THEN 'مباع'
+           WHEN returned_meters_num >= quantity_meters_num - 0.0001 THEN 'مرتجع كلياً'
+           ELSE 'مرتجع جزئياً'
+         END AS line_status
+       FROM detail_lines
+       ORDER BY sort_date DESC, sort_line DESC
+       LIMIT $${p++} OFFSET $${p++}`,
+      [...params, pageSize, offset],
+    );
+    const totals = await pool.query(
+      `${detailBaseSql}
+       SELECT
+         ROUND(COALESCE(SUM(quantity_meters_num), 0), 2)::text AS quantity_meters,
+         ROUND(COALESCE(SUM(net_sales_usd), 0), 2)::text AS net_sales_amount,
+         ROUND(COALESCE(SUM(returned_meters_num), 0), 2)::text AS returned_meters,
+         ROUND(COALESCE(SUM(quantity_meters_num - returned_meters_num), 0), 2)::text AS net_meters
+       FROM detail_lines`,
+      params,
+    );
+
+    return buildReportPayload({
+      key: 'sa_item',
+      title: 'حركة الصنف — تفصيلي',
+      subtitle: 'كل سطور البيع لهذه الخامة مع المشتري والمرتجع إن وجد — USD',
+      generatedAt: nowIso(),
+      filtersApplied: { ...q, documentStatus: statusFilter, includeReturns },
+      columns: [
+        dateCol('sale_date', 'تاريخ البيع'),
+        textCol('invoice_no', 'رقم الفاتورة'),
+        textCol('customer_name', 'العميل'),
+        textCol('material_name', 'الخامة'),
+        textCol('material_code', 'كود الخامة'),
+        moneyCol('quantity_meters', 'الأمتار المباعة'),
+        moneyCol('net_sales_amount', 'قيمة البيع'),
+        moneyCol('returned_meters', 'الأمتار المرتجعة'),
+        dateCol('return_date', 'تاريخ الإرجاع'),
+        textCol('return_no', 'رقم فاتورة المرتجع'),
+        moneyCol('net_meters', 'صافي الأمتار'),
+        textCol('line_status', 'حالة السطر'),
+      ],
+      rows: data.rows as Record<string, unknown>[],
+      totals: totals.rows[0] ?? {},
+      meta: {
+        page,
+        pageSize,
+        total: parseInt(cnt.rows[0]?.c ?? '0', 10),
+        dataCompleteness: data.rows.length ? 'FULL' : 'EMPTY_REASON',
+        note: 'حركة تفصيلية لسطور البيع المطابقة للصنف المحدد، مع تاريخ وفاتورة الإرجاع إن وُجد.',
+      },
+    });
+  }
   const returnCte = includeReturns
     ? `
     return_by_line AS (

@@ -608,11 +608,13 @@ export const ReportsCenter = () => {
               </select>
             </div>
             <div className={`space-y-0.5 ${selectedCard?.id === 'inventory_rolls' ? 'xl:col-span-2' : 'xl:col-span-4'}`}>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('filters.searchText')}</label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {selectedCard?.id === 'sa_item' ? t('filters.searchMaterialLabel') : t('filters.searchText')}
+              </label>
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={t('filters.searchPlaceholder')}
+                placeholder={selectedCard?.id === 'sa_item' ? t('filters.searchMaterialPlaceholder') : t('filters.searchPlaceholder')}
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               />
              </div>
