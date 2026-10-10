@@ -89,6 +89,7 @@ export interface Supplier {
   id: string;
   name: string;
   phone: string;
+  address?: string;
   company: string;
   balance: number;
 }
@@ -100,6 +101,10 @@ export interface Invoice {
   partyId: string; // customerId or supplierId
   /** اسم العميل أو المورد من استجابة الخادم (JOIN) عند عرض فاتورة محفوظة */
   partyDisplayName?: string;
+  /** رقم هاتف العميل أو المورد من استجابة الخادم (JOIN) — لا يعتمد على تحميل قائمة العملاء/الموردين بالمتجر */
+  partyPhone?: string;
+  /** عنوان العميل أو المورد من استجابة الخادم (JOIN) */
+  partyAddress?: string;
   invoiceNumber?: string;
   currency?: string;
   exchangeRateToUsd?: number;

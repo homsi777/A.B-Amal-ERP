@@ -797,7 +797,7 @@ export async function getSalesInvoiceById(
   id: string,
 ): Promise<{ header: Record<string, unknown>; lines: Record<string, unknown>[] } | null> {
   const h = await db.query(
-    `SELECT si.*, c.name AS customer_name
+    `SELECT si.*, c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address
      FROM sales_invoices si
      INNER JOIN customers c ON c.id = si.customer_id AND c.company_id = si.company_id
      WHERE si.id=$1 AND si.company_id=$2`,

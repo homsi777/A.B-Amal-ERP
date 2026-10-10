@@ -209,12 +209,16 @@ export function mapSalesInvoiceDetailToInvoice(data: {
 }): Invoice {
   const h = data.header;
   const cn = h.customer_name != null ? String(h.customer_name).trim() : '';
+  const cphone = h.customer_phone != null ? String(h.customer_phone).trim() : '';
+  const caddr = h.customer_address != null ? String(h.customer_address).trim() : '';
   return {
     id: String(h.id),
     date: isoDate(h.invoice_date),
     type: 'sale',
     partyId: String(h.customer_id),
     partyDisplayName: cn || undefined,
+    partyPhone: cphone || undefined,
+    partyAddress: caddr || undefined,
     invoiceNumber: displayStoredInvoiceNo(h.invoice_no),
     currency: String(h.currency_code ?? 'USD'),
     exchangeRateToUsd: optionalNumFromDb(h.exchange_rate_to_usd),
@@ -245,12 +249,16 @@ export function mapPurchaseInvoiceDetailToInvoice(data: {
 }): Invoice {
   const h = data.header;
   const sn = h.supplier_name != null ? String(h.supplier_name).trim() : '';
+  const sphone = h.supplier_phone != null ? String(h.supplier_phone).trim() : '';
+  const saddr = h.supplier_address != null ? String(h.supplier_address).trim() : '';
   return {
     id: String(h.id),
     date: isoDate(h.invoice_date),
     type: 'purchase',
     partyId: String(h.supplier_id),
     partyDisplayName: sn || undefined,
+    partyPhone: sphone || undefined,
+    partyAddress: saddr || undefined,
     invoiceNumber: displayStoredInvoiceNo(h.invoice_no),
     currency: String(h.currency_code ?? 'USD'),
     exchangeRateToUsd: optionalNumFromDb(h.exchange_rate_to_usd),

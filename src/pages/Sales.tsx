@@ -22,6 +22,8 @@ import { useTranslation } from 'react-i18next';
 
 type DocFilter = '' | 'DRAFT' | 'CONFIRMED' | 'VOIDED';
 
+let lastSalesSearchTerm = '';
+
 export const Sales = () => {
   const { t } = useTranslation('invoices');
   const { showToast } = useToast();
@@ -29,7 +31,7 @@ export const Sales = () => {
   const [salesInvoices, setSalesInvoices] = useState<ListedSaleInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(lastSalesSearchTerm);
   const [documentStatus, setDocumentStatus] = useState<DocFilter>('');
   const [cashboxOptions, setCashboxOptions] = useState<{ id: string; name: string; code: string }[]>([]);
   const [confirmCashboxId, setConfirmCashboxId] = useState('');
@@ -222,7 +224,7 @@ export const Sales = () => {
               type="text"
               placeholder={t('list.searchSalesPlaceholder')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); lastSalesSearchTerm = e.target.value; }}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
             />
           </div>

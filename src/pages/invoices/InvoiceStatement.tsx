@@ -490,7 +490,8 @@ export const InvoiceStatement = () => {
     return renderInvoiceStatementA4Html({
       invoice,
       partyName,
-      partyPhone: party?.phone,
+      partyPhone: invoice.partyPhone || party?.phone,
+      partyAddress: invoice.partyAddress || party?.address,
       hideFinancialColumns,
       title: AR_INVOICE_STATEMENT.printTitle,
       subtitle: AR_INVOICE_STATEMENT.printSubtitle,
@@ -515,7 +516,8 @@ export const InvoiceStatement = () => {
         const html = renderInvoiceStatementA4Html({
           invoice,
           partyName,
-          partyPhone: party?.phone,
+          partyPhone: invoice.partyPhone || party?.phone,
+          partyAddress: invoice.partyAddress || party?.address,
           hideFinancialColumns,
           title: AR_INVOICE_STATEMENT.printTitle,
           subtitle: AR_INVOICE_STATEMENT.printSubtitle,

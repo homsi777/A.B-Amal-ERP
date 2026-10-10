@@ -135,6 +135,7 @@ export function renderInvoiceStatementA4Html(opts: {
   invoice: Invoice;
   partyName: string;
   partyPhone?: string;
+  partyAddress?: string;
   hideFinancialColumns?: boolean;
   title?: string;
   subtitle?: string;
@@ -158,6 +159,7 @@ export function renderInvoiceStatementA4Html(opts: {
   const invoiceDate = formatInvoiceDate(invoice.date);
   const partyName = normalizeText(opts.partyName, '—');
   const partyPhone = normalizeText(opts.partyPhone, '—');
+  const partyAddressRaw = normalizeText(opts.partyAddress, '');
   const warehouse = normalizeText(invoice.warehouse, '—');
   const hideFinancialColumns = Boolean(opts.hideFinancialColumns);
 
@@ -319,7 +321,7 @@ export function renderInvoiceStatementA4Html(opts: {
   const taxAmount = Math.max(0, invoice.taxTotal ?? 0);
   const invoiceFinalTotal = invoice.totalAmount;
 
-  const shippingAddress = warehouse !== '—' ? `${partyName} - ${warehouse}` : partyName;
+  const shippingAddress = partyAddressRaw || (warehouse !== '—' ? `${partyName} - ${warehouse}` : partyName);
 
   const metaRowsHtml = `
     <div class="meta-row">

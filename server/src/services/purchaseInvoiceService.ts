@@ -480,7 +480,7 @@ export async function getPurchaseInvoiceById(
   id: string,
 ): Promise<{ header: Record<string, unknown>; lines: Record<string, unknown>[] } | null> {
   const h = await db.query(
-    `SELECT pi.*, s.name AS supplier_name
+    `SELECT pi.*, s.name AS supplier_name, s.phone AS supplier_phone, s.address AS supplier_address
      FROM purchase_invoices pi
      INNER JOIN suppliers s ON s.id = pi.supplier_id AND s.company_id = pi.company_id
      WHERE pi.id=$1 AND pi.company_id=$2`,
