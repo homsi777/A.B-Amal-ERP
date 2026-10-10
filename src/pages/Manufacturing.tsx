@@ -1,23 +1,31 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Filter, Plus, Factory, Settings, Calendar, ClipboardList } from 'lucide-react';
 
 export const Manufacturing = () => {
+  const { t } = useTranslation('manufacturing');
   const [orders] = useState([
-    { id: 'MO/0001', product: 'طقم أريكة فاخر', quantity: 10, uom: 'وحدة', date: '2023-11-01', status: 'مؤكد', progress: 40 },
-    { id: 'MO/0002', product: 'مكتب خشبي كلاسيكي', quantity: 5, uom: 'وحدة', date: '2023-11-02', status: 'في الانتظار', progress: 0 },
-    { id: 'MO/0003', product: 'كرسي مكتب مريح', quantity: 50, uom: 'وحدة', date: '2023-10-25', status: 'مكتمل', progress: 100 },
+    { id: 'MO/0001', product: t('sampleOrder1.product'), quantity: 10, uom: t('unit'), date: '2023-11-01', status: 'CONFIRMED' as const, progress: 40 },
+    { id: 'MO/0002', product: t('sampleOrder2.product'), quantity: 5, uom: t('unit'), date: '2023-11-02', status: 'PENDING' as const, progress: 0 },
+    { id: 'MO/0003', product: t('sampleOrder3.product'), quantity: 50, uom: t('unit'), date: '2023-10-25', status: 'COMPLETED' as const, progress: 100 },
   ]);
+
+  const statusLabel = (status: 'CONFIRMED' | 'PENDING' | 'COMPLETED') => {
+    if (status === 'CONFIRMED') return t('status.confirmed');
+    if (status === 'COMPLETED') return t('status.completed');
+    return t('status.pending');
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">نظام التصنيع والإنتاج</h2>
-          <p className="text-slate-500 mt-1">إدارة أوامر التصنيع، مراكز العمل، وقوائم المواد (BoM) على طريقة Odoo ERP</p>
+          <h2 className="text-2xl font-bold text-slate-900">{t('pageTitle')}</h2>
+          <p className="text-slate-500 mt-1">{t('pageSubtitle')}</p>
         </div>
         <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium">
           <Plus className="w-4 h-4" />
-          <span>أمر تصنيع جديد</span>
+          <span>{t('newManufacturingOrder')}</span>
         </button>
       </div>
 
@@ -28,7 +36,7 @@ export const Manufacturing = () => {
              <Factory className="w-6 h-6" />
            </div>
            <div>
-             <p className="text-sm text-slate-500">أوامر التصنيع</p>
+             <p className="text-sm text-slate-500">{t('manufacturingOrders')}</p>
              <p className="text-2xl font-bold text-slate-900">124</p>
            </div>
         </div>
@@ -37,7 +45,7 @@ export const Manufacturing = () => {
              <ClipboardList className="w-6 h-6" />
            </div>
            <div>
-             <p className="text-sm text-slate-500">قوائم المواد (BOM)</p>
+             <p className="text-sm text-slate-500">{t('billOfMaterials')}</p>
              <p className="text-2xl font-bold text-slate-900">45</p>
            </div>
         </div>
@@ -46,7 +54,7 @@ export const Manufacturing = () => {
              <Settings className="w-6 h-6" />
            </div>
            <div>
-             <p className="text-sm text-slate-500">مراكز العمل</p>
+             <p className="text-sm text-slate-500">{t('workCenters')}</p>
              <p className="text-2xl font-bold text-slate-900">8</p>
            </div>
         </div>
@@ -55,7 +63,7 @@ export const Manufacturing = () => {
              <Calendar className="w-6 h-6" />
            </div>
            <div>
-             <p className="text-sm text-slate-500">عمليات مجدولة</p>
+             <p className="text-sm text-slate-500">{t('scheduledOperations')}</p>
              <p className="text-2xl font-bold text-slate-900">12</p>
            </div>
         </div>
@@ -65,16 +73,16 @@ export const Manufacturing = () => {
         <div className="p-4 border-b border-slate-200 flex flex-wrap gap-4 items-center justify-between bg-slate-50">
           <div className="relative flex-1 max-w-md">
             <Search className="w-5 h-5 text-slate-400 absolute right-3 top-2.5" />
-            <input 
-              type="text" 
-              placeholder="بحث في أوامر التصنيع..." 
+            <input
+              type="text"
+              placeholder={t('searchPlaceholder')}
               className="w-full pr-10 pl-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
             />
           </div>
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition shadow-sm font-medium">
               <Filter className="w-4 h-4" />
-              <span>تصفية والتجميع حسب</span>
+              <span>{t('filterAndGroupBy')}</span>
             </button>
           </div>
         </div>
@@ -82,13 +90,13 @@ export const Manufacturing = () => {
           <table className="w-full text-right text-sm">
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
-                <th className="px-6 py-4">المرجع</th>
-                <th className="px-6 py-4">المنتج</th>
-                <th className="px-6 py-4">الكمية للإنتاج</th>
-                <th className="px-6 py-4">وحدة القياس</th>
-                <th className="px-6 py-4">الموعد المجدول</th>
-                <th className="px-6 py-4">التقدم</th>
-                <th className="px-6 py-4">الحالة</th>
+                <th className="px-6 py-4">{t('colReference')}</th>
+                <th className="px-6 py-4">{t('colProduct')}</th>
+                <th className="px-6 py-4">{t('colQuantityToProduce')}</th>
+                <th className="px-6 py-4">{t('colUnitOfMeasure')}</th>
+                <th className="px-6 py-4">{t('colScheduledDate')}</th>
+                <th className="px-6 py-4">{t('colProgress')}</th>
+                <th className="px-6 py-4">{t('colStatus')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -108,10 +116,10 @@ export const Manufacturing = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                     <span className={`px-2 py-1 rounded text-xs font-bold 
-                        ${order.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-800' : 
-                          order.status === 'مؤكد' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'}`}>
-                        {order.status}
+                     <span className={`px-2 py-1 rounded text-xs font-bold
+                        ${order.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
+                          order.status === 'CONFIRMED' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'}`}>
+                        {statusLabel(order.status)}
                      </span>
                   </td>
                 </tr>

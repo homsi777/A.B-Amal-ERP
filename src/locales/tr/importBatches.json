@@ -1,0 +1,59 @@
+{
+  "status": {
+    "preview": "Önizleme",
+    "validated": "Doğrulandı",
+    "confirmed": "Onaylandı",
+    "failed": "Başarısız",
+    "cancelled": "İptal Edildi",
+    "previewed": "Teslim Alım Beklemede",
+    "confirming": "Onaylanıyor",
+    "partiallyConfirmed": "Kısmen Onaylandı"
+  },
+  "errors": {
+    "loadFailed": "İçe aktarma geçmişi yüklenemedi"
+  },
+  "toasts": {
+    "cancelConfirm": "Partiyi iptal etmek için tekrar tıklayın",
+    "cancelSuccess": "Parti iptal edildi",
+    "cancelFailed": "İptal başarısız oldu"
+  },
+  "page": {
+    "title": "Excel İçe Aktarma Geçmişi",
+    "subtitle": "{{count}} kayıtlı içe aktarma partisi",
+    "refresh": "Yenile",
+    "newImport": "Yeni İçe Aktarma"
+  },
+  "table": {
+    "file": "Dosya",
+    "supplier": "Tedarikçi",
+    "warehouse": "Depo",
+    "invoiceNo": "Fatura No",
+    "invoiceDate": "Fatura Tarihi",
+    "status": "Durum",
+    "rows": "Satırlar",
+    "valid": "Geçerli",
+    "warning": "Uyarı",
+    "error": "Hata",
+    "createdRolls": "Oluşturulan Toplar",
+    "meters": "Metre",
+    "uploadDate": "Yükleme Tarihi",
+    "confirmDate": "Onay Tarihi",
+    "actions": "İşlemler",
+    "sheet": "Sayfa: {{name}}",
+    "loading": "Yükleniyor...",
+    "empty": "Henüz içe aktarma yok",
+    "startImport": "İçe Aktarmaya Başla"
+  },
+  "actions": {
+    "viewInvoice": "Satın Alma Faturasını Görüntüle",
+    "viewRolls": "İçe Aktarılan Topları Görüntüle",
+    "printLabels": "Parti Etiketlerini Yazdır",
+    "continueReview": "İncelemeye Devam Et",
+    "cancelBatch": "Partiyi İptal Et"
+  },
+  "pagination": {
+    "total": "Toplam: {{count}} parti",
+    "prev": "Önceki",
+    "next": "Sonraki"
+  }
+}

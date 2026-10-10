@@ -84,5 +84,6 @@
   "receive.generateBarcode": "توليد",
   "receive.lengthChangedLabel": "الطول تغيّر",
   "receive.notesLabel": "ملاحظات الاستلام",
-  "receive.submit": "تسجيل الاستلام"
+  "receive.submit": "تسجيل الاستلام",
+  "meterAbbr": "م"
 }

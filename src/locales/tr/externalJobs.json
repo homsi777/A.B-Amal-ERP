@@ -84,5 +84,6 @@
   "receive.generateBarcode": "Oluştur",
   "receive.lengthChangedLabel": "Uzunluk değişti",
   "receive.notesLabel": "Teslim Notları",
-  "receive.submit": "Teslimi Kaydet"
+  "receive.submit": "Teslimi Kaydet",
+  "meterAbbr": "m"
 }

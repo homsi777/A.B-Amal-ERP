@@ -309,7 +309,7 @@ const ReceiptLineRow = ({
           <p className="font-mono text-xs text-slate-500">{line.current_barcode}</p>
           <p className="font-bold text-slate-800">{line.item_name}</p>
           <p className="text-xs text-slate-500">
-            {t('receive.sentAs')}: {line.sent_color_name_ar || '—'} · {line.sent_length_m} م
+            {t('receive.sentAs')}: {line.sent_color_name_ar || '—'} · {line.sent_length_m} {t('meterAbbr')}
           </p>
         </div>
       </div>

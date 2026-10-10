@@ -1,0 +1,59 @@
+{
+  "status": {
+    "preview": "معاينة",
+    "validated": "مُتحقَّق",
+    "confirmed": "مؤكَّد",
+    "failed": "فشل",
+    "cancelled": "ملغى",
+    "previewed": "معلّقة بانتظار الاستلام",
+    "confirming": "جاري التأكيد",
+    "partiallyConfirmed": "مؤكدة جزئياً"
+  },
+  "errors": {
+    "loadFailed": "تعذر تحميل سجل الاستيرادات"
+  },
+  "toasts": {
+    "cancelConfirm": "اضغط مرة أخرى لإلغاء الدفعة",
+    "cancelSuccess": "تم إلغاء الدفعة",
+    "cancelFailed": "فشل الإلغاء"
+  },
+  "page": {
+    "title": "سجل استيرادات Excel",
+    "subtitle": "{{count}} دفعة استيراد مسجلة",
+    "refresh": "تحديث",
+    "newImport": "استيراد جديد"
+  },
+  "table": {
+    "file": "الملف",
+    "supplier": "المورد",
+    "warehouse": "المستودع",
+    "invoiceNo": "رقم الفاتورة",
+    "invoiceDate": "تاريخ الفاتورة",
+    "status": "الحالة",
+    "rows": "صفوف",
+    "valid": "صالح",
+    "warning": "تحذير",
+    "error": "خطأ",
+    "createdRolls": "أتواب مُنشأة",
+    "meters": "أمتار",
+    "uploadDate": "تاريخ الرفع",
+    "confirmDate": "تاريخ التأكيد",
+    "actions": "إجراءات",
+    "sheet": "الشيت: {{name}}",
+    "loading": "جاري التحميل...",
+    "empty": "لا توجد استيرادات بعد",
+    "startImport": "بدء الاستيراد"
+  },
+  "actions": {
+    "viewInvoice": "عرض فاتورة الشراء",
+    "viewRolls": "عرض الأتواب المستوردة",
+    "printLabels": "طباعة لصاقات الدفعة",
+    "continueReview": "استمرار المراجعة",
+    "cancelBatch": "إلغاء الدفعة"
+  },
+  "pagination": {
+    "total": "إجمالي: {{count}} دفعة",
+    "prev": "السابق",
+    "next": "التالي"
+  }
+}

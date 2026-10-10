@@ -334,7 +334,7 @@ const CreateExternalJobModal = ({
                     <span className="font-mono text-xs text-slate-500">{r.barcode}</span>
                     <span className="font-medium text-slate-800">{r.item_name}</span>
                     <span className="text-xs text-slate-500">{r.color_name_ar}</span>
-                    <span className="text-xs text-slate-500">{r.length_m} م</span>
+                    <span className="text-xs text-slate-500">{r.length_m} {t('meterAbbr')}</span>
                   </button>
                 ))}
               </div>
@@ -346,7 +346,7 @@ const CreateExternalJobModal = ({
                   <div key={r.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                     <span className="font-mono text-xs text-slate-500">{r.barcode}</span>
                     <span className="font-medium text-slate-800 flex-1">{r.item_name} — {r.color_name_ar}</span>
-                    <span className="text-xs text-slate-500">{r.length_m} م</span>
+                    <span className="text-xs text-slate-500">{r.length_m} {t('meterAbbr')}</span>
                     <button onClick={() => removeRoll(r.id)} className="text-rose-500 hover:text-rose-700">
                       <X className="w-3.5 h-3.5" />
                     </button>
