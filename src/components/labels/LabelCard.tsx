@@ -380,9 +380,9 @@ export const LabelCard: React.FC<LabelCardProps> = ({
             dangerouslySetInnerHTML={{ __html: barcodeSvg }}
             style={{
               width: '100%',
-              maxWidth: '58mm',
+              maxWidth: '38mm',
               margin: '0 auto',
-              height: '8.5mm',
+              height: '12.5mm',
               overflow: 'hidden',
               display: 'flex',
               justifyContent: 'center',
@@ -875,9 +875,9 @@ ${lblBoxCss}
   padding: 0.35mm 0 0.55mm;
 }
 .footer-bc .bc-svg {
-  width: ${compactLabel ? '52mm' : '58mm'};
+  width: ${ultraCompactLabel ? '32mm' : compactLabel ? '34mm' : '38mm'};
   max-width: 100%;
-  height: ${ultraCompactLabel ? '7.5mm' : compactLabel ? '8.5mm' : '10mm'};
+  height: ${ultraCompactLabel ? '10mm' : compactLabel ? '11mm' : '12.5mm'};
   margin: 0 auto;
   padding: 0 1mm;
   display: flex;
@@ -886,9 +886,9 @@ ${lblBoxCss}
   overflow: hidden;
 }
 .footer-bc .bc-svg svg {
-  width: ${compactLabel ? '50mm' : '56mm'} !important;
-  max-width: ${compactLabel ? '50mm' : '56mm'} !important;
-  height: ${ultraCompactLabel ? '7.5mm' : compactLabel ? '8.5mm' : '10mm'} !important;
+  width: ${ultraCompactLabel ? '30mm' : compactLabel ? '32mm' : '36mm'} !important;
+  max-width: ${ultraCompactLabel ? '30mm' : compactLabel ? '32mm' : '36mm'} !important;
+  height: ${ultraCompactLabel ? '10mm' : compactLabel ? '11mm' : '12.5mm'} !important;
   display: block;
 }
 .footer-bc .bc-text {
