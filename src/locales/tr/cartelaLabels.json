@@ -123,6 +123,10 @@
   "colorPanels.scan.auditNoArtCode": "Bu kartelada kayıtlı bir malzeme kodu yok — sayım açılamıyor.",
   "colorPanels.scan.auditColorNotLinked": "\"{{code}}\" koduyla eşleşen gerçek bir stok rengi yok — kartela ve malzeme ekranlarındaki renk kodlarının eşleştiğinden emin olun.",
   "colorPanels.scan.auditColorAmbiguous": "Stokta aynı \"{{code}}\" koduna sahip birden fazla renk var — hangisi kastedildiği netleştirilemedi.",
+  "colorPanels.scan.auditResultMaterialTitle": "Bu malzemenin sayımı (tüm renkler)",
+  "colorPanels.scan.auditResultColorTitle": "Bu malzemenin sayımı — sadece bu renk",
+  "colorPanels.scan.auditResultLine": "Mevcut top sayısı: {{count}} — toplam metre: {{meters}} m",
+  "colorPanels.scan.auditOpenFullList": "Stok ekranında tam listeyi aç / sayım dökümü yazdır",
 
   "colorPanels.swatches.loadFailed": "Renkler yüklenemedi",
   "colorPanels.swatches.colorCodeRequired": "Renk kodu gerekli — örnek C-01",

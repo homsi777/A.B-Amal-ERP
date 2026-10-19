@@ -123,6 +123,10 @@
   "colorPanels.scan.auditNoArtCode": "لا يوجد كود مادة مسجَّل بهذه الكارتيلة — لا يمكن فتح الجرد.",
   "colorPanels.scan.auditColorNotLinked": "لا يوجد لون حقيقي بالمخزون مطابق لكود \"{{code}}\" — تحقق من تطابق أكواد الألوان بين شاشة الكارتيلا وشاشة الأصناف.",
   "colorPanels.scan.auditColorAmbiguous": "يوجد أكثر من لون بالمخزون بنفس الكود \"{{code}}\" — تعذر تحديد اللون المقصود بدقة.",
+  "colorPanels.scan.auditResultMaterialTitle": "جرد هذه الخامة (كل الألوان)",
+  "colorPanels.scan.auditResultColorTitle": "جرد هذه الخامة — هذا اللون فقط",
+  "colorPanels.scan.auditResultLine": "عدد الأتواب المتوفرة: {{count}} — إجمالي الأمتار: {{meters}} م",
+  "colorPanels.scan.auditOpenFullList": "فتح القائمة الكاملة بشاشة المخزون / طباعة كشف جرد",
 
   "colorPanels.swatches.loadFailed": "تعذر تحميل الألوان",
   "colorPanels.swatches.colorCodeRequired": "كود اللون مطلوب — مثال C-01",
