@@ -112,6 +112,7 @@
   "main.searchPlaceholder": "Barkod, kumaş adı, tedarikçi kodu, renk adıyla arayın...",
   "main.selectedCodePrefix": "Seçili kod: ",
   "main.changeCodeButton": "Kodu Değiştir",
+  "main.colorAuditActive": "Sayım: sadece bu renk",
   "main.warehouseLabel": "Depo",
   "main.allWarehousesOption": "Tüm Depolar",
   "main.sortLabel": "Sırala:",

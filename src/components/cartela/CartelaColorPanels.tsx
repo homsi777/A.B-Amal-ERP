@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Layers, Loader2, Palette, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ClipboardList, Layers, Loader2, Palette, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
 import {
   cartelaColorDisplayName,
   createCartelaColor,
@@ -11,6 +12,7 @@ import {
   type CartelaColorLookupResult,
   type CartelaColorSwatchDto,
 } from '../../lib/api/cartelaColorApi';
+import { listFabricColors } from '../../lib/api/fabricColorsApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { loadCartelaColorPrintSettings } from '../../lib/cartela/cartelaColorPrintSettings';
 import {
@@ -44,11 +46,13 @@ type Props = {
 export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintColor }) => {
   const { t } = useTranslation('cartelaLabels');
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const scanRef = useRef<HTMLInputElement>(null);
   const [scan, setScan] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CartelaColorLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [auditBusy, setAuditBusy] = useState(false);
 
   const runLookup = useCallback(async (raw?: string) => {
     const value = (raw ?? scan).trim();
@@ -106,6 +110,45 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       type: printResult.ok ? 'success' : 'error',
       message: printResult.ok ? t('colorPanels.colorStickerPrintSent') : printResult.error || t('toast.printFailed'),
     });
+  };
+
+  const goAuditMaterial = (cartela: CartelaColorLookupResult) => {
+    const code = cartela.art_code.trim();
+    if (!code) {
+      showToast({ type: 'error', message: t('colorPanels.scan.auditNoArtCode') });
+      return;
+    }
+    navigate(`/inventory?search=${encodeURIComponent(code)}`);
+  };
+
+  const goAuditColor = async (cartela: CartelaColorLookupResult, color: CartelaColorSwatchDto) => {
+    const code = cartela.art_code.trim();
+    const colorCode = color.color_code.trim();
+    if (!code || !colorCode) {
+      showToast({ type: 'error', message: t('colorPanels.scan.auditNoArtCode') });
+      return;
+    }
+    setAuditBusy(true);
+    try {
+      const matched = await listFabricColors({ colorCode, pageSize: 20 });
+      const exact = matched.data.filter(
+        (c) => c.color_code.trim().toLocaleLowerCase() === colorCode.toLocaleLowerCase(),
+      );
+      if (exact.length !== 1) {
+        showToast({
+          type: 'error',
+          message: exact.length === 0
+            ? t('colorPanels.scan.auditColorNotLinked', { code: colorCode })
+            : t('colorPanels.scan.auditColorAmbiguous', { code: colorCode }),
+        });
+        return;
+      }
+      navigate(`/inventory?search=${encodeURIComponent(code)}&colorId=${encodeURIComponent(exact[0].id)}`);
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.printFailed') });
+    } finally {
+      setAuditBusy(false);
+    }
   };
 
   return (
@@ -191,6 +234,25 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
                 >
                   <Printer className="w-3.5 h-3.5" />
                   {t('colorPanels.scan.printColorBarcode')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => goAuditMaterial(result)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50"
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                {t('colorPanels.scan.auditMaterial')}
+              </button>
+              {result.color && (
+                <button
+                  type="button"
+                  onClick={() => void goAuditColor(result, result.color!)}
+                  disabled={auditBusy}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                >
+                  {auditBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardList className="w-3.5 h-3.5" />}
+                  {t('colorPanels.scan.auditColor')}
                 </button>
               )}
             </div>

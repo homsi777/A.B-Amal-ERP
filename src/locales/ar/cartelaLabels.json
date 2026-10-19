@@ -118,6 +118,11 @@
   "colorPanels.scan.colorLabel": "اللون: {{name}} ({{code}})",
   "colorPanels.scan.editCartela": "تعديل الكارتيلة",
   "colorPanels.scan.printColorBarcode": "طباعة باركود اللون",
+  "colorPanels.scan.auditMaterial": "جرد الخامة كاملة",
+  "colorPanels.scan.auditColor": "جرد هذا اللون فقط",
+  "colorPanels.scan.auditNoArtCode": "لا يوجد كود مادة مسجَّل بهذه الكارتيلة — لا يمكن فتح الجرد.",
+  "colorPanels.scan.auditColorNotLinked": "لا يوجد لون حقيقي بالمخزون مطابق لكود \"{{code}}\" — تحقق من تطابق أكواد الألوان بين شاشة الكارتيلا وشاشة الأصناف.",
+  "colorPanels.scan.auditColorAmbiguous": "يوجد أكثر من لون بالمخزون بنفس الكود \"{{code}}\" — تعذر تحديد اللون المقصود بدقة.",
 
   "colorPanels.swatches.loadFailed": "تعذر تحميل الألوان",
   "colorPanels.swatches.colorCodeRequired": "كود اللون مطلوب — مثال C-01",

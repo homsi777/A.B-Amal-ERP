@@ -112,6 +112,7 @@
   "main.searchPlaceholder": "بحث بالباركود، اسم الخامة، كود المورد، اسم اللون...",
   "main.selectedCodePrefix": "الكود المحدد: ",
   "main.changeCodeButton": "تغيير الكود",
+  "main.colorAuditActive": "جرد: هذا اللون فقط",
   "main.warehouseLabel": "المستودع",
   "main.allWarehousesOption": "كل المستودعات",
   "main.sortLabel": "ترتيب:",

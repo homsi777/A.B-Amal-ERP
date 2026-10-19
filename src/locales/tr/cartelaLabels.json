@@ -118,6 +118,11 @@
   "colorPanels.scan.colorLabel": "Renk: {{name}} ({{code}})",
   "colorPanels.scan.editCartela": "Kartelayı Düzenle",
   "colorPanels.scan.printColorBarcode": "Renk Barkodunu Yazdır",
+  "colorPanels.scan.auditMaterial": "Tüm Malzemeyi Say",
+  "colorPanels.scan.auditColor": "Sadece Bu Rengi Say",
+  "colorPanels.scan.auditNoArtCode": "Bu kartelada kayıtlı bir malzeme kodu yok — sayım açılamıyor.",
+  "colorPanels.scan.auditColorNotLinked": "\"{{code}}\" koduyla eşleşen gerçek bir stok rengi yok — kartela ve malzeme ekranlarındaki renk kodlarının eşleştiğinden emin olun.",
+  "colorPanels.scan.auditColorAmbiguous": "Stokta aynı \"{{code}}\" koduna sahip birden fazla renk var — hangisi kastedildiği netleştirilemedi.",
 
   "colorPanels.swatches.loadFailed": "Renkler yüklenemedi",
   "colorPanels.swatches.colorCodeRequired": "Renk kodu gerekli — örnek C-01",

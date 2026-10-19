@@ -5,7 +5,7 @@ import {
   Package, Ruler, Weight, FileSpreadsheet, Trash2,
   ArrowUp, ArrowDown, Barcode, X, Loader2, FileText, Layers, Check,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   listFabricRolls,
   updateFabricRoll,
@@ -746,12 +746,14 @@ export const Inventory = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-   const [search, setSearch] = useState('');
-   const [debouncedSearch, setDebouncedSearch] = useState('');
+   const [searchParams] = useSearchParams();
+   const [search, setSearch] = useState(() => searchParams.get('search') ?? '');
+   const [debouncedSearch, setDebouncedSearch] = useState(() => (searchParams.get('search') ?? '').trim());
+   const [filterColorId, setFilterColorId] = useState(() => searchParams.get('colorId') ?? '');
    const [selectedMaterialCode, setSelectedMaterialCode] = useState('');
    const [materialCodeOptions, setMaterialCodeOptions] = useState<MaterialCodeOption[]>([]);
    const [materialCodePickerOpen, setMaterialCodePickerOpen] = useState(false);
-   const searchInputRef = useRef('');
+   const searchInputRef = useRef(searchParams.get('search') ?? '');
    const rollsRequestIdRef = useRef(0);
    const [inventoryScope, setInventoryScope] = useState<InventoryScope>('available');
    const [filterWarehouseId, setFilterWarehouseId] = useState('');
@@ -822,6 +824,7 @@ export const Inventory = () => {
           const filters: FabricRollListFilters = {
             search: requestedSearch || undefined,
             warehouseId: filterWarehouseId || undefined,
+            colorId: filterColorId || undefined,
             page: currentPage,
             pageSize: PAGE_SIZE,
           };
@@ -892,7 +895,7 @@ export const Inventory = () => {
       } finally {
         if (requestId === rollsRequestIdRef.current) setLoading(false);
       }
-   }, [debouncedSearch, inventoryScope, filterWarehouseId, sortBy, sortDir, materialSort, selectedMaterialCode]);
+   }, [debouncedSearch, inventoryScope, filterWarehouseId, filterColorId, sortBy, sortDir, materialSort, selectedMaterialCode]);
 
   useEffect(() => {
     fetchWarehouses();
@@ -1223,6 +1226,7 @@ return (
                   setLoading(false);
                   setSelectedMaterialCode('');
                   setMaterialCodePickerOpen(false);
+                  setFilterColorId('');
                   setSearch(value);
                 }}
                 onKeyDown={(e) => {
@@ -1244,6 +1248,20 @@ return (
                     setMaterialCodePickerOpen(true);
                   }}
                   className="shrink-0 font-bold text-indigo-600 hover:text-indigo-800"
+                >
+                  {t('main.changeCodeButton')}
+                </button>
+              </div>
+            )}
+            {filterColorId && (
+              <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
+                <span className="truncate text-emerald-700 font-bold">
+                  {t('main.colorAuditActive')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFilterColorId('')}
+                  className="shrink-0 font-bold text-emerald-600 hover:text-emerald-800"
                 >
                   {t('main.changeCodeButton')}
                 </button>
