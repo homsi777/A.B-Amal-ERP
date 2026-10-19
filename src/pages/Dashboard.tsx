@@ -12,6 +12,7 @@ import {
   PlusCircle,
   RefreshCw,
   ScrollText,
+  Search,
   Settings,
   ShoppingCart,
   TrendingUp,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getDashboardSummary, type DashboardSummary } from '../lib/api/reportsApi';
+import { MaterialInquiryModal } from '../components/inventory/MaterialInquiryModal';
 
 const defaultLinkIds = ['create_item', 'inventory', 'warehouses', 'sales', 'purchases', 'bonds_in', 'bonds_out', 'cartela', 'orders'];
 
@@ -65,6 +67,7 @@ export const Dashboard = () => {
   const [selectedLinkIds, setSelectedLinkIds] = useState<string[]>(defaultLinkIds);
   const [tempSelected, setTempSelected] = useState<string[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [inquiryOpen, setInquiryOpen] = useState(false);
 
   const loadSummary = async () => {
     setLoading(true);
@@ -137,16 +140,28 @@ export const Dashboard = () => {
           <h2 className="text-2xl font-black text-slate-950">{t('title')}</h2>
           <p className="mt-1 text-sm text-slate-500">{t('subtitle')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadSummary()}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          {t('refresh')}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setInquiryOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700"
+          >
+            <Search className="h-4 w-4" />
+            {t('button.open', { ns: 'materialInquiry' })}
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadSummary()}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            {t('refresh')}
+          </button>
+        </div>
       </div>
+
+      <MaterialInquiryModal open={inquiryOpen} onClose={() => setInquiryOpen(false)} />
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">

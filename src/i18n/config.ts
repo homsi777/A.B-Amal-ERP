@@ -33,6 +33,7 @@ import arCustomStickerPrinting from '../locales/ar/customStickerPrinting.json';
 import arDepreciation from '../locales/ar/depreciation.json';
 import arBulkPricing from '../locales/ar/bulkPricing.json';
 import arCartelaLabels from '../locales/ar/cartelaLabels.json';
+import arMaterialInquiry from '../locales/ar/materialInquiry.json';
 import arExchangeInvoices from '../locales/ar/exchangeInvoices.json';
 import arInvoiceStatement from '../locales/ar/invoiceStatement.json';
 import arCustomerOrdersPage from '../locales/ar/customerOrdersPage.json';
@@ -91,6 +92,7 @@ import trCustomStickerPrinting from '../locales/tr/customStickerPrinting.json';
 import trDepreciation from '../locales/tr/depreciation.json';
 import trBulkPricing from '../locales/tr/bulkPricing.json';
 import trCartelaLabels from '../locales/tr/cartelaLabels.json';
+import trMaterialInquiry from '../locales/tr/materialInquiry.json';
 import trExchangeInvoices from '../locales/tr/exchangeInvoices.json';
 import trInvoiceStatement from '../locales/tr/invoiceStatement.json';
 import trCustomerOrdersPage from '../locales/tr/customerOrdersPage.json';
@@ -157,6 +159,7 @@ void i18n.use(initReactI18next).init({
       depreciation: arDepreciation,
       bulkPricing: arBulkPricing,
       cartelaLabels: arCartelaLabels,
+      materialInquiry: arMaterialInquiry,
       exchangeInvoices: arExchangeInvoices,
       invoiceStatement: arInvoiceStatement,
       customerOrdersPage: arCustomerOrdersPage,
@@ -217,6 +220,7 @@ void i18n.use(initReactI18next).init({
       depreciation: trDepreciation,
       bulkPricing: trBulkPricing,
       cartelaLabels: trCartelaLabels,
+      materialInquiry: trMaterialInquiry,
       exchangeInvoices: trExchangeInvoices,
       invoiceStatement: trInvoiceStatement,
       customerOrdersPage: trCustomerOrdersPage,
@@ -247,7 +251,7 @@ void i18n.use(initReactI18next).init({
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames', 'labelCard'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames', 'labelCard', 'materialInquiry'],
   interpolation: {
     escapeValue: false,
   },
