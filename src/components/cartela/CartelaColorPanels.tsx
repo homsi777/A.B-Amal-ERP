@@ -124,26 +124,36 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
   const goAuditColor = async (cartela: CartelaColorLookupResult, color: CartelaColorSwatchDto) => {
     const code = cartela.art_code.trim();
     const colorCode = color.color_code.trim();
-    if (!code || !colorCode) {
+    const colorName = color.name_ar.trim();
+    if (!code || (!colorCode && !colorName)) {
       showToast({ type: 'error', message: t('colorPanels.scan.auditNoArtCode') });
       return;
     }
     setAuditBusy(true);
     try {
-      const matched = await listFabricColors({ colorCode, pageSize: 20 });
-      const exact = matched.data.filter(
-        (c) => c.color_code.trim().toLocaleLowerCase() === colorCode.toLocaleLowerCase(),
-      );
-      if (exact.length !== 1) {
+      // كود اللون (color_code) غالباً غير مُستخدَم فعلياً بكتالوج الألوان الحقيقي بهذا النظام —
+      // نحاول المطابقة بالكود أولاً كأدق خيار، ثم نرجع لاسم اللون (name_ar) إن لم نجد تطابقاً.
+      let candidateIds: string[] = [];
+      if (colorCode) {
+        const byCode = await listFabricColors({ colorCode, pageSize: 50 });
+        candidateIds = byCode.data
+          .filter((c) => c.color_code.trim().toLocaleLowerCase() === colorCode.toLocaleLowerCase())
+          .map((c) => c.id);
+      }
+      if (candidateIds.length === 0 && colorName) {
+        const byName = await listFabricColors({ search: colorName, pageSize: 50 });
+        candidateIds = byName.data
+          .filter((c) => c.name_ar.trim().toLocaleLowerCase() === colorName.toLocaleLowerCase())
+          .map((c) => c.id);
+      }
+      if (candidateIds.length === 0) {
         showToast({
           type: 'error',
-          message: exact.length === 0
-            ? t('colorPanels.scan.auditColorNotLinked', { code: colorCode })
-            : t('colorPanels.scan.auditColorAmbiguous', { code: colorCode }),
+          message: t('colorPanels.scan.auditColorNotLinked', { code: colorCode || colorName }),
         });
         return;
       }
-      navigate(`/inventory?search=${encodeURIComponent(code)}&colorId=${encodeURIComponent(exact[0].id)}`);
+      navigate(`/inventory?search=${encodeURIComponent(code)}&colorId=${encodeURIComponent(candidateIds.join(','))}`);
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.printFailed') });
     } finally {

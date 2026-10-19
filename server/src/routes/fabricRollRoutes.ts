@@ -239,7 +239,18 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     if (warehouseId) { conds.push(`fr.warehouse_id = $${p}`);      params.push(warehouseId);       p++; }
     if (locationId)  { conds.push(`fr.location_id = $${p}`);       params.push(locationId);        p++; }
     if (itemId)      { conds.push(`fr.item_id = $${p}`);           params.push(itemId);            p++; }
-    if (colorId)     { conds.push(`fr.color_id = $${p}`);          params.push(colorId);           p++; }
+    if (colorId) {
+      if (colorId.includes(',')) {
+        const ids = colorId.split(',').map((s) => s.trim()).filter(Boolean);
+        conds.push(`fr.color_id = ANY($${p}::uuid[])`);
+        params.push(ids);
+        p++;
+      } else {
+        conds.push(`fr.color_id = $${p}`);
+        params.push(colorId);
+        p++;
+      }
+    }
     if (variantId)   { conds.push(`fr.variant_id = $${p}`);        params.push(variantId);         p++; }
     if (supplierId)  { conds.push(`fr.supplier_id = $${p}`);       params.push(supplierId);        p++; }
     if (batchNo)     { conds.push(`fr.batch_no ILIKE $${p}`);      params.push(`%${batchNo}%`);    p++; }
