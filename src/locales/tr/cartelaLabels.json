@@ -126,7 +126,12 @@
   "colorPanels.scan.auditResultMaterialTitle": "Bu malzemenin sayımı (tüm renkler)",
   "colorPanels.scan.auditResultColorTitle": "Bu malzemenin sayımı — sadece bu renk",
   "colorPanels.scan.auditResultLine": "Mevcut top sayısı: {{count}} — toplam metre: {{meters}} m",
-  "colorPanels.scan.auditOpenFullList": "Stok ekranında tam listeyi aç / sayım dökümü yazdır",
+  "colorPanels.scan.auditPrint": "Sayım Dökümü Yazdır",
+  "colorPanels.scan.auditPrintPopupBlocked": "Tarayıcı yazdırma penceresini engelledi — bu site için açılır pencerelere izin verip tekrar deneyin.",
+  "colorPanels.scan.auditNoColor": "Kayıtlı renk yok",
+  "colorPanels.scan.auditColColor": "Renk",
+  "colorPanels.scan.auditColRolls": "Top Sayısı",
+  "colorPanels.scan.auditColMeters": "Metre",
 
   "colorPanels.swatches.loadFailed": "Renkler yüklenemedi",
   "colorPanels.swatches.colorCodeRequired": "Renk kodu gerekli — örnek C-01",

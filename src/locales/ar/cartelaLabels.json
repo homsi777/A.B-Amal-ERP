@@ -126,7 +126,12 @@
   "colorPanels.scan.auditResultMaterialTitle": "جرد هذه الخامة (كل الألوان)",
   "colorPanels.scan.auditResultColorTitle": "جرد هذه الخامة — هذا اللون فقط",
   "colorPanels.scan.auditResultLine": "عدد الأتواب المتوفرة: {{count}} — إجمالي الأمتار: {{meters}} م",
-  "colorPanels.scan.auditOpenFullList": "فتح القائمة الكاملة بشاشة المخزون / طباعة كشف جرد",
+  "colorPanels.scan.auditPrint": "طباعة كشف جرد",
+  "colorPanels.scan.auditPrintPopupBlocked": "تم حظر نافذة الطباعة من المتصفح — اسمحي بالنوافذ المنبثقة لهذا الموقع وأعيدي المحاولة.",
+  "colorPanels.scan.auditNoColor": "بدون لون مُسجَّل",
+  "colorPanels.scan.auditColColor": "اللون",
+  "colorPanels.scan.auditColRolls": "عدد الأتواب",
+  "colorPanels.scan.auditColMeters": "الأمتار",
 
   "colorPanels.swatches.loadFailed": "تعذر تحميل الألوان",
   "colorPanels.swatches.colorCodeRequired": "كود اللون مطلوب — مثال C-01",

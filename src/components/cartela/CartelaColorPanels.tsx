@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { ClipboardList, Layers, Loader2, Palette, Pencil, Plus, Printer, Search, Trash2 } from 'lucide-react';
 import {
   cartelaColorDisplayName,
@@ -13,12 +12,14 @@ import {
   type CartelaColorSwatchDto,
 } from '../../lib/api/cartelaColorApi';
 import { listFabricColors } from '../../lib/api/fabricColorsApi';
-import { listFabricRolls } from '../../lib/api/fabricRollsApi';
+import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { loadCartelaColorPrintSettings } from '../../lib/cartela/cartelaColorPrintSettings';
 import {
   buildCartelaColorStickerHtml,
 } from '../../lib/printing/renderCartelaColorBarcode';
+import { renderInventoryRollsAuditA4Html } from '../../lib/printing/renderInventoryRollsAuditA4';
+import { openDocumentPrintWindow } from '../../lib/printing/documentPrint';
 import { getPrintAdapter } from '../../lib/printing/printAdapters';
 import { useToast } from '../NonBlockingToast';
 import { CartelaColorBatchPrintModal } from './CartelaColorBatchPrintModal';
@@ -47,7 +48,6 @@ type Props = {
 export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintColor }) => {
   const { t } = useTranslation('cartelaLabels');
   const { showToast } = useToast();
-  const navigate = useNavigate();
   const scanRef = useRef<HTMLInputElement>(null);
   const [scan, setScan] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,9 +56,13 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
   const [auditBusy, setAuditBusy] = useState(false);
   const [auditSummary, setAuditSummary] = useState<{
     scope: 'material' | 'color';
+    label: string;
     rollCount: number;
     totalMeters: number;
-    navUrl: string;
+    byColor: { name: string; rollCount: number; totalMeters: number }[];
+    rolls: FabricRollDto[];
+    scopeLabel: string;
+    searchQuery: string;
   } | null>(null);
 
   const runLookup = useCallback(async (raw?: string) => {
@@ -120,9 +124,22 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
     });
   };
 
-  /** إجمالي أمتار والعدد الفعلي للأتواب المتوفرة المطابقة لنتيجة بحث معيّنة — لعرضها مباشرة بنفس بطاقة النتيجة. */
+  /** إجمالي أمتار الأتواب المتوفرة بقائمة معيّنة — لعرضها مباشرة بنفس بطاقة النتيجة. */
   const sumAvailableRolls = (rows: { length_m?: string | null }[]) =>
     rows.reduce((sum, r) => sum + (Number.parseFloat(r.length_m ?? '0') || 0), 0);
+
+  /** توزيع أتواب الخامة الكاملة على ألوانها — لعرض "كل شيء" بنفس البطاقة دون أي تنقّل. */
+  const groupRollsByColor = (rows: FabricRollDto[]) => {
+    const groups = new Map<string, { name: string; rollCount: number; totalMeters: number }>();
+    for (const roll of rows) {
+      const name = (roll.color_name_ar ?? '').trim() || t('colorPanels.scan.auditNoColor');
+      const current = groups.get(name) ?? { name, rollCount: 0, totalMeters: 0 };
+      current.rollCount += 1;
+      current.totalMeters += Number.parseFloat(roll.length_m ?? '0') || 0;
+      groups.set(name, current);
+    }
+    return [...groups.values()].sort((a, b) => b.totalMeters - a.totalMeters);
+  };
 
   const runAuditMaterial = async (cartela: CartelaColorLookupResult) => {
     const code = cartela.art_code.trim();
@@ -136,9 +153,13 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       const res = await listFabricRolls({ search: code, onlyAvailable: true, pageSize: 500 });
       setAuditSummary({
         scope: 'material',
+        label: code,
         rollCount: res.data.length,
         totalMeters: sumAvailableRolls(res.data),
-        navUrl: `/inventory?search=${encodeURIComponent(code)}`,
+        byColor: groupRollsByColor(res.data),
+        rolls: res.data,
+        scopeLabel: t('colorPanels.scan.auditResultMaterialTitle'),
+        searchQuery: code,
       });
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.printFailed') });
@@ -184,14 +205,33 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       const res = await listFabricRolls({ search: code, colorId: colorIdParam, onlyAvailable: true, pageSize: 500 });
       setAuditSummary({
         scope: 'color',
+        label: colorName || colorCode,
         rollCount: res.data.length,
         totalMeters: sumAvailableRolls(res.data),
-        navUrl: `/inventory?search=${encodeURIComponent(code)}&colorId=${encodeURIComponent(colorIdParam)}`,
+        byColor: [],
+        rolls: res.data,
+        scopeLabel: t('colorPanels.scan.auditResultColorTitle'),
+        searchQuery: code,
       });
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.printFailed') });
     } finally {
       setAuditBusy(false);
+    }
+  };
+
+  const printAuditSummary = () => {
+    if (!auditSummary) return;
+    const html = renderInventoryRollsAuditA4Html({
+      rolls: auditSummary.rolls,
+      searchQuery: auditSummary.searchQuery,
+      scopeLabel: auditSummary.scopeLabel,
+      warehouseLabel: '',
+      printedAt: new Date(),
+    });
+    const ok = openDocumentPrintWindow(html, auditSummary.scopeLabel);
+    if (!ok) {
+      showToast({ type: 'error', message: t('colorPanels.scan.auditPrintPopupBlocked') });
     }
   };
 
@@ -303,25 +343,50 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
             </div>
 
             {auditSummary && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm space-y-1.5">
-                <p className="font-bold text-emerald-800">
-                  {auditSummary.scope === 'material'
-                    ? t('colorPanels.scan.auditResultMaterialTitle')
-                    : t('colorPanels.scan.auditResultColorTitle')}
-                </p>
-                <p className="text-emerald-900">
-                  {t('colorPanels.scan.auditResultLine', {
-                    count: auditSummary.rollCount,
-                    meters: auditSummary.totalMeters.toFixed(2),
-                  })}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate(auditSummary.navUrl)}
-                  className="text-xs font-bold text-emerald-700 underline hover:text-emerald-900"
-                >
-                  {t('colorPanels.scan.auditOpenFullList')}
-                </button>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-emerald-800">{auditSummary.scopeLabel}</p>
+                    <p className="text-emerald-900">
+                      {t('colorPanels.scan.auditResultLine', {
+                        count: auditSummary.rollCount,
+                        meters: auditSummary.totalMeters.toFixed(2),
+                      })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={printAuditSummary}
+                    disabled={auditSummary.rollCount === 0}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-40 shrink-0"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    {t('colorPanels.scan.auditPrint')}
+                  </button>
+                </div>
+
+                {auditSummary.byColor.length > 0 && (
+                  <div className="rounded-lg border border-emerald-100 bg-white overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-emerald-50 text-emerald-700 font-bold">
+                          <th className="px-2 py-1.5 text-right">{t('colorPanels.scan.auditColColor')}</th>
+                          <th className="px-2 py-1.5 text-right">{t('colorPanels.scan.auditColRolls')}</th>
+                          <th className="px-2 py-1.5 text-right">{t('colorPanels.scan.auditColMeters')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {auditSummary.byColor.map((row) => (
+                          <tr key={row.name} className="border-t border-emerald-50">
+                            <td className="px-2 py-1.5 text-slate-800 font-bold">{row.name}</td>
+                            <td className="px-2 py-1.5 text-slate-600 font-mono">{row.rollCount}</td>
+                            <td className="px-2 py-1.5 text-slate-600 font-mono">{row.totalMeters.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
