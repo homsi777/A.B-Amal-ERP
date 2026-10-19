@@ -4,7 +4,22 @@
   "page.cancel": "إلغاء",
   "page.saving": "جاري الحفظ...",
   "page.saveItem": "حفظ المادة",
+  "page.saveAllRolls": "حفظ كل الأتواب",
   "page.dataSectionTitle": "بيانات الخامة",
+
+  "draftList.title": "الأتواب المُدخلة ({{count}})",
+  "draftList.addButton": "➕ إضافة إلى القائمة",
+  "draftList.updateButton": "تحديث التوب",
+  "draftList.editingBanner": "تعدّلين الآن التوب رقم {{index}} — بعد التعديل أعلاه اضغطي «{{action}}».",
+  "draftList.empty": "لم تتم إضافة أي توب بعد — أدخلي البيانات أعلاه واضغطي «إضافة إلى القائمة».",
+  "draftList.colIndex": "#",
+  "draftList.colBarcode": "الباركود",
+  "draftList.colLength": "الطول",
+  "draftList.colWeight": "الوزن",
+  "draftList.colLot": "اللوت",
+  "draftList.colActions": "إجراءات",
+  "draftList.editTitle": "تعديل هذا التوب",
+  "draftList.deleteTitle": "حذف هذا التوب",
 
   "units.yard": "ياردة",
   "units.meter": "متر",
@@ -71,6 +86,9 @@
   "toast.editedLocally": "تم تعديل المادة \"{{name}}\" محلياً.",
   "toast.editedSaved": "تم تعديل المادة \"{{name}}\" وحفظها في قاعدة البيانات",
   "toast.savedSuccess": "تم حفظ المادة بنجاح",
+  "toast.addedToDraft": "تمت إضافة التوب إلى القائمة ({{count}} إجمالاً)",
+  "toast.updatedDraft": "تم تحديث التوب في القائمة",
+  "toast.allRollsSaved": "تم حفظ {{count}} توب بنجاح",
   "toast.noDefaultPrinter": "لم يتم تحديد طابعة لصاقات افتراضية — سيُفتح حوار الطباعة أو راجع إعدادات المكتب.",
 
   "errors.nameRequired": "اسم الخامة مطلوب.",
@@ -86,5 +104,7 @@
   "errors.barcodeExists": "هذا الباركود موجود مسبقاً.",
   "errors.saveFailedGeneric": "تعذر حفظ المادة في قاعدة البيانات.",
   "errors.printFailedAfterSave": "تم الحفظ، لكن تعذرت الطباعة التلقائية. استخدم زر طباعة اللصاقة.",
-  "errors.categoryTreeLoadFailed": "تعذر تحميل شجرة التصنيفات من الخادم."
+  "errors.categoryTreeLoadFailed": "تعذر تحميل شجرة التصنيفات من الخادم.",
+  "errors.noDraftRolls": "أضيفي توباً واحداً على الأقل إلى القائمة قبل الحفظ النهائي.",
+  "errors.draftRollFailed": "تعذر حفظ التوب رقم {{index}} ({{message}}) — الأتواب المتبقية ما زالت بالقائمة، صحّحي المشكلة وأعيدي المحاولة."
 }

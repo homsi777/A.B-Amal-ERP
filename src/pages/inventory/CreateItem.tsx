@@ -121,6 +121,34 @@ function normalizeSevenDigitBarcode(value: string): string {
   return value.replace(/\D/g, '').slice(0, 7);
 }
 
+/** سطر توب محفوظ محلياً بالقائمة، لم يُرسَل للخادم بعد — قابل للتعديل/الحذف قبل "حفظ كل الأتواب". */
+type DraftRoll = {
+  localId: string;
+  catL1Id: string;
+  catL2Id: string;
+  catL3Id: string;
+  catL4Id: string;
+  name: string;
+  barcode: string;
+  lotNumber: string;
+  lengthType: 'meter' | 'yard';
+  length: number;
+  rollWidth: number;
+  widthUnit: 'inch' | 'cm';
+  weightMultiplier: number;
+  weight: number;
+  costPrice: number;
+  sellingPrice: number;
+  imageUrl: string;
+  warehouseId: string;
+};
+
+let draftRollIdCounter = 0;
+function nextDraftRollId(): string {
+  draftRollIdCounter += 1;
+  return `draft-${Date.now()}-${draftRollIdCounter}`;
+}
+
 export const CreateItem = () => {
   const { t } = useTranslation('createItem');
   const { addFabric, updateFabric, inventory, warehouses } = useStore();
@@ -206,6 +234,8 @@ export const CreateItem = () => {
   
   const [successMessage, setSuccessMessage] = useState('');
   const [printWarning, setPrintWarning] = useState('');
+  const [draftRolls, setDraftRolls] = useState<DraftRoll[]>([]);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [retainEntryFields, setRetainEntryFields] = useState(
     () => localStorage.getItem(RETAIN_ENTRY_FIELDS_KEY) !== 'false',
   );
@@ -334,6 +364,275 @@ export const CreateItem = () => {
     await autoPrintLabel({ settings, input });
   };
 
+  /**
+   * يحوّل توباً من المسودة المحلية (draftRolls) إلى سجل فعلي بقاعدة البيانات:
+   * يحلّ/ينشئ الخامة (FabricItem) عند الحاجة، ثم ينشئ التوب (FabricRoll) فعلياً.
+   * نفس منطق الحفظ الفوري القديم بالضبط، فقط يقرأ من "لقطة" الـ draft بدل الحالة المباشرة،
+   * لأنه يُستدعى بالتتابع لكل سطر بالقائمة عند "حفظ كل الأتواب".
+   */
+  const saveRollToServer = async (draft: DraftRoll): Promise<{ printInput: AdHocLabelInput }> => {
+    const selectedMaterialName = findCategoryById(categoryApiTree, draft.catL1Id);
+    const selectedMaterialCode = findCategoryById(categoryApiTree, draft.catL2Id);
+    const selectedColor = findCategoryById(categoryApiTree, draft.catL3Id);
+    const selectedColorCode = findCategoryById(categoryApiTree, draft.catL4Id);
+    const materialCodeValue = getCategoryCode(
+      selectedMaterialCode,
+      draft.barcode.trim() || draft.name.trim(),
+    );
+    const { colorName: colorNameValue, colorCode: colorCodeValue } = resolveColorFields({
+      selectedColor,
+      selectedColorCode,
+      manualColorName: colorName,
+      manualColorCode: colorCode,
+    });
+    const lotNumberValue = draft.lotNumber.trim();
+
+    const payload = {
+      name: draft.name,
+      fabricCode: materialCodeValue,
+      colorName: emptyAsZero(colorNameValue),
+      colorCode: emptyAsZero(colorCodeValue),
+      lotNumber: lotNumberValue || undefined,
+      lengthType: draft.lengthType,
+      length: Number(draft.length) || 0,
+      rollWidth: Number(draft.rollWidth) || 0,
+      weight: Number(draft.weight) || 0,
+      warehouseId: draft.warehouseId,
+      barcode: draft.barcode,
+      costPrice: Number(draft.costPrice) || 0,
+      sellingPrice: Number(draft.sellingPrice) || 0,
+      imageUrl: draft.imageUrl,
+      minStockLevel: Number(localStorage.getItem(INVENTORY_LOW_STOCK_THRESHOLD_KEY)) || 0,
+      status: Number(draft.length) > 0 ? ('available' as const) : ('out_of_stock' as const),
+      type: 'عام',
+      yards: draft.lengthType === 'yard' ? Number(draft.length) : Number(draft.length) * 1.09361,
+      meters: draft.lengthType === 'meter' ? Number(draft.length) : Number(draft.length) * 0.9144,
+      rollNumber: materialCodeValue,
+    };
+
+    const selectedWarehouse =
+      apiWarehouses.find((w) => w.id === draft.warehouseId)
+      ?? apiWarehouses.find((w) => w.is_active)
+      ?? apiWarehouses[0];
+    if (!selectedWarehouse) {
+      throw new Error(t('errors.noActiveWarehouse'));
+    }
+
+    const lengthM =
+      draft.lengthType === 'meter' ? Number(draft.length) || 0 : (Number(draft.length) || 0) * 0.9144;
+    const widthCm =
+      draft.widthUnit === 'cm' ? Number(draft.rollWidth) || null : (Number(draft.rollWidth) || 0) * 2.54;
+    const gsmNum = Number(draft.weightMultiplier) || null;
+
+    const hasFullClassification = Boolean(draft.catL1Id && draft.catL2Id && draft.catL3Id && draft.catL4Id);
+    let resolved: {
+      itemId: string;
+      colorId: string | null;
+      variantId: string | null;
+      articleCode: string;
+      fabricColorName: string;
+      colorCode: string;
+      designNr: string;
+    };
+
+    if (hasFullClassification) {
+      try {
+        resolved = await resolveFabricClassification({
+          level1CategoryId: draft.catL1Id,
+          level2CategoryId: draft.catL2Id,
+          level3CategoryId: draft.catL3Id,
+          level4CategoryId: draft.catL4Id,
+          widthCm,
+          gsm: gsmNum,
+        });
+      } catch (error) {
+        console.warn('resolveFabricClassification failed, falling back to manual item creation logic', error);
+        const internalCode = materialCodeValue || draft.barcode.trim() || draft.name.trim();
+        let apiItem = (await listFabricItems({ search: draft.name.trim(), pageSize: 100 })).data.find(
+          (item) => sameText(item.name, draft.name.trim()) && sameText(item.internal_code, internalCode),
+        );
+        if (!apiItem) {
+          apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
+            (item) =>
+              sameText(item.name, draft.name.trim())
+              && (
+                sameText(item.internal_code, internalCode)
+                || sameText(item.supplier_code, internalCode)
+              ),
+          );
+        }
+        if (!apiItem) {
+          try {
+            apiItem = await createFabricItem({
+              name: draft.name.trim(),
+              internal_code: internalCode,
+              supplier_code: draft.barcode.trim(),
+              fabric_type: 'عام',
+              unit: 'meter',
+              notes: draft.imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : '',
+              category_id: selectedMaterialName?.id ?? null,
+            });
+          } catch (error2) {
+            if (!(error2 instanceof ApiRequestError && error2.statusCode === 409)) throw error2;
+            apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
+              (item) => sameText(item.internal_code, internalCode),
+            );
+            if (!apiItem) throw error2;
+          }
+        }
+
+        const colorId = await ensureFabricColorId(colorNameValue, colorCodeValue);
+
+        resolved = {
+          itemId: apiItem.id,
+          colorId,
+          variantId: null,
+          articleCode: internalCode,
+          fabricColorName: emptyAsZero(colorNameValue),
+          colorCode: emptyAsZero(colorCodeValue),
+          designNr: internalCode,
+        };
+      }
+    } else {
+      const internalCode = materialCodeValue || draft.barcode.trim() || draft.name.trim();
+      let apiItem = (await listFabricItems({ search: draft.name.trim(), pageSize: 100 })).data.find(
+        (item) => sameText(item.name, draft.name.trim()) && sameText(item.internal_code, internalCode),
+      );
+      if (!apiItem) {
+        apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
+          (item) =>
+            sameText(item.name, draft.name.trim())
+            && (
+              sameText(item.internal_code, internalCode)
+              || sameText(item.supplier_code, internalCode)
+            ),
+        );
+      }
+      if (!apiItem) {
+        try {
+          apiItem = await createFabricItem({
+            name: draft.name.trim(),
+            internal_code: internalCode,
+            supplier_code: draft.barcode.trim(),
+            fabric_type: 'عام',
+            unit: 'meter',
+            notes: draft.imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : '',
+            category_id: selectedMaterialName?.id ?? null,
+          });
+        } catch (error) {
+          if (!(error instanceof ApiRequestError && error.statusCode === 409)) throw error;
+          apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
+            (item) => sameText(item.internal_code, internalCode),
+          );
+          if (!apiItem) throw error;
+        }
+      }
+
+      const colorId = await ensureFabricColorId(colorNameValue, colorCodeValue);
+
+      resolved = {
+        itemId: apiItem.id,
+        colorId,
+        variantId: null,
+        articleCode: internalCode,
+        fabricColorName: emptyAsZero(colorNameValue),
+        colorCode: emptyAsZero(colorCodeValue),
+        designNr: internalCode,
+      };
+    }
+
+    const roll = await createFabricRoll({
+      barcode: draft.barcode.trim() || undefined,
+      rollNo: draft.barcode.trim() || undefined,
+      batchNo: lotNumberValue || null,
+      itemId: resolved.itemId,
+      colorId: resolved.colorId,
+      variantId: resolved.variantId ?? undefined,
+      warehouseId: selectedWarehouse.id,
+      lengthM,
+      widthCm,
+      gsm: gsmNum,
+      actualWeightKg: Number(draft.weight) || null,
+      unitCost: Number(draft.costPrice) || null,
+      currencyCode: 'USD',
+      notes: draft.imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : null,
+    });
+
+    const l1 = findCategoryById(categoryApiTree, draft.catL1Id);
+    const whName = activeWarehouses.find((w) => w.id === draft.warehouseId)?.name ?? null;
+    const qrPayload = buildRollQrPayload({
+      rollId: roll.id,
+      barcode: roll.barcode,
+      lot: lotNumberValue || '',
+      articleCode: resolved.articleCode,
+      fabricName: l1?.name ?? draft.name.trim(),
+      fabricColor: resolved.fabricColorName,
+      colorCode: resolved.colorCode,
+      widthCm,
+      gsm: gsmNum,
+      lengthM,
+      weightKg: Number(draft.weight) > 0 ? Number(draft.weight) : null,
+      warehouse: whName,
+      createdAt: roll.created_at ?? new Date().toISOString(),
+    });
+
+    const printInput: AdHocLabelInput = {
+      barcode: roll.barcode,
+      qrPayload,
+      rollNo: draft.barcode.trim() || roll.roll_no || roll.barcode,
+      itemName: (l1?.name ?? draft.name.trim()) || resolved.articleCode,
+      internalCode: resolved.designNr ?? resolved.articleCode ?? materialCodeValue,
+      supplierCode: null,
+      colorNameAr: resolved.fabricColorName,
+      colorNameTr: null,
+      colorCode: resolved.colorCode,
+      lengthM,
+      widthCm,
+      gsm: gsmNum,
+      actualWeightKg: Number(draft.weight) > 0 ? Number(draft.weight) : null,
+      calculatedWeightKg:
+        lengthM >= 0 && widthCm != null && widthCm > 0 && gsmNum != null && gsmNum > 0
+          ? Number((lengthM * (widthCm / 100) * (gsmNum / 1000)).toFixed(3))
+          : null,
+      warehouseName: whName,
+      batchNo: lotNumberValue || null,
+      containerNo: null,
+      purchaseInvoiceNo: null,
+      supplierRollRef: null,
+    };
+
+    addFabric(payload);
+
+    return { printInput };
+  };
+
+  const resetEntryFieldsForNextRoll = () => {
+    if (retainEntryFields) {
+      setLength('');
+      setWeight('');
+      setLotNumber('');
+      setBarcode('');
+      generateBarcode();
+    } else {
+      setLength('');
+      setWeight('');
+      setLotNumber('');
+      setBarcode('');
+      setCatL1Id('');
+      setCatL2Id('');
+      setCatL3Id('');
+      setCatL4Id('');
+      setName('');
+      generateBarcode();
+    }
+    if (lengthInputRef.current) lengthInputRef.current.focus();
+  };
+
+  /**
+   * وضع الإنشاء: إضافة/تحديث سطر بالمسودة المحلية فقط (بدون أي نداء API) —
+   * التوب لا يُحفظ فعلياً بقاعدة البيانات حتى تضغطي "حفظ كل الأتواب".
+   * وضع التعديل: يبقى كما كان بالضبط (تحديث تعريف الخامة مباشرة، لا علاقة له بالمسودة).
+   */
   const handleSave = async () => {
     if (saving) return;
     setSaveError('');
@@ -372,57 +671,38 @@ export const CreateItem = () => {
       }
     }
 
-    setSaving(true);
-
-    const selectedMaterialName = findCategoryById(categoryApiTree, catL1Id);
-    const selectedMaterialCode = findCategoryById(categoryApiTree, catL2Id);
-    const selectedColor = findCategoryById(categoryApiTree, catL3Id);
-    const selectedColorCode = findCategoryById(categoryApiTree, catL4Id);
-    const materialCodeValue = getCategoryCode(
-      selectedMaterialCode,
-      fabricCode.trim() || barcode.trim() || name.trim(),
-    );
-    const { colorName: colorNameValue, colorCode: colorCodeValue } = resolveColorFields({
-      selectedColor,
-      selectedColorCode,
-      manualColorName: colorName,
-      manualColorCode: colorCode,
-    });
-    const lotNumberValue = lotNumber.trim();
-
-    const payload = {
-      name,
-      fabricCode: materialCodeValue,
-      colorName: emptyAsZero(colorNameValue),
-      colorCode: emptyAsZero(colorCodeValue),
-      lotNumber: lotNumberValue || undefined,
-      lengthType,
-      length: Number(length) || 0,
-      rollWidth: Number(rollWidth) || 0,
-      weight: Number(weight) || 0,
-      warehouseId,
-      barcode,
-      costPrice: Number(costPrice) || 0,
-      sellingPrice: Number(sellingPrice) || 0,
-      imageUrl,
-      minStockLevel: Number(localStorage.getItem(INVENTORY_LOW_STOCK_THRESHOLD_KEY)) || 0,
-      status: Number(length) > 0 ? ('available' as const) : ('out_of_stock' as const),
-      type: 'عام',
-      yards: lengthType === 'yard' ? Number(length) : Number(length) * 1.09361,
-      meters: lengthType === 'meter' ? Number(length) : Number(length) * 0.9144,
-      rollNumber: materialCodeValue,
-    };
-
-    const selectedWarehouse =
-      apiWarehouses.find((w) => w.id === warehouseId)
-      ?? apiWarehouses.find((w) => w.is_active)
-      ?? apiWarehouses[0];
-
-    try {
-      /* ─── Edit mode: تحديث تعريف الخامة في PostgreSQL فقط (بدون ثوب جديد) ─── */
-      if (isEditMode && editingItem) {
+    if (isEditMode && editingItem) {
+      setSaving(true);
+      const selectedMaterialCode = findCategoryById(categoryApiTree, catL2Id);
+      const materialCodeValue = getCategoryCode(
+        selectedMaterialCode,
+        fabricCode.trim() || barcode.trim() || name.trim(),
+      );
+      const editPayload = {
+        name,
+        fabricCode: materialCodeValue,
+        colorName: emptyAsZero(colorName),
+        colorCode: emptyAsZero(colorCode),
+        lotNumber: lotNumber.trim() || undefined,
+        lengthType,
+        length: Number(length) || 0,
+        rollWidth: Number(rollWidth) || 0,
+        weight: Number(weight) || 0,
+        warehouseId,
+        barcode,
+        costPrice: Number(costPrice) || 0,
+        sellingPrice: Number(sellingPrice) || 0,
+        imageUrl,
+        minStockLevel: Number(localStorage.getItem(INVENTORY_LOW_STOCK_THRESHOLD_KEY)) || 0,
+        status: Number(length) > 0 ? ('available' as const) : ('out_of_stock' as const),
+        type: 'عام',
+        yards: lengthType === 'yard' ? Number(length) : Number(length) * 1.09361,
+        meters: lengthType === 'meter' ? Number(length) : Number(length) * 0.9144,
+        rollNumber: materialCodeValue,
+      };
+      try {
         if (!getApiBaseUrl() || !getStoredToken()) {
-          updateFabric(editingItem.id, payload);
+          updateFabric(editingItem.id, editPayload);
           setSuccessMessage(t('toast.editedLocally', { name }));
           setSaving(false);
           return;
@@ -464,214 +744,94 @@ export const CreateItem = () => {
           category_id: apiItem.category_id,
           supplier_id: apiItem.supplier_id,
         });
-        updateFabric(editingItem.id, payload);
+        updateFabric(editingItem.id, editPayload);
         setSuccessMessage(t('toast.editedSaved', { name }));
         setSaving(false);
         setTimeout(() => navigate('/inventory'), 900);
-        return;
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.statusCode === 409) {
+          setSaveError(t('errors.barcodeExists'));
+        } else {
+          setSaveError((error as { message?: string }).message ?? t('errors.saveFailedGeneric'));
+        }
+        setSaving(false);
       }
+      return;
+    }
 
-      /* ─── إنشاء ثوب جديد من مسار التصنيف الثلاثي ─── */
-      if (!getApiBaseUrl() || !getStoredToken()) {
-        setSaveError(t('errors.needsServerConnection'));
+    /* ─── وضع الإنشاء: إضافة/تحديث سطر بالمسودة المحلية فقط ─── */
+    const draft: DraftRoll = {
+      localId: editingDraftId ?? nextDraftRollId(),
+      catL1Id,
+      catL2Id,
+      catL3Id,
+      catL4Id,
+      name,
+      barcode,
+      lotNumber,
+      lengthType,
+      length: Number(length) || 0,
+      rollWidth: Number(rollWidth) || 0,
+      widthUnit,
+      weightMultiplier: Number(weightMultiplier) || 0,
+      weight: Number(weight) || 0,
+      costPrice: Number(costPrice) || 0,
+      sellingPrice: Number(sellingPrice) || 0,
+      imageUrl,
+      warehouseId,
+    };
+
+    if (editingDraftId) {
+      setDraftRolls((prev) => prev.map((d) => (d.localId === editingDraftId ? draft : d)));
+      setEditingDraftId(null);
+      setSuccessMessage(t('toast.updatedDraft'));
+    } else {
+      setDraftRolls((prev) => [...prev, draft]);
+      setSuccessMessage(t('toast.addedToDraft', { count: draftRolls.length + 1 }));
+    }
+    setTimeout(() => setSuccessMessage(''), 3000);
+    setLastSavedPrintInput(null);
+    resetEntryFieldsForNextRoll();
+  };
+
+  /** "حفظ كل الأتواب" — يحوّل كل سطور المسودة لسجلات فعلية بالخادم بالتتابع. */
+  const handleFinalSave = async () => {
+    if (saving) return;
+    setSaveError('');
+    setPrintWarning('');
+
+    if (draftRolls.length === 0) {
+      setSaveError(t('errors.noDraftRolls'));
+      return;
+    }
+    if (!getApiBaseUrl() || !getStoredToken()) {
+      setSaveError(t('errors.needsServerConnection'));
+      return;
+    }
+
+    setSaving(true);
+    const rollsToSave = draftRolls;
+    let savedCount = 0;
+    let lastPrintInput: AdHocLabelInput | null = null;
+
+    for (let i = 0; i < rollsToSave.length; i += 1) {
+      const draft = rollsToSave[i];
+      let result: { printInput: AdHocLabelInput };
+      try {
+        result = await saveRollToServer(draft);
+      } catch (error) {
+        const message =
+          error instanceof ApiRequestError && error.statusCode === 409
+            ? t('errors.barcodeExists')
+            : (error as { message?: string }).message ?? t('errors.saveFailedGeneric');
+        setSaveError(t('errors.draftRollFailed', { index: i + 1, message }));
         setSaving(false);
         return;
       }
-      if (!selectedWarehouse) {
-        setSaveError(t('errors.noActiveWarehouse'));
-        setSaving(false);
-        return;
-      }
 
-      const lengthM =
-        lengthType === 'meter' ? Number(length) || 0 : (Number(length) || 0) * 0.9144;
-      const widthCm =
-        widthUnit === 'cm' ? Number(rollWidth) || null : (Number(rollWidth) || 0) * 2.54;
-      const gsmNum = Number(weightMultiplier) || null;
-
-      const hasFullClassification = Boolean(catL1Id && catL2Id && catL3Id && catL4Id);
-      const hasPartialClassification = Boolean(catL1Id && catL2Id);
-      let resolved: {
-        itemId: string;
-        colorId: string | null;
-        variantId: string | null;
-        articleCode: string;
-        fabricColorName: string;
-        colorCode: string;
-        designNr: string;
-      };
-
-      if (hasFullClassification) {
-        try {
-          resolved = await resolveFabricClassification({
-            level1CategoryId: catL1Id,
-            level2CategoryId: catL2Id,
-            level3CategoryId: catL3Id,
-            level4CategoryId: catL4Id,
-            widthCm,
-            gsm: gsmNum,
-          });
-        } catch (error) {
-          console.warn('resolveFabricClassification failed, falling back to manual item creation logic', error);
-          const internalCode = materialCodeValue || barcode.trim() || name.trim();
-          let apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
-            (item) => sameText(item.name, name.trim()) && sameText(item.internal_code, internalCode),
-          );
-          if (!apiItem) {
-            apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-              (item) =>
-                sameText(item.name, name.trim())
-                && (
-                  sameText(item.internal_code, internalCode)
-                  || sameText(item.supplier_code, internalCode)
-                ),
-            );
-          }
-          if (!apiItem) {
-            try {
-              apiItem = await createFabricItem({
-                name: name.trim(),
-                internal_code: internalCode,
-                supplier_code: barcode.trim(),
-                fabric_type: 'عام',
-                unit: 'meter',
-                notes: imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : '',
-                category_id: selectedMaterialName?.id ?? null,
-              });
-            } catch (error2) {
-              if (!(error2 instanceof ApiRequestError && error2.statusCode === 409)) throw error2;
-              apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-                (item) => sameText(item.internal_code, internalCode),
-              );
-              if (!apiItem) throw error2;
-            }
-          }
-
-          const colorId = await ensureFabricColorId(colorNameValue, colorCodeValue);
-
-          resolved = {
-            itemId: apiItem.id,
-            colorId,
-            variantId: null,
-            articleCode: internalCode,
-            fabricColorName: emptyAsZero(colorNameValue),
-            colorCode: emptyAsZero(colorCodeValue),
-            designNr: internalCode,
-          };
-        }
-      } else {
-        const internalCode = materialCodeValue || barcode.trim() || name.trim();
-        let apiItem = (await listFabricItems({ search: name.trim(), pageSize: 100 })).data.find(
-          (item) => sameText(item.name, name.trim()) && sameText(item.internal_code, internalCode),
-        );
-        if (!apiItem) {
-          apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-            (item) =>
-              sameText(item.name, name.trim())
-              && (
-                sameText(item.internal_code, internalCode)
-                || sameText(item.supplier_code, internalCode)
-              ),
-          );
-        }
-        if (!apiItem) {
-          try {
-            apiItem = await createFabricItem({
-              name: name.trim(),
-              internal_code: internalCode,
-              supplier_code: barcode.trim(),
-              fabric_type: 'عام',
-              unit: 'meter',
-              notes: imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : '',
-              category_id: selectedMaterialName?.id ?? null,
-            });
-          } catch (error) {
-            if (!(error instanceof ApiRequestError && error.statusCode === 409)) throw error;
-            apiItem = (await listFabricItems({ search: internalCode, pageSize: 100 })).data.find(
-              (item) => sameText(item.internal_code, internalCode),
-            );
-            if (!apiItem) throw error;
-          }
-        }
-
-        const colorId = await ensureFabricColorId(colorNameValue, colorCodeValue);
-
-        resolved = {
-          itemId: apiItem.id,
-          colorId,
-          variantId: null,
-          articleCode: internalCode,
-          fabricColorName: emptyAsZero(colorNameValue),
-          colorCode: emptyAsZero(colorCodeValue),
-          designNr: internalCode,
-        };
-      }
-
-      const roll = await createFabricRoll({
-        barcode: barcode.trim() || undefined,
-        rollNo: barcode.trim() || undefined,
-        batchNo: lotNumberValue || null,
-        itemId: resolved.itemId,
-        colorId: resolved.colorId,
-        variantId: resolved.variantId ?? undefined,
-        warehouseId: selectedWarehouse.id,
-        lengthM,
-        widthCm,
-        gsm: gsmNum,
-        actualWeightKg: Number(weight) || null,
-        unitCost: Number(costPrice) || null,
-        currencyCode: 'USD',
-        notes: imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : null,
-      });
-
-      const l1 = findCategoryById(categoryApiTree, catL1Id);
-      const whName = activeWarehouses.find((w) => w.id === warehouseId)?.name ?? null;
-      const qrPayload = buildRollQrPayload({
-        rollId: roll.id,
-        barcode: roll.barcode,
-        lot: lotNumberValue || '',
-        articleCode: resolved.articleCode,
-        fabricName: l1?.name ?? name.trim(),
-        fabricColor: resolved.fabricColorName,
-        colorCode: resolved.colorCode,
-        widthCm,
-        gsm: gsmNum,
-        lengthM,
-        weightKg: Number(weight) > 0 ? Number(weight) : null,
-        warehouse: whName,
-        createdAt: roll.created_at ?? new Date().toISOString(),
-      });
-
-      const printInput: AdHocLabelInput = {
-        barcode: roll.barcode,
-        qrPayload,
-        rollNo: barcode.trim() || roll.roll_no || roll.barcode,
-        itemName: (l1?.name ?? name.trim()) || resolved.articleCode,
-        internalCode: resolved.designNr ?? resolved.articleCode ?? materialCodeValue,
-        supplierCode: null,
-        colorNameAr: resolved.fabricColorName,
-        colorNameTr: null,
-        colorCode: resolved.colorCode,
-        lengthM,
-        widthCm,
-        gsm: gsmNum,
-        actualWeightKg: Number(weight) > 0 ? Number(weight) : null,
-        calculatedWeightKg:
-          lengthM >= 0 && widthCm != null && widthCm > 0 && gsmNum != null && gsmNum > 0
-            ? Number((lengthM * (widthCm / 100) * (gsmNum / 1000)).toFixed(3))
-            : null,
-        warehouseName: whName,
-        batchNo: lotNumberValue || null,
-        containerNo: null,
-        purchaseInvoiceNo: null,
-        supplierRollRef: null,
-      };
-
-      addFabric(payload);
-
-      setSuccessMessage(t('toast.savedSuccess'));
-      setTimeout(() => setSuccessMessage(''), 5000);
-      setLastSavedPrintInput(printInput);
+      savedCount += 1;
+      lastPrintInput = result.printInput;
+      setDraftRolls((prev) => prev.filter((d) => d.localId !== draft.localId));
 
       if (autoPrint) {
         if (
@@ -682,41 +842,54 @@ export const CreateItem = () => {
           setPrintWarning(t('toast.noDefaultPrinter'));
         }
         try {
-          await printLabel(printInput);
+          await printLabel(result.printInput);
         } catch {
           setSaveError(t('errors.printFailedAfterSave'));
         }
       }
-
-      if (retainEntryFields) {
-        setLength('');
-        setWeight('');
-        setLotNumber('');
-        setBarcode('');
-        generateBarcode();
-      } else {
-        setLength('');
-        setWeight('');
-        setLotNumber('');
-        setBarcode('');
-        setCatL1Id('');
-        setCatL2Id('');
-        setCatL3Id('');
-        setCatL4Id('');
-        setName('');
-        generateBarcode();
-      }
-
-      if (lengthInputRef.current) lengthInputRef.current.focus();
-    } catch (error) {
-      if (error instanceof ApiRequestError && error.statusCode === 409) {
-        setSaveError(t('errors.barcodeExists'));
-      } else {
-        setSaveError((error as { message?: string }).message ?? t('errors.saveFailedGeneric'));
-      }
-    } finally {
-      setSaving(false);
     }
+
+    setEditingDraftId(null);
+    setSuccessMessage(t('toast.allRollsSaved', { count: savedCount }));
+    setTimeout(() => setSuccessMessage(''), 5000);
+    setLastSavedPrintInput(lastPrintInput);
+    setCatL1Id('');
+    setCatL2Id('');
+    setCatL3Id('');
+    setCatL4Id('');
+    setName('');
+    resetEntryFieldsForNextRoll();
+    setSaving(false);
+  };
+
+  const handleEditDraft = (localId: string) => {
+    const draft = draftRolls.find((d) => d.localId === localId);
+    if (!draft) return;
+    setCatL1Id(draft.catL1Id);
+    setCatL2Id(draft.catL2Id);
+    setCatL3Id(draft.catL3Id);
+    setCatL4Id(draft.catL4Id);
+    setName(draft.name);
+    setBarcode(draft.barcode);
+    setLotNumber(draft.lotNumber);
+    setLengthType(draft.lengthType);
+    setLength(draft.length);
+    setRollWidth(draft.rollWidth);
+    setWidthUnit(draft.widthUnit);
+    setWeightMultiplier(draft.weightMultiplier);
+    setWeight(draft.weight);
+    setCostPrice(draft.costPrice);
+    setSellingPrice(draft.sellingPrice);
+    setImageUrl(draft.imageUrl);
+    setWarehouseId(draft.warehouseId);
+    setEditingDraftId(localId);
+    setSaveError('');
+    if (lengthInputRef.current) lengthInputRef.current.focus();
+  };
+
+  const handleDeleteDraft = (localId: string) => {
+    setDraftRolls((prev) => prev.filter((d) => d.localId !== localId));
+    if (editingDraftId === localId) setEditingDraftId(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -778,13 +951,13 @@ export const CreateItem = () => {
           >
             {t('page.cancel')}
           </button>
-          <button 
-            onClick={handleSave}
-            disabled={saving}
+          <button
+            onClick={isEditMode ? handleSave : handleFinalSave}
+            disabled={saving || (!isEditMode && draftRolls.length === 0)}
             className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? t('page.saving') : t('page.saveItem')}</span>
+            <span>{saving ? t('page.saving') : (isEditMode ? t('page.saveItem') : t('page.saveAllRolls'))}</span>
           </button>
         </div>
       </div>
@@ -898,7 +1071,30 @@ export const CreateItem = () => {
                   {t('retainFields.label')}
                 </label>
               </div>
-              
+
+              {!isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className={`w-full py-3 rounded-xl font-bold text-sm border-2 transition shadow-sm ${
+                    editingDraftId
+                      ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                      : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                  }`}
+                >
+                  {editingDraftId ? t('draftList.updateButton') : t('draftList.addButton')}
+                </button>
+              )}
+
+              {!isEditMode && editingDraftId && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold rounded-lg p-3">
+                  {t('draftList.editingBanner', {
+                    index: draftRolls.findIndex((d) => d.localId === editingDraftId) + 1,
+                    action: t('draftList.updateButton'),
+                  })}
+                </div>
+              )}
+
               {successMessage && (
                 <div className="bg-emerald-100 text-emerald-800 p-4 rounded-xl border border-emerald-200 font-bold text-center animate-in fade-in slide-in-from-top-2 duration-300 shadow-sm space-y-3">
                   <div>{successMessage}</div>
@@ -1232,12 +1428,84 @@ export const CreateItem = () => {
                      <span className="absolute right-4 top-3 text-emerald-500 font-bold">$</span>
                   </div>
                 </div>
-                
+
               </div>
             </div>
           </div>
         </div>
+
+        {!isEditMode && <DraftRollsPanel draftRolls={draftRolls} onEdit={handleEditDraft} onDelete={handleDeleteDraft} />}
       </div>
+    </div>
+  );
+};
+
+const DraftRollsPanel = ({
+  draftRolls,
+  onEdit,
+  onDelete,
+}: {
+  draftRolls: DraftRoll[];
+  onEdit: (localId: string) => void;
+  onDelete: (localId: string) => void;
+}) => {
+  const { t } = useTranslation('createItem');
+  return (
+    <div className="border-t border-slate-200 p-6 sm:p-8 bg-slate-50/60">
+      <h3 className="font-bold text-slate-800 text-base mb-4">
+        {t('draftList.title', { count: draftRolls.length })}
+      </h3>
+      {draftRolls.length === 0 ? (
+        <p className="text-sm text-slate-500">{t('draftList.empty')}</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-100 text-slate-600 text-xs font-bold">
+                <th className="px-3 py-2 text-right">{t('draftList.colIndex')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colBarcode')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colLength')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colWeight')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colLot')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {draftRolls.map((draft, index) => (
+                <tr key={draft.localId} className="border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-500 font-mono">{index + 1}</td>
+                  <td className="px-3 py-2 font-mono text-left" dir="ltr">{draft.barcode || '—'}</td>
+                  <td className="px-3 py-2 font-mono">
+                    {draft.length} {draft.lengthType === 'yard' ? t('units.yard') : t('units.meter')}
+                  </td>
+                  <td className="px-3 py-2 font-mono">{draft.weight} kg</td>
+                  <td className="px-3 py-2 font-mono">{draft.lotNumber || '—'}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(draft.localId)}
+                        title={t('draftList.editTitle')}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(draft.localId)}
+                        title={t('draftList.deleteTitle')}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

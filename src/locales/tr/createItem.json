@@ -4,7 +4,22 @@
   "page.cancel": "İptal",
   "page.saving": "Kaydediliyor...",
   "page.saveItem": "Malzemeyi Kaydet",
+  "page.saveAllRolls": "Tüm Topları Kaydet",
   "page.dataSectionTitle": "Malzeme Bilgileri",
+
+  "draftList.title": "Eklenen Toplar ({{count}})",
+  "draftList.addButton": "➕ Listeye Ekle",
+  "draftList.updateButton": "Topu Güncelle",
+  "draftList.editingBanner": "Şu anda {{index}} numaralı topu düzenliyorsunuz — yukarıdaki değişikliklerden sonra «{{action}}»a basın.",
+  "draftList.empty": "Henüz hiçbir top eklenmedi — yukarıya bilgileri girin ve «Listeye Ekle»ye basın.",
+  "draftList.colIndex": "#",
+  "draftList.colBarcode": "Barkod",
+  "draftList.colLength": "Uzunluk",
+  "draftList.colWeight": "Ağırlık",
+  "draftList.colLot": "Lot",
+  "draftList.colActions": "İşlemler",
+  "draftList.editTitle": "Bu topu düzenle",
+  "draftList.deleteTitle": "Bu topu sil",
 
   "units.yard": "yarda",
   "units.meter": "metre",
@@ -71,6 +86,9 @@
   "toast.editedLocally": "\"{{name}}\" malzemesi yerel olarak düzenlendi.",
   "toast.editedSaved": "\"{{name}}\" malzemesi düzenlendi ve veritabanına kaydedildi",
   "toast.savedSuccess": "Malzeme başarıyla kaydedildi",
+  "toast.addedToDraft": "Top listeye eklendi (toplam {{count}})",
+  "toast.updatedDraft": "Top listede güncellendi",
+  "toast.allRollsSaved": "{{count}} top başarıyla kaydedildi",
   "toast.noDefaultPrinter": "Varsayılan etiket yazıcısı belirlenmedi — yazdırma penceresi açılacak veya masaüstü ayarlarını kontrol edin.",
 
   "errors.nameRequired": "Malzeme adı gereklidir.",
@@ -86,5 +104,7 @@
   "errors.barcodeExists": "Bu barkod zaten mevcut.",
   "errors.saveFailedGeneric": "Malzeme veritabanına kaydedilemedi.",
   "errors.printFailedAfterSave": "Kaydedildi, ancak otomatik yazdırma başarısız oldu. Etiket yazdır düğmesini kullanın.",
-  "errors.categoryTreeLoadFailed": "Kategori ağacı sunucudan yüklenemedi."
+  "errors.categoryTreeLoadFailed": "Kategori ağacı sunucudan yüklenemedi.",
+  "errors.noDraftRolls": "Kaydetmeden önce listeye en az bir top ekleyin.",
+  "errors.draftRollFailed": "{{index}} numaralı top kaydedilemedi ({{message}}) — kalan toplar listede duruyor, sorunu düzeltip tekrar deneyin."
 }
