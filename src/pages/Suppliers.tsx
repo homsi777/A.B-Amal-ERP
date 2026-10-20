@@ -15,6 +15,7 @@ import { focusNextFormControl } from '../lib/forms/enterNavigation';
 
 const emptyForm = (): SupplierPayload => ({
   name: '', code: '', phone: '', email: '', address: '', country: '', notes: '',
+  isProcessingParty: false,
   telegramChatId: '', telegramEnabled: false, telegramLabel: '',
 });
 
@@ -63,6 +64,7 @@ export const Suppliers = () => {
       address: s.address || '',
       country: s.country || '',
       notes: s.notes || '',
+      isProcessingParty: s.is_processing_party,
       telegramChatId: s.telegram_chat_id || '',
       telegramEnabled: s.telegram_enabled,
       telegramLabel: s.telegram_label || '',
@@ -245,6 +247,17 @@ export const Suppliers = () => {
                 <label className="block text-sm font-medium text-slate-700 mb-1">{t('modal.notesLabel')}</label>
                 <textarea rows={2} value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" />
+              </div>
+              <div className="border border-emerald-100 bg-emerald-50/40 rounded-xl p-3">
+                <label className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
+                  <span>{t('modal.isProcessingPartyLabel')}</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.isProcessingParty)}
+                    onChange={e => setForm(f => ({ ...f, isProcessingParty: e.target.checked }))}
+                    className="w-4 h-4 accent-emerald-600"
+                  />
+                </label>
               </div>
               <div className="border border-sky-100 bg-sky-50/40 rounded-xl p-3 space-y-3">
                 <label className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">

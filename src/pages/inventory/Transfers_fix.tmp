@@ -1,0 +1,23 @@
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end border-t border-slate-100 pt-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">{t('form.notesLabel')}</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                placeholder={t('form.notesPlaceholder')}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleCreate()}
+              disabled={bus.create || !fromWarehouseId || !toWarehouseId}
+              className="md:min-w-[200px] bg-indigo-600 text-white py-3 px-6 rounded-lg flex items-center justify-center gap-2 hover:bg-indigo-700 transition font-medium disabled:opacity-60"
+            >
+              {bus.create ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+              {t('form.saveDraftButton')}
+            </button>
+          </div>
+        </div>
+      </div>

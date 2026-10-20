@@ -1,14 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Lock, Pencil, Printer, XCircle } from 'lucide-react';
 import {
   getExternalJob, receiveExternalJobLine, setExternalJobFee, postExternalJobFee, voidExternalJob,
+  editProcessingExternalJob, voidProcessingExternalJob,
   type ExternalJobDetail, type ExternalJobLine,
 } from '../../lib/api/externalJobsApi';
 import { SUPPORTED_CURRENCIES, getCurrencyName } from '../../lib/currency';
 import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
+import { renderExternalJobDispatchA4Html } from '../../lib/printing/renderExternalJobDispatchA4';
+import { openDocumentPrintWindow } from '../../lib/printing/documentPrint';
+import i18n from '../../i18n/config';
 
 export const ExternalJobReceipt = () => {
   const { t } = useTranslation('externalJobs');
@@ -25,6 +29,10 @@ export const ExternalJobReceipt = () => {
   const [postingFee, setPostingFee] = useState(false);
   const [voiding, setVoiding] = useState(false);
 
+  const [reauthModal, setReauthModal] = useState<'edit' | 'void' | null>(null);
+  const [editDescription, setEditDescription] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -33,6 +41,8 @@ export const ExternalJobReceipt = () => {
       setJob(res.data);
       setFeeAmount(res.data.fee_amount != null ? String(res.data.fee_amount) : '');
       setFeeCurrencyCode(res.data.fee_currency_code ?? 'USD');
+      setEditDescription(res.data.process_description ?? '');
+      setEditNotes(res.data.notes ?? '');
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.loadJobFailed') });
     } finally {
@@ -85,6 +95,41 @@ export const ExternalJobReceipt = () => {
     }
   };
 
+  const handlePrint = () => {
+    if (!job) return;
+    const lang: 'ar' | 'tr' = i18n.language === 'tr' ? 'tr' : 'ar';
+    const html = renderExternalJobDispatchA4Html({ job, lang });
+    const ok = openDocumentPrintWindow(html, job.job_no);
+    if (!ok) showToast({ type: 'error', message: t('processingNew.printPopupBlocked') });
+  };
+
+  const handleEditSubmit = async (password: string) => {
+    if (!id) return;
+    try {
+      await editProcessingExternalJob(id, {
+        password,
+        processDescription: editDescription.trim() || null,
+        notes: editNotes.trim() || null,
+      });
+      showToast({ type: 'success', message: t('processingNew.editSuccess') });
+      setReauthModal(null);
+      await load();
+    } catch (e) {
+      throw e instanceof ApiRequestError ? e : new Error(t('processingNew.editFailed'));
+    }
+  };
+
+  const handleVoidProcessingSubmit = async (password: string) => {
+    if (!id) return;
+    try {
+      await voidProcessingExternalJob(id, { password });
+      showToast({ type: 'success', message: t('toast.voidSuccess') });
+      navigate('/purchases/external-jobs');
+    } catch (e) {
+      throw e instanceof ApiRequestError ? e : new Error(t('toast.voidFailed'));
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto py-20 text-center">
@@ -119,16 +164,85 @@ export const ExternalJobReceipt = () => {
             <p className="text-slate-500 mt-1 text-sm">{job.supplier_name} — {job.sent_date}</p>
           </div>
         </div>
-        <span className={`px-3 py-1.5 rounded-lg text-sm font-bold ${
-          job.document_status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-700'
-            : job.document_status === 'VOIDED' ? 'bg-rose-100 text-rose-700'
-            : 'bg-amber-100 text-amber-700'
-        }`}>
-          {job.document_status === 'CONFIRMED' ? t('status.confirmed')
-            : job.document_status === 'VOIDED' ? t('status.voided')
-            : t('status.draft')}
-        </span>
+        <div className="flex items-center gap-2">
+          <button onClick={handlePrint} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50 transition">
+            <Printer className="w-4 h-4" /> {t('processingNew.print')}
+          </button>
+          <span className={`px-3 py-1.5 rounded-lg text-sm font-bold ${
+            job.document_status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-700'
+              : job.document_status === 'VOIDED' ? 'bg-rose-100 text-rose-700'
+              : 'bg-amber-100 text-amber-700'
+          }`}>
+            {job.document_status === 'CONFIRMED' ? t('status.confirmed')
+              : job.document_status === 'VOIDED' ? t('status.voided')
+              : t('status.draft')}
+          </span>
+        </div>
       </div>
+
+      {job.job_kind === 'PROCESSING' && (
+        <div className="bg-white rounded-xl border border-emerald-200 shadow-sm p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-emerald-800">{t('processingNew.infoCardTitle')}</h3>
+            {canVoid && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setReauthModal('edit')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> {t('processingNew.edit')}
+                </button>
+                <button
+                  onClick={() => setReauthModal('void')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold hover:bg-rose-100 transition"
+                >
+                  <XCircle className="w-3.5 h-3.5" /> {t('voidButton')}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="grid sm:grid-cols-2 gap-2 text-sm">
+            <div><span className="text-slate-500">{t('processingNew.summaryOrderNo')}: </span><strong className="font-mono">#{job.supplier_order_no}</strong></div>
+            <div><span className="text-slate-500">{t('processingNew.stageStepTitle')}: </span><strong>{job.fabric_stage === 'RAW' ? t('processingNew.stageRaw') : t('processingNew.stageFinished')}</strong></div>
+            <div><span className="text-slate-500">{t('processingNew.preparationTypeLabel')}: </span><strong>{job.preparation_type_name || '—'}</strong></div>
+            <div><span className="text-slate-500">{t('processingNew.sourceWarehouseLabel')}: </span><strong>{job.source_warehouse_name || '—'}</strong></div>
+            {job.process_description && (
+              <div className="sm:col-span-2"><span className="text-slate-500">{t('processingNew.processDescriptionLabel')}: </span>{job.process_description}</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {reauthModal && (
+        <ReauthModal
+          title={reauthModal === 'edit' ? t('processingNew.editModalTitle') : t('processingNew.voidModalTitle')}
+          onClose={() => setReauthModal(null)}
+          onSubmit={reauthModal === 'edit' ? handleEditSubmit : handleVoidProcessingSubmit}
+        >
+          {reauthModal === 'edit' && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">{t('processingNew.processDescriptionLabel')}</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={2}
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-600">{t('processingNew.notesLabel')}</label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          )}
+        </ReauthModal>
+      )}
 
       {/* Fee card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
@@ -197,7 +311,13 @@ export const ExternalJobReceipt = () => {
         ) : (
           <div className="divide-y divide-slate-100">
             {sentLines.map((line) => (
-              <ReceiptLineRow key={line.id} jobId={job.id} line={line} onReceived={() => void load()} />
+              <ReceiptLineRow
+                key={line.id}
+                jobId={job.id}
+                line={line}
+                defaultWastePct={job.job_kind === 'PROCESSING' ? job.preparation_type_default_waste_pct : null}
+                onReceived={() => void load()}
+              />
             ))}
           </div>
         )}
@@ -238,7 +358,7 @@ export const ExternalJobReceipt = () => {
         </div>
       )}
 
-      {canVoid && (
+      {canVoid && job.job_kind === 'GENERAL' && (
         <div className="flex justify-end">
           <button
             onClick={() => void handleVoid()}
@@ -257,10 +377,12 @@ export const ExternalJobReceipt = () => {
 const ReceiptLineRow = ({
   jobId,
   line,
+  defaultWastePct,
   onReceived,
 }: {
   jobId: string;
   line: ExternalJobLine;
+  defaultWastePct?: string | number | null;
   onReceived: () => void;
 }) => {
   const { t } = useTranslation('externalJobs');
@@ -311,6 +433,13 @@ const ReceiptLineRow = ({
           <p className="text-xs text-slate-500">
             {t('receive.sentAs')}: {line.sent_color_name_ar || '—'} · {line.sent_length_m} {t('meterAbbr')}
           </p>
+          {defaultWastePct != null && line.sent_length_m != null && (
+            <p className="text-xs text-amber-700 font-bold mt-0.5">
+              {t('processingNew.expectedLengthHint', {
+                value: (Number(line.sent_length_m) * (1 - Number(defaultWastePct) / 100)).toFixed(2),
+              })}
+            </p>
+          )}
         </div>
       </div>
 
@@ -395,6 +524,85 @@ const ReceiptLineRow = ({
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
           {t('receive.submit')}
         </button>
+      </div>
+    </div>
+  );
+};
+
+/** نافذة إعادة مصادقة بكلمة المرور — تُستخدَم لتعديل/إلغاء مهمة مصنعية. */
+const ReauthModal = ({
+  title,
+  onClose,
+  onSubmit,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  onSubmit: (password: string) => Promise<void>;
+  children?: React.ReactNode;
+}) => {
+  const { t } = useTranslation('externalJobs');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!password.trim()) {
+      setError(t('processingNew.passwordRequired'));
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit(password);
+    } catch (e) {
+      const code = e instanceof ApiRequestError ? e.body?.code : undefined;
+      if (code === 'PASSWORD_INVALID') setError(t('processingNew.passwordInvalid'));
+      else if (code === 'REAUTH_RATE_LIMITED') setError(t('processingNew.rateLimited'));
+      else setError(e instanceof ApiRequestError ? e.message : t('processingNew.genericActionFailed'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-slate-200">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Lock className="w-4 h-4 text-slate-500" /> {title}
+          </h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-800">×</button>
+        </div>
+        <div className="p-5 space-y-3">
+          {children}
+          {error && <p className="text-sm text-rose-600 bg-rose-50 p-2 rounded-lg">{error}</p>}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-600">{t('processingNew.passwordLabel')}</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleSubmit(); }}
+              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              dir="ltr"
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm">
+              {t('create.cancel')}
+            </button>
+            <button
+              onClick={() => void handleSubmit()}
+              disabled={submitting}
+              className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition disabled:opacity-50 text-sm flex items-center gap-2"
+            >
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {t('processingNew.confirm')}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

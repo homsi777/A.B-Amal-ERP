@@ -10,7 +10,7 @@ import {
   updateWarehouse,
 } from '../../lib/api/warehousesApi';
 
-const emptyForm = (): WarehousePayload => ({ code: '', name: '', type: 'MAIN', address: '' });
+const emptyForm = (): WarehousePayload => ({ code: '', name: '', type: 'MAIN', address: '', fabricStage: null });
 
 export const Warehouses = () => {
   const { t } = useTranslation('warehouses');
@@ -19,6 +19,11 @@ export const Warehouses = () => {
     { value: 'BRANCH', label: t('typeBranch') },
     { value: 'SHOWROOM', label: t('typeShowroom') },
     { value: 'TRANSIT', label: t('typeTransit') },
+  ];
+  const FABRIC_STAGES: { value: '' | 'RAW' | 'FINISHED'; label: string }[] = [
+    { value: '', label: t('fabricStageNotSet') },
+    { value: 'RAW', label: t('fabricStageRaw') },
+    { value: 'FINISHED', label: t('fabricStageFinished') },
   ];
   const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +55,7 @@ export const Warehouses = () => {
   const openAdd = () => { setEditTarget(null); setForm(emptyForm()); setSaveError(null); setIsModalOpen(true); };
   const openEdit = (wh: ApiWarehouse) => {
     setEditTarget(wh);
-    setForm({ code: wh.code, name: wh.name, type: wh.type, address: wh.address });
+    setForm({ code: wh.code, name: wh.name, type: wh.type, address: wh.address, fabricStage: wh.fabric_stage });
     setSaveError(null);
     setIsModalOpen(true);
   };
@@ -152,8 +157,13 @@ export const Warehouses = () => {
                   <td className="px-5 py-4 font-mono font-bold text-slate-500">{wh.code}</td>
                   <td className="px-5 py-4">
                     <p className="font-bold text-indigo-700">{wh.name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
                       {WAREHOUSE_TYPES.find(t => t.value === wh.type)?.label || wh.type}
+                      {wh.fabric_stage && (
+                        <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${wh.fabric_stage === 'RAW' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {wh.fabric_stage === 'RAW' ? t('fabricStageRaw') : t('fabricStageFinished')}
+                        </span>
+                      )}
                     </p>
                   </td>
                   <td className="px-5 py-4">
@@ -216,6 +226,17 @@ export const Warehouses = () => {
                 <label className="block text-sm font-bold text-slate-700 mb-1">{t('addressLabel')}</label>
                 <input type="text" value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">{t('fabricStageLabel')}</label>
+                <select
+                  value={form.fabricStage ?? ''}
+                  onChange={e => setForm(f => ({ ...f, fabricStage: e.target.value ? (e.target.value as 'RAW' | 'FINISHED') : null }))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                >
+                  {FABRIC_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">{t('fabricStageHint')}</p>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={closeModal} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition text-sm">{t('cancel')}</button>

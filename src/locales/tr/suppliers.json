@@ -33,6 +33,7 @@
   "modal.emailLabel": "E-posta",
   "modal.addressLabel": "Adres",
   "modal.notesLabel": "Notlar",
+  "modal.isProcessingPartyLabel": "Fason firma (boyahane/baskı) — Fason iş tedarikçi listesinde görünür",
   "modal.telegramEnableLabel": "Bu tedarikçi için Telegram gönderimini etkinleştir",
   "modal.telegramNameLabel": "Telegram Adı",
   "modal.cancel": "İptal",

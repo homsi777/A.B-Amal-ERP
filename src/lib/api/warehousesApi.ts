@@ -1,11 +1,14 @@
 import { apiFetch } from './client';
 
+export type FabricStage = 'RAW' | 'FINISHED';
+
 export interface ApiWarehouse {
   id: string;
   code: string;
   name: string;
   type: string;
   address: string;
+  fabric_stage: FabricStage | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -16,6 +19,7 @@ export interface WarehousePayload {
   name: string;
   type?: string;
   address?: string;
+  fabricStage?: FabricStage | null;
 }
 
 export interface ApiWarehouseLocation {

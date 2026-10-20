@@ -9,6 +9,7 @@ export interface ApiSupplier {
   address: string;
   country: string;
   notes: string;
+  is_processing_party: boolean;
   telegram_chat_id: string | null;
   telegram_enabled: boolean;
   telegram_label: string | null;
@@ -25,6 +26,7 @@ export interface SupplierPayload {
   address?: string;
   country?: string;
   notes?: string;
+  isProcessingParty?: boolean;
   telegramChatId?: string;
   telegramEnabled?: boolean;
   telegramLabel?: string;
@@ -34,6 +36,7 @@ export interface SuppliersListParams {
   search?: string;
   status?: 'active' | 'inactive';
   country?: string;
+  isProcessingParty?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -50,6 +53,7 @@ export async function listSuppliers(params: SuppliersListParams = {}): Promise<S
   if (params.search) q.set('search', params.search);
   if (params.status) q.set('status', params.status);
   if (params.country) q.set('country', params.country);
+  if (params.isProcessingParty) q.set('isProcessingParty', 'true');
   if (params.page) q.set('page', String(params.page));
   if (params.pageSize) q.set('pageSize', String(params.pageSize));
   const qs = q.toString() ? `?${q}` : '';

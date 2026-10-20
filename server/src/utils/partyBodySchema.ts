@@ -47,6 +47,7 @@ export const supplierBodySchema = z.object({
   address: nullableText(),
   country: nullableText(),
   notes: nullableText(),
+  isProcessingParty: z.boolean().optional().default(false),
   ...telegramFields,
 });
 

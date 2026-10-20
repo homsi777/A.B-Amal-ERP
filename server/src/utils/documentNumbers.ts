@@ -50,6 +50,29 @@ export async function generateCustomerOrderNo(client: PoolClient, companyId: str
   return String(Number(result.rows[0]?.max_seq ?? 0) + 1);
 }
 
+/**
+ * رقم طلبية خاص بمورّد مُحدَّد (لمهمات "مصنعية") — عدّاد مستقل لكل (شركة، مورّد)،
+ * يبدأ من 1 ويزيد بواحد، ولا يُعاد استخدام رقم مهمة ملغاة. يُستدعى فقط داخل
+ * transaction الإنشاء، بعد BEGIN وقبل COMMIT، بنفس شكل generateSequentialDocumentNo.
+ */
+export async function generateSupplierOrderNo(
+  client: PoolClient,
+  companyId: string,
+  supplierId: string,
+): Promise<number> {
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+    [companyId, `EJ_SUPPLIER_ORDER:${supplierId}`],
+  );
+  const result = await client.query<{ next_no: string }>(
+    `SELECT COALESCE(MAX(supplier_order_no), 0) + 1 AS next_no
+     FROM external_jobs
+     WHERE company_id = $1 AND supplier_id = $2`,
+    [companyId, supplierId],
+  );
+  return Number(result.rows[0]?.next_no ?? 1);
+}
+
 export async function generateSequentialDocumentNo(
   client: PoolClient,
   companyId: string,

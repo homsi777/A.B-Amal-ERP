@@ -33,6 +33,7 @@
   "modal.emailLabel": "البريد الإلكتروني",
   "modal.addressLabel": "العنوان",
   "modal.notesLabel": "ملاحظات",
+  "modal.isProcessingPartyLabel": "جهة تجهيز (مصبغة/مطبعة) — تظهر بقائمة مُصنِّعي مهام المصنعية",
   "modal.telegramEnableLabel": "تفعيل إرسال تيليغرام لهذا المورد",
   "modal.telegramNameLabel": "اسم تيليغرام",
   "modal.cancel": "إلغاء",

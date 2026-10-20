@@ -2,8 +2,9 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { findOrCreateColor } from './purchaseInvoiceService.js';
 import { getExchangeRateToUsdTx } from './exchangeRateService.js';
-import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
+import { generateSequentialDocumentNo, generateSupplierOrderNo } from '../utils/documentNumbers.js';
 import { postExternalJobFeeToGl, reverseExternalJobFeeGl } from './glPostingService.js';
+import { verifyCurrentUserPassword } from '../utils/reauthGuard.js';
 
 type DbQuery = Pick<PoolClient, 'query'>;
 
@@ -39,6 +40,47 @@ const receiveLineSchema = z.object({
 async function assertSupplier(client: PoolClient, companyId: string, supplierId: string): Promise<void> {
   const r = await client.query(`SELECT id FROM suppliers WHERE id=$1 AND company_id=$2`, [supplierId, companyId]);
   if (!r.rows.length) throw Object.assign(new Error('المورد غير موجود'), { code: 'NOT_FOUND' });
+}
+
+/**
+ * ينقل توباً واحداً إلى حالة "مهمة خارجية" ويكتب حركة المخزون المقابلة —
+ * نفس الشكل المستخدَم بالضبط بـconfirmExternalJob، مُستخرَج كدالة واحدة
+ * ليُستدعى أيضاً من إنشاء مهمة "مصنعية" (CONFIRMED مباشرة) دون تكرار الاستعلامات.
+ */
+async function sendRollToExternalJob(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  rollId: string,
+  jobId: string,
+  jobNo: string,
+): Promise<void> {
+  await client.query(
+    `UPDATE fabric_rolls SET status='AT_EXTERNAL_JOB', updated_at=now() WHERE id=$1 AND company_id=$2`,
+    [rollId, companyId],
+  );
+  await client.query(
+    `INSERT INTO inventory_movements (
+       company_id, roll_id, movement_type, old_status, new_status,
+       reference_type, reference_id, reference_no, notes, created_by_user_id
+     ) VALUES ($1,$2,'EXTERNAL_JOB_SENT','AVAILABLE','AT_EXTERNAL_JOB',$3,$4,$5,$6,$7)`,
+    [companyId, rollId, 'EXTERNAL_JOB', jobId, jobNo, `إرسال لمهمة خارجية ${jobNo}`, userId],
+  );
+}
+
+async function insertAuditLog(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  action: string,
+  entityId: string,
+  details: Record<string, unknown>,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO audit_logs (company_id, user_id, action, entity_type, entity_id, details)
+     VALUES ($1, $2, $3, 'external_job', $4, $5::jsonb)`,
+    [companyId, userId, action, entityId, JSON.stringify(details)],
+  );
 }
 
 export async function createExternalJob(
@@ -110,7 +152,7 @@ export async function createExternalJob(
 export async function listExternalJobs(
   db: DbQuery,
   companyId: string,
-  opts: { search?: string; supplierId?: string; documentStatus?: string; dateFrom?: string; dateTo?: string; page?: number; pageSize?: number },
+  opts: { search?: string; supplierId?: string; documentStatus?: string; dateFrom?: string; dateTo?: string; jobKind?: string; page?: number; pageSize?: number },
 ): Promise<{ rows: unknown[]; total: number; page: number; pageSize: number }> {
   const page = Math.max(1, opts.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 20));
@@ -149,15 +191,23 @@ export async function listExternalJobs(
     params.push(opts.dateTo);
     p++;
   }
+  if (opts.jobKind && ['GENERAL', 'PROCESSING'].includes(opts.jobKind)) {
+    conds.push(`ej.job_kind = $${p}`);
+    params.push(opts.jobKind);
+    p++;
+  }
 
   const where = conds.join(' AND ');
   const [rows, countRow] = await Promise.all([
     db.query(
       `SELECT ej.*, s.name AS supplier_name,
+              pt.name AS preparation_type_name, w.name AS source_warehouse_name,
               (SELECT COUNT(*)::int FROM external_job_lines l WHERE l.job_id = ej.id) AS line_count,
               (SELECT COUNT(*)::int FROM external_job_lines l WHERE l.job_id = ej.id AND l.line_status = 'RECEIVED') AS received_count
        FROM external_jobs ej
        INNER JOIN suppliers s ON s.id = ej.supplier_id AND s.company_id = ej.company_id
+       LEFT JOIN external_job_preparation_types pt ON pt.id = ej.preparation_type_id AND pt.company_id = ej.company_id
+       LEFT JOIN warehouses w ON w.id = ej.source_warehouse_id AND w.company_id = ej.company_id
        WHERE ${where}
        ORDER BY ej.sent_date DESC, ej.created_at DESC
        LIMIT $${p} OFFSET $${p + 1}`,
@@ -181,6 +231,8 @@ const LINE_SELECT = `
   l.received_at, l.received_by_user_id,
   l.new_color_id, l.new_barcode, l.new_length_m, l.receipt_notes,
   fr.barcode AS current_barcode, fr.status AS roll_status, fr.length_m AS current_length_m,
+  fr.width_cm AS roll_width_cm, fr.gsm AS roll_gsm,
+  COALESCE(fr.actual_weight_kg, fr.calculated_weight_kg) AS roll_weight_kg,
   fi.name AS item_name, fi.internal_code AS item_internal_code,
   fc.name_ar AS current_color_name_ar, fc.color_code AS current_color_code,
   nc.name_ar AS new_color_name_ar, nc.color_code AS new_color_code,
@@ -193,9 +245,13 @@ export async function getExternalJobById(
   id: string,
 ): Promise<{ header: Record<string, unknown>; lines: Record<string, unknown>[] } | null> {
   const h = await db.query(
-    `SELECT ej.*, s.name AS supplier_name
+    `SELECT ej.*, s.name AS supplier_name, s.phone AS supplier_phone,
+            pt.name AS preparation_type_name, pt.default_waste_pct AS preparation_type_default_waste_pct,
+            w.name AS source_warehouse_name
      FROM external_jobs ej
      INNER JOIN suppliers s ON s.id = ej.supplier_id AND s.company_id = ej.company_id
+     LEFT JOIN external_job_preparation_types pt ON pt.id = ej.preparation_type_id AND pt.company_id = ej.company_id
+     LEFT JOIN warehouses w ON w.id = ej.source_warehouse_id AND w.company_id = ej.company_id
      WHERE ej.id=$1 AND ej.company_id=$2`,
     [id, companyId],
   );
@@ -258,17 +314,7 @@ export async function confirmExternalJob(
        WHERE id=$1 AND company_id=$2`,
       [ln.id, companyId, ln.color_id, ln.length_m, ln.barcode],
     );
-    await client.query(
-      `UPDATE fabric_rolls SET status='AT_EXTERNAL_JOB', updated_at=now() WHERE id=$1 AND company_id=$2`,
-      [ln.roll_id, companyId],
-    );
-    await client.query(
-      `INSERT INTO inventory_movements (
-         company_id, roll_id, movement_type, old_status, new_status,
-         reference_type, reference_id, reference_no, notes, created_by_user_id
-       ) VALUES ($1,$2,'EXTERNAL_JOB_SENT','AVAILABLE','AT_EXTERNAL_JOB',$3,$4,$5,$6,$7)`,
-      [companyId, ln.roll_id, 'EXTERNAL_JOB', jobId, String(job.job_no), `إرسال لمهمة خارجية ${job.job_no}`, userId],
-    );
+    await sendRollToExternalJob(client, companyId, userId, ln.roll_id, jobId, String(job.job_no));
   }
 
   await client.query(
@@ -511,4 +557,365 @@ export async function voidExternalJob(
     `UPDATE external_jobs SET document_status='VOIDED', notes=COALESCE($3, notes), updated_at=now() WHERE id=$1 AND company_id=$2`,
     [jobId, companyId, reason ? `ملغاة: ${reason}` : null],
   );
+}
+
+// ─── "مصنعية" (Processing) — نفس جدول external_jobs، job_kind='PROCESSING' ─────
+
+const prepTypeCreateSchema = z.object({
+  name: z.string().min(1, 'الاسم مطلوب'),
+  defaultWastePct: z.coerce.number().min(0).max(100).optional().nullable(),
+});
+
+const prepTypeUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  defaultWastePct: z.coerce.number().min(0).max(100).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+export async function listPreparationTypes(
+  db: DbQuery,
+  companyId: string,
+  includeInactive: boolean,
+): Promise<Record<string, unknown>[]> {
+  const where = includeInactive ? 'company_id=$1' : 'company_id=$1 AND is_active=true';
+  const rows = await db.query(
+    `SELECT id, name, default_waste_pct, is_active, created_at, updated_at
+     FROM external_job_preparation_types WHERE ${where} ORDER BY name ASC`,
+    [companyId],
+  );
+  return rows.rows as Record<string, unknown>[];
+}
+
+export async function createPreparationType(
+  db: DbQuery,
+  companyId: string,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = prepTypeCreateSchema.parse(raw);
+  const name = input.name.trim();
+  const dup = await db.query(
+    `SELECT id FROM external_job_preparation_types WHERE company_id=$1 AND lower(name)=lower($2)`,
+    [companyId, name],
+  );
+  if (dup.rows.length) {
+    throw Object.assign(new Error('يوجد نوع تجهيز بنفس الاسم مسبقاً'), { code: 'DUPLICATE' });
+  }
+  const row = await db.query(
+    `INSERT INTO external_job_preparation_types (company_id, name, default_waste_pct)
+     VALUES ($1,$2,$3)
+     RETURNING id, name, default_waste_pct, is_active, created_at, updated_at`,
+    [companyId, name, input.defaultWastePct ?? null],
+  );
+  return row.rows[0];
+}
+
+export async function updatePreparationType(
+  db: DbQuery,
+  companyId: string,
+  id: string,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = prepTypeUpdateSchema.parse(raw);
+  const existing = await db.query(
+    `SELECT id, name, default_waste_pct, is_active FROM external_job_preparation_types WHERE id=$1 AND company_id=$2`,
+    [id, companyId],
+  );
+  if (!existing.rows.length) throw Object.assign(new Error('نوع التجهيز غير موجود'), { code: 'NOT_FOUND' });
+
+  const nextName = input.name !== undefined ? input.name.trim() : existing.rows[0].name;
+  if (!nextName) throw Object.assign(new Error('الاسم مطلوب'), { code: 'VALIDATION' });
+  if (input.name !== undefined) {
+    const dup = await db.query(
+      `SELECT id FROM external_job_preparation_types WHERE company_id=$1 AND lower(name)=lower($2) AND id<>$3`,
+      [companyId, nextName, id],
+    );
+    if (dup.rows.length) {
+      throw Object.assign(new Error('يوجد نوع تجهيز بنفس الاسم مسبقاً'), { code: 'DUPLICATE' });
+    }
+  }
+  const nextWaste = input.defaultWastePct !== undefined ? input.defaultWastePct : existing.rows[0].default_waste_pct;
+  const nextActive = input.isActive !== undefined ? input.isActive : existing.rows[0].is_active;
+
+  const row = await db.query(
+    `UPDATE external_job_preparation_types
+     SET name=$3, default_waste_pct=$4, is_active=$5, updated_at=now()
+     WHERE id=$1 AND company_id=$2
+     RETURNING id, name, default_waste_pct, is_active, created_at, updated_at`,
+    [id, companyId, nextName, nextWaste, nextActive],
+  );
+  return row.rows[0];
+}
+
+const processingCreateSchema = z.object({
+  supplierId: z.string().uuid(),
+  fabricStage: z.enum(['RAW', 'FINISHED']),
+  preparationTypeId: z.string().uuid(),
+  sourceWarehouseId: z.string().uuid(),
+  processDescription: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  rollIds: z.array(z.string().uuid()).min(1),
+});
+
+export async function createProcessingExternalJob(
+  client: PoolClient,
+  companyId: string,
+  userId: string | null,
+  raw: unknown,
+): Promise<{
+  id: string;
+  jobNo: string;
+  supplierOrderNo: number;
+  totalRolls: number;
+  totalM: number;
+  totalKg: number;
+}> {
+  const input = processingCreateSchema.parse(raw);
+  const rollIds = [...new Set(input.rollIds)];
+
+  const supplierRow = await client.query<{ is_processing_party: boolean; is_active: boolean }>(
+    `SELECT is_processing_party, is_active FROM suppliers WHERE id=$1 AND company_id=$2`,
+    [input.supplierId, companyId],
+  );
+  if (!supplierRow.rows.length) throw Object.assign(new Error('المورد غير موجود'), { code: 'NOT_FOUND' });
+  if (!supplierRow.rows[0].is_processing_party) {
+    throw Object.assign(new Error('هذا المورد ليس جهة تجهيز (مصبغة/مطبعة)'), { code: 'VALIDATION' });
+  }
+  if (!supplierRow.rows[0].is_active) {
+    throw Object.assign(new Error('هذا المورد غير نشط'), { code: 'VALIDATION' });
+  }
+
+  const prepRow = await client.query<{ is_active: boolean }>(
+    `SELECT is_active FROM external_job_preparation_types WHERE id=$1 AND company_id=$2`,
+    [input.preparationTypeId, companyId],
+  );
+  if (!prepRow.rows.length) throw Object.assign(new Error('نوع التجهيز غير موجود'), { code: 'NOT_FOUND' });
+  if (!prepRow.rows[0].is_active) {
+    throw Object.assign(new Error('نوع التجهيز غير فعّال'), { code: 'VALIDATION' });
+  }
+
+  const whRow = await client.query<{ is_active: boolean; fabric_stage: string | null }>(
+    `SELECT is_active, fabric_stage FROM warehouses WHERE id=$1 AND company_id=$2`,
+    [input.sourceWarehouseId, companyId],
+  );
+  if (!whRow.rows.length) throw Object.assign(new Error('المستودع غير موجود'), { code: 'NOT_FOUND' });
+  if (!whRow.rows[0].is_active) {
+    throw Object.assign(new Error('المستودع غير نشط'), { code: 'VALIDATION' });
+  }
+  if (whRow.rows[0].fabric_stage !== input.fabricStage) {
+    const current = whRow.rows[0].fabric_stage;
+    throw Object.assign(
+      new Error(
+        current == null
+          ? 'هذا المستودع غير مُصنَّف (خام/جاهز) بعد — صنّفه أولاً من إعدادات المستودعات'
+          : `هذا المستودع مُصنَّف "${current === 'RAW' ? 'خام' : 'جاهز'}" ولا يطابق مرحلة المهمة المختارة`,
+      ),
+      { code: 'VALIDATION' },
+    );
+  }
+
+  const rollsRes = await client.query<{
+    id: string;
+    barcode: string;
+    status: string;
+    warehouse_id: string;
+    length_m: string;
+    color_id: string | null;
+    actual_weight_kg: string | null;
+    calculated_weight_kg: string | null;
+  }>(
+    `SELECT id, barcode, status, warehouse_id, length_m, color_id, actual_weight_kg, calculated_weight_kg
+     FROM fabric_rolls WHERE company_id=$1 AND id = ANY($2::uuid[]) FOR UPDATE`,
+    [companyId, rollIds],
+  );
+  const rollsById = new Map(rollsRes.rows.map((r) => [r.id, r]));
+
+  for (const rollId of rollIds) {
+    const roll = rollsById.get(rollId);
+    if (!roll) {
+      throw Object.assign(new Error('أحد الأتواب المختارة غير موجود بهذه الشركة'), { code: 'NOT_FOUND' });
+    }
+    if (roll.warehouse_id !== input.sourceWarehouseId) {
+      throw Object.assign(new Error(`الثوب ${roll.barcode} ليس بالمستودع المصدر المحدَّد`), { code: 'INVALID_STOCK' });
+    }
+    if (roll.status !== 'AVAILABLE') {
+      throw Object.assign(
+        new Error(`الثوب ${roll.barcode} غير متاح حالياً (الحالة: ${roll.status})`),
+        { code: 'INVALID_STOCK' },
+      );
+    }
+    if (Number(roll.length_m) <= 0) {
+      throw Object.assign(new Error(`الثوب ${roll.barcode} بطول صفر — لا يمكن إرساله`), { code: 'INVALID_STOCK' });
+    }
+    const openLine = await client.query(
+      `SELECT 1 FROM external_job_lines WHERE company_id=$1 AND roll_id=$2 AND line_status='SENT'`,
+      [companyId, rollId],
+    );
+    if (openLine.rows.length) {
+      throw Object.assign(
+        new Error(`الثوب ${roll.barcode} مرتبط بمهمة خارجية مفتوحة أخرى`),
+        { code: 'INVALID_STOCK' },
+      );
+    }
+  }
+
+  const jobNo = await generateSequentialDocumentNo(client, companyId, 'EXTERNAL_JOB');
+  const supplierOrderNo = await generateSupplierOrderNo(client, companyId, input.supplierId);
+
+  const ins = await client.query<{ id: string }>(
+    `INSERT INTO external_jobs (
+       company_id, job_no, supplier_id, sent_date, notes, document_status,
+       job_kind, fabric_stage, preparation_type_id, source_warehouse_id,
+       supplier_order_no, process_description, created_by_user_id
+     ) VALUES ($1,$2,$3,current_date,$4,'CONFIRMED','PROCESSING',$5,$6,$7,$8,$9,$10)
+     RETURNING id`,
+    [
+      companyId,
+      jobNo,
+      input.supplierId,
+      cleanText(input.notes) || null,
+      input.fabricStage,
+      input.preparationTypeId,
+      input.sourceWarehouseId,
+      supplierOrderNo,
+      cleanText(input.processDescription) || null,
+      userId,
+    ],
+  );
+  const jobId = ins.rows[0].id;
+
+  let totalM = 0;
+  let totalKg = 0;
+  for (const rollId of rollIds) {
+    const roll = rollsById.get(rollId)!;
+    totalM += Number(roll.length_m);
+    totalKg += Number(roll.actual_weight_kg ?? roll.calculated_weight_kg ?? 0);
+
+    await client.query(
+      `INSERT INTO external_job_lines (job_id, company_id, roll_id, sent_color_id, sent_length_m, sent_barcode, line_status)
+       VALUES ($1,$2,$3,$4,$5,$6,'SENT')`,
+      [jobId, companyId, rollId, roll.color_id, roll.length_m, roll.barcode],
+    );
+    await sendRollToExternalJob(client, companyId, userId, rollId, jobId, jobNo);
+  }
+
+  return {
+    id: jobId,
+    jobNo,
+    supplierOrderNo,
+    totalRolls: rollIds.length,
+    totalM: round2(totalM),
+    totalKg: round2(totalKg),
+  };
+}
+
+const processingEditSchema = z.object({
+  password: z.string().min(1, 'كلمة المرور مطلوبة'),
+  processDescription: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  preparationTypeId: z.string().uuid().optional(),
+});
+
+export async function editProcessingExternalJob(
+  client: PoolClient,
+  companyId: string,
+  userId: string,
+  jobId: string,
+  raw: unknown,
+): Promise<void> {
+  const input = processingEditSchema.parse(raw);
+  await verifyCurrentUserPassword(client, userId, input.password);
+
+  const jobRow = await client.query(
+    `SELECT * FROM external_jobs WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [jobId, companyId],
+  );
+  if (!jobRow.rows.length) throw Object.assign(new Error('المهمة غير موجودة'), { code: 'NOT_FOUND' });
+  const job = jobRow.rows[0];
+  if (job.job_kind !== 'PROCESSING') {
+    throw Object.assign(new Error('هذا الإجراء خاص بمهام المصنعية فقط'), { code: 'VALIDATION' });
+  }
+  const anyNotSent = await client.query(
+    `SELECT 1 FROM external_job_lines WHERE job_id=$1 AND company_id=$2 AND line_status<>'SENT' LIMIT 1`,
+    [jobId, companyId],
+  );
+  if (anyNotSent.rows.length) {
+    throw Object.assign(new Error('لا يمكن تعديل مهمة بدأ استلام أتوابها'), { code: 'INVALID_STATE' });
+  }
+
+  if (input.preparationTypeId) {
+    const prepRow = await client.query<{ is_active: boolean }>(
+      `SELECT is_active FROM external_job_preparation_types WHERE id=$1 AND company_id=$2`,
+      [input.preparationTypeId, companyId],
+    );
+    if (!prepRow.rows.length) throw Object.assign(new Error('نوع التجهيز غير موجود'), { code: 'NOT_FOUND' });
+    if (!prepRow.rows[0].is_active) throw Object.assign(new Error('نوع التجهيز غير فعّال'), { code: 'VALIDATION' });
+  }
+
+  const before = {
+    processDescription: job.process_description,
+    notes: job.notes,
+    preparationTypeId: job.preparation_type_id,
+  };
+
+  await client.query(
+    `UPDATE external_jobs
+     SET process_description = COALESCE($3, process_description),
+         notes = COALESCE($4, notes),
+         preparation_type_id = COALESCE($5, preparation_type_id),
+         updated_at = now()
+     WHERE id=$1 AND company_id=$2`,
+    [
+      jobId,
+      companyId,
+      input.processDescription !== undefined ? cleanText(input.processDescription) || null : null,
+      input.notes !== undefined ? cleanText(input.notes) || null : null,
+      input.preparationTypeId ?? null,
+    ],
+  );
+
+  await insertAuditLog(client, companyId, userId, 'EXTERNAL_JOB_PROCESSING_EDIT', jobId, {
+    before,
+    after: {
+      processDescription: input.processDescription ?? before.processDescription,
+      notes: input.notes ?? before.notes,
+      preparationTypeId: input.preparationTypeId ?? before.preparationTypeId,
+    },
+  });
+}
+
+const processingVoidSchema = z.object({
+  password: z.string().min(1, 'كلمة المرور مطلوبة'),
+  reason: z.string().optional().nullable(),
+});
+
+export async function voidProcessingExternalJob(
+  client: PoolClient,
+  companyId: string,
+  userId: string,
+  jobId: string,
+  raw: unknown,
+): Promise<void> {
+  const input = processingVoidSchema.parse(raw);
+  await verifyCurrentUserPassword(client, userId, input.password);
+
+  const jobRow = await client.query(
+    `SELECT job_kind FROM external_jobs WHERE id=$1 AND company_id=$2`,
+    [jobId, companyId],
+  );
+  if (!jobRow.rows.length) throw Object.assign(new Error('المهمة غير موجودة'), { code: 'NOT_FOUND' });
+  if (jobRow.rows[0].job_kind !== 'PROCESSING') {
+    throw Object.assign(new Error('هذا الإجراء خاص بمهام المصنعية فقط'), { code: 'VALIDATION' });
+  }
+
+  const linesBefore = await client.query<{ roll_id: string }>(
+    `SELECT roll_id FROM external_job_lines WHERE job_id=$1 AND company_id=$2`,
+    [jobId, companyId],
+  );
+
+  await voidExternalJob(client, companyId, userId, jobId, input.reason ?? null);
+
+  await insertAuditLog(client, companyId, userId, 'EXTERNAL_JOB_PROCESSING_VOID', jobId, {
+    rollIds: linesBefore.rows.map((r) => r.roll_id),
+    reason: input.reason ?? null,
+  });
 }

@@ -188,6 +188,7 @@ import { ImportExcel } from './pages/purchases/ImportExcel';
 import { ImportBatches } from './pages/purchases/ImportBatches';
 import { ExternalJobs } from './pages/purchases/ExternalJobs';
 import { ExternalJobReceipt } from './pages/purchases/ExternalJobReceipt';
+import { ExternalJobProcessingNew } from './pages/purchases/ExternalJobProcessingNew';
 import { PrintJobs } from './pages/inventory/PrintJobs';
 import { Sales } from './pages/Sales';
 import { Purchases } from './pages/Purchases';
@@ -274,6 +275,7 @@ export default function App() {
             <Route path="purchases/import-excel" element={<ImportExcel />} />
             <Route path="purchases/import-batches" element={<ImportBatches />} />
             <Route path="purchases/external-jobs" element={<ExternalJobs />} />
+            <Route path="purchases/external-jobs/processing/new" element={<ExternalJobProcessingNew />} />
             <Route path="purchases/external-jobs/:id" element={<ExternalJobReceipt />} />
 
             {/* Label printing routes */}

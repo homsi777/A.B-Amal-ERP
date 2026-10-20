@@ -36,6 +36,7 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     const search = q.search?.trim() || '';
     const status = q.status; // 'active' | 'inactive' | undefined
     const country = q.country?.trim() || '';
+    const isProcessingParty = q.isProcessingParty;
     const page = Math.max(1, parseInt(q.page) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(q.pageSize) || 20));
     const offset = (page - 1) * pageSize;
@@ -52,12 +53,13 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     if (status === 'active') { conditions.push(`is_active = true`); }
     else if (status === 'inactive') { conditions.push(`is_active = false`); }
     if (country) { conditions.push(`country ILIKE $${p}`); params.push(`%${country}%`); p++; }
+    if (isProcessingParty === 'true') conditions.push(`is_processing_party = true`);
 
     const where = conditions.join(' AND ');
     const pool = getPool();
     const [rows, countRow] = await Promise.all([
       pool.query(
-        `SELECT id,code,name,phone,email,address,country,notes,telegram_chat_id,telegram_enabled,telegram_label,is_active,created_at,updated_at
+        `SELECT id,code,name,phone,email,address,country,notes,is_processing_party,telegram_chat_id,telegram_enabled,telegram_label,is_active,created_at,updated_at
          FROM suppliers WHERE ${where} ORDER BY name ASC LIMIT $${p} OFFSET $${p + 1}`,
         [...params, pageSize, offset],
       ),
@@ -91,7 +93,7 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const pool = getPool();
     const row = await pool.query(
-      `SELECT id,code,name,phone,email,address,country,notes,telegram_chat_id,telegram_enabled,telegram_label,is_active,created_at,updated_at
+      `SELECT id,code,name,phone,email,address,country,notes,is_processing_party,telegram_chat_id,telegram_enabled,telegram_label,is_active,created_at,updated_at
        FROM suppliers WHERE id=$1 AND company_id=$2`,
       [id, companyId],
     );
@@ -111,10 +113,10 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     try {
       await assertTelegramChatAvailable(companyId, d.telegramChatId);
       const row = await pool.query(
-        `INSERT INTO suppliers(company_id,code,name,phone,email,address,country,notes,telegram_chat_id,telegram_enabled,telegram_label)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         RETURNING id,code,name,phone,email,address,country,notes,telegram_chat_id,telegram_enabled,telegram_label,is_active,created_at`,
-        [companyId, code, d.name, d.phone, d.email || null, d.address, d.country, d.notes, d.telegramChatId || null, d.telegramEnabled, d.telegramLabel || null],
+        `INSERT INTO suppliers(company_id,code,name,phone,email,address,country,notes,is_processing_party,telegram_chat_id,telegram_enabled,telegram_label)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         RETURNING id,code,name,phone,email,address,country,notes,is_processing_party,telegram_chat_id,telegram_enabled,telegram_label,is_active,created_at`,
+        [companyId, code, d.name, d.phone, d.email || null, d.address, d.country, d.notes, d.isProcessingParty, d.telegramChatId || null, d.telegramEnabled, d.telegramLabel || null],
       );
       try {
         await insertPartyActivityLog(pool, {
@@ -151,11 +153,11 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     try {
       await assertTelegramChatAvailable(companyId, d.telegramChatId, id);
       const row = await pool.query(
-        `UPDATE suppliers SET name=$3,phone=$4,email=$5,address=$6,country=$7,notes=$8,
-           telegram_chat_id=$9,telegram_enabled=$10,telegram_label=$11,updated_at=now()
+        `UPDATE suppliers SET name=$3,phone=$4,email=$5,address=$6,country=$7,notes=$8,is_processing_party=$9,
+           telegram_chat_id=$10,telegram_enabled=$11,telegram_label=$12,updated_at=now()
          WHERE id=$1 AND company_id=$2
-         RETURNING id,code,name,phone,email,address,country,notes,telegram_chat_id,telegram_enabled,telegram_label,is_active,updated_at`,
-        [id, companyId, d.name, d.phone, d.email || null, d.address, d.country, d.notes, d.telegramChatId || null, d.telegramEnabled, d.telegramLabel || null],
+         RETURNING id,code,name,phone,email,address,country,notes,is_processing_party,telegram_chat_id,telegram_enabled,telegram_label,is_active,updated_at`,
+        [id, companyId, d.name, d.phone, d.email || null, d.address, d.country, d.notes, d.isProcessingParty, d.telegramChatId || null, d.telegramEnabled, d.telegramLabel || null],
       );
       if (!row.rows.length) return sendError(reply, 404, 'المورد غير موجود', 'NOT_FOUND');
       try {

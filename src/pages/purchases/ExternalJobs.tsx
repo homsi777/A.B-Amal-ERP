@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Loader2, Plus, Search, X } from 'lucide-react';
+import { Briefcase, Loader2, Plus, Scissors, Search, X } from 'lucide-react';
 import {
-  listExternalJobs, createExternalJob, confirmExternalJob, type ExternalJob, type CreateExternalJobPayload,
+  listExternalJobs, createExternalJob, confirmExternalJob,
+  type ExternalJob, type CreateExternalJobPayload, type ExternalJobKind,
 } from '../../lib/api/externalJobsApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
@@ -21,6 +22,7 @@ export const ExternalJobs = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'DRAFT' | 'CONFIRMED' | 'VOIDED'>('');
+  const [kindFilter, setKindFilter] = useState<'' | ExternalJobKind>('');
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -32,6 +34,7 @@ export const ExternalJobs = () => {
       const res = await listExternalJobs({
         search: search || undefined,
         documentStatus: statusFilter || undefined,
+        jobKind: kindFilter || undefined,
         page,
         pageSize,
       });
@@ -42,7 +45,7 @@ export const ExternalJobs = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, page, showToast, t]);
+  }, [search, statusFilter, kindFilter, page, showToast, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -57,12 +60,20 @@ export const ExternalJobs = () => {
           </h2>
           <p className="text-slate-500 mt-1 text-sm">{t('page.subtitle')}</p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition"
-        >
-          <Plus className="w-4 h-4" /> {t('page.newJob')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/purchases/external-jobs/processing/new')}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-700 transition"
+          >
+            <Scissors className="w-4 h-4" /> {t('page.newProcessingJob')}
+          </button>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition"
+          >
+            <Plus className="w-4 h-4" /> {t('page.newJob')}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -87,6 +98,15 @@ export const ExternalJobs = () => {
             <option value="CONFIRMED">{t('status.confirmed')}</option>
             <option value="VOIDED">{t('status.voided')}</option>
           </select>
+          <select
+            value={kindFilter}
+            onChange={(e) => { setKindFilter(e.target.value as typeof kindFilter); setPage(1); }}
+            className="border border-slate-200 rounded-lg px-3 py-2 bg-white text-sm"
+          >
+            <option value="">{t('filters.allKinds')}</option>
+            <option value="GENERAL">{t('kind.general')}</option>
+            <option value="PROCESSING">{t('kind.processing')}</option>
+          </select>
         </div>
 
         <div className="overflow-x-auto">
@@ -94,6 +114,7 @@ export const ExternalJobs = () => {
             <thead className="bg-slate-800 text-slate-100 font-medium">
               <tr>
                 <th className="px-4 py-3">{t('table.colJobNo')}</th>
+                <th className="px-4 py-3">{t('table.colKind')}</th>
                 <th className="px-4 py-3">{t('table.colDate')}</th>
                 <th className="px-4 py-3">{t('table.colSupplier')}</th>
                 <th className="px-4 py-3">{t('table.colLines')}</th>
@@ -103,9 +124,9 @@ export const ExternalJobs = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
               ) : jobs.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">{t('table.noJobs')}</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">{t('table.noJobs')}</td></tr>
               ) : jobs.map((job) => (
                 <tr
                   key={job.id}
@@ -113,6 +134,14 @@ export const ExternalJobs = () => {
                   className="hover:bg-slate-50 cursor-pointer bg-white"
                 >
                   <td className="px-4 py-3 font-mono font-medium text-indigo-700">{job.job_no}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${job.job_kind === 'PROCESSING' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                      {job.job_kind === 'PROCESSING' ? t('kind.processing') : t('kind.general')}
+                    </span>
+                    {job.job_kind === 'PROCESSING' && job.supplier_order_no != null && (
+                      <span className="block text-[11px] text-slate-400 mt-0.5 font-mono">#{job.supplier_order_no}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{job.sent_date}</td>
                   <td className="px-4 py-3 font-medium text-slate-800">{job.supplier_name}</td>
                   <td className="px-4 py-3 text-slate-600">

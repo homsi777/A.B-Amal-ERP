@@ -10,6 +10,7 @@ const warehouseBody = z.object({
   name: z.string().min(1, 'الاسم مطلوب'),
   type: z.string().default('MAIN'),
   address: z.string().optional().default(''),
+  fabricStage: z.enum(['RAW', 'FINISHED']).nullable().optional(),
 });
 
 const locationBody = z.object({
@@ -35,7 +36,7 @@ export const warehouseRoutes: FastifyPluginAsync = async (app) => {
 
     const where = conditions.join(' AND ');
     const rows = await pool.query(
-      `SELECT id,code,name,type,address,is_active,created_at,updated_at
+      `SELECT id,code,name,type,address,fabric_stage,is_active,created_at,updated_at
        FROM warehouses WHERE ${where} ORDER BY name ASC`,
       params,
     );
@@ -47,7 +48,7 @@ export const warehouseRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const pool = getPool();
     const row = await pool.query(
-      `SELECT id,code,name,type,address,is_active,created_at,updated_at
+      `SELECT id,code,name,type,address,fabric_stage,is_active,created_at,updated_at
        FROM warehouses WHERE id=$1 AND company_id=$2`,
       [id, companyId],
     );
@@ -63,10 +64,10 @@ export const warehouseRoutes: FastifyPluginAsync = async (app) => {
     const pool = getPool();
     try {
       const row = await pool.query(
-        `INSERT INTO warehouses(company_id,code,name,type,address)
-         VALUES($1,$2,$3,$4,$5)
-         RETURNING id,code,name,type,address,is_active,created_at`,
-        [companyId, d.code.toUpperCase(), d.name, d.type.toUpperCase(), d.address],
+        `INSERT INTO warehouses(company_id,code,name,type,address,fabric_stage)
+         VALUES($1,$2,$3,$4,$5,$6)
+         RETURNING id,code,name,type,address,fabric_stage,is_active,created_at`,
+        [companyId, d.code.toUpperCase(), d.name, d.type.toUpperCase(), d.address, d.fabricStage ?? null],
       );
       return reply.status(201).send({ ok: true, data: row.rows[0] });
     } catch (e: unknown) {
@@ -85,10 +86,10 @@ export const warehouseRoutes: FastifyPluginAsync = async (app) => {
     const pool = getPool();
     try {
       const row = await pool.query(
-        `UPDATE warehouses SET name=$3,type=$4,address=$5,updated_at=now()
+        `UPDATE warehouses SET name=$3,type=$4,address=$5,fabric_stage=$6,updated_at=now()
          WHERE id=$1 AND company_id=$2
-         RETURNING id,code,name,type,address,is_active,updated_at`,
-        [id, companyId, d.name, d.type.toUpperCase(), d.address],
+         RETURNING id,code,name,type,address,fabric_stage,is_active,updated_at`,
+        [id, companyId, d.name, d.type.toUpperCase(), d.address, d.fabricStage ?? null],
       );
       if (!row.rows.length) return sendError(reply, 404, 'المستودع غير موجود', 'NOT_FOUND');
       return reply.send({ ok: true, data: row.rows[0] });

@@ -2,6 +2,8 @@ import { apiFetch } from './client';
 
 export type ExternalJobDocumentStatus = 'DRAFT' | 'CONFIRMED' | 'VOIDED';
 export type ExternalJobLineStatus = 'SENT' | 'RECEIVED' | 'CANCELLED';
+export type ExternalJobKind = 'GENERAL' | 'PROCESSING';
+export type FabricStage = 'RAW' | 'FINISHED';
 
 export interface ExternalJob {
   id: string;
@@ -16,10 +18,46 @@ export interface ExternalJob {
   fee_exchange_rate_to_usd: string | number | null;
   fee_posted_at: string | null;
   document_status: ExternalJobDocumentStatus;
+  job_kind: ExternalJobKind;
+  fabric_stage: FabricStage | null;
+  preparation_type_id: string | null;
+  preparation_type_name?: string | null;
+  source_warehouse_id: string | null;
+  source_warehouse_name?: string | null;
+  supplier_order_no: number | null;
+  process_description: string | null;
   line_count?: number;
   received_count?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface PreparationType {
+  id: string;
+  name: string;
+  default_waste_pct: string | number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProcessingJobPayload {
+  supplierId: string;
+  fabricStage: FabricStage;
+  preparationTypeId: string;
+  sourceWarehouseId: string;
+  processDescription?: string | null;
+  notes?: string | null;
+  rollIds: string[];
+}
+
+export interface CreateProcessingJobResult {
+  id: string;
+  jobNo: string;
+  supplierOrderNo: number;
+  totalRolls: number;
+  totalM: number;
+  totalKg: number;
 }
 
 export interface ExternalJobLine {
@@ -45,12 +83,17 @@ export interface ExternalJobLine {
   current_color_name_ar?: string | null;
   current_color_code?: string | null;
   roll_status?: string | null;
+  roll_width_cm?: string | number | null;
+  roll_gsm?: string | number | null;
+  roll_weight_kg?: string | number | null;
   item_name?: string | null;
   item_internal_code?: string | null;
 }
 
 export interface ExternalJobDetail extends ExternalJob {
   lines: ExternalJobLine[];
+  supplier_phone?: string | null;
+  preparation_type_default_waste_pct?: string | number | null;
 }
 
 export interface CreateExternalJobPayload {
@@ -76,6 +119,7 @@ export async function listExternalJobs(params: {
   documentStatus?: ExternalJobDocumentStatus | 'ALL';
   dateFrom?: string;
   dateTo?: string;
+  jobKind?: ExternalJobKind;
   page?: number;
   pageSize?: number;
 } = {}) {
@@ -85,6 +129,7 @@ export async function listExternalJobs(params: {
   if (params.documentStatus) q.set('documentStatus', params.documentStatus);
   if (params.dateFrom) q.set('dateFrom', params.dateFrom);
   if (params.dateTo) q.set('dateTo', params.dateTo);
+  if (params.jobKind) q.set('jobKind', params.jobKind);
   if (params.page) q.set('page', String(params.page));
   if (params.pageSize) q.set('pageSize', String(params.pageSize));
   const qs = q.toString() ? `?${q}` : '';
@@ -130,5 +175,55 @@ export async function voidExternalJob(id: string, reason?: string | null) {
   return apiFetch<{ ok: boolean }>(`/api/external-jobs/${id}/void`, {
     method: 'POST',
     body: JSON.stringify({ reason: reason ?? null }),
+  });
+}
+
+// ─── Preparation types ("مصنعية") ────────────────────────────────────────────
+
+export async function listPreparationTypes(includeInactive = false) {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  return apiFetch<{ ok: boolean; data: PreparationType[] }>(`/api/external-jobs/preparation-types${qs}`);
+}
+
+export async function createPreparationType(payload: { name: string; defaultWastePct?: number | null }) {
+  return apiFetch<{ ok: boolean; data: PreparationType }>('/api/external-jobs/preparation-types', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updatePreparationType(
+  id: string,
+  payload: { name?: string; defaultWastePct?: number | null; isActive?: boolean },
+) {
+  return apiFetch<{ ok: boolean; data: PreparationType }>(`/api/external-jobs/preparation-types/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Processing ("مصنعية") dispatch ──────────────────────────────────────────
+
+export async function createProcessingExternalJob(payload: CreateProcessingJobPayload) {
+  return apiFetch<{ ok: boolean; data: CreateProcessingJobResult }>('/api/external-jobs/processing', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function editProcessingExternalJob(
+  id: string,
+  payload: { password: string; processDescription?: string | null; notes?: string | null; preparationTypeId?: string },
+) {
+  return apiFetch<{ ok: boolean }>(`/api/external-jobs/${id}/processing`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function voidProcessingExternalJob(id: string, payload: { password: string; reason?: string | null }) {
+  return apiFetch<{ ok: boolean }>(`/api/external-jobs/${id}/void-processing`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
