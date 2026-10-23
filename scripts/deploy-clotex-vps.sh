@@ -134,14 +134,18 @@ run sudo systemctl reload nginx
 log "الخطوة هـ: فحص الصحة (/api/health يجب أن يرجع database: connected)"
 if [[ "$DRY_RUN" != "1" ]]; then
   sleep 2
-  HEALTH_RESPONSE="$(curl -s http://127.0.0.1/api/health || true)"
+  # لازم Host header صريح يطابق server_name بملف nginx (clotexerp.org) — بدونه
+  # يصل الطلب بـHost: 127.0.0.1 فيقع على الـserver block الافتراضي المشترك بهذا
+  # الخادم (يخدم عدة تطبيقات أخرى أيضاً) الذي يُحوِّل كل شيء بـ301، لا على vhost
+  # كلوتكس نفسه. هذا لا يعني فشل النشر — فقط الفحص كان يسأل الجهة الخطأ.
+  HEALTH_RESPONSE="$(curl -s -H 'Host: clotexerp.org' http://127.0.0.1/api/health || true)"
   echo "  $HEALTH_RESPONSE"
   if [[ "$HEALTH_RESPONSE" != *'"database":"connected"'* ]]; then
     err "فحص الصحة فشل — راجع القسم «التراجع» أسفل هذا الملف."
     exit 1
   fi
 else
-  echo "    [dry-run] curl -s http://127.0.0.1/api/health"
+  echo "    [dry-run] curl -s -H 'Host: clotexerp.org' http://127.0.0.1/api/health"
 fi
 
 echo ""
