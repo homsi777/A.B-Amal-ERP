@@ -39,6 +39,7 @@ const createRollSchema = z.object({
   purchaseInvoiceNo: z.string().nullable().optional(),
   supplierRollRef: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  intakeOperationId: z.string().uuid().nullable().optional(),
 });
 
 const updateRollSchema = z.object({
@@ -1170,6 +1171,18 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
       if (!supCheck.rows.length) return sendError(reply, 404, 'المورد غير موجود', 'NOT_FOUND');
     }
 
+    // Validate intake operation (must belong to company and still be open)
+    if (d.intakeOperationId) {
+      const opCheck = await pool.query(
+        'SELECT id, status FROM intake_operations WHERE id=$1 AND company_id=$2',
+        [d.intakeOperationId, companyId],
+      );
+      if (!opCheck.rows.length) return sendError(reply, 404, 'عملية الإدخال غير موجودة', 'NOT_FOUND');
+      if (opCheck.rows[0].status !== 'DRAFT') {
+        return sendError(reply, 400, 'عملية الإدخال هذه مُنهاة مسبقاً', 'VALIDATION');
+      }
+    }
+
     // Validate currency
     if (d.currencyCode) {
       const curCheck = await pool.query('SELECT code FROM currencies WHERE code=$1', [d.currencyCode]);
@@ -1201,8 +1214,8 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
             warehouse_id, location_id, length_m, width_cm, gsm,
             calculated_weight_kg, actual_weight_kg, unit_cost, currency_code,
             batch_no, container_no, purchase_invoice_no, supplier_roll_ref,
-            notes, created_by_user_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+            notes, created_by_user_id, intake_operation_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
          RETURNING *`,
         [
           companyId, d.rollNo ?? null, barcode, d.itemId,
@@ -1212,7 +1225,7 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
           calcWt, d.actualWeightKg ?? null, d.unitCost ?? null, d.currencyCode ?? null,
           d.batchNo ?? null, d.containerNo ?? null,
           d.purchaseInvoiceNo ?? null, d.supplierRollRef ?? null,
-          d.notes ?? null, userId,
+          d.notes ?? null, userId, d.intakeOperationId ?? null,
         ],
       );
 

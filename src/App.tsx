@@ -171,6 +171,8 @@ import { DashboardLayout } from './layouts/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
 import { CreateItem } from './pages/inventory/CreateItem';
+import { BulkSales } from './pages/inventory/BulkSales';
+import { IntakeDispatchSlips } from './pages/inventory/IntakeDispatchSlips';
 import { YarnManagement } from './pages/inventory/YarnManagement';
 import { InventorySettings } from './pages/inventory/InventorySettings';
 import { StickerPrinting } from './pages/inventory/StickerPrinting';
@@ -189,6 +191,7 @@ import { ImportBatches } from './pages/purchases/ImportBatches';
 import { ExternalJobs } from './pages/purchases/ExternalJobs';
 import { ExternalJobReceipt } from './pages/purchases/ExternalJobReceipt';
 import { ExternalJobProcessingNew } from './pages/purchases/ExternalJobProcessingNew';
+import { IntakeOperationNew } from './pages/purchases/IntakeOperationNew';
 import { PrintJobs } from './pages/inventory/PrintJobs';
 import { Sales } from './pages/Sales';
 import { Purchases } from './pages/Purchases';
@@ -253,6 +256,8 @@ export default function App() {
             <Route path="inventory" element={<Inventory />} />
             <Route path="inventory/create" element={<CreateItem />} />
             <Route path="inventory/edit/:id" element={<CreateItem />} />
+            <Route path="inventory/bulk-sales" element={<BulkSales />} />
+            <Route path="inventory/intake-dispatch-slips" element={<IntakeDispatchSlips />} />
             <Route path="inventory/yarn" element={<YarnManagement />} />
             <Route path="inventory/settings" element={<InventorySettings />} />
             <Route path="inventory/labels" element={<StickerPrinting />} />
@@ -276,6 +281,7 @@ export default function App() {
             <Route path="purchases/import-batches" element={<ImportBatches />} />
             <Route path="purchases/external-jobs" element={<ExternalJobs />} />
             <Route path="purchases/external-jobs/processing/new" element={<ExternalJobProcessingNew />} />
+            <Route path="purchases/intake-operations/new" element={<IntakeOperationNew />} />
             <Route path="purchases/external-jobs/:id" element={<ExternalJobReceipt />} />
 
             {/* Label printing routes */}

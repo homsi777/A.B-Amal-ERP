@@ -17,7 +17,9 @@ type SequentialDocumentKind =
   | 'ACCOUNT_STATEMENT'
   | 'CUSTOMER_DISCOUNT'
   | 'OPERATING_EXPENSE'
-  | 'EXTERNAL_JOB';
+  | 'EXTERNAL_JOB'
+  | 'INTAKE_ORDER'
+  | 'INTAKE_DISPATCH_SLIP';
 
 const SEQUENTIAL_DOCUMENTS: Record<
   SequentialDocumentKind,
@@ -32,6 +34,8 @@ const SEQUENTIAL_DOCUMENTS: Record<
   CUSTOMER_DISCOUNT: { prefix: 'CD', width: 6, table: 'customer_discounts', column: 'discount_no' },
   OPERATING_EXPENSE: { prefix: 'EX', width: 6, table: 'operating_expenses', column: 'expense_no' },
   EXTERNAL_JOB: { prefix: 'EJ', width: 7, table: 'external_jobs', column: 'job_no' },
+  INTAKE_ORDER: { prefix: 'IN', width: 7, table: 'intake_operations', column: 'order_no' },
+  INTAKE_DISPATCH_SLIP: { prefix: 'DS', width: 7, table: 'intake_dispatch_slips', column: 'slip_no' },
 };
 
 /** أرقام طلبيات العملاء — أرقام فقط (1، 2، 3…) مع دعم التسلسل القديم CO0000001 */

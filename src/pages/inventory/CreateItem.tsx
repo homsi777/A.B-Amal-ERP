@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, FileText, ArrowRight, ScanLine, ImagePlus, Upload, X, Printer } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { getIntakeOperation, finalizeIntakeOperation, type ApiIntakeOperation } from '../../lib/api/intakeOperationsApi';
 import { autoPrintLabel } from '../../lib/printing/autoPrintLabel';
 import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import type { AdHocLabelInput } from '../../components/labels/LabelCard';
@@ -154,6 +155,8 @@ export const CreateItem = () => {
   const { addFabric, updateFabric, inventory, warehouses } = useStore();
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const intakeOperationId = searchParams.get('intakeOperationId') || '';
   const editingItem = id ? inventory.find(item => item.id === id) : null;
   const isEditMode = Boolean(editingItem);
 
@@ -162,6 +165,8 @@ export const CreateItem = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [lastSavedPrintInput, setLastSavedPrintInput] = useState<AdHocLabelInput | null>(null);
+  const [intakeOperation, setIntakeOperation] = useState<ApiIntakeOperation | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
 
   const localActiveWarehouses = warehouses.filter(w => w.status === 'active');
   const activeWarehouses = apiWarehouses.length > 0
@@ -274,6 +279,26 @@ export const CreateItem = () => {
       cancelled = true;
     };
   }, []);
+
+  // سياق عملية الإدخال (إن وُجد): يُحمَّل مرة واحدة ويُقفل اختيار المستودع
+  // على مستودع العملية — لا يمكن تغييره بينما نحن ضمن هذا السياق.
+  useEffect(() => {
+    if (!intakeOperationId) return;
+    let cancelled = false;
+    getIntakeOperation(intakeOperationId)
+      .then((op) => {
+        if (cancelled) return;
+        setIntakeOperation(op);
+        setWarehouseId(op.warehouse_id);
+      })
+      .catch(() => {
+        if (!cancelled) setSaveError(t('intakeContext.loadFailed'));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intakeOperationId]);
 
   useEffect(() => {
     if (!getApiBaseUrl() || !getStoredToken()) {
@@ -556,6 +581,7 @@ export const CreateItem = () => {
       unitCost: Number(draft.costPrice) || null,
       currencyCode: 'USD',
       notes: draft.imageUrl ? 'تم إرفاق صورة للمادة في واجهة النظام.' : null,
+      intakeOperationId: intakeOperationId || null,
     });
 
     const l1 = findCategoryById(categoryApiTree, draft.catL1Id);
@@ -860,6 +886,29 @@ export const CreateItem = () => {
     setName('');
     resetEntryFieldsForNextRoll();
     setSaving(false);
+
+    if (intakeOperationId && savedCount > 0) {
+      setFinalizing(true);
+      try {
+        const result = await finalizeIntakeOperation(intakeOperationId);
+        if (result.externalJob) {
+          setSuccessMessage(t('intakeContext.finalizedProcessing', { jobNo: result.externalJob.jobNo }));
+          setTimeout(() => navigate(`/purchases/external-jobs/${result.externalJob!.id}`), 1500);
+        } else if (result.dispatchSlip) {
+          setSuccessMessage(t('intakeContext.finalizedSlip', { slipNo: result.dispatchSlip.slipNo }));
+          setTimeout(() => navigate('/inventory/intake-dispatch-slips'), 1500);
+        } else if (result.returnInvoice) {
+          setSuccessMessage(t('intakeContext.finalizedReturn', { returnNo: result.returnInvoice.returnNo }));
+          setTimeout(() => navigate('/invoices/returns'), 1500);
+        }
+      } catch (error) {
+        setSaveError(
+          error instanceof ApiRequestError ? error.message : t('intakeContext.finalizeFailed'),
+        );
+      } finally {
+        setFinalizing(false);
+      }
+    }
   };
 
   const handleEditDraft = (localId: string) => {
@@ -953,14 +1002,32 @@ export const CreateItem = () => {
           </button>
           <button
             onClick={isEditMode ? handleSave : handleFinalSave}
-            disabled={saving || (!isEditMode && draftRolls.length === 0)}
+            disabled={saving || finalizing || (!isEditMode && draftRolls.length === 0)}
             className="bg-indigo-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? t('page.saving') : (isEditMode ? t('page.saveItem') : t('page.saveAllRolls'))}</span>
+            <span>
+              {finalizing
+                ? t('intakeContext.finalizing')
+                : saving ? t('page.saving') : (isEditMode ? t('page.saveItem') : t('page.saveAllRolls'))}
+            </span>
           </button>
         </div>
       </div>
+
+      {intakeOperation && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex flex-wrap items-center gap-4 text-sm">
+          <span className="font-black text-indigo-900">
+            {t('intakeContext.bannerTitle', { orderNo: intakeOperation.order_no })}
+          </span>
+          <span className="text-indigo-700">
+            {t(`intakeContext.action.${intakeOperation.action_type}`)}
+          </span>
+          <span className="text-indigo-700">
+            {activeWarehouses.find((w) => w.id === intakeOperation.warehouse_id)?.name}
+          </span>
+        </div>
+      )}
 
       <ItemImageControl
         enabled={showImageUpload}
@@ -1175,18 +1242,22 @@ export const CreateItem = () => {
 
               <div className="space-y-3">
                 <label className="block text-sm font-bold text-slate-700">{t('form.warehouseLabel')}</label>
-                <select 
+                <select
                   id="warehouse"
                   onKeyDown={e => enterToNext(e, "name")}
                   value={warehouseId}
                   onChange={e => setWarehouseId(e.target.value)}
-                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm" 
+                  disabled={Boolean(intakeOperation)}
+                  className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {activeWarehouses.length === 0 && <option value="" disabled>{t('form.noActiveWarehouseOption')}</option>}
                   {activeWarehouses.map(wh => (
                     <option key={wh.id} value={wh.id}>{wh.name} ({wh.location})</option>
                   ))}
                 </select>
+                {intakeOperation && (
+                  <p className="text-xs text-indigo-700">{t('intakeContext.warehouseLocked')}</p>
+                )}
               </div>
 
               <div className="space-y-3 md:col-span-2">

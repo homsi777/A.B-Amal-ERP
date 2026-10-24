@@ -189,6 +189,7 @@ export interface FabricRollCreatePayload {
   purchaseInvoiceNo?: string | null;
   supplierRollRef?: string | null;
   notes?: string | null;
+  intakeOperationId?: string | null;
 }
 
 export interface FabricRollUpdatePayload {
