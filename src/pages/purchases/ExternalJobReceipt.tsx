@@ -5,8 +5,10 @@ import { ArrowRight, CheckCircle2, Loader2, Lock, Pencil, Printer, XCircle } fro
 import {
   getExternalJob, receiveExternalJobLine, setExternalJobFee, postExternalJobFee, voidExternalJob,
   editProcessingExternalJob, voidProcessingExternalJob,
-  type ExternalJobDetail, type ExternalJobLine,
+  getExternalJobReceipt, createExternalJobReceipt, approveExternalJobReceiptShortage,
+  type ExternalJobDetail, type ExternalJobLine, type ExternalJobReceiptDto,
 } from '../../lib/api/externalJobsApi';
+import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { SUPPORTED_CURRENCIES, getCurrencyName } from '../../lib/currency';
 import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
@@ -36,6 +38,21 @@ export const ExternalJobReceipt = () => {
   const [editDescription, setEditDescription] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
+  const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
+  const [receipt, setReceipt] = useState<ExternalJobReceiptDto | null>(null);
+  const [sentLengthM, setSentLengthM] = useState(0);
+  const [sentWeightKg, setSentWeightKg] = useState(0);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [returnedLengthM, setReturnedLengthM] = useState('');
+  const [returnedWeightKg, setReturnedWeightKg] = useState('');
+  const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
+  const [rollStatus, setRollStatus] = useState<'AVAILABLE' | 'DAMAGED'>('AVAILABLE');
+  const [receiptNotes, setReceiptNotes] = useState('');
+  const [savingReceipt, setSavingReceipt] = useState(false);
+  const [shortageAmount, setShortageAmount] = useState('');
+  const [shortageNotes, setShortageNotes] = useState('');
+  const [approvingShortage, setApprovingShortage] = useState(false);
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -46,6 +63,17 @@ export const ExternalJobReceipt = () => {
       setFeeCurrencyCode(res.data.fee_currency_code ?? 'USD');
       setEditDescription(res.data.process_description ?? '');
       setEditNotes(res.data.notes ?? '');
+      if (res.data.job_kind === 'PROCESSING') {
+        setReceiptLoading(true);
+        try {
+          const receiptRes = await getExternalJobReceipt(id);
+          setReceipt(receiptRes.data.receipt);
+          setSentLengthM(receiptRes.data.sentLengthM);
+          setSentWeightKg(receiptRes.data.sentWeightKg);
+        } finally {
+          setReceiptLoading(false);
+        }
+      }
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.loadJobFailed') });
     } finally {
@@ -55,6 +83,46 @@ export const ExternalJobReceipt = () => {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void fetchMe().then(setCurrentUser).catch(() => setCurrentUser(null)); }, []);
+  useEffect(() => { listWarehouses({ status: 'active' }).then(setWarehouses).catch(() => {}); }, []);
+
+  const handleCreateReceipt = async () => {
+    if (!id || !returnedLengthM.trim() || !destinationWarehouseId) return;
+    setSavingReceipt(true);
+    try {
+      await createExternalJobReceipt(id, {
+        returnedLengthM: Number(returnedLengthM),
+        returnedWeightKg: returnedWeightKg.trim() ? Number(returnedWeightKg) : null,
+        destinationWarehouseId,
+        rollStatus,
+        notes: receiptNotes.trim() || null,
+      });
+      showToast({ type: 'success', message: t('receiptSection.createdSuccess') });
+      await load();
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('receiptSection.createFailed') });
+    } finally {
+      setSavingReceipt(false);
+    }
+  };
+
+  const handleApproveShortage = async () => {
+    if (!id || !shortageAmount.trim()) return;
+    setApprovingShortage(true);
+    try {
+      await approveExternalJobReceiptShortage(id, {
+        amountM: Number(shortageAmount),
+        notes: shortageNotes.trim() || null,
+      });
+      showToast({ type: 'success', message: t('receiptSection.shortageApprovedSuccess') });
+      setShortageAmount('');
+      setShortageNotes('');
+      await load();
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('receiptSection.shortageApproveFailed') });
+    } finally {
+      setApprovingShortage(false);
+    }
+  };
 
   const handleSaveFee = async () => {
     if (!id || !feeAmount.trim()) return;
@@ -349,7 +417,134 @@ export const ExternalJobReceipt = () => {
             </table>
           </div>
         </div>
-      ) : (
+      ) : null}
+
+      {job.job_kind === 'PROCESSING' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <h3 className="font-bold text-slate-800">{t('receiptSection.title')}</h3>
+
+          {receiptLoading ? (
+            <div className="text-center text-slate-500 py-4"><Loader2 className="w-5 h-5 animate-spin inline ml-2" />{t('receiptSection.loading')}</div>
+          ) : receipt ? (
+            <div className="space-y-3">
+              <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div><span className="text-slate-500">{t('receiptSection.sentLabel')}: </span><strong className="font-mono">{sentLengthM.toFixed(2)} {t('meterAbbr')} / {sentWeightKg.toFixed(2)} {t('processingNew.colWeight')}</strong></div>
+                <div><span className="text-slate-500">{t('receiptSection.returnedLabel')}: </span><strong className="font-mono">{Number(receipt.returned_length_m).toFixed(2)} {t('meterAbbr')}{receipt.returned_weight_kg != null ? ` / ${Number(receipt.returned_weight_kg).toFixed(2)}` : ''}</strong></div>
+                <div><span className="text-slate-500">{t('receiptSection.destinationLabel')}: </span><strong>{receipt.destination_warehouse_name || '—'}</strong></div>
+                <div><span className="text-slate-500">{t('receiptSection.rollStatusLabel')}: </span><strong>{receipt.roll_status === 'DAMAGED' ? t('receiptSection.statusDamaged') : t('receiptSection.statusAvailable')}</strong></div>
+              </div>
+              {(() => {
+                const diff = sentLengthM - Number(receipt.returned_length_m) - Number(receipt.shortage_approved_length_m || 0);
+                return diff > 0.001 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-amber-700">
+                      {t('receiptSection.differenceLabel')}: {diff.toFixed(2)} {t('meterAbbr')}
+                      {Number(receipt.shortage_approved_length_m) > 0 && (
+                        <span className="text-xs text-slate-500 font-normal"> ({t('receiptSection.alreadyApproved', { amount: Number(receipt.shortage_approved_length_m).toFixed(2) })})</span>
+                      )}
+                    </p>
+                    {canPrice ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex flex-wrap gap-2 items-end">
+                        <div className="space-y-1">
+                          <label className="text-xs text-slate-600">{t('receiptSection.shortageAmountLabel')}</label>
+                          <input
+                            type="number" min={0} max={diff} step="0.001"
+                            value={shortageAmount}
+                            onChange={(e) => setShortageAmount(e.target.value)}
+                            className="w-28 rounded border border-slate-300 px-2 py-1.5 text-sm" dir="ltr"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-[180px] space-y-1">
+                          <label className="text-xs text-slate-600">{t('receiptSection.shortageNotesLabel')}</label>
+                          <input
+                            value={shortageNotes}
+                            onChange={(e) => setShortageNotes(e.target.value)}
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          disabled={approvingShortage || !shortageAmount.trim()}
+                          onClick={() => void handleApproveShortage()}
+                          className="rounded-lg bg-amber-700 px-4 py-1.5 text-sm font-bold text-white hover:bg-amber-800 disabled:opacity-50"
+                        >
+                          {approvingShortage ? t('receiptSection.approving') : t('receiptSection.approveShortageButton')}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">{t('pricing.noPermission')}</p>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-500">{t('receiptSection.subtitle', { sent: sentLengthM.toFixed(2) })}</p>
+              <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-700">{t('receiptSection.returnedLengthLabel')}</label>
+                  <input
+                    type="number" min={0} step="0.01"
+                    value={returnedLengthM}
+                    onChange={(e) => setReturnedLengthM(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm" dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-700">{t('receiptSection.returnedWeightLabel')}</label>
+                  <input
+                    type="number" min={0} step="0.01"
+                    value={returnedWeightKg}
+                    onChange={(e) => setReturnedWeightKg(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm" dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-700">{t('receiptSection.destinationLabel')}</label>
+                  <select
+                    value={destinationWarehouseId}
+                    onChange={(e) => setDestinationWarehouseId(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm"
+                  >
+                    <option value="">{t('receiptSection.chooseWarehouse')}</option>
+                    {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-700">{t('receiptSection.rollStatusLabel')}</label>
+                  <select
+                    value={rollStatus}
+                    onChange={(e) => setRollStatus(e.target.value as 'AVAILABLE' | 'DAMAGED')}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm"
+                  >
+                    <option value="AVAILABLE">{t('receiptSection.statusAvailable')}</option>
+                    <option value="DAMAGED">{t('receiptSection.statusDamaged')}</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-bold text-slate-700">{t('receiptSection.notesLabel')}</label>
+                <input
+                  value={receiptNotes}
+                  onChange={(e) => setReceiptNotes(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={savingReceipt || !returnedLengthM.trim() || !destinationWarehouseId}
+                onClick={() => void handleCreateReceipt()}
+                className="px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 transition"
+              >
+                {savingReceipt ? t('receiptSection.saving') : t('receiptSection.createButton')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {job.job_kind !== 'PROCESSING' && (
         <>
           {/* Pending receipt lines */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

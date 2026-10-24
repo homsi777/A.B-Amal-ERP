@@ -19,6 +19,11 @@ import {
   editProcessingExternalJob,
   voidProcessingExternalJob,
 } from '../services/externalJobService.js';
+import {
+  createExternalJobReceipt,
+  getExternalJobReceipt,
+  approveExternalJobReceiptShortage,
+} from '../services/externalJobReceiptService.js';
 
 function handleServiceError(reply: FastifyReply, e: unknown) {
   const err = e as { code?: string; message?: string; issues?: unknown };
@@ -253,6 +258,52 @@ export const externalJobRoutes: FastifyPluginAsync = async (app) => {
       await postExternalJobFee(client, companyId, userId, id);
       await client.query('COMMIT');
       return reply.send({ ok: true });
+    } catch (e: unknown) {
+      await client.query('ROLLBACK');
+      return handleServiceError(reply, e);
+    } finally {
+      client.release();
+    }
+  });
+
+  // الاستلام الموحَّد لمهمة مصنعية — متاح لموظف المستودع (لا تقييد صلاحية
+  // هنا)، بخلاف اعتماد الفرق كفاقد بالأسفل الذي يبقى محصوراً بالمحاسب/المدير.
+  app.get('/:id/receipt', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const result = await getExternalJobReceipt(getPool(), companyId, id);
+    return reply.send({ ok: true, data: result });
+  });
+
+  app.post('/:id/receipt', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await createExternalJobReceipt(client, companyId, userId, id, req.body);
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: result });
+    } catch (e: unknown) {
+      await client.query('ROLLBACK');
+      return handleServiceError(reply, e);
+    } finally {
+      client.release();
+    }
+  });
+
+  app.post('/:id/receipt/approve-shortage', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    if (!isPricingAllowed(req.user)) return sendError(reply, 403, 'ليس لديك صلاحية اعتماد النقص', 'FORBIDDEN');
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await approveExternalJobReceiptShortage(client, companyId, userId, id, req.body);
+      await client.query('COMMIT');
+      return reply.send({ ok: true, data: result });
     } catch (e: unknown) {
       await client.query('ROLLBACK');
       return handleServiceError(reply, e);

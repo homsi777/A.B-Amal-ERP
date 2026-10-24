@@ -184,6 +184,59 @@ export async function postExternalJobFee(id: string) {
   return apiFetch<{ ok: boolean }>(`/api/external-jobs/${id}/post-fee`, { method: 'POST', body: '{}' });
 }
 
+export interface ExternalJobReceiptDto {
+  id: string;
+  job_id: string;
+  returned_length_m: string;
+  returned_weight_kg: string | null;
+  destination_warehouse_id: string;
+  destination_warehouse_name?: string;
+  roll_status: 'AVAILABLE' | 'DAMAGED';
+  result_roll_id: string | null;
+  result_roll_barcode?: string | null;
+  notes: string | null;
+  received_at: string;
+  shortage_approved_length_m: string;
+  shortage_notes: string | null;
+  shortage_approved_at: string | null;
+}
+
+export interface GetExternalJobReceiptResult {
+  receipt: ExternalJobReceiptDto | null;
+  sentLengthM: number;
+  sentWeightKg: number;
+}
+
+export async function getExternalJobReceipt(jobId: string) {
+  return apiFetch<{ ok: boolean; data: GetExternalJobReceiptResult }>(`/api/external-jobs/${jobId}/receipt`);
+}
+
+export async function createExternalJobReceipt(
+  jobId: string,
+  payload: {
+    returnedLengthM: number;
+    returnedWeightKg?: number | null;
+    destinationWarehouseId: string;
+    rollStatus: 'AVAILABLE' | 'DAMAGED';
+    notes?: string | null;
+  },
+) {
+  return apiFetch<{ ok: boolean; data: { receipt: ExternalJobReceiptDto; sentLengthM: number; sentWeightKg: number } }>(
+    `/api/external-jobs/${jobId}/receipt`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function approveExternalJobReceiptShortage(
+  jobId: string,
+  payload: { amountM: number; notes?: string | null },
+) {
+  return apiFetch<{ ok: boolean; data: ExternalJobReceiptDto }>(`/api/external-jobs/${jobId}/receipt/approve-shortage`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function voidExternalJob(id: string, reason?: string | null) {
   return apiFetch<{ ok: boolean }>(`/api/external-jobs/${id}/void`, {
     method: 'POST',

@@ -1137,9 +1137,13 @@ export async function confirmPurchaseInvoice(
 
     // مطابقة تلقائية مع إرساليات "مصنعية" المفتوحة لهذا المورد ونفس الخامة —
     // تسجيل/تقرير فقط، لا تؤثر على حركة المخزون أو القيد المحاسبي أعلاه.
+    // ربط اختياري برقم إرسالية محدد (metadata.externalJobId) — إن لم يُحدَّد
+    // تستمر المطابقة التلقائية بالأقدم أولاً عبر كل الإرساليات المفتوحة.
     if (inv.supplier_id && lineItemId) {
       const matchUnit = (String(ln.unit || 'meter').toLowerCase() === 'yard' ? 'yard' : 'meter') as 'meter' | 'yard';
       const matchQtyM = quantityToMeters(Number(ln.quantity) || 0, matchUnit);
+      const lineMeta = ((ln.metadata as Record<string, unknown> | null) || {}) as Record<string, unknown>;
+      const linkedJobId = typeof lineMeta.externalJobId === 'string' ? lineMeta.externalJobId : null;
       if (matchQtyM > 0) {
         await matchPurchaseLineAgainstProcessingDispatches(
           client,
@@ -1150,6 +1154,7 @@ export async function confirmPurchaseInvoice(
           String(ln.id),
           matchQtyM,
           userId,
+          linkedJobId,
         );
       }
     }

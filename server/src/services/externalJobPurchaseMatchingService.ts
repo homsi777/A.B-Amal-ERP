@@ -4,9 +4,10 @@ import { z } from 'zod';
 /**
  * مطابقة كمية سطر فاتورة شراء (بالمتر) مع ما هو مفتوح من سطور إرسال
  * "مصنعية" لنفس المورد ونفس الخامة (بصرف النظر عن اللون)، بالأقدم أولاً
- * (FIFO) عبر كل مهام المصنعية المفتوحة لهذا المورد — ليست إرسالية واحدة
- * محددة. تُستدعى من داخل transaction تأكيد فاتورة الشراء نفسها، لكل سطر
- * فاتورة بالمتر مرتبط بخامة. تسجيل/تقرير فقط — لا حركة مخزون ولا قيد
+ * (FIFO). افتراضياً عبر كل مهام المصنعية المفتوحة لهذا المورد؛ إن مُرِّر
+ * `jobId` (ربط اختياري برقم إرسالية محدد من المستخدم) تُحصَر المطابقة بهذه
+ * المهمة فقط. تُستدعى من داخل transaction تأكيد فاتورة الشراء نفسها، لكل
+ * سطر فاتورة بالمتر مرتبط بخامة. تسجيل/تقرير فقط — لا حركة مخزون ولا قيد
  * محاسبي ينشأ من هنا؛ fee_amount ومنطق GL الحالي غير مُلامَسين إطلاقاً.
  */
 export async function matchPurchaseLineAgainstProcessingDispatches(
@@ -18,9 +19,11 @@ export async function matchPurchaseLineAgainstProcessingDispatches(
   purchaseInvoiceLineId: string,
   quantityM: number,
   userId: string | null,
+  jobId?: string | null,
 ): Promise<{ matchedM: number; remainingUnmatchedM: number }> {
   if (!Number.isFinite(quantityM) || quantityM <= 0) return { matchedM: 0, remainingUnmatchedM: 0 };
 
+  const jobFilter = jobId ? 'AND ej.id = $4' : '';
   const openLines = await client.query<{ id: string; remaining: string }>(
     `SELECT ejl.id, (ejl.sent_length_m - ejl.matched_length_m) AS remaining
      FROM external_job_lines ejl
@@ -32,9 +35,10 @@ export async function matchPurchaseLineAgainstProcessingDispatches(
        AND ejl.line_status <> 'CANCELLED'
        AND ejl.sent_length_m IS NOT NULL
        AND (ejl.sent_length_m - ejl.matched_length_m) > 0.001
+       ${jobFilter}
      ORDER BY ej.sent_date ASC, ejl.created_at ASC
      FOR UPDATE OF ejl`,
-    [companyId, supplierId, fabricItemId],
+    jobId ? [companyId, supplierId, fabricItemId, jobId] : [companyId, supplierId, fabricItemId],
   );
 
   let remainingToMatch = quantityM;
