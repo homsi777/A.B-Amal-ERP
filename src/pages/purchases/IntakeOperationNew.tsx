@@ -32,6 +32,7 @@ export const IntakeOperationNew: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   const [supplierId, setSupplierId] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
   const [bulkSaleId, setBulkSaleId] = useState('');
   const [actionType, setActionType] = useState<IntakeActionType>('STOCK');
@@ -66,10 +67,13 @@ export const IntakeOperationNew: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const eligibleSuppliers = useMemo(
-    () => (actionType === 'PROCESSING' ? suppliers.filter((s) => s.is_processing_party) : suppliers),
-    [suppliers, actionType],
-  );
+  // عام لكل الموردين — الفحص الدقيق (هل هو جهة تجهيز فعلاً عند اختيار
+  // مصنعية) يبقى على الخادم عند الحفظ.
+  const filteredSuppliers = useMemo(() => {
+    const q = supplierSearch.trim().toLocaleLowerCase();
+    if (!q) return suppliers;
+    return suppliers.filter((s) => s.name.toLocaleLowerCase().includes(q));
+  }, [suppliers, supplierSearch]);
 
   const submit = async () => {
     if (!supplierId || !warehouseId || !bulkSaleId) {
@@ -123,18 +127,25 @@ export const IntakeOperationNew: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <label className="space-y-1 block">
           <span className="text-xs font-bold text-slate-600">{t('supplierLabel')}</span>
+          <input
+            type="text"
+            value={supplierSearch}
+            onChange={(e) => setSupplierSearch(e.target.value)}
+            placeholder={t('supplierSearchPlaceholder')}
+            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs bg-slate-50 mb-1"
+          />
           <select
             value={supplierId}
             onChange={(e) => setSupplierId(e.target.value)}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
           >
             <option value="">{t('chooseSupplier')}</option>
-            {eligibleSuppliers.map((s) => (
+            {filteredSuppliers.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-          {actionType === 'PROCESSING' && eligibleSuppliers.length === 0 && (
-            <p className="text-xs text-amber-700">{t('noProcessingSuppliers')}</p>
+          {suppliers.length === 0 && (
+            <p className="text-xs text-amber-700">{t('noSuppliersAtAll')}</p>
           )}
         </label>
 

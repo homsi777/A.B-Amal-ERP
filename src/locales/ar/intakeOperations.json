@@ -6,6 +6,8 @@
   "supplierLabel": "الجهة المورّدة",
   "chooseSupplier": "— اختر الجهة —",
   "noProcessingSuppliers": "لا يوجد مورّد مُحدَّد كـ«جهة تجهيز» — فعّل الخيار بنموذج المورّد أولاً",
+  "supplierSearchPlaceholder": "بحث باسم الجهة...",
+  "noSuppliersAtAll": "لا يوجد أي مورّد مُسجَّل بعد.",
   "warehouseLabel": "المستودع",
   "chooseWarehouse": "— اختر المستودع —",
   "bulkSaleLabel": "البيع الجماعي",

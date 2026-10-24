@@ -31,6 +31,7 @@ export const ExternalJobProcessingNew = () => {
 
   const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
   const [supplierId, setSupplierId] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
 
   const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
   const [sourceWarehouseId, setSourceWarehouseId] = useState('');
@@ -55,24 +56,24 @@ export const ExternalJobProcessingNew = () => {
 
   useEffect(() => {
     void loadPrepTypes();
-    listSuppliers({ status: 'active', isProcessingParty: true, pageSize: 500 }).then((r) => setSuppliers(r.data)).catch(() => {});
+    // عام لكل الموردين — ليس محصوراً بمن عُلِّم "جهة تجهيز" فقط؛ الفحص الدقيق
+    // (هل هذا المورد جهة تجهيز فعلاً) يبقى عند الحفظ على الخادم كما هو.
+    listSuppliers({ status: 'active', pageSize: 500 }).then((r) => setSuppliers(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
     listWarehouses({ status: 'active' }).then((rows) => setWarehouses(rows)).catch(() => setWarehouses([]));
   }, []);
 
-  const matchingWarehouses = useMemo(
-    () => warehouses.filter((w) => w.fabric_stage === fabricStage),
-    [warehouses, fabricStage],
-  );
+  // عام لكل المستودعات — لم يعد مقصوراً على المستودعات المصنَّفة بنفس مرحلة
+  // الخامة المختارة؛ المطابقة الدقيقة تبقى تُفحَص عند الحفظ على الخادم.
+  const matchingWarehouses = warehouses;
 
-  useEffect(() => {
-    // منطقي: إن غيّرت المرحلة وبطل المستودع المختار يطابقها، نصفّره.
-    if (sourceWarehouseId && !matchingWarehouses.some((w) => w.id === sourceWarehouseId)) {
-      setSourceWarehouseId('');
-    }
-  }, [matchingWarehouses, sourceWarehouseId]);
+  const filteredSuppliers = useMemo(() => {
+    const q = supplierSearch.trim().toLocaleLowerCase();
+    if (!q) return suppliers;
+    return suppliers.filter((s) => s.name.toLocaleLowerCase().includes(q));
+  }, [suppliers, supplierSearch]);
 
   useEffect(() => {
     const q = rollQuery.trim();
@@ -240,18 +241,25 @@ export const ExternalJobProcessingNew = () => {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-slate-700">{t('processingNew.partyLabel')}</label>
+                <input
+                  type="text"
+                  value={supplierSearch}
+                  onChange={(e) => setSupplierSearch(e.target.value)}
+                  placeholder={t('processingNew.partySearchPlaceholder')}
+                  className="w-full p-2 mb-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
                 <select
                   value={supplierId}
                   onChange={(e) => setSupplierId(e.target.value)}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="">{t('processingNew.chooseParty')}</option>
-                  {suppliers.map((s) => (
+                  {filteredSuppliers.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
                 {suppliers.length === 0 && (
-                  <p className="text-xs text-amber-700">{t('processingNew.noProcessingParties')}</p>
+                  <p className="text-xs text-amber-700">{t('processingNew.noSuppliersAtAll')}</p>
                 )}
               </div>
               <div className="space-y-1.5">
@@ -267,7 +275,7 @@ export const ExternalJobProcessingNew = () => {
                   ))}
                 </select>
                 {matchingWarehouses.length === 0 && (
-                  <p className="text-xs text-amber-700">{t('processingNew.noMatchingWarehouses')}</p>
+                  <p className="text-xs text-amber-700">{t('processingNew.noWarehousesAtAll')}</p>
                 )}
               </div>
             </div>

@@ -6,6 +6,8 @@
   "supplierLabel": "Tedarikçi",
   "chooseSupplier": "— Tedarikçi seçin —",
   "noProcessingSuppliers": "«Fason firma» olarak işaretli tedarikçi yok — önce tedarikçi formunda etkinleştirin",
+  "supplierSearchPlaceholder": "Firma adıyla ara...",
+  "noSuppliersAtAll": "Henüz kayıtlı tedarikçi yok.",
   "warehouseLabel": "Depo",
   "chooseWarehouse": "— Depo seçin —",
   "bulkSaleLabel": "Toplu Satış",
