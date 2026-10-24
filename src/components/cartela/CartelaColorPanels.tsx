@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/cartelaColorApi';
 import { listFabricColors } from '../../lib/api/fabricColorsApi';
 import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
+import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { loadCartelaColorPrintSettings } from '../../lib/cartela/cartelaColorPrintSettings';
 import {
@@ -54,16 +55,24 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
   const [result, setResult] = useState<CartelaColorLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [auditBusy, setAuditBusy] = useState(false);
+  const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
+  const [auditWarehouseId, setAuditWarehouseId] = useState('');
+  const [auditShowAllColors, setAuditShowAllColors] = useState(false);
   const [auditSummary, setAuditSummary] = useState<{
     scope: 'material' | 'color';
     label: string;
     rollCount: number;
     totalMeters: number;
-    byColor: { name: string; rollCount: number; totalMeters: number }[];
+    byColor: { name: string; rollCount: number; totalMeters: number; exhausted: boolean }[];
     rolls: FabricRollDto[];
     scopeLabel: string;
     searchQuery: string;
+    warehouseLabel: string;
   } | null>(null);
+
+  useEffect(() => {
+    listWarehouses({ status: 'active' }).then(setWarehouses).catch(() => {});
+  }, []);
 
   const runLookup = useCallback(async (raw?: string) => {
     const value = (raw ?? scan).trim();
@@ -130,16 +139,32 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
 
   /** توزيع أتواب الخامة الكاملة على ألوانها — لعرض "كل شيء" بنفس البطاقة دون أي تنقّل. */
   const groupRollsByColor = (rows: FabricRollDto[]) => {
-    const groups = new Map<string, { name: string; rollCount: number; totalMeters: number }>();
+    const groups = new Map<string, { name: string; rollCount: number; totalMeters: number; exhausted: boolean }>();
     for (const roll of rows) {
       const name = (roll.color_name_ar ?? '').trim() || t('colorPanels.scan.auditNoColor');
-      const current = groups.get(name) ?? { name, rollCount: 0, totalMeters: 0 };
+      const current = groups.get(name) ?? { name, rollCount: 0, totalMeters: 0, exhausted: false };
       current.rollCount += 1;
       current.totalMeters += Number.parseFloat(roll.length_m ?? '0') || 0;
       groups.set(name, current);
     }
     return [...groups.values()].sort((a, b) => b.totalMeters - a.totalMeters);
   };
+
+  /** يضيف ألوان الكارتيلة التي نفد مخزونها بالكامل (غير موجودة ضمن المتوفر حالياً)
+   * كصفوف صفرية — فقط عندما تطلب "عرض كل الألوان". المطابقة بالاسم العربي، نفس
+   * أسلوب المطابقة المستخدَم أصلاً بـ runAuditColor لأن color_code بكتالوج
+   * الكارتيلة غالباً لا يطابق color_code الحقيقي بكتالوج الأصناف. */
+  const addExhaustedColors = (
+    byColor: { name: string; rollCount: number; totalMeters: number; exhausted: boolean }[],
+    cartelaId: string,
+  ) =>
+    listCartelaColors(cartelaId).then((swatches) => {
+      const present = new Set(byColor.map((row) => row.name.trim().toLocaleLowerCase()));
+      const missing = swatches
+        .filter((s) => !present.has((s.name_ar || s.color_code).trim().toLocaleLowerCase()))
+        .map((s) => ({ name: s.name_ar || s.color_code, rollCount: 0, totalMeters: 0, exhausted: true }));
+      return [...byColor, ...missing].sort((a, b) => b.totalMeters - a.totalMeters);
+    });
 
   const runAuditMaterial = async (cartela: CartelaColorLookupResult) => {
     const code = cartela.art_code.trim();
@@ -150,16 +175,28 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
     setAuditBusy(true);
     setAuditSummary(null);
     try {
-      const res = await listFabricRolls({ search: code, onlyAvailable: true, pageSize: 500 });
+      const res = await listFabricRolls({
+        search: code,
+        onlyAvailable: true,
+        warehouseId: auditWarehouseId || undefined,
+        pageSize: 500,
+      });
+      let byColor = groupRollsByColor(res.data);
+      if (auditShowAllColors) {
+        byColor = await addExhaustedColors(byColor, cartela.id);
+      }
       setAuditSummary({
         scope: 'material',
         label: code,
         rollCount: res.data.length,
         totalMeters: sumAvailableRolls(res.data),
-        byColor: groupRollsByColor(res.data),
+        byColor,
         rolls: res.data,
         scopeLabel: t('colorPanels.scan.auditResultMaterialTitle'),
         searchQuery: code,
+        warehouseLabel: auditWarehouseId
+          ? warehouses.find((w) => w.id === auditWarehouseId)?.name ?? ''
+          : t('colorPanels.scan.auditWarehouseAll'),
       });
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.printFailed') });
@@ -202,7 +239,13 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
         return;
       }
       const colorIdParam = candidateIds.join(',');
-      const res = await listFabricRolls({ search: code, colorId: colorIdParam, onlyAvailable: true, pageSize: 500 });
+      const res = await listFabricRolls({
+        search: code,
+        colorId: colorIdParam,
+        onlyAvailable: true,
+        warehouseId: auditWarehouseId || undefined,
+        pageSize: 500,
+      });
       setAuditSummary({
         scope: 'color',
         label: colorName || colorCode,
@@ -212,6 +255,9 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
         rolls: res.data,
         scopeLabel: t('colorPanels.scan.auditResultColorTitle'),
         searchQuery: code,
+        warehouseLabel: auditWarehouseId
+          ? warehouses.find((w) => w.id === auditWarehouseId)?.name ?? ''
+          : t('colorPanels.scan.auditWarehouseAll'),
       });
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.printFailed') });
@@ -226,7 +272,7 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
       rolls: auditSummary.rolls,
       searchQuery: auditSummary.searchQuery,
       scopeLabel: auditSummary.scopeLabel,
-      warehouseLabel: '',
+      warehouseLabel: auditSummary.warehouseLabel,
       printedAt: new Date(),
     });
     const ok = openDocumentPrintWindow(html, auditSummary.scopeLabel);
@@ -301,6 +347,31 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
               <div className="sm:col-span-2">COMP: {result.composition || '—'}</div>
             </div>
 
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-200">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                {t('colorPanels.scan.auditWarehouseLabel')}
+                <select
+                  value={auditWarehouseId}
+                  onChange={(e) => setAuditWarehouseId(e.target.value)}
+                  className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-bold text-slate-700"
+                >
+                  <option value="">{t('colorPanels.scan.auditWarehouseAll')}</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={auditShowAllColors}
+                  onChange={(e) => setAuditShowAllColors(e.target.checked)}
+                  className="accent-indigo-600"
+                />
+                {t('colorPanels.scan.auditShowAllColors')}
+              </label>
+            </div>
+
             <div className="flex flex-wrap gap-2 pt-1">
               <button
                 type="button"
@@ -346,7 +417,10 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-bold text-emerald-800">{auditSummary.scopeLabel}</p>
+                    <p className="font-bold text-emerald-800">
+                      {auditSummary.scopeLabel}
+                      <span className="mr-1.5 text-xs font-normal text-emerald-700">({auditSummary.warehouseLabel})</span>
+                    </p>
                     <p className="text-emerald-900">
                       {t('colorPanels.scan.auditResultLine', {
                         count: auditSummary.rollCount,
@@ -377,8 +451,15 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
                       </thead>
                       <tbody>
                         {auditSummary.byColor.map((row) => (
-                          <tr key={row.name} className="border-t border-emerald-50">
-                            <td className="px-2 py-1.5 text-slate-800 font-bold">{row.name}</td>
+                          <tr key={row.name} className={`border-t border-emerald-50 ${row.exhausted ? 'opacity-50' : ''}`}>
+                            <td className="px-2 py-1.5 text-slate-800 font-bold">
+                              {row.name}
+                              {row.exhausted && (
+                                <span className="mr-1 inline-block rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                                  {t('colorPanels.scan.auditExhausted')}
+                                </span>
+                              )}
+                            </td>
                             <td className="px-2 py-1.5 text-slate-600 font-mono">{row.rollCount}</td>
                             <td className="px-2 py-1.5 text-slate-600 font-mono">{row.totalMeters.toFixed(2)}</td>
                           </tr>

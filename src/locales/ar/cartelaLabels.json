@@ -132,6 +132,10 @@
   "colorPanels.scan.auditColColor": "اللون",
   "colorPanels.scan.auditColRolls": "عدد الأتواب",
   "colorPanels.scan.auditColMeters": "الأمتار",
+  "colorPanels.scan.auditWarehouseLabel": "المستودع:",
+  "colorPanels.scan.auditWarehouseAll": "كل المستودعات",
+  "colorPanels.scan.auditShowAllColors": "إظهار كل ألوان الخامة (حتى الملتهية)",
+  "colorPanels.scan.auditExhausted": "غير متوفر",
 
   "colorPanels.swatches.loadFailed": "تعذر تحميل الألوان",
   "colorPanels.swatches.colorCodeRequired": "كود اللون مطلوب — مثال C-01",

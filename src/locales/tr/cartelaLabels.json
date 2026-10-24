@@ -132,6 +132,10 @@
   "colorPanels.scan.auditColColor": "Renk",
   "colorPanels.scan.auditColRolls": "Top Sayısı",
   "colorPanels.scan.auditColMeters": "Metre",
+  "colorPanels.scan.auditWarehouseLabel": "Depo:",
+  "colorPanels.scan.auditWarehouseAll": "Tüm Depolar",
+  "colorPanels.scan.auditShowAllColors": "Tüm malzeme renklerini göster (tükenenler dahil)",
+  "colorPanels.scan.auditExhausted": "Mevcut değil",
 
   "colorPanels.swatches.loadFailed": "Renkler yüklenemedi",
   "colorPanels.swatches.colorCodeRequired": "Renk kodu gerekli — örnek C-01",
