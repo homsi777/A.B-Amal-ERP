@@ -89,6 +89,9 @@ export function renderExternalJobDispatchA4Html(opts: {
     tfoot td { font-weight: 700; background: #f2f2f2; border: 0.2mm solid #ccc; padding: 2.2mm; }
     .desc { margin-top: 4mm; font-size: 10pt; }
     .desc .lbl { font-weight: 700; color: #555; }
+    .signature { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; margin-top: 10mm; font-size: 10pt; }
+    .signature .lbl { font-weight: 700; color: #555; margin-bottom: 3mm; }
+    .signature .line { border-bottom: 0.3mm solid #999; height: 9mm; }
   </style>
 </head>
 <body>
@@ -104,6 +107,7 @@ export function renderExternalJobDispatchA4Html(opts: {
       ${isProcessing ? `
       <div class="row"><span class="lbl">${t('print.preparationType')}:</span><span class="val">${escapeHtml(job.preparation_type_name || '—')}</span></div>
       <div class="row"><span class="lbl">${t('processingNew.summaryOrderNo')}:</span><span class="val mono">#${escapeHtml(job.supplier_order_no ?? '—')}</span></div>
+      <div class="row"><span class="lbl">${t('processingNew.sourceWarehouseLabel')}:</span><span class="val">${escapeHtml(job.source_warehouse_name || '—')}</span></div>
       ` : ''}
     </div>
 
@@ -134,6 +138,18 @@ export function renderExternalJobDispatchA4Html(opts: {
         </tr>
       </tfoot>
     </table>
+
+    <div class="signature">
+      <div class="signature-box">
+        <div class="lbl">${t('print.deliveryNotes')}</div>
+        <div class="line"></div>
+        <div class="line"></div>
+      </div>
+      <div class="signature-box">
+        <div class="lbl">${t('print.signature')}</div>
+        <div class="line"></div>
+      </div>
+    </div>
   </div>
 </body>
 </html>`;

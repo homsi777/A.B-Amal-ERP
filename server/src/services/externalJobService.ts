@@ -452,6 +452,55 @@ export async function setExternalJobFee(
   );
 }
 
+/**
+ * تسعير مهمة "مصنعية" بالكيلو أو بالمتر — الإجمالي (fee_amount) يُحسَب هنا
+ * من الكمية المعتمدة للحساب × سعر الوحدة (لا من كمية الأتواب المرسلة
+ * فعلياً، التي تبقى بسطور المهمة دون أي تغيير). ترحيل الأجرة محاسبياً
+ * (postExternalJobFee) يستمر يقرأ fee_amount كما هو بلا أي تعديل.
+ */
+export async function setExternalJobProcessingPricing(
+  client: PoolClient,
+  companyId: string,
+  jobId: string,
+  raw: unknown,
+): Promise<void> {
+  const schema = z.object({
+    pricingMethod: z.enum(['BY_KG', 'BY_METER']),
+    approvedQuantity: z.coerce.number().nonnegative(),
+    unitPrice: z.coerce.number().nonnegative(),
+    feeCurrencyCode: z.string().min(1),
+  });
+  const input = schema.parse(raw);
+
+  const jobRow = await client.query(
+    `SELECT job_kind, fee_posted_at FROM external_jobs WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [jobId, companyId],
+  );
+  if (!jobRow.rows.length) throw Object.assign(new Error('المهمة غير موجودة'), { code: 'NOT_FOUND' });
+  if (jobRow.rows[0].job_kind !== 'PROCESSING') {
+    throw Object.assign(new Error('التسعير بالكمية متاح فقط لمهام المصنعية'), { code: 'VALIDATION' });
+  }
+  if (jobRow.rows[0].fee_posted_at) {
+    throw Object.assign(new Error('تم ترحيل الأجرة محاسبياً — لا يمكن تعديلها الآن'), { code: 'INVALID_STATE' });
+  }
+
+  const currencyCode = input.feeCurrencyCode.trim().toUpperCase();
+  const exchangeRateToUsd = currencyCode === 'USD' ? 1 : await getExchangeRateToUsdTx(client, companyId, currencyCode);
+  if (!exchangeRateToUsd || exchangeRateToUsd <= 0) {
+    throw Object.assign(new Error('سعر صرف غير صالح لعملة الأجرة'), { code: 'VALIDATION' });
+  }
+
+  const feeAmount = round2(input.approvedQuantity * input.unitPrice);
+
+  await client.query(
+    `UPDATE external_jobs
+     SET pricing_method=$3, approved_quantity=$4, unit_price=$5,
+         fee_amount=$6, fee_currency_code=$7, fee_exchange_rate_to_usd=$8, updated_at=now()
+     WHERE id=$1 AND company_id=$2`,
+    [jobId, companyId, input.pricingMethod, input.approvedQuantity, input.unitPrice, feeAmount, currencyCode, exchangeRateToUsd],
+  );
+}
+
 export async function postExternalJobFee(
   client: PoolClient,
   companyId: string,

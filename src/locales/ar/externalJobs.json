@@ -169,5 +169,25 @@
   "print.colColorCode": "كود اللون",
   "print.colWidth": "العرض (سم)",
   "print.colGsm": "GSM",
-  "print.totalsLabel": "الإجمالي ({{count}} توب)"
+  "print.totalsLabel": "الإجمالي ({{count}} توب)",
+  "print.deliveryNotes": "ملاحظات التسليم",
+  "print.signature": "التوقيع",
+
+  "pricing.title": "تسعير أجرة المصنعية",
+  "pricing.methodLabel": "طريقة التسعير",
+  "pricing.methodByKg": "حسب الكيلو",
+  "pricing.methodByMeter": "حسب المتر",
+  "pricing.chooseMethod": "— اختر طريقة التسعير —",
+  "pricing.sentQuantityLabel": "الكمية المرسلة",
+  "pricing.approvedQuantityLabel": "الكمية المعتمدة للحساب",
+  "pricing.unitPriceLabel": "سعر الوحدة",
+  "pricing.totalLabel": "الإجمالي",
+  "pricing.differenceLabel": "الفرق (مرسل − معتمد)",
+  "pricing.noPermission": "التسعير متاح فقط للمحاسب أو المدير",
+  "pricing.save": "حفظ التسعير",
+  "pricing.saving": "جاري الحفظ...",
+  "pricing.saved": "تم حفظ التسعير",
+  "pricing.saveFailed": "تعذر حفظ التسعير",
+  "pricing.kgUnit": "كغ",
+  "pricing.meterUnit": "م"
 }

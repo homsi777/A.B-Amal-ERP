@@ -17,6 +17,9 @@ export interface ExternalJob {
   fee_currency_code: string | null;
   fee_exchange_rate_to_usd: string | number | null;
   fee_posted_at: string | null;
+  pricing_method: 'BY_KG' | 'BY_METER' | null;
+  approved_quantity: string | number | null;
+  unit_price: string | number | null;
   document_status: ExternalJobDocumentStatus;
   job_kind: ExternalJobKind;
   fabric_stage: FabricStage | null;
@@ -164,6 +167,16 @@ export async function setExternalJobFee(id: string, feeAmount: number, feeCurren
   return apiFetch<{ ok: boolean }>(`/api/external-jobs/${id}/fee`, {
     method: 'POST',
     body: JSON.stringify({ feeAmount, feeCurrencyCode }),
+  });
+}
+
+export async function setExternalJobProcessingPricing(
+  id: string,
+  payload: { pricingMethod: 'BY_KG' | 'BY_METER'; approvedQuantity: number; unitPrice: number; feeCurrencyCode: string },
+) {
+  return apiFetch<{ ok: boolean }>(`/api/external-jobs/${id}/pricing`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 

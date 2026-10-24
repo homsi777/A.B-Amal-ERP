@@ -9,6 +9,7 @@ import {
   confirmExternalJob,
   receiveExternalJobLine,
   setExternalJobFee,
+  setExternalJobProcessingPricing,
   postExternalJobFee,
   voidExternalJob,
   listPreparationTypes,
@@ -30,6 +31,11 @@ function handleServiceError(reply: FastifyReply, e: unknown) {
   if (err.code === 'REAUTH_RATE_LIMITED') return sendError(reply, 429, err.message || 'محاولات كثيرة جداً', 'REAUTH_RATE_LIMITED');
   if (err.issues) return sendError(reply, 400, 'بيانات غير صالحة', 'VALIDATION');
   throw e;
+}
+
+/** تسعير أجرة المهام الخارجية — محصور بالمحاسب أو المدير (الدور الوحيد الشامل بهذا النظام). */
+function isPricingAllowed(user: { role: string } | undefined): boolean {
+  return user?.role === 'admin' || user?.role === 'accountant';
 }
 
 export const externalJobRoutes: FastifyPluginAsync = async (app) => {
@@ -200,6 +206,7 @@ export const externalJobRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/:id/fee', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
+    if (!isPricingAllowed(req.user)) return sendError(reply, 403, 'ليس لديك صلاحية التسعير', 'FORBIDDEN');
     const { id } = req.params as { id: string };
     const pool = getPool();
     const client = await pool.connect();
@@ -216,8 +223,28 @@ export const externalJobRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.post('/:id/pricing', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    if (!isPricingAllowed(req.user)) return sendError(reply, 403, 'ليس لديك صلاحية التسعير', 'FORBIDDEN');
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setExternalJobProcessingPricing(client, companyId, id, req.body);
+      await client.query('COMMIT');
+      return reply.send({ ok: true });
+    } catch (e: unknown) {
+      await client.query('ROLLBACK');
+      return handleServiceError(reply, e);
+    } finally {
+      client.release();
+    }
+  });
+
   app.post('/:id/post-fee', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
+    if (!isPricingAllowed(req.user)) return sendError(reply, 403, 'ليس لديك صلاحية التسعير', 'FORBIDDEN');
     const { id } = req.params as { id: string };
     const pool = getPool();
     const client = await pool.connect();

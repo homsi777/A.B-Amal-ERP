@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Loader2, Lock, Pencil, Printer, XCircle } from 'lucide-react';
 import {
-  getExternalJob, receiveExternalJobLine, setExternalJobFee, postExternalJobFee, voidExternalJob,
+  getExternalJob, receiveExternalJobLine, setExternalJobFee, setExternalJobProcessingPricing, postExternalJobFee, voidExternalJob,
   editProcessingExternalJob, voidProcessingExternalJob,
   type ExternalJobDetail, type ExternalJobLine,
 } from '../../lib/api/externalJobsApi';
@@ -12,6 +12,7 @@ import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
 import { renderExternalJobDispatchA4Html } from '../../lib/printing/renderExternalJobDispatchA4';
 import { openDocumentPrintWindow } from '../../lib/printing/documentPrint';
+import { fetchMe, type AuthUser } from '../../lib/api/authApi';
 import i18n from '../../i18n/config';
 
 export const ExternalJobReceipt = () => {
@@ -29,6 +30,12 @@ export const ExternalJobReceipt = () => {
   const [postingFee, setPostingFee] = useState(false);
   const [voiding, setVoiding] = useState(false);
 
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [pricingMethod, setPricingMethod] = useState<'BY_KG' | 'BY_METER' | ''>('');
+  const [approvedQuantity, setApprovedQuantity] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [savingPricing, setSavingPricing] = useState(false);
+
   const [reauthModal, setReauthModal] = useState<'edit' | 'void' | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [editNotes, setEditNotes] = useState('');
@@ -43,6 +50,19 @@ export const ExternalJobReceipt = () => {
       setFeeCurrencyCode(res.data.fee_currency_code ?? 'USD');
       setEditDescription(res.data.process_description ?? '');
       setEditNotes(res.data.notes ?? '');
+      setPricingMethod(res.data.pricing_method ?? '');
+      setUnitPrice(res.data.unit_price != null ? String(res.data.unit_price) : '');
+      if (res.data.approved_quantity != null) {
+        setApprovedQuantity(String(res.data.approved_quantity));
+      } else {
+        // لا كمية معتمدة محفوظة بعد — نملأها افتراضياً بالكمية المرسلة
+        // الفعلية (حسب الطريقة المحفوظة إن وُجدت)، تبقى قابلة للتعديل الكامل.
+        const sentLinesForDefault = res.data.lines.filter((l) => l.line_status !== 'CANCELLED');
+        const defaultQty = res.data.pricing_method === 'BY_KG'
+          ? sentLinesForDefault.reduce((sum, l) => sum + (Number(l.roll_weight_kg) || 0), 0)
+          : sentLinesForDefault.reduce((sum, l) => sum + (Number(l.sent_length_m) || 0), 0);
+        setApprovedQuantity(res.data.pricing_method ? defaultQty.toFixed(3) : '');
+      }
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.loadJobFailed') });
     } finally {
@@ -51,6 +71,7 @@ export const ExternalJobReceipt = () => {
   }, [id, showToast, t]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void fetchMe().then(setCurrentUser).catch(() => setCurrentUser(null)); }, []);
 
   const handleSaveFee = async () => {
     if (!id || !feeAmount.trim()) return;
@@ -77,6 +98,39 @@ export const ExternalJobReceipt = () => {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('toast.feePostFailed') });
     } finally {
       setPostingFee(false);
+    }
+  };
+
+  const handleSavePricing = async () => {
+    if (!id || !pricingMethod || !approvedQuantity.trim() || !unitPrice.trim()) return;
+    setSavingPricing(true);
+    try {
+      await setExternalJobProcessingPricing(id, {
+        pricingMethod,
+        approvedQuantity: Number(approvedQuantity),
+        unitPrice: Number(unitPrice),
+        feeCurrencyCode,
+      });
+      showToast({ type: 'success', message: t('pricing.saved') });
+      await load();
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('pricing.saveFailed') });
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  /** عند اختيار/تبديل طريقة التسعير لأول مرة (والخانة لا تزال فارغة فقط)،
+   * نملأ الكمية المعتمدة بالكمية المرسلة الفعلية كبداية مناسبة — تبقى
+   * قابلة للتعديل الكامل بعد ذلك ولا تُستبدَل تلقائياً مجدداً. */
+  const handlePricingMethodChange = (method: 'BY_KG' | 'BY_METER') => {
+    setPricingMethod(method);
+    if (!approvedQuantity.trim() && job) {
+      const sentLinesForDefault = job.lines.filter((l) => l.line_status !== 'CANCELLED');
+      const defaultQty = method === 'BY_KG'
+        ? sentLinesForDefault.reduce((sum, l) => sum + (Number(l.roll_weight_kg) || 0), 0)
+        : sentLinesForDefault.reduce((sum, l) => sum + (Number(l.sent_length_m) || 0), 0);
+      setApprovedQuantity(defaultQty.toFixed(3));
     }
   };
 
@@ -148,9 +202,17 @@ export const ExternalJobReceipt = () => {
 
   const sentLines = job.lines.filter((l) => l.line_status === 'SENT');
   const receivedLines = job.lines.filter((l) => l.line_status === 'RECEIVED');
-  const canEditFee = job.document_status === 'CONFIRMED' && !job.fee_posted_at;
+  const canPrice = currentUser?.role === 'admin' || currentUser?.role === 'accountant';
+  const canEditFee = job.document_status === 'CONFIRMED' && !job.fee_posted_at && canPrice;
   const canPostFee = canEditFee && job.fee_amount != null;
   const canVoid = job.document_status === 'CONFIRMED' && receivedLines.length === 0;
+
+  const allActiveLines = job.lines.filter((l) => l.line_status !== 'CANCELLED');
+  const sentTotalM = allActiveLines.reduce((sum, l) => sum + (Number(l.sent_length_m) || 0), 0);
+  const sentTotalKg = allActiveLines.reduce((sum, l) => sum + (Number(l.roll_weight_kg) || 0), 0);
+  const sentTotalForMethod = pricingMethod === 'BY_KG' ? sentTotalKg : sentTotalM;
+  const quantityDifference = sentTotalForMethod - (Number(approvedQuantity) || 0);
+  const computedPricingTotal = (Number(approvedQuantity) || 0) * (Number(unitPrice) || 0);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6" dir="rtl">
@@ -244,57 +306,170 @@ export const ExternalJobReceipt = () => {
         </ReauthModal>
       )}
 
-      {/* Fee card */}
+      {/* Fee / pricing card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <h3 className="font-bold text-slate-800">{t('fee.title')}</h3>
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-bold text-slate-700">{t('fee.amountLabel')}</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={feeAmount}
-              onChange={(e) => setFeeAmount(e.target.value)}
-              disabled={!canEditFee}
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              dir="ltr"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-bold text-slate-700">{t('fee.currencyLabel')}</label>
-            <select
-              value={feeCurrencyCode}
-              onChange={(e) => setFeeCurrencyCode(e.target.value)}
-              disabled={!canEditFee}
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {SUPPORTED_CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>{getCurrencyName(c.code)} ({c.code})</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end gap-2">
-            {canEditFee && (
-              <button
-                onClick={() => void handleSaveFee()}
-                disabled={savingFee || !feeAmount.trim()}
-                className="px-4 py-2.5 rounded-lg bg-slate-700 text-white text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition"
-              >
-                {t('fee.save')}
-              </button>
+        <h3 className="font-bold text-slate-800">{job.job_kind === 'PROCESSING' ? t('pricing.title') : t('fee.title')}</h3>
+
+        {!canPrice && job.document_status === 'CONFIRMED' && !job.fee_posted_at && (
+          <p className="text-xs text-amber-700 font-bold bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {t('pricing.noPermission')}
+          </p>
+        )}
+
+        {job.job_kind === 'PROCESSING' ? (
+          <div className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">{t('pricing.methodLabel')}</label>
+                <select
+                  value={pricingMethod}
+                  onChange={(e) => handlePricingMethodChange(e.target.value as 'BY_KG' | 'BY_METER')}
+                  disabled={!canEditFee}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="" disabled>{t('pricing.chooseMethod')}</option>
+                  <option value="BY_KG">{t('pricing.methodByKg')}</option>
+                  <option value="BY_METER">{t('pricing.methodByMeter')}</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">{t('pricing.sentQuantityLabel')}</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={pricingMethod ? `${sentTotalForMethod.toFixed(3)} ${pricingMethod === 'BY_KG' ? t('pricing.kgUnit') : t('pricing.meterUnit')}` : '—'}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">{t('pricing.approvedQuantityLabel')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={approvedQuantity}
+                  onChange={(e) => setApprovedQuantity(e.target.value)}
+                  disabled={!canEditFee || !pricingMethod}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">{t('pricing.unitPriceLabel')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.0001"
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value)}
+                  disabled={!canEditFee || !pricingMethod}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  dir="ltr"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">{t('fee.currencyLabel')}</label>
+                <select
+                  value={feeCurrencyCode}
+                  onChange={(e) => setFeeCurrencyCode(e.target.value)}
+                  disabled={!canEditFee}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {SUPPORTED_CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>{getCurrencyName(c.code)} ({c.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">{t('pricing.totalLabel')}</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={pricingMethod ? computedPricingTotal.toFixed(2) : '—'}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            {pricingMethod && (
+              <p className={`text-xs font-bold ${Math.abs(quantityDifference) > 0.001 ? 'text-amber-700' : 'text-slate-500'}`}>
+                {t('pricing.differenceLabel')}: {quantityDifference.toFixed(3)} {pricingMethod === 'BY_KG' ? t('pricing.kgUnit') : t('pricing.meterUnit')}
+              </p>
             )}
-            {canPostFee && (
-              <button
-                onClick={() => void handlePostFee()}
-                disabled={postingFee}
-                className="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition"
-              >
-                {t('fee.post')}
-              </button>
-            )}
+
+            <div className="flex items-center gap-2">
+              {canEditFee && (
+                <button
+                  onClick={() => void handleSavePricing()}
+                  disabled={savingPricing || !pricingMethod || !approvedQuantity.trim() || !unitPrice.trim()}
+                  className="px-4 py-2.5 rounded-lg bg-slate-700 text-white text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition"
+                >
+                  {savingPricing ? t('pricing.saving') : t('pricing.save')}
+                </button>
+              )}
+              {canPostFee && (
+                <button
+                  onClick={() => void handlePostFee()}
+                  disabled={postingFee}
+                  className="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition"
+                >
+                  {t('fee.post')}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700">{t('fee.amountLabel')}</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={feeAmount}
+                onChange={(e) => setFeeAmount(e.target.value)}
+                disabled={!canEditFee}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-bold text-slate-700">{t('fee.currencyLabel')}</label>
+              <select
+                value={feeCurrencyCode}
+                onChange={(e) => setFeeCurrencyCode(e.target.value)}
+                disabled={!canEditFee}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>{getCurrencyName(c.code)} ({c.code})</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end gap-2">
+              {canEditFee && (
+                <button
+                  onClick={() => void handleSaveFee()}
+                  disabled={savingFee || !feeAmount.trim()}
+                  className="px-4 py-2.5 rounded-lg bg-slate-700 text-white text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition"
+                >
+                  {t('fee.save')}
+                </button>
+              )}
+              {canPostFee && (
+                <button
+                  onClick={() => void handlePostFee()}
+                  disabled={postingFee}
+                  className="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition"
+                >
+                  {t('fee.post')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {job.fee_posted_at && (
           <p className="text-xs text-emerald-700 font-bold">{t('fee.postedNote')}</p>
         )}

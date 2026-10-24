@@ -169,5 +169,25 @@
   "print.colColorCode": "Renk Kodu",
   "print.colWidth": "Genişlik (cm)",
   "print.colGsm": "GSM",
-  "print.totalsLabel": "Toplam ({{count}} top)"
+  "print.totalsLabel": "Toplam ({{count}} top)",
+  "print.deliveryNotes": "Teslimat Notları",
+  "print.signature": "İmza",
+
+  "pricing.title": "Fason Ücreti Fiyatlandırma",
+  "pricing.methodLabel": "Fiyatlandırma Yöntemi",
+  "pricing.methodByKg": "Kiloya Göre",
+  "pricing.methodByMeter": "Metreye Göre",
+  "pricing.chooseMethod": "— Fiyatlandırma yöntemi seçin —",
+  "pricing.sentQuantityLabel": "Gönderilen Miktar",
+  "pricing.approvedQuantityLabel": "Hesaplama İçin Onaylanan Miktar",
+  "pricing.unitPriceLabel": "Birim Fiyat",
+  "pricing.totalLabel": "Toplam",
+  "pricing.differenceLabel": "Fark (Gönderilen − Onaylanan)",
+  "pricing.noPermission": "Fiyatlandırma sadece muhasebeci veya müdüre açıktır",
+  "pricing.save": "Fiyatlandırmayı Kaydet",
+  "pricing.saving": "Kaydediliyor...",
+  "pricing.saved": "Fiyatlandırma kaydedildi",
+  "pricing.saveFailed": "Fiyatlandırma kaydedilemedi",
+  "pricing.kgUnit": "kg",
+  "pricing.meterUnit": "m"
 }
