@@ -173,6 +173,7 @@ import { Inventory } from './pages/Inventory';
 import { CreateItem } from './pages/inventory/CreateItem';
 import { BulkSales } from './pages/inventory/BulkSales';
 import { IntakeDispatchSlips } from './pages/inventory/IntakeDispatchSlips';
+import { InventoryMovementsLog } from './pages/inventory/InventoryMovementsLog';
 import { YarnManagement } from './pages/inventory/YarnManagement';
 import { InventorySettings } from './pages/inventory/InventorySettings';
 import { StickerPrinting } from './pages/inventory/StickerPrinting';
@@ -258,6 +259,7 @@ export default function App() {
             <Route path="inventory/edit/:id" element={<CreateItem />} />
             <Route path="inventory/bulk-sales" element={<BulkSales />} />
             <Route path="inventory/intake-dispatch-slips" element={<IntakeDispatchSlips />} />
+            <Route path="inventory/movements-log" element={<InventoryMovementsLog />} />
             <Route path="inventory/yarn" element={<YarnManagement />} />
             <Route path="inventory/settings" element={<InventorySettings />} />
             <Route path="inventory/labels" element={<StickerPrinting />} />
