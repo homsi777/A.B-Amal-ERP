@@ -475,34 +475,14 @@ export const ExternalJobReceipt = () => {
         )}
       </div>
 
-      {/* Pending receipt lines */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="font-bold text-slate-800">{t('lines.pendingTitle')}</h3>
-          <span className="text-xs text-slate-500">{t('lines.pendingCount', { count: sentLines.length })}</span>
-        </div>
-        {sentLines.length === 0 ? (
-          <p className="px-5 py-8 text-center text-slate-400 text-sm">{t('lines.noPending')}</p>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {sentLines.map((line) => (
-              <ReceiptLineRow
-                key={line.id}
-                jobId={job.id}
-                line={line}
-                defaultWastePct={job.job_kind === 'PROCESSING' ? job.preparation_type_default_waste_pct : null}
-                onReceived={() => void load()}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Received lines */}
-      {receivedLines.length > 0 && (
+      {/* مصنعية: لا يوجد استلام دفعات ولا حالة "بانتظار الاستلام" — الأتواب
+          تُخصَم من المستودع فوراً عند الإرسال وتنتهي عملية المهمة هناك. هذا
+          جدول عرض فقط لما أُرسل، بلا أي إجراء استلام. */}
+      {job.job_kind === 'PROCESSING' ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
-            <h3 className="font-bold text-slate-800">{t('lines.receivedTitle')}</h3>
+          <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="font-bold text-slate-800">{t('processingNew.sentRollsTitle')}</h3>
+            <span className="text-xs text-slate-500">{t('processingNew.sentRollsCount', { count: sentLines.length })}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
@@ -511,26 +491,84 @@ export const ExternalJobReceipt = () => {
                   <th className="px-4 py-2">{t('lines.colBarcode')}</th>
                   <th className="px-4 py-2">{t('lines.colItem')}</th>
                   <th className="px-4 py-2">{t('lines.colSentColor')}</th>
-                  <th className="px-4 py-2">{t('lines.colNewColor')}</th>
-                  <th className="px-4 py-2">{t('lines.colLength')}</th>
-                  <th className="px-4 py-2">{t('lines.colReceivedAt')}</th>
+                  <th className="px-4 py-2">{t('processingNew.colLength')}</th>
+                  <th className="px-4 py-2">{t('processingNew.colWeight')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {receivedLines.map((line) => (
+                {sentLines.map((line) => (
                   <tr key={line.id}>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{line.new_barcode || line.current_barcode}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{line.sent_barcode || line.current_barcode}</td>
                     <td className="px-4 py-2 font-medium text-slate-800">{line.item_name}</td>
                     <td className="px-4 py-2 text-slate-500">{line.sent_color_name_ar || '—'}</td>
-                    <td className="px-4 py-2 text-emerald-700 font-medium">{line.new_color_name_ar || '—'}</td>
-                    <td className="px-4 py-2 text-slate-600">{line.new_length_m ?? line.sent_length_m}</td>
-                    <td className="px-4 py-2 text-slate-500 text-xs">{line.received_at ? new Date(line.received_at).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-2 text-slate-600 font-mono">{Number(line.sent_length_m).toFixed(2)}</td>
+                    <td className="px-4 py-2 text-slate-600 font-mono">{line.roll_weight_kg != null ? Number(line.roll_weight_kg).toFixed(2) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+      ) : (
+        <>
+          {/* Pending receipt lines */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800">{t('lines.pendingTitle')}</h3>
+              <span className="text-xs text-slate-500">{t('lines.pendingCount', { count: sentLines.length })}</span>
+            </div>
+            {sentLines.length === 0 ? (
+              <p className="px-5 py-8 text-center text-slate-400 text-sm">{t('lines.noPending')}</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {sentLines.map((line) => (
+                  <ReceiptLineRow
+                    key={line.id}
+                    jobId={job.id}
+                    line={line}
+                    defaultWastePct={null}
+                    onReceived={() => void load()}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Received lines */}
+          {receivedLines.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
+                <h3 className="font-bold text-slate-800">{t('lines.receivedTitle')}</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2">{t('lines.colBarcode')}</th>
+                      <th className="px-4 py-2">{t('lines.colItem')}</th>
+                      <th className="px-4 py-2">{t('lines.colSentColor')}</th>
+                      <th className="px-4 py-2">{t('lines.colNewColor')}</th>
+                      <th className="px-4 py-2">{t('lines.colLength')}</th>
+                      <th className="px-4 py-2">{t('lines.colReceivedAt')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {receivedLines.map((line) => (
+                      <tr key={line.id}>
+                        <td className="px-4 py-2 font-mono text-xs text-slate-600">{line.new_barcode || line.current_barcode}</td>
+                        <td className="px-4 py-2 font-medium text-slate-800">{line.item_name}</td>
+                        <td className="px-4 py-2 text-slate-500">{line.sent_color_name_ar || '—'}</td>
+                        <td className="px-4 py-2 text-emerald-700 font-medium">{line.new_color_name_ar || '—'}</td>
+                        <td className="px-4 py-2 text-slate-600">{line.new_length_m ?? line.sent_length_m}</td>
+                        <td className="px-4 py-2 text-slate-500 text-xs">{line.received_at ? new Date(line.received_at).toLocaleString() : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {canVoid && job.job_kind === 'GENERAL' && (

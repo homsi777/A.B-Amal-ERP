@@ -134,6 +134,8 @@
   "processingNew.colColor": "Renk",
   "processingNew.colLength": "Uzunluk (m)",
   "processingNew.colWeight": "Ağırlık (kg)",
+  "processingNew.sentRollsTitle": "Gönderilen Toplar",
+  "processingNew.sentRollsCount": "{{count}} top gönderildi",
   "processingNew.totalsLabel": "Toplam ({{count}} top)",
   "processingNew.rollAlreadyAdded": "{{barcode}} barkodlu top zaten listede",
   "processingNew.rollWrongWarehouse": "{{barcode}} barkodlu top seçilen kaynak depoda değil",

@@ -134,6 +134,8 @@
   "processingNew.colColor": "اللون",
   "processingNew.colLength": "الطول (م)",
   "processingNew.colWeight": "الوزن (كغ)",
+  "processingNew.sentRollsTitle": "الأتواب المُرسلة",
+  "processingNew.sentRollsCount": "{{count}} توب مُرسَل",
   "processingNew.totalsLabel": "الإجمالي ({{count}} توب)",
   "processingNew.rollAlreadyAdded": "الثوب {{barcode}} مُضاف مسبقاً للقائمة",
   "processingNew.rollWrongWarehouse": "الثوب {{barcode}} ليس بالمستودع المصدر المحدَّد",
