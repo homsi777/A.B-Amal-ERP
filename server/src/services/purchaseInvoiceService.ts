@@ -7,6 +7,7 @@ import { getExchangeRateToUsdTx } from './exchangeRateService.js';
 import { calcWeight, generateBarcode, archiveFabricRollBarcode } from '../utils/rollHelpers.js';
 import { generateYarnLotBarcode } from '../routes/yarnLotRoutes.js';
 import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
+import { matchPurchaseLineAgainstProcessingDispatches } from './externalJobPurchaseMatchingService.js';
 import {
   allocateHeaderDiscountToLines,
   computePaymentApplication,
@@ -969,6 +970,10 @@ export async function confirmPurchaseInvoice(
   const targetWarehouseId = await resolveWarehouseForPurchaseInvoice(client, companyId, inv.warehouse_id ?? null);
 
   for (const ln of lines.rows) {
+    // يُحدَّث داخل فرع إنشاء التوب الجديد أدناه إن أُنشئت خامة جديدة؛ يبقى
+    // كما هو (القيمة الأصلية بسطر الفاتورة) إن كانت الخامة محدَّدة مسبقاً.
+    let lineItemId = ln.fabric_item_id as string | null;
+
     if (String(ln.unit || '').toLowerCase() === 'kg') {
       let lotId = ln.yarn_lot_id as string | null;
       if (!lotId) {
@@ -1045,6 +1050,7 @@ export async function confirmPurchaseInvoice(
       const calcWt = calcWeight(lengthM, widthCm, gsm);
 
       const itemId = await findOrCreateFabricItem(client, companyId, materialName, designCode);
+      lineItemId = itemId;
       const colorId = await findOrCreateColor(client, companyId, colorName, colorCode);
 
       await ensureFabricCategoryChain(client, companyId, materialName, designCode, colorName, colorCode);
@@ -1127,6 +1133,25 @@ export async function confirmPurchaseInvoice(
           userId,
         ],
       );
+    }
+
+    // مطابقة تلقائية مع إرساليات "مصنعية" المفتوحة لهذا المورد ونفس الخامة —
+    // تسجيل/تقرير فقط، لا تؤثر على حركة المخزون أو القيد المحاسبي أعلاه.
+    if (inv.supplier_id && lineItemId) {
+      const matchUnit = (String(ln.unit || 'meter').toLowerCase() === 'yard' ? 'yard' : 'meter') as 'meter' | 'yard';
+      const matchQtyM = quantityToMeters(Number(ln.quantity) || 0, matchUnit);
+      if (matchQtyM > 0) {
+        await matchPurchaseLineAgainstProcessingDispatches(
+          client,
+          companyId,
+          String(inv.supplier_id),
+          lineItemId,
+          invoiceId,
+          String(ln.id),
+          matchQtyM,
+          userId,
+        );
+      }
     }
   }
 

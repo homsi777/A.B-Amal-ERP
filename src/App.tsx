@@ -193,6 +193,7 @@ import { ExternalJobs } from './pages/purchases/ExternalJobs';
 import { ExternalJobReceipt } from './pages/purchases/ExternalJobReceipt';
 import { ExternalJobProcessingNew } from './pages/purchases/ExternalJobProcessingNew';
 import { IntakeOperationNew } from './pages/purchases/IntakeOperationNew';
+import { ExternalJobMatching } from './pages/purchases/ExternalJobMatching';
 import { PrintJobs } from './pages/inventory/PrintJobs';
 import { Sales } from './pages/Sales';
 import { Purchases } from './pages/Purchases';
@@ -284,6 +285,7 @@ export default function App() {
             <Route path="purchases/external-jobs" element={<ExternalJobs />} />
             <Route path="purchases/external-jobs/processing/new" element={<ExternalJobProcessingNew />} />
             <Route path="purchases/intake-operations/new" element={<IntakeOperationNew />} />
+            <Route path="purchases/external-job-matching" element={<ExternalJobMatching />} />
             <Route path="purchases/external-jobs/:id" element={<ExternalJobReceipt />} />
 
             {/* Label printing routes */}
