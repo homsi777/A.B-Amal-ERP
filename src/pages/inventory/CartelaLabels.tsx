@@ -153,6 +153,7 @@ export const CartelaLabels: React.FC = () => {
   const [bulkBusy, setBulkBusy] = useState<PrintMode | null>(null);
 
   // ربط الكارتيله الجديدة بخامة حقيقية موجودة بالنظام — بدل نص كود تصميم حر.
+  const [cartelaMode, setCartelaMode] = useState<'linked' | 'external'>('linked');
   const [itemQuery, setItemQuery] = useState('');
   const [itemSearching, setItemSearching] = useState(false);
   const [itemResults, setItemResults] = useState<ApiFabricItem[]>([]);
@@ -188,6 +189,10 @@ export const CartelaLabels: React.FC = () => {
 
   const compositionTotal = compositionSum(activeCompositionLines(form.compositionLines));
   const compositionError = validateCompositionLines(activeCompositionLines(form.compositionLines));
+
+  // لوحة اختيار الخامة تظهر عند الإنشاء بنمط "مرتبطة بالمخزون"، أو عند تعديل
+  // كارتيله خارجية غير مرتبطة بعد (لإمكانية ربطها رجعياً بخامة أضيفت لاحقاً).
+  const showLinkPanel = (!selectedId && cartelaMode === 'linked') || (Boolean(selectedId) && !linkedItemLabel);
 
   const loadFiberTypes = async () => {
     try {
@@ -390,6 +395,7 @@ export const CartelaLabels: React.FC = () => {
     setSelectedId(null);
     setForm(emptyPayload());
     setActiveTab('form');
+    setCartelaMode('linked');
     clearFabricItemSelection();
     setLinkedItemLabel(null);
   };
@@ -476,6 +482,10 @@ export const CartelaLabels: React.FC = () => {
       showToast({ type: 'warning', message: t('toast.useNewForGenerate') });
       return;
     }
+    if (cartelaMode === 'linked' && !selectedFabricItem) {
+      showToast({ type: 'warning', message: t('form.linkItemRequired') });
+      return;
+    }
     const validationError = validateBeforeSave();
     if (validationError) {
       showToast({ type: 'warning', message: validationError });
@@ -521,8 +531,16 @@ export const CartelaLabels: React.FC = () => {
 
     setSaving(true);
     try {
-      const row = await updateCartelaLabel(selectedId, buildSavePayload());
+      const row = await updateCartelaLabel(selectedId, {
+        ...buildSavePayload(),
+        fabricItemId: selectedFabricItem?.id ?? null,
+        fabricVariantId: selectedVariantId || null,
+      });
       setForm(cartelaDtoToPayload(row));
+      if (row.fabric_item_id && !linkedItemLabel) {
+        setLinkedItemLabel(selectedFabricItem ? `${selectedFabricItem.name} (${selectedFabricItem.internal_code})` : null);
+        clearFabricItemSelection();
+      }
       await loadList();
       showToast({ type: 'success', message: t('toast.updateSaved') });
       scrollToColorsPanel();
@@ -939,11 +957,45 @@ export const CartelaLabels: React.FC = () => {
           )}
 
           {!selectedId && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setCartelaMode('linked')}
+                className={`flex-1 rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                  cartelaMode === 'linked'
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-slate-700 border-slate-200'
+                }`}
+              >
+                {t('form.modeLinked')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCartelaMode('external');
+                  clearFabricItemSelection();
+                }}
+                className={`flex-1 rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                  cartelaMode === 'external'
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-700 border-slate-200'
+                }`}
+              >
+                {t('form.modeExternal')}
+              </button>
+            </div>
+          )}
+
+          {!selectedId && cartelaMode === 'external' && (
+            <p className="text-xs text-slate-500">{t('form.modeExternalHint')}</p>
+          )}
+
+          {showLinkPanel && (
             <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="font-bold text-emerald-900 text-sm flex items-center gap-1.5">
                   <Link2 className="w-4 h-4" />
-                  {t('form.linkItemTitle')}
+                  {selectedId ? t('form.linkItemTitleExisting') : t('form.linkItemTitle')}
                 </h4>
                 {selectedFabricItem && (
                   <button

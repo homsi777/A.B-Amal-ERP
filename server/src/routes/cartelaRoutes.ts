@@ -790,81 +790,155 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       return sendError(reply, 400, payload.error, 'VALIDATION');
     }
     const d = payload.data!;
-
-    const prev = await getPool().query<{ serial_no: string }>(
-      `SELECT serial_no FROM cartela_labels WHERE id = $1 AND company_id = $2`,
-      [id, companyId],
-    );
-    if (!prev.rows.length) return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
-    const prevSerial = String(prev.rows[0].serial_no ?? '').trim();
     const nextSerial = d.serialNo.trim();
 
-    const row = await getPool().query(
-      `UPDATE cartela_labels
-          SET title = $3,
-              art_code = $4,
-              design_no = $5,
-              colour = $6,
-              width_value = $7,
-              width_unit = $8,
-              width_tolerance_enabled = $9,
-              width_tolerance_percent = $10,
-              weight_value = $11,
-              weight_unit = $12,
-              weight_tolerance_enabled = $13,
-              weight_tolerance_percent = $14,
-              composition = $15,
-              composition_lines = $16::jsonb,
-              care_symbols = $17::jsonb,
-              serial_no = $18,
-              show_logo = $19,
-              font_size_pt = $20,
-              updated_by_user_id = $21,
-              updated_at = now()
-        WHERE id = $1 AND company_id = $2
-        RETURNING *`,
-      [
-        id,
-        companyId,
-        d.title.trim(),
-        d.artCode.trim(),
-        d.designNo.trim(),
-        d.colour.trim(),
-        d.widthValue.trim(),
-        d.widthUnit.trim(),
-        d.widthToleranceEnabled,
-        d.widthTolerancePercent,
-        d.weightValue.trim(),
-        d.weightUnit.trim(),
-        d.weightToleranceEnabled,
-        d.weightTolerancePercent,
-        d.compositionText,
-        JSON.stringify(d.compositionLines),
-        JSON.stringify(d.careSymbols),
-        d.serialNo.trim(),
-        d.showLogo,
-        d.fontSizePt,
-        userId,
-      ],
-    );
-    if (!row.rows.length) return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
 
-    if (nextSerial && nextSerial !== prevSerial) {
-      const client = await getPool().connect();
-      try {
-        await client.query('BEGIN');
-        await syncColorBarcodesForCartela(client, companyId, id, nextSerial);
-        await client.query('COMMIT');
-      } catch (err) {
+      const prev = await client.query<{
+        serial_no: string;
+        fabric_item_id: string | null;
+        fabric_variant_id: string | null;
+        barcode_code: string | null;
+      }>(
+        `SELECT serial_no, fabric_item_id, fabric_variant_id, barcode_code
+         FROM cartela_labels WHERE id = $1 AND company_id = $2 FOR UPDATE`,
+        [id, companyId],
+      );
+      if (!prev.rows.length) {
         await client.query('ROLLBACK');
-        if (mapCartelaDbError(reply, err)) return reply;
-        throw err;
-      } finally {
-        client.release();
+        return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
       }
-    }
+      const prevRow = prev.rows[0];
+      const prevSerial = String(prevRow.serial_no ?? '').trim();
 
-    return reply.send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+      // ربط رجعي بخامة موجودة من شاشة التعديل — متاح فقط لكارتيله خارجية لم
+      // تُربَط بأي خامة من قبل (fabric_item_id=NULL). لا يسمح بتغيير ربط موجود
+      // مسبقاً أو فكّه من هنا.
+      let fabricItemId = prevRow.fabric_item_id;
+      let fabricVariantId = prevRow.fabric_variant_id;
+      let barcodeCode = prevRow.barcode_code;
+
+      if (!prevRow.fabric_item_id && d.fabricItemId) {
+        const itemRow = await client.query(
+          `SELECT id FROM fabric_items WHERE id=$1 AND company_id=$2`,
+          [d.fabricItemId, companyId],
+        );
+        if (!itemRow.rows.length) {
+          await client.query('ROLLBACK');
+          return sendError(reply, 404, 'الخامة غير موجودة', 'NOT_FOUND');
+        }
+        if (d.fabricVariantId) {
+          const variantRow = await client.query<{ variant_code: string }>(
+            `SELECT variant_code FROM fabric_item_variants WHERE id=$1 AND item_id=$2 AND company_id=$3`,
+            [d.fabricVariantId, d.fabricItemId, companyId],
+          );
+          if (!variantRow.rows.length) {
+            await client.query('ROLLBACK');
+            return sendError(reply, 404, 'الفاريانت لا ينتمي لهذه الخامة', 'NOT_FOUND');
+          }
+          const dup = await client.query(
+            `SELECT id FROM cartela_labels WHERE fabric_variant_id=$1 AND id <> $2`,
+            [d.fabricVariantId, id],
+          );
+          if (dup.rows.length) {
+            await client.query('ROLLBACK');
+            return sendError(reply, 409, 'يوجد كارتيله مرتبطة بهذا اللون/الفاريانت مسبقاً', 'DUPLICATE');
+          }
+          barcodeCode = buildColorBarcodeCode(nextSerial || prevSerial, variantRow.rows[0].variant_code);
+        }
+        fabricItemId = d.fabricItemId;
+        fabricVariantId = d.fabricVariantId ?? null;
+      }
+
+      const row = await client.query(
+        `UPDATE cartela_labels
+            SET title = $3,
+                art_code = $4,
+                design_no = $5,
+                colour = $6,
+                width_value = $7,
+                width_unit = $8,
+                width_tolerance_enabled = $9,
+                width_tolerance_percent = $10,
+                weight_value = $11,
+                weight_unit = $12,
+                weight_tolerance_enabled = $13,
+                weight_tolerance_percent = $14,
+                composition = $15,
+                composition_lines = $16::jsonb,
+                care_symbols = $17::jsonb,
+                serial_no = $18,
+                show_logo = $19,
+                font_size_pt = $20,
+                fabric_item_id = $21,
+                fabric_variant_id = $22,
+                barcode_code = $23,
+                updated_by_user_id = $24,
+                updated_at = now()
+          WHERE id = $1 AND company_id = $2
+          RETURNING *`,
+        [
+          id,
+          companyId,
+          d.title.trim(),
+          d.artCode.trim(),
+          d.designNo.trim(),
+          d.colour.trim(),
+          d.widthValue.trim(),
+          d.widthUnit.trim(),
+          d.widthToleranceEnabled,
+          d.widthTolerancePercent,
+          d.weightValue.trim(),
+          d.weightUnit.trim(),
+          d.weightToleranceEnabled,
+          d.weightTolerancePercent,
+          d.compositionText,
+          JSON.stringify(d.compositionLines),
+          JSON.stringify(d.careSymbols),
+          nextSerial,
+          d.showLogo,
+          d.fontSizePt,
+          fabricItemId,
+          fabricVariantId,
+          barcodeCode,
+          userId,
+        ],
+      );
+      if (!row.rows.length) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
+      }
+
+      if (fabricItemId && !prevRow.fabric_item_id) {
+        await upsertFabricItemCartelaSpecs(client, companyId, fabricItemId, {
+          compositionLines: d.compositionLines,
+          careSymbols: d.careSymbols,
+          widthValue: d.widthValue.trim(),
+          widthUnit: d.widthUnit.trim(),
+          widthToleranceEnabled: d.widthToleranceEnabled,
+          widthTolerancePercent: d.widthTolerancePercent,
+          weightValue: d.weightValue.trim(),
+          weightUnit: d.weightUnit.trim(),
+          weightToleranceEnabled: d.weightToleranceEnabled,
+          weightTolerancePercent: d.weightTolerancePercent,
+        });
+      }
+
+      if (nextSerial && nextSerial !== prevSerial) {
+        await syncColorBarcodesForCartela(client, companyId, id, nextSerial);
+      }
+
+      await client.query('COMMIT');
+      return reply.send({ ok: true, data: mapCartelaRow(row.rows[0]) });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    } finally {
+      client.release();
+    }
   });
 
   app.delete('/:id', { preHandler: authenticateRequest }, async (req, reply) => {
