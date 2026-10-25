@@ -5,7 +5,6 @@
   "inventory": "Stok",
   "inventory.createItem": "Yeni Malzeme Oluştur",
   "inventory.intakeOperationNew": "Yeni Kumaş Giriş İşlemi",
-  "inventory.bulkSales": "Toplu Satış",
   "inventory.intakeDispatchSlips": "Stok ve Satın Alma İrsaliyeleri",
   "inventory.movementsLog": "Stok Hareketleri",
   "inventory.yarn": "İplik (Ağırlıkla)",

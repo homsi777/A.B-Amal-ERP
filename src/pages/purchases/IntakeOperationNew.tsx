@@ -5,7 +5,6 @@ import { Loader2 } from 'lucide-react';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
-import { listBulkSales, type ApiBulkSale } from '../../lib/api/bulkSalesApi';
 import { listPreparationTypes, type PreparationType } from '../../lib/api/externalJobsApi';
 import { createIntakeOperation, type IntakeActionType } from '../../lib/api/intakeOperationsApi';
 import { ApiRequestError } from '../../lib/api/client';
@@ -26,7 +25,6 @@ export const IntakeOperationNew: React.FC = () => {
   const [suppliers, setSuppliers] = useState<ApiSupplier[]>([]);
   const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
   const [customers, setCustomers] = useState<ApiCustomer[]>([]);
-  const [bulkSales, setBulkSales] = useState<ApiBulkSale[]>([]);
   const [prepTypes, setPrepTypes] = useState<PreparationType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,7 +32,6 @@ export const IntakeOperationNew: React.FC = () => {
   const [supplierId, setSupplierId] = useState('');
   const [supplierSearch, setSupplierSearch] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
-  const [bulkSaleId, setBulkSaleId] = useState('');
   const [actionType, setActionType] = useState<IntakeActionType>('STOCK');
   const [customerId, setCustomerId] = useState('');
   const [fabricStage, setFabricStage] = useState<'RAW' | 'FINISHED' | ''>('');
@@ -43,17 +40,15 @@ export const IntakeOperationNew: React.FC = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const [supRes, whRes, custRes, bsRes, prepRes] = await Promise.all([
+      const [supRes, whRes, custRes, prepRes] = await Promise.all([
         listSuppliers({ status: 'active', pageSize: 500 }),
         listWarehouses({ status: 'active' }),
         listCustomers({ status: 'active', pageSize: 500 }),
-        listBulkSales({ onlyUnused: true }),
         listPreparationTypes(),
       ]);
       setSuppliers(supRes.data);
       setWarehouses(whRes);
       setCustomers(custRes.data);
-      setBulkSales(bsRes);
       setPrepTypes(prepRes.data);
     } catch (e) {
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('loadFailed') });
@@ -76,7 +71,7 @@ export const IntakeOperationNew: React.FC = () => {
   }, [suppliers, supplierSearch]);
 
   const submit = async () => {
-    if (!supplierId || !warehouseId || !bulkSaleId) {
+    if (!supplierId || !warehouseId) {
       showToast({ type: 'warning', message: t('requiredFields') });
       return;
     }
@@ -93,7 +88,6 @@ export const IntakeOperationNew: React.FC = () => {
       const op = await createIntakeOperation({
         supplierId,
         warehouseId,
-        bulkSaleId,
         actionType,
         customerId: actionType === 'RETURN' ? customerId : null,
         fabricStage: actionType === 'PROCESSING' ? (fabricStage as 'RAW' | 'FINISHED') : null,
@@ -161,25 +155,6 @@ export const IntakeOperationNew: React.FC = () => {
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
           </select>
-        </label>
-
-        <label className="space-y-1 block">
-          <span className="text-xs font-bold text-slate-600">{t('bulkSaleLabel')}</span>
-          <select
-            value={bulkSaleId}
-            onChange={(e) => setBulkSaleId(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          >
-            <option value="">{t('chooseBulkSale')}</option>
-            {bulkSales.map((bs) => (
-              <option key={bs.id} value={bs.id}>
-                {bs.customer_name} — {bs.invoice_no} ({bs.sale_date.slice(0, 10)})
-              </option>
-            ))}
-          </select>
-          {bulkSales.length === 0 && (
-            <p className="text-xs text-amber-700">{t('noBulkSalesAvailable')}</p>
-          )}
         </label>
 
         <label className="space-y-1 block">

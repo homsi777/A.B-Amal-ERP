@@ -57,7 +57,7 @@ export const intakeOperationRoutes: FastifyPluginAsync = async (app) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const result = await finalizeIntakeOperation(client, companyId, userId, id);
+      const result = await finalizeIntakeOperation(client, companyId, userId, id, req.body);
       await client.query('COMMIT');
       return reply.send({ ok: true, data: result });
     } catch (e: unknown) {

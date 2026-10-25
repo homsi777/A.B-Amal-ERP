@@ -3,16 +3,26 @@ import { z } from 'zod';
 import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
 import { createProcessingExternalJob } from './externalJobService.js';
 import { validateAndBuildReturnDraft, type CreateReturnBody } from './returnInvoiceDraftValidation.js';
-import { lockBulkSaleForIntake } from './bulkSaleService.js';
+import { createSalesInvoice } from './salesInvoiceService.js';
 
 const createIntakeOperationSchema = z.object({
   supplierId: z.string().uuid('المورد مطلوب'),
   warehouseId: z.string().uuid('المستودع مطلوب'),
-  bulkSaleId: z.string().uuid('البيع الجماعي مطلوب'),
   actionType: z.enum(['PROCESSING', 'STOCK', 'RETURN', 'PURCHASE']),
   customerId: z.string().uuid().optional().nullable(),
   fabricStage: z.enum(['RAW', 'FINISHED']).optional().nullable(),
   preparationTypeId: z.string().uuid().optional().nullable(),
+});
+
+/** عند actionType='STOCK' فقط — الأتواب المُحدَّدة للبيع (بسعرها لكل منها)
+ * وعميل واحد لها جميعاً؛ تُبنى منها فاتورة بيع واحدة حقيقية عند الإنهاء.
+ * الأتواب غير المذكورة هنا تذهب لإرسالية المخزون كالمعتاد. */
+const finalizeStockSaleSchema = z.object({
+  customerId: z.string().uuid(),
+  lines: z.array(z.object({
+    rollId: z.string().uuid(),
+    unitPrice: z.coerce.number().nonnegative(),
+  })).min(1),
 });
 
 export type IntakeOperationRow = {
@@ -21,7 +31,6 @@ export type IntakeOperationRow = {
   order_no: string;
   supplier_id: string;
   warehouse_id: string;
-  bulk_sale_id: string;
   action_type: 'PROCESSING' | 'STOCK' | 'RETURN' | 'PURCHASE';
   customer_id: string | null;
   fabric_stage: 'RAW' | 'FINISHED' | null;
@@ -30,6 +39,7 @@ export type IntakeOperationRow = {
   result_external_job_id: string | null;
   result_dispatch_slip_id: string | null;
   result_return_invoice_id: string | null;
+  result_sales_invoice_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -94,24 +104,16 @@ export async function createIntakeOperation(
     if (!custRow.rows.length) throw Object.assign(new Error('العميل غير موجود'), { code: 'NOT_FOUND' });
   }
 
-  const bulkSale = await lockBulkSaleForIntake(client, companyId, input.bulkSaleId);
-  if (!bulkSale) {
-    throw Object.assign(
-      new Error('هذا البيع الجماعي غير موجود أو مُستخدَم مسبقاً بعملية إدخال أخرى'),
-      { code: 'VALIDATION' },
-    );
-  }
-
   const orderNo = await generateSequentialDocumentNo(client, companyId, 'INTAKE_ORDER');
 
   const ins = await client.query<IntakeOperationRow>(
     `INSERT INTO intake_operations (
-       company_id, order_no, supplier_id, warehouse_id, bulk_sale_id, action_type,
+       company_id, order_no, supplier_id, warehouse_id, action_type,
        customer_id, fabric_stage, preparation_type_id, created_by_user_id
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      RETURNING *`,
     [
-      companyId, orderNo, input.supplierId, input.warehouseId, input.bulkSaleId, input.actionType,
+      companyId, orderNo, input.supplierId, input.warehouseId, input.actionType,
       input.customerId ?? null, input.fabricStage ?? null, input.preparationTypeId ?? null, userId,
     ],
   );
@@ -135,18 +137,22 @@ type FinalizeResult = {
   externalJob?: { id: string; jobNo: string };
   dispatchSlip?: { id: string; slipNo: string };
   returnInvoice?: { id: string; returnNo: string };
+  salesInvoice?: { id: string; invoiceNo: string };
 };
 
 /**
  * يُنفَّذ بعد حفظ كل الأتواب بشاشة "إنشاء مادة" ضمن سياق هذه العملية
  * (fabric_rolls.intake_operation_id = هذا المعرّف). ينفّذ الإجراء المحدَّد
- * مسبقاً بالشاشة الأولى، ثم يُغلق العملية (status='COMPLETED').
+ * مسبقاً بالشاشة الأولى، ثم يُغلق العملية (status='COMPLETED'). `rawSale`
+ * مقبول فقط عند actionType='STOCK' — الأتواب المحدَّدة للبيع فيه تُستثنى من
+ * إرسالية المخزون وتُباع بفاتورة واحدة حقيقية لعميل واحد بدلاً من ذلك.
  */
 export async function finalizeIntakeOperation(
   client: PoolClient,
   companyId: string,
   userId: string | null,
   intakeOperationId: string,
+  rawSale?: unknown,
 ): Promise<FinalizeResult> {
   const opRes = await client.query<IntakeOperationRow>(
     `SELECT * FROM intake_operations WHERE id=$1 AND company_id=$2 FOR UPDATE`,
@@ -190,25 +196,84 @@ export async function finalizeIntakeOperation(
     );
     result.externalJob = { id: job.id, jobNo: job.jobNo };
   } else if (op.action_type === 'STOCK' || op.action_type === 'PURCHASE') {
-    const slipNo = await generateSequentialDocumentNo(client, companyId, 'INTAKE_DISPATCH_SLIP');
-    const slipIns = await client.query<{ id: string }>(
-      `INSERT INTO intake_dispatch_slips (company_id, intake_operation_id, slip_no, slip_type, warehouse_id, supplier_id, created_by_user_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       RETURNING id`,
-      [companyId, intakeOperationId, slipNo, op.action_type, op.warehouse_id, op.supplier_id, userId],
-    );
-    const slipId = slipIns.rows[0].id;
-    for (const roll of rolls) {
-      await client.query(
-        `INSERT INTO intake_dispatch_slip_lines (slip_id, fabric_roll_id) VALUES ($1,$2)`,
-        [slipId, roll.id],
-      );
+    let soldRollIds = new Set<string>();
+    let saleInput: z.infer<typeof finalizeStockSaleSchema> | null = null;
+    const hasSalePayload =
+      op.action_type === 'STOCK'
+      && rawSale != null
+      && typeof rawSale === 'object'
+      && Array.isArray((rawSale as { lines?: unknown }).lines)
+      && ((rawSale as { lines: unknown[] }).lines.length > 0);
+    if (hasSalePayload) {
+      saleInput = finalizeStockSaleSchema.parse(rawSale);
+      soldRollIds = new Set(saleInput.lines.map((l) => l.rollId));
+      const unknownRollId = saleInput.lines.find((l) => !rolls.some((r) => r.id === l.rollId));
+      if (unknownRollId) {
+        throw Object.assign(new Error('أحد الأتواب المحدَّدة للبيع لا ينتمي لهذه العملية'), { code: 'VALIDATION' });
+      }
     }
+    const stockRolls = rolls.filter((r) => !soldRollIds.has(r.id));
+    const soldRolls = rolls.filter((r) => soldRollIds.has(r.id));
+
+    if (saleInput && soldRolls.length > 0) {
+      const priceByRoll = new Map(saleInput.lines.map((l) => [l.rollId, l.unitPrice]));
+      const saleLines = soldRolls.map((r) => {
+        const qty = Number(r.length_m) || 0;
+        const unitPrice = priceByRoll.get(r.id) ?? 0;
+        return {
+          fabricRollId: r.id,
+          quantity: qty,
+          unit: 'meter' as const,
+          unitPrice,
+          lineTotal: Math.round(qty * unitPrice * 100) / 100,
+        };
+      });
+      const subtotal = Math.round(saleLines.reduce((sum, l) => sum + l.lineTotal, 0) * 100) / 100;
+      const invoiceResult = await createSalesInvoice(client, companyId, userId, {
+        invoiceNo: 'AUTO',
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        customerId: saleInput.customerId,
+        warehouseId: op.warehouse_id,
+        currencyCode: 'USD',
+        subtotal,
+        discountTotal: 0,
+        taxTotal: 0,
+        totalAmount: subtotal,
+        paidAmount: 0,
+        remainingAmount: subtotal,
+        notes: `مُنشأة تلقائياً من عملية إدخال خامة رقم ${op.order_no}`,
+        lines: saleLines,
+        confirm: true,
+      });
+      result.salesInvoice = { id: invoiceResult.id, invoiceNo: invoiceResult.invoiceNo };
+    }
+
+    let slipId: string | null = null;
+    let slipNo: string | null = null;
+    if (stockRolls.length > 0) {
+      slipNo = await generateSequentialDocumentNo(client, companyId, 'INTAKE_DISPATCH_SLIP');
+      const slipIns = await client.query<{ id: string }>(
+        `INSERT INTO intake_dispatch_slips (company_id, intake_operation_id, slip_no, slip_type, warehouse_id, supplier_id, created_by_user_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id`,
+        [companyId, intakeOperationId, slipNo, op.action_type, op.warehouse_id, op.supplier_id, userId],
+      );
+      slipId = slipIns.rows[0].id;
+      for (const roll of stockRolls) {
+        await client.query(
+          `INSERT INTO intake_dispatch_slip_lines (slip_id, fabric_roll_id) VALUES ($1,$2)`,
+          [slipId, roll.id],
+        );
+      }
+      result.dispatchSlip = { id: slipId, slipNo };
+    }
+
     await client.query(
-      `UPDATE intake_operations SET status='COMPLETED', result_dispatch_slip_id=$1, updated_at=now() WHERE id=$2`,
-      [slipId, intakeOperationId],
+      `UPDATE intake_operations
+       SET status='COMPLETED', result_dispatch_slip_id=$1, result_sales_invoice_id=$2, updated_at=now()
+       WHERE id=$3`,
+      [slipId, result.salesInvoice?.id ?? null, intakeOperationId],
     );
-    result.dispatchSlip = { id: slipId, slipNo };
   } else {
     // RETURN — فاتورة مرتجع مبيعات حقيقية، مسودة غير مُرحَّلة محاسبياً حتى
     // تُسعَّر وتُؤكَّد لاحقاً (postReturnInvoiceToGl هو ما يخصم فعلياً من ذمة

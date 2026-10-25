@@ -4,6 +4,7 @@ import { Save, FileText, ArrowRight, ScanLine, ImagePlus, Upload, X, Printer } f
 import { useStore } from '../../store/useStore';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getIntakeOperation, finalizeIntakeOperation, type ApiIntakeOperation } from '../../lib/api/intakeOperationsApi';
+import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import { autoPrintLabel } from '../../lib/printing/autoPrintLabel';
 import { useElectronSettings } from '../../lib/electron/useElectronSettings';
 import type { AdHocLabelInput } from '../../components/labels/LabelCard';
@@ -142,6 +143,9 @@ type DraftRoll = {
   sellingPrice: number;
   imageUrl: string;
   warehouseId: string;
+  /** عملية إدخال خامة بإجراء "مخزون" فقط — هذا التوب محدَّد للبيع فوراً
+   * (فاتورة بيع واحدة لعميل واحد عند الحفظ النهائي)، وليس لإرسالية المخزون. */
+  forSale: boolean;
 };
 
 let draftRollIdCounter = 0;
@@ -167,6 +171,8 @@ export const CreateItem = () => {
   const [lastSavedPrintInput, setLastSavedPrintInput] = useState<AdHocLabelInput | null>(null);
   const [intakeOperation, setIntakeOperation] = useState<ApiIntakeOperation | null>(null);
   const [finalizing, setFinalizing] = useState(false);
+  const [saleCustomers, setSaleCustomers] = useState<ApiCustomer[]>([]);
+  const [saleCustomerId, setSaleCustomerId] = useState('');
 
   const localActiveWarehouses = warehouses.filter(w => w.status === 'active');
   const activeWarehouses = apiWarehouses.length > 0
@@ -290,6 +296,11 @@ export const CreateItem = () => {
         if (cancelled) return;
         setIntakeOperation(op);
         setWarehouseId(op.warehouse_id);
+        if (op.action_type === 'STOCK') {
+          listCustomers({ status: 'active', pageSize: 500 })
+            .then((res) => { if (!cancelled) setSaleCustomers(res.data); })
+            .catch(() => {});
+        }
       })
       .catch(() => {
         if (!cancelled) setSaveError(t('intakeContext.loadFailed'));
@@ -395,7 +406,7 @@ export const CreateItem = () => {
    * نفس منطق الحفظ الفوري القديم بالضبط، فقط يقرأ من "لقطة" الـ draft بدل الحالة المباشرة،
    * لأنه يُستدعى بالتتابع لكل سطر بالقائمة عند "حفظ كل الأتواب".
    */
-  const saveRollToServer = async (draft: DraftRoll): Promise<{ printInput: AdHocLabelInput }> => {
+  const saveRollToServer = async (draft: DraftRoll): Promise<{ printInput: AdHocLabelInput; rollId: string }> => {
     const selectedMaterialName = findCategoryById(categoryApiTree, draft.catL1Id);
     const selectedMaterialCode = findCategoryById(categoryApiTree, draft.catL2Id);
     const selectedColor = findCategoryById(categoryApiTree, draft.catL3Id);
@@ -629,7 +640,7 @@ export const CreateItem = () => {
 
     addFabric(payload);
 
-    return { printInput };
+    return { printInput, rollId: roll.id };
   };
 
   const resetEntryFieldsForNextRoll = () => {
@@ -786,6 +797,7 @@ export const CreateItem = () => {
     }
 
     /* ─── وضع الإنشاء: إضافة/تحديث سطر بالمسودة المحلية فقط ─── */
+    const existingDraft = editingDraftId ? draftRolls.find((d) => d.localId === editingDraftId) : undefined;
     const draft: DraftRoll = {
       localId: editingDraftId ?? nextDraftRollId(),
       catL1Id,
@@ -805,6 +817,7 @@ export const CreateItem = () => {
       sellingPrice: Number(sellingPrice) || 0,
       imageUrl,
       warehouseId,
+      forSale: existingDraft?.forSale ?? false,
     };
 
     if (editingDraftId) {
@@ -835,14 +848,21 @@ export const CreateItem = () => {
       return;
     }
 
+    const rollsForSale = draftRolls.filter((d) => d.forSale);
+    if (intakeOperation?.action_type === 'STOCK' && rollsForSale.length > 0 && !saleCustomerId) {
+      setSaveError(t('intakeContext.saleCustomerRequired'));
+      return;
+    }
+
     setSaving(true);
     const rollsToSave = draftRolls;
     let savedCount = 0;
     let lastPrintInput: AdHocLabelInput | null = null;
+    const soldLines: { rollId: string; unitPrice: number }[] = [];
 
     for (let i = 0; i < rollsToSave.length; i += 1) {
       const draft = rollsToSave[i];
-      let result: { printInput: AdHocLabelInput };
+      let result: { printInput: AdHocLabelInput; rollId: string };
       try {
         result = await saveRollToServer(draft);
       } catch (error) {
@@ -857,6 +877,9 @@ export const CreateItem = () => {
 
       savedCount += 1;
       lastPrintInput = result.printInput;
+      if (draft.forSale) {
+        soldLines.push({ rollId: result.rollId, unitPrice: Number(draft.sellingPrice) || 0 });
+      }
       setDraftRolls((prev) => prev.filter((d) => d.localId !== draft.localId));
 
       if (autoPrint) {
@@ -890,10 +913,19 @@ export const CreateItem = () => {
     if (intakeOperationId && savedCount > 0) {
       setFinalizing(true);
       try {
-        const result = await finalizeIntakeOperation(intakeOperationId);
+        const salePayload = soldLines.length > 0 ? { customerId: saleCustomerId, lines: soldLines } : undefined;
+        const result = await finalizeIntakeOperation(intakeOperationId, salePayload);
         if (result.externalJob) {
           setSuccessMessage(t('intakeContext.finalizedProcessing', { jobNo: result.externalJob.jobNo }));
           setTimeout(() => navigate(`/purchases/external-jobs/${result.externalJob!.id}`), 1500);
+        } else if (result.salesInvoice && result.dispatchSlip) {
+          setSuccessMessage(t('intakeContext.finalizedSaleAndSlip', {
+            invoiceNo: result.salesInvoice.invoiceNo, slipNo: result.dispatchSlip.slipNo,
+          }));
+          setTimeout(() => navigate('/invoices/sales'), 1500);
+        } else if (result.salesInvoice) {
+          setSuccessMessage(t('intakeContext.finalizedSale', { invoiceNo: result.salesInvoice.invoiceNo }));
+          setTimeout(() => navigate('/invoices/sales'), 1500);
         } else if (result.dispatchSlip) {
           setSuccessMessage(t('intakeContext.finalizedSlip', { slipNo: result.dispatchSlip.slipNo }));
           setTimeout(() => navigate('/inventory/intake-dispatch-slips'), 1500);
@@ -939,6 +971,17 @@ export const CreateItem = () => {
   const handleDeleteDraft = (localId: string) => {
     setDraftRolls((prev) => prev.filter((d) => d.localId !== localId));
     if (editingDraftId === localId) setEditingDraftId(null);
+  };
+
+  const handleToggleForSale = (localId: string) => {
+    setDraftRolls((prev) => prev.map((d) => (d.localId === localId ? { ...d, forSale: !d.forSale } : d)));
+  };
+
+  const handleToggleAllForSale = () => {
+    setDraftRolls((prev) => {
+      const allSelected = prev.length > 0 && prev.every((d) => d.forSale);
+      return prev.map((d) => ({ ...d, forSale: !allSelected }));
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1026,6 +1069,25 @@ export const CreateItem = () => {
           <span className="text-indigo-700">
             {activeWarehouses.find((w) => w.id === intakeOperation.warehouse_id)?.name}
           </span>
+        </div>
+      )}
+
+      {intakeOperation?.action_type === 'STOCK' && draftRolls.some((d) => d.forSale) && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-2">
+          <p className="text-sm font-bold text-emerald-900">{t('intakeContext.saleSectionTitle')}</p>
+          <label className="block max-w-sm">
+            <span className="text-xs font-bold text-emerald-700">{t('intakeContext.saleCustomerLabel')}</span>
+            <select
+              value={saleCustomerId}
+              onChange={(e) => setSaleCustomerId(e.target.value)}
+              className="w-full p-2 bg-white border border-emerald-300 rounded-lg text-sm"
+            >
+              <option value="">{t('intakeContext.chooseSaleCustomer')}</option>
+              {saleCustomers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
         </div>
       )}
 
@@ -1505,7 +1567,16 @@ export const CreateItem = () => {
           </div>
         </div>
 
-        {!isEditMode && <DraftRollsPanel draftRolls={draftRolls} onEdit={handleEditDraft} onDelete={handleDeleteDraft} />}
+        {!isEditMode && (
+          <DraftRollsPanel
+            draftRolls={draftRolls}
+            onEdit={handleEditDraft}
+            onDelete={handleDeleteDraft}
+            showForSale={intakeOperation?.action_type === 'STOCK'}
+            onToggleForSale={handleToggleForSale}
+            onToggleAllForSale={handleToggleAllForSale}
+          />
+        )}
       </div>
     </div>
   );
@@ -1515,12 +1586,19 @@ const DraftRollsPanel = ({
   draftRolls,
   onEdit,
   onDelete,
+  showForSale = false,
+  onToggleForSale,
+  onToggleAllForSale,
 }: {
   draftRolls: DraftRoll[];
   onEdit: (localId: string) => void;
   onDelete: (localId: string) => void;
+  showForSale?: boolean;
+  onToggleForSale?: (localId: string) => void;
+  onToggleAllForSale?: () => void;
 }) => {
   const { t } = useTranslation('createItem');
+  const allForSale = draftRolls.length > 0 && draftRolls.every((d) => d.forSale);
   return (
     <div className="border-t border-slate-200 p-6 sm:p-8 bg-slate-50/60">
       <h3 className="font-bold text-slate-800 text-base mb-4">
@@ -1538,12 +1616,23 @@ const DraftRollsPanel = ({
                 <th className="px-3 py-2 text-right">{t('draftList.colLength')}</th>
                 <th className="px-3 py-2 text-right">{t('draftList.colWeight')}</th>
                 <th className="px-3 py-2 text-right">{t('draftList.colLot')}</th>
+                {showForSale && (
+                  <th className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onToggleAllForSale?.()}
+                      className="text-emerald-700 hover:text-emerald-900 underline"
+                    >
+                      {t('draftList.colForSale')} · {allForSale ? t('draftList.unselectAll') : t('draftList.selectAll')}
+                    </button>
+                  </th>
+                )}
                 <th className="px-3 py-2 text-right">{t('draftList.colActions')}</th>
               </tr>
             </thead>
             <tbody>
               {draftRolls.map((draft, index) => (
-                <tr key={draft.localId} className="border-t border-slate-100">
+                <tr key={draft.localId} className={`border-t border-slate-100 ${draft.forSale ? 'bg-emerald-50/50' : ''}`}>
                   <td className="px-3 py-2 text-slate-500 font-mono">{index + 1}</td>
                   <td className="px-3 py-2 font-mono text-left" dir="ltr">{draft.barcode || '—'}</td>
                   <td className="px-3 py-2 font-mono">
@@ -1551,6 +1640,17 @@ const DraftRollsPanel = ({
                   </td>
                   <td className="px-3 py-2 font-mono">{draft.weight} kg</td>
                   <td className="px-3 py-2 font-mono">{draft.lotNumber || '—'}</td>
+                  {showForSale && (
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={draft.forSale}
+                        onChange={() => onToggleForSale?.(draft.localId)}
+                        className="accent-emerald-600 w-4 h-4"
+                        title={t('draftList.forSaleTitle', { price: draft.sellingPrice })}
+                      />
+                    </td>
+                  )}
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <button

@@ -34,7 +34,6 @@ import arDepreciation from '../locales/ar/depreciation.json';
 import arBulkPricing from '../locales/ar/bulkPricing.json';
 import arCartelaLabels from '../locales/ar/cartelaLabels.json';
 import arMaterialInquiry from '../locales/ar/materialInquiry.json';
-import arBulkSales from '../locales/ar/bulkSales.json';
 import arIntakeOperations from '../locales/ar/intakeOperations.json';
 import arInventoryMovementsLog from '../locales/ar/inventoryMovementsLog.json';
 import arExternalJobMatching from '../locales/ar/externalJobMatching.json';
@@ -97,7 +96,6 @@ import trDepreciation from '../locales/tr/depreciation.json';
 import trBulkPricing from '../locales/tr/bulkPricing.json';
 import trCartelaLabels from '../locales/tr/cartelaLabels.json';
 import trMaterialInquiry from '../locales/tr/materialInquiry.json';
-import trBulkSales from '../locales/tr/bulkSales.json';
 import trIntakeOperations from '../locales/tr/intakeOperations.json';
 import trInventoryMovementsLog from '../locales/tr/inventoryMovementsLog.json';
 import trExternalJobMatching from '../locales/tr/externalJobMatching.json';
@@ -168,7 +166,6 @@ void i18n.use(initReactI18next).init({
       bulkPricing: arBulkPricing,
       cartelaLabels: arCartelaLabels,
       materialInquiry: arMaterialInquiry,
-      bulkSales: arBulkSales,
       intakeOperations: arIntakeOperations,
       inventoryMovementsLog: arInventoryMovementsLog,
       externalJobMatching: arExternalJobMatching,
@@ -233,7 +230,6 @@ void i18n.use(initReactI18next).init({
       bulkPricing: trBulkPricing,
       cartelaLabels: trCartelaLabels,
       materialInquiry: trMaterialInquiry,
-      bulkSales: trBulkSales,
       intakeOperations: trIntakeOperations,
       inventoryMovementsLog: trInventoryMovementsLog,
       externalJobMatching: trExternalJobMatching,
@@ -267,7 +263,7 @@ void i18n.use(initReactI18next).init({
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames', 'labelCard', 'materialInquiry', 'bulkSales', 'intakeOperations', 'inventoryMovementsLog', 'externalJobMatching'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames', 'labelCard', 'materialInquiry', 'intakeOperations', 'inventoryMovementsLog', 'externalJobMatching'],
   interpolation: {
     escapeValue: false,
   },

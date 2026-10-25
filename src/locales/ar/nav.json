@@ -5,7 +5,6 @@
   "inventory": "المخزون",
   "inventory.createItem": "إنشاء مادة جديدة",
   "inventory.intakeOperationNew": "عملية إدخال خامة جديدة",
-  "inventory.bulkSales": "البيع الجماعي",
   "inventory.intakeDispatchSlips": "إرساليات المخزون والشراء",
   "inventory.movementsLog": "حركات المخزون",
   "inventory.yarn": "الخيط (بالوزن)",

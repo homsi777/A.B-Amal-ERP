@@ -101,7 +101,6 @@ const Topbar = () => {
       subItems: [
         { labelKey: 'inventory.createItem', to: '/inventory/create' },
         { labelKey: 'inventory.intakeOperationNew', to: '/purchases/intake-operations/new' },
-        { labelKey: 'inventory.bulkSales', to: '/inventory/bulk-sales' },
         { labelKey: 'inventory.intakeDispatchSlips', to: '/inventory/intake-dispatch-slips' },
         { labelKey: 'inventory.movementsLog', to: '/inventory/movements-log' },
         { labelKey: 'inventory.yarn', to: '/inventory/yarn' },
