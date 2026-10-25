@@ -28,6 +28,9 @@ export interface CartelaLabelDto {
   serial_no: string;
   show_logo: boolean;
   font_size_pt: number;
+  fabric_item_id: string | null;
+  fabric_variant_id: string | null;
+  barcode_code: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +66,10 @@ export type CartelaLabelPayload = {
   serialNo: string;
   showLogo: boolean;
   fontSizePt: number;
+  /** ربط فعلي بخامة حقيقية (وفاريانتها/لونها عند وجوده) — اختياري، يُستخدَم
+   * فقط عند الإنشاء من خامة موجودة، وليس عند التعديل اليدوي الحر. */
+  fabricItemId?: string | null;
+  fabricVariantId?: string | null;
 };
 
 export async function listCartelaFiberTypes(): Promise<CartelaFiberType[]> {
@@ -129,6 +136,8 @@ export type CartelaOrderLookup = {
   serial_no: string;
   width_value: string;
   weight_value: string;
+  fabric_item_id: string | null;
+  fabric_variant_id: string | null;
   match_type?: 'cartela' | 'color';
   color?: {
     id: string;
@@ -154,6 +163,8 @@ export async function lookupCartelaByScan(scan: string): Promise<CartelaOrderLoo
     serial_no: String(data.serial_no ?? ''),
     width_value: String(data.width_value ?? ''),
     weight_value: String(data.weight_value ?? ''),
+    fabric_item_id: (data.fabric_item_id as string | null) ?? null,
+    fabric_variant_id: (data.fabric_variant_id as string | null) ?? null,
     match_type: data.match_type === 'color' ? 'color' : 'cartela',
     color: data.color
       ? {
@@ -197,7 +208,7 @@ export async function ensureQuickCartelaDraft(payload: QuickCartelaDraftPayload)
   return createQuickCartelaDraft(payload);
 }
 
-function parseCompositionLines(raw: unknown): CartelaCompositionLine[] {
+export function parseCompositionLines(raw: unknown): CartelaCompositionLine[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((line) => {

@@ -73,6 +73,9 @@ export const fabricItemRoutes: FastifyPluginAsync = async (app) => {
       `SELECT fi.id,fi.internal_code,fi.supplier_code,fi.name,fi.fabric_type,fi.unit,fi.notes,
               fi.is_active,fi.category_id,fi.supplier_id,
               fc.name AS category_name, s.name AS supplier_name,
+              fi.composition_lines, fi.care_symbols,
+              fi.width_value, fi.width_unit, fi.width_tolerance_enabled, fi.width_tolerance_percent,
+              fi.weight_value, fi.weight_unit, fi.weight_tolerance_enabled, fi.weight_tolerance_percent,
               fi.created_at,fi.updated_at
        FROM fabric_items fi
        LEFT JOIN fabric_categories fc ON fc.id=fi.category_id

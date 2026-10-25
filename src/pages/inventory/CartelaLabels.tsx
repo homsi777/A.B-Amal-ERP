@@ -16,6 +16,8 @@ import {
   Copy,
   List,
   Layers,
+  Link2,
+  Unlink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -35,12 +37,15 @@ import {
   getCartelaLabel,
   listCartelaFiberTypes,
   listCartelaLabels,
+  parseCompositionLines,
   updateCartelaLabel,
   CARTELA_PERCENT_OPTIONS,
   type CartelaFiberType,
   type CartelaLabelListItem,
   type CartelaLabelPayload,
 } from '../../lib/api/cartelaApi';
+import { getFabricItem, listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
+import { listFabricVariants, type ApiFabricVariant } from '../../lib/api/fabricVariantsApi';
 import {
   CARTELA_CARE_SYMBOLS,
   compositionSum,
@@ -147,6 +152,15 @@ export const CartelaLabels: React.FC = () => {
   const [selectedCartelaIds, setSelectedCartelaIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState<PrintMode | null>(null);
 
+  // ربط الكارتيله الجديدة بخامة حقيقية موجودة بالنظام — بدل نص كود تصميم حر.
+  const [itemQuery, setItemQuery] = useState('');
+  const [itemSearching, setItemSearching] = useState(false);
+  const [itemResults, setItemResults] = useState<ApiFabricItem[]>([]);
+  const [selectedFabricItem, setSelectedFabricItem] = useState<ApiFabricItem | null>(null);
+  const [itemVariants, setItemVariants] = useState<ApiFabricVariant[]>([]);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
+  const [linkedItemLabel, setLinkedItemLabel] = useState<string | null>(null);
+
   const labelData: CartelaLabelData = useMemo(
     () => ({
       artCode: form.artCode,
@@ -245,6 +259,71 @@ export const CartelaLabels: React.FC = () => {
     }));
   };
 
+  useEffect(() => {
+    const q = itemQuery.trim();
+    if (selectedFabricItem || q.length < 2) {
+      setItemResults([]);
+      return;
+    }
+    setItemSearching(true);
+    const timer = window.setTimeout(() => {
+      listFabricItems({ search: q, status: 'active', pageSize: 20 })
+        .then((res) => setItemResults(res.data))
+        .catch(() => setItemResults([]))
+        .finally(() => setItemSearching(false));
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [itemQuery, selectedFabricItem]);
+
+  const applyFabricItemSpecs = (item: ApiFabricItem) => {
+    const lines = parseCompositionLines(item.composition_lines);
+    setForm((current) => ({
+      ...current,
+      artCode: item.internal_code || current.artCode,
+      compositionLines: lines.length ? lines : current.compositionLines,
+      careSymbols: item.care_symbols?.length ? (item.care_symbols as CartelaCareSymbolId[]) : current.careSymbols,
+      widthValue: item.width_value || current.widthValue,
+      widthUnit: item.width_unit || current.widthUnit,
+      widthToleranceEnabled: item.width_tolerance_enabled ?? current.widthToleranceEnabled,
+      widthTolerancePercent: item.width_tolerance_percent ?? current.widthTolerancePercent,
+      weightValue: item.weight_value || current.weightValue,
+      weightUnit: item.weight_unit || current.weightUnit,
+      weightToleranceEnabled: item.weight_tolerance_enabled ?? current.weightToleranceEnabled,
+      weightTolerancePercent: item.weight_tolerance_percent ?? current.weightTolerancePercent,
+    }));
+  };
+
+  const handlePickFabricItem = async (item: ApiFabricItem) => {
+    setItemQuery(item.name);
+    setItemResults([]);
+    setSelectedVariantId('');
+    try {
+      const full = await getFabricItem(item.id);
+      setSelectedFabricItem(full);
+      applyFabricItemSpecs(full);
+      const variants = await listFabricVariants({ itemId: full.id, status: 'active', pageSize: 100 });
+      setItemVariants(variants.data);
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.loadOneFailed') });
+    }
+  };
+
+  const handlePickVariant = (variantId: string) => {
+    setSelectedVariantId(variantId);
+    const variant = itemVariants.find((v) => v.id === variantId);
+    if (variant) {
+      patchForm({ colour: variant.color_name_ar || variant.color_code || form.colour });
+    }
+  };
+
+  const clearFabricItemSelection = () => {
+    setSelectedFabricItem(null);
+    setItemVariants([]);
+    setSelectedVariantId('');
+    setItemQuery('');
+    setItemResults([]);
+  };
+
   const handleAddFiberType = async () => {
     const name = newFiberName.trim();
     if (!name) {
@@ -311,6 +390,8 @@ export const CartelaLabels: React.FC = () => {
     setSelectedId(null);
     setForm(emptyPayload());
     setActiveTab('form');
+    clearFabricItemSelection();
+    setLinkedItemLabel(null);
   };
 
   const printHtml = async (html: string, mode: PrintMode, fileStem: string) => {
@@ -373,6 +454,17 @@ export const CartelaLabels: React.FC = () => {
       const row = await getCartelaLabel(id);
       setSelectedId(id);
       setForm(cartelaDtoToPayload(row));
+      clearFabricItemSelection();
+      if (row.fabric_item_id) {
+        try {
+          const item = await getFabricItem(row.fabric_item_id);
+          setLinkedItemLabel(`${item.name} (${item.internal_code})`);
+        } catch {
+          setLinkedItemLabel(null);
+        }
+      } else {
+        setLinkedItemLabel(null);
+      }
       if (switchToForm) setActiveTab('form');
     } catch (e) {
       showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.loadOneFailed') });
@@ -392,9 +484,15 @@ export const CartelaLabels: React.FC = () => {
 
     setSaving(true);
     try {
-      const row = await generateCartelaLabel({ ...buildSavePayload(), serialNo: form.serialNo.trim() });
+      const row = await generateCartelaLabel({
+        ...buildSavePayload(),
+        serialNo: form.serialNo.trim(),
+        fabricItemId: selectedFabricItem?.id ?? null,
+        fabricVariantId: selectedVariantId || null,
+      });
       setSelectedId(row.id);
       setForm(cartelaDtoToPayload(row));
+      setLinkedItemLabel(selectedFabricItem ? `${selectedFabricItem.name} (${selectedFabricItem.internal_code})` : null);
       await loadList();
       showToast({
         type: 'success',
@@ -832,6 +930,94 @@ export const CartelaLabels: React.FC = () => {
               </span>
             )}
           </div>
+
+          {selectedId && linkedItemLabel && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+              <Link2 className="w-3.5 h-3.5" />
+              {t('form.linkedItemBadge', { item: linkedItemLabel })}
+            </div>
+          )}
+
+          {!selectedId && (
+            <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="font-bold text-emerald-900 text-sm flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4" />
+                  {t('form.linkItemTitle')}
+                </h4>
+                {selectedFabricItem && (
+                  <button
+                    type="button"
+                    onClick={clearFabricItemSelection}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700"
+                  >
+                    <Unlink className="w-3.5 h-3.5" />
+                    {t('form.linkItemClear')}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-emerald-800">{t('form.linkItemHint')}</p>
+              {!selectedFabricItem && (
+                <div className="relative">
+                  <input
+                    value={itemQuery}
+                    onChange={(e) => setItemQuery(e.target.value)}
+                    placeholder={t('form.linkItemSearchPlaceholder')}
+                    className={inputCls}
+                  />
+                  {itemSearching && (
+                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                  )}
+                  {itemResults.length > 0 && (
+                    <div className="mt-1.5 max-h-56 overflow-y-auto divide-y divide-emerald-100 rounded-lg border border-emerald-200 bg-white shadow-sm">
+                      {itemResults.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => void handlePickFabricItem(item)}
+                          className="w-full text-right px-3 py-2 text-sm hover:bg-emerald-50 transition"
+                        >
+                          <div className="font-bold text-slate-900">{item.name}</div>
+                          <div className="text-xs text-slate-500" dir="ltr">
+                            {item.internal_code}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {selectedFabricItem && (
+                <div className="rounded-lg border border-emerald-300 bg-white p-3 space-y-2">
+                  <div>
+                    <div className="font-bold text-slate-900">{selectedFabricItem.name}</div>
+                    <div className="text-xs text-slate-500" dir="ltr">
+                      {selectedFabricItem.internal_code}
+                    </div>
+                  </div>
+                  {itemVariants.length > 0 ? (
+                    <label className="space-y-1 block">
+                      <span className="text-xs font-bold text-slate-600">{t('form.linkVariantLabel')}</span>
+                      <select
+                        value={selectedVariantId}
+                        onChange={(e) => handlePickVariant(e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="">{t('form.linkVariantPlaceholder')}</option>
+                        {itemVariants.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.color_name_ar || v.color_code} ({v.variant_code})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <p className="text-xs text-slate-500">{t('form.linkItemNoVariants')}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <label className="space-y-1 block">
             <span className="text-sm font-bold text-slate-700">{t('form.titleLabel')}</span>

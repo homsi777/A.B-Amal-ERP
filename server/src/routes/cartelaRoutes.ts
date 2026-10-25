@@ -5,6 +5,7 @@ import { authenticateRequest } from '../middleware/auth.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { allocateCartelaSerialNo, resolveCartelaSerialNo, validateManualCartelaSerialNo } from '../services/cartelaSerialService.js';
+import { upsertFabricItemCartelaSpecs } from '../services/fabricItemCartelaSpecsService.js';
 import {
   allocateNextColorNo,
   buildColorBarcodeCode,
@@ -47,6 +48,10 @@ const cartelaBody = z.object({
   serialNo: z.string().optional().default(''),
   showLogo: z.boolean().optional().default(true),
   fontSizePt: z.number().min(4.5).max(11).optional().default(6.8),
+  // ربط فعلي بخامة حقيقية (وفاريانتها/لونها عند وجوده) — بدل كود تصميم نصي.
+  // اختياري لإبقاء الواجهة القديمة (كارتيله نصية حرة) تعمل بلا كسر.
+  fabricItemId: z.string().uuid().optional().nullable(),
+  fabricVariantId: z.string().uuid().optional().nullable(),
 });
 
 const fiberTypeBody = z.object({
@@ -103,6 +108,9 @@ function mapCartelaRow(row: Record<string, unknown>) {
     serial_no: row.serial_no,
     show_logo: row.show_logo,
     font_size_pt: row.font_size_pt ?? 6.8,
+    fabric_item_id: row.fabric_item_id ?? null,
+    fabric_variant_id: row.fabric_variant_id ?? null,
+    barcode_code: row.barcode_code ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -256,17 +264,61 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
+
+      let barcodeCode: string | null = null;
+      if (d.fabricItemId) {
+        const itemRow = await client.query(
+          `SELECT id FROM fabric_items WHERE id=$1 AND company_id=$2`,
+          [d.fabricItemId, companyId],
+        );
+        if (!itemRow.rows.length) {
+          await client.query('ROLLBACK');
+          return sendError(reply, 404, 'الخامة غير موجودة', 'NOT_FOUND');
+        }
+        if (d.fabricVariantId) {
+          const variantRow = await client.query(
+            `SELECT variant_code FROM fabric_item_variants WHERE id=$1 AND item_id=$2 AND company_id=$3`,
+            [d.fabricVariantId, d.fabricItemId, companyId],
+          );
+          if (!variantRow.rows.length) {
+            await client.query('ROLLBACK');
+            return sendError(reply, 404, 'الفاريانت لا ينتمي لهذه الخامة', 'NOT_FOUND');
+          }
+          const dup = await client.query(
+            `SELECT id FROM cartela_labels WHERE fabric_variant_id=$1`,
+            [d.fabricVariantId],
+          );
+          if (dup.rows.length) {
+            await client.query('ROLLBACK');
+            return sendError(reply, 409, 'يوجد كارتيله مرتبطة بهذا اللون/الفاريانت مسبقاً', 'DUPLICATE');
+          }
+        }
+      } else if (d.fabricVariantId) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 400, 'الفاريانت يتطلب اختيار الخامة أولاً', 'VALIDATION');
+      }
+
       const autoSerial = await allocateCartelaSerialNo(client, companyId);
       const serialNo = resolveCartelaSerialNo(d.serialNo, autoSerial);
+
+      if (d.fabricVariantId) {
+        const variantRow = await client.query<{ variant_code: string }>(
+          `SELECT variant_code FROM fabric_item_variants WHERE id=$1`,
+          [d.fabricVariantId],
+        );
+        barcodeCode = buildColorBarcodeCode(serialNo, variantRow.rows[0].variant_code);
+      }
+
       const row = await client.query(
         `INSERT INTO cartela_labels (
            company_id, title, art_code, design_no, colour,
            width_value, width_unit, width_tolerance_enabled, width_tolerance_percent,
            weight_value, weight_unit, weight_tolerance_enabled, weight_tolerance_percent,
            composition, composition_lines, care_symbols, serial_no, show_logo, font_size_pt,
+           fabric_item_id, fabric_variant_id, barcode_code,
            created_by_user_id, updated_by_user_id
          ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$20
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18,$19,$20,$21,$22,$23,$23
          )
          RETURNING *`,
         [
@@ -289,9 +341,28 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           serialNo,
           d.showLogo,
           d.fontSizePt,
+          d.fabricItemId ?? null,
+          d.fabricVariantId ?? null,
+          barcodeCode,
           userId,
         ],
       );
+
+      if (d.fabricItemId) {
+        await upsertFabricItemCartelaSpecs(client, companyId, d.fabricItemId, {
+          compositionLines: d.compositionLines,
+          careSymbols: d.careSymbols,
+          widthValue: d.widthValue.trim(),
+          widthUnit: d.widthUnit.trim(),
+          widthToleranceEnabled: d.widthToleranceEnabled,
+          widthTolerancePercent: d.widthTolerancePercent,
+          weightValue: d.weightValue.trim(),
+          weightUnit: d.weightUnit.trim(),
+          weightToleranceEnabled: d.weightToleranceEnabled,
+          weightTolerancePercent: d.weightTolerancePercent,
+        });
+      }
+
       await client.query('COMMIT');
       return reply.status(201).send({ ok: true, data: mapCartelaRow(row.rows[0]) });
     } catch (err) {
@@ -380,6 +451,20 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     if (!scan) return sendError(reply, 400, 'أدخل باركود الكارتيلا أو لون', 'VALIDATION');
 
     try {
+      // كارتيله مرتبطة بخامة حقيقية (باركود مباشر على cartela_labels نفسها) —
+      // أولوية قصوى، ربط فعلي بقاعدة البيانات لا تطابق نصي.
+      const normalizedDirect = normalizeCartelaScanInput(scan);
+      const directHit = await getPool().query(
+        `SELECT * FROM cartela_labels WHERE company_id = $1 AND upper(barcode_code) = $2 LIMIT 1`,
+        [companyId, normalizedDirect],
+      );
+      if (directHit.rows.length) {
+        return reply.send({
+          ok: true,
+          data: { match_type: 'cartela', ...mapCartelaRow(directHit.rows[0]) },
+        });
+      }
+
       const colorHit = await lookupCartelaColorByScan(getPool(), companyId, scan);
       if (colorHit) {
         return reply.send({

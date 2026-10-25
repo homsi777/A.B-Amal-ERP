@@ -168,21 +168,32 @@ export const CartelaColorScanPanel: React.FC<Props> = ({ onOpenCartela, onPrintC
 
   const runAuditMaterial = async (cartela: CartelaColorLookupResult) => {
     const code = cartela.art_code.trim();
-    if (!code) {
+    if (!cartela.fabric_item_id && !code) {
       showToast({ type: 'error', message: t('colorPanels.scan.auditNoArtCode') });
       return;
     }
     setAuditBusy(true);
     setAuditSummary(null);
     try {
-      const res = await listFabricRolls({
-        search: code,
-        onlyAvailable: true,
-        warehouseId: auditWarehouseId || undefined,
-        pageSize: 500,
-      });
+      // كارتيله مرتبطة بخامة حقيقية (fabric_item_id) — ربط مباشر بقاعدة البيانات، لا
+      // مطابقة نصّية لكود التصميم. الفاريانت/اللون محدَّد مسبقاً بالكارتيله نفسها، لذا
+      // هذا الاستعلام يعرض أتوابها فقط من البداية (لا حاجة لتجميع بالألوان لاحقاً).
+      const res = cartela.fabric_item_id
+        ? await listFabricRolls({
+            itemId: cartela.fabric_item_id,
+            variantId: cartela.fabric_variant_id || undefined,
+            onlyAvailable: true,
+            warehouseId: auditWarehouseId || undefined,
+            pageSize: 500,
+          })
+        : await listFabricRolls({
+            search: code,
+            onlyAvailable: true,
+            warehouseId: auditWarehouseId || undefined,
+            pageSize: 500,
+          });
       let byColor = groupRollsByColor(res.data);
-      if (auditShowAllColors) {
+      if (auditShowAllColors && !cartela.fabric_item_id) {
         byColor = await addExhaustedColors(byColor, cartela.id);
       }
       setAuditSummary({

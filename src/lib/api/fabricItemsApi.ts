@@ -13,6 +13,18 @@ export interface ApiFabricItem {
   supplier_id: string | null;
   category_name?: string;
   supplier_name?: string;
+  /** مواصفات الكارتيله المحفوظة على الخامة نفسها — تُسحَب تلقائياً عند إنشاء
+   * كارتيله لنفس الخامة بدل تكرار إدخالها يدوياً. موجودة فقط باستجابة GET /:id. */
+  composition_lines?: unknown[];
+  care_symbols?: string[];
+  width_value?: string;
+  width_unit?: string;
+  width_tolerance_enabled?: boolean;
+  width_tolerance_percent?: number;
+  weight_value?: string;
+  weight_unit?: string;
+  weight_tolerance_enabled?: boolean;
+  weight_tolerance_percent?: number;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +71,11 @@ export async function listFabricItems(params: FabricItemsListParams = {}): Promi
   const qs = q.toString() ? `?${q}` : '';
   const res = await apiFetch<FabricItemsListResult & { ok: boolean }>(`/api/fabric/items${qs}`);
   return res;
+}
+
+export async function getFabricItem(id: string): Promise<ApiFabricItem> {
+  const res = await apiFetch<{ ok: boolean; data: ApiFabricItem }>(`/api/fabric/items/${id}`);
+  return res.data;
 }
 
 export async function createFabricItem(payload: FabricItemPayload): Promise<ApiFabricItem> {
