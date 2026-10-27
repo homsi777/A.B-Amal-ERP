@@ -67,9 +67,29 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
         lookupCartelaScan(value),
       ]);
       if (requestId !== requestIdRef.current) return;
-      setRolls(rollsRes.status === 'fulfilled' ? rollsRes.value.data : []);
+      const cartelaData = cartelaRes.status === 'fulfilled' ? cartelaRes.value : null;
+      let rollRows = rollsRes.status === 'fulfilled' ? rollsRes.value.data : [];
+
+      // كارتيله مرتبطة بخامة حقيقية — ربط فعلي بقاعدة البيانات (itemId/variantId)،
+      // لا بحث نصي عن باركود الكارتيله الممسوح (قد يطابق خامة أخرى بالصدفة).
+      if (cartelaData?.fabric_item_id) {
+        try {
+          const linked = await listFabricRolls({
+            itemId: cartelaData.fabric_item_id,
+            variantId: cartelaData.fabric_variant_id || undefined,
+            onlyAvailable: true,
+            pageSize: 500,
+          });
+          if (requestId !== requestIdRef.current) return;
+          rollRows = linked.data;
+        } catch {
+          rollRows = [];
+        }
+      }
+
+      setRolls(rollRows);
       setItems(itemsRes.status === 'fulfilled' ? itemsRes.value.data : []);
-      setCartela(cartelaRes.status === 'fulfilled' ? cartelaRes.value : null);
+      setCartela(cartelaData);
       setSearched(true);
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
@@ -157,6 +177,9 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
 
   const cartelaMaterialHasStock = useMemo(() => {
     if (!cartela) return false;
+    // كارتيله مرتبطة — rolls بهذه الحالة هي بالفعل أتواب هذه الخامة/اللون
+    // بالضبط (جُلبت بـitemId/variantId)، فوجود أي سطر يكفي كدليل رصيد.
+    if (cartela.fabric_item_id) return rolls.length > 0;
     const art = cartela.art_code.trim().toLocaleLowerCase();
     if (!art) return false;
     return rolls.some((r) => (r.item_name ?? '').trim().toLocaleLowerCase() === art);
@@ -261,20 +284,30 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
                 )}
               </div>
 
-              {cartela.art_code.trim() && (
+              {cartela.fabric_item_id ? (
                 <div className="mt-3 rounded-lg border border-fuchsia-200 bg-white p-3">
                   <p className="text-xs font-bold text-slate-600">{t('color.belongsTo')}</p>
-                  <button
-                    type="button"
-                    onClick={() => setQuery(cartela.art_code.trim())}
-                    className="mt-1 text-base font-black text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-4 hover:text-indigo-900"
-                  >
-                    {cartela.art_code.trim()}
-                  </button>
+                  <p className="mt-1 text-base font-black text-slate-900">{cartela.title || cartela.art_code || '—'}</p>
                   <p className="mt-1 text-[11px] text-slate-500">
                     {cartelaMaterialHasStock ? t('color.belongsToHint') : t('color.noStockForMaterial')}
                   </p>
                 </div>
+              ) : (
+                cartela.art_code.trim() && (
+                  <div className="mt-3 rounded-lg border border-fuchsia-200 bg-white p-3">
+                    <p className="text-xs font-bold text-slate-600">{t('color.belongsTo')}</p>
+                    <button
+                      type="button"
+                      onClick={() => setQuery(cartela.art_code.trim())}
+                      className="mt-1 text-base font-black text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-4 hover:text-indigo-900"
+                    >
+                      {cartela.art_code.trim()}
+                    </button>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {cartelaMaterialHasStock ? t('color.belongsToHint') : t('color.noStockForMaterial')}
+                    </p>
+                  </div>
+                )
               )}
             </section>
           )}
