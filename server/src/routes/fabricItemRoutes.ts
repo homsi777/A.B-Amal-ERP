@@ -6,7 +6,10 @@ import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
 
 const compositionLineBody = z.object({
-  percent: z.number().min(1).max(100),
+  // عدد صحيح فقط — يطابق تماماً مخطط compositionLineSchema بمسارات الكارتيله
+  // (cartelaRoutes.ts)، فالتركيب المحفوظ هنا يُسحَب لاحقاً مباشرة لكارتيله
+  // أي فاريانت تالٍ لنفس الخامة، وأي كسر عشري يرفضه توليد الكارتيله هناك.
+  percent: z.number().int().min(1).max(100),
   fiberTypeId: z.string().uuid().nullable().optional(),
   fiberName: z.string().min(1),
 });

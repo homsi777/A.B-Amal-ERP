@@ -329,8 +329,8 @@ function ItemsTab() {
                 <div className="space-y-2">
                   {(form.composition_lines ?? []).map((line, index) => (
                     <div key={index} className="grid grid-cols-[88px_1fr_auto] gap-2 items-center">
-                      <input type="number" min={0} max={100} value={line.percent || ''}
-                        onChange={e => patchCompositionLine(index, { percent: Number(e.target.value) || 0 })}
+                      <input type="number" min={0} max={100} step={1} value={line.percent || ''}
+                        onChange={e => patchCompositionLine(index, { percent: Math.round(Number(e.target.value)) || 0 })}
                         placeholder="%"
                         className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
                       <input type="text" value={line.fiberName}

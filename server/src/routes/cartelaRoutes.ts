@@ -72,6 +72,15 @@ const colorBody = z.object({
   colorNo: z.number().int().positive().optional(),
 });
 
+/** رسالة خطأ تحقّق واضحة (الحقل + السبب) بدل رسالة عامة — تساعد على تشخيص
+ * سبب رفض البيانات فوراً من الواجهة بدل "البيانات المرسلة غير صالحة" فقط. */
+function describeValidationError(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return ArabicErrors.validation;
+  const path = issue.path.join('.') || '—';
+  return `${ArabicErrors.validation} (${path}: ${issue.message})`;
+}
+
 function formatCompositionText(lines: Array<{ percent: number; fiberName: string }>): string {
   return [...lines]
     .filter((line) => line.percent > 0 && line.fiberName.trim())
@@ -259,7 +268,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
   app.post('/generate', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
     const parsed = cartelaBody.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) return sendError(reply, 400, describeValidationError(parsed.error), 'VALIDATION');
     const payload = parseCartelaPayload(parsed.data);
     if ('error' in payload && payload.error) {
       return sendError(reply, 400, payload.error, 'VALIDATION');
@@ -735,7 +744,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
   app.post('/', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
     const parsed = cartelaBody.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) return sendError(reply, 400, describeValidationError(parsed.error), 'VALIDATION');
     const payload = parseCartelaPayload(parsed.data);
     if ('error' in payload && payload.error) {
       return sendError(reply, 400, payload.error, 'VALIDATION');
@@ -800,7 +809,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = cartelaBody.safeParse(req.body);
-    if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    if (!parsed.success) return sendError(reply, 400, describeValidationError(parsed.error), 'VALIDATION');
     const payload = parseCartelaPayload(parsed.data);
     if ('error' in payload && payload.error) {
       return sendError(reply, 400, payload.error, 'VALIDATION');
