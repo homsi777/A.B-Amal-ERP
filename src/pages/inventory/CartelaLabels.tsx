@@ -303,11 +303,17 @@ export const CartelaLabels: React.FC = () => {
       widthValue: item.width_value || current.widthValue,
       widthUnit: item.width_unit || current.widthUnit,
       widthToleranceEnabled: item.width_tolerance_enabled ?? current.widthToleranceEnabled,
-      widthTolerancePercent: item.width_tolerance_percent ?? current.widthTolerancePercent,
+      // numeric(5,2) بقاعدة البيانات تعود كنص عبر pg (مثل "3.00") — يجب تحويلها
+      // لرقم صراحة، وإلا يرفضها مخطط توليد الكارتيله (يشترط number لا string).
+      widthTolerancePercent: item.width_tolerance_percent != null
+        ? Number(item.width_tolerance_percent)
+        : current.widthTolerancePercent,
       weightValue: item.weight_value || current.weightValue,
       weightUnit: item.weight_unit || current.weightUnit,
       weightToleranceEnabled: item.weight_tolerance_enabled ?? current.weightToleranceEnabled,
-      weightTolerancePercent: item.weight_tolerance_percent ?? current.weightTolerancePercent,
+      weightTolerancePercent: item.weight_tolerance_percent != null
+        ? Number(item.weight_tolerance_percent)
+        : current.weightTolerancePercent,
     }));
   };
 
