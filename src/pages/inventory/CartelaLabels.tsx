@@ -44,8 +44,13 @@ import {
   type CartelaLabelListItem,
   type CartelaLabelPayload,
 } from '../../lib/api/cartelaApi';
-import { getFabricItem, listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
-import { listFabricVariants, type ApiFabricVariant } from '../../lib/api/fabricVariantsApi';
+import {
+  getFabricItem,
+  getFabricItemColors,
+  listFabricItems,
+  type ApiFabricItem,
+  type ApiFabricItemColorOption,
+} from '../../lib/api/fabricItemsApi';
 import {
   CARTELA_CARE_SYMBOLS,
   compositionSum,
@@ -158,9 +163,11 @@ export const CartelaLabels: React.FC = () => {
   const [itemSearching, setItemSearching] = useState(false);
   const [itemResults, setItemResults] = useState<ApiFabricItem[]>([]);
   const [selectedFabricItem, setSelectedFabricItem] = useState<ApiFabricItem | null>(null);
-  const [itemVariants, setItemVariants] = useState<ApiFabricVariant[]>([]);
-  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
+  const [itemColorsLoading, setItemColorsLoading] = useState(false);
+  const [itemColors, setItemColors] = useState<ApiFabricItemColorOption[]>([]);
+  const [selectedColorId, setSelectedColorId] = useState<string>('');
   const [linkedItemLabel, setLinkedItemLabel] = useState<string | null>(null);
+  const [missingCompositionNotice, setMissingCompositionNotice] = useState(false);
 
   const labelData: CartelaLabelData = useMemo(
     () => ({
@@ -280,11 +287,17 @@ export const CartelaLabels: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [itemQuery, selectedFabricItem]);
 
+  /** يسحب مواصفات الكارتيله من سجل الخامة نفسه فقط — لا تخمين ولا نسخ من
+   * كود الخامة الداخلي. ART CODE/DESIGN NO من design_code/design_no فقط،
+   * وتبقى فارغة بوضوح إن لم تكن مسجّلة — لا تُستبدل بكود الخامة أبداً. */
   const applyFabricItemSpecs = (item: ApiFabricItem) => {
     const lines = parseCompositionLines(item.composition_lines);
+    setMissingCompositionNotice(lines.length === 0);
     setForm((current) => ({
       ...current,
-      artCode: item.internal_code || current.artCode,
+      title: item.name || current.title,
+      artCode: item.design_code ?? '',
+      designNo: item.design_no ?? '',
       compositionLines: lines.length ? lines : current.compositionLines,
       careSymbols: item.care_symbols?.length ? (item.care_symbols as CartelaCareSymbolId[]) : current.careSymbols,
       widthValue: item.width_value || current.widthValue,
@@ -301,32 +314,38 @@ export const CartelaLabels: React.FC = () => {
   const handlePickFabricItem = async (item: ApiFabricItem) => {
     setItemQuery(item.name);
     setItemResults([]);
-    setSelectedVariantId('');
+    setSelectedColorId('');
     try {
       const full = await getFabricItem(item.id);
       setSelectedFabricItem(full);
       applyFabricItemSpecs(full);
-      const variants = await listFabricVariants({ itemId: full.id, status: 'active', pageSize: 100 });
-      setItemVariants(variants.data);
+      setItemColorsLoading(true);
+      // ألوان الخامة الفعلية — من الأتواب الموجودة بالمستودع، وليس حصراً من
+      // فاريانتات مسجّلة مسبقاً (قد يكون اللون موجوداً على أتواب بلا فاريانت).
+      const colors = await getFabricItemColors(full.id);
+      setItemColors(colors);
     } catch (e) {
       showToast({ type: 'error', message: e instanceof Error ? e.message : t('toast.loadOneFailed') });
+    } finally {
+      setItemColorsLoading(false);
     }
   };
 
-  const handlePickVariant = (variantId: string) => {
-    setSelectedVariantId(variantId);
-    const variant = itemVariants.find((v) => v.id === variantId);
-    if (variant) {
-      patchForm({ colour: variant.color_name_ar || variant.color_code || form.colour });
+  const handlePickColor = (colorId: string) => {
+    setSelectedColorId(colorId);
+    const color = itemColors.find((c) => c.color_id === colorId);
+    if (color) {
+      patchForm({ colour: color.name_ar || color.color_code || form.colour });
     }
   };
 
   const clearFabricItemSelection = () => {
     setSelectedFabricItem(null);
-    setItemVariants([]);
-    setSelectedVariantId('');
+    setItemColors([]);
+    setSelectedColorId('');
     setItemQuery('');
     setItemResults([]);
+    setMissingCompositionNotice(false);
   };
 
   const handleAddFiberType = async () => {
@@ -486,6 +505,10 @@ export const CartelaLabels: React.FC = () => {
       showToast({ type: 'warning', message: t('form.linkItemRequired') });
       return;
     }
+    if (cartelaMode === 'linked' && activeCompositionLines(form.compositionLines).length === 0) {
+      showToast({ type: 'warning', message: t('form.compositionRequiredForLinked') });
+      return;
+    }
     const validationError = validateBeforeSave();
     if (validationError) {
       showToast({ type: 'warning', message: validationError });
@@ -498,7 +521,7 @@ export const CartelaLabels: React.FC = () => {
         ...buildSavePayload(),
         serialNo: form.serialNo.trim(),
         fabricItemId: selectedFabricItem?.id ?? null,
-        fabricVariantId: selectedVariantId || null,
+        fabricColorId: selectedColorId || null,
       });
       setSelectedId(row.id);
       setForm(cartelaDtoToPayload(row));
@@ -534,7 +557,7 @@ export const CartelaLabels: React.FC = () => {
       const row = await updateCartelaLabel(selectedId, {
         ...buildSavePayload(),
         fabricItemId: selectedFabricItem?.id ?? null,
-        fabricVariantId: selectedVariantId || null,
+        fabricColorId: selectedColorId || null,
       });
       setForm(cartelaDtoToPayload(row));
       if (row.fabric_item_id && !linkedItemLabel) {
@@ -1041,31 +1064,43 @@ export const CartelaLabels: React.FC = () => {
               )}
               {selectedFabricItem && (
                 <div className="rounded-lg border border-emerald-300 bg-white p-3 space-y-2">
-                  <div>
-                    <div className="font-bold text-slate-900">{selectedFabricItem.name}</div>
-                    <div className="text-xs text-slate-500" dir="ltr">
-                      {selectedFabricItem.internal_code}
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-slate-900">{selectedFabricItem.name}</div>
+                      <div className="text-xs text-slate-500" dir="ltr">
+                        {t('form.linkItemCodeLabel')}: {selectedFabricItem.internal_code}
+                      </div>
                     </div>
+                    {itemColorsLoading && <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />}
                   </div>
-                  {itemVariants.length > 0 ? (
+                  {!itemColorsLoading && itemColors.length > 0 ? (
                     <label className="space-y-1 block">
                       <span className="text-xs font-bold text-slate-600">{t('form.linkVariantLabel')}</span>
                       <select
-                        value={selectedVariantId}
-                        onChange={(e) => handlePickVariant(e.target.value)}
+                        value={selectedColorId}
+                        onChange={(e) => handlePickColor(e.target.value)}
                         className={inputCls}
                       >
                         <option value="">{t('form.linkVariantPlaceholder')}</option>
-                        {itemVariants.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.color_name_ar || v.color_code} ({v.variant_code})
+                        {itemColors.map((c) => (
+                          <option key={c.color_id} value={c.color_id}>
+                            {c.name_ar || c.color_code}
+                            {' — '}
+                            {c.variant_id
+                              ? t('form.linkColorRollsKnown', { count: c.roll_count, meters: Number(c.total_meters).toFixed(0) })
+                              : t('form.linkColorUnlinked', { count: c.roll_count })}
                           </option>
                         ))}
                       </select>
                     </label>
-                  ) : (
+                  ) : !itemColorsLoading ? (
                     <p className="text-xs text-slate-500">{t('form.linkItemNoVariants')}</p>
-                  )}
+                  ) : null}
+                </div>
+              )}
+              {selectedFabricItem && missingCompositionNotice && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <span>{t('form.compositionMissingNotice')}</span>
                 </div>
               )}
             </div>

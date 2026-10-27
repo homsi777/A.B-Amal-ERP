@@ -17,6 +17,7 @@ import {
   type ApiFabricItem,
   type FabricItemPayload,
   createFabricItem,
+  getFabricItem,
   listFabricItems,
   toggleFabricItemStatus,
   updateFabricItem,
@@ -30,8 +31,12 @@ import {
   updateFabricVariant,
 } from '../../lib/api/fabricVariantsApi';
 import { type ApiSupplier, listSuppliers } from '../../lib/api/suppliersApi';
+import { parseCompositionLines } from '../../lib/api/cartelaApi';
+import { compositionSum, validateCompositionLines, type CartelaCompositionLine } from '../../lib/cartela/careSymbols';
 
 type Tab = 'items' | 'colors' | 'variants';
+
+const emptyCompositionLine = (): CartelaCompositionLine => ({ percent: 0, fiberTypeId: null, fiberName: '' });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Items Tab
@@ -53,10 +58,35 @@ function ItemsTab() {
    const [editTarget, setEditTarget] = useState<ApiFabricItem | null>(null);
   const [form, setForm] = useState<FabricItemPayload>({
     name: '', internal_code: '', supplier_code: '', fabric_type: '', unit: 'meter', notes: '',
-    category_id: null, supplier_id: null,
+    category_id: null, supplier_id: null, design_code: '', design_no: '',
+    composition_lines: [emptyCompositionLine()],
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+
+  const activeCompositionLines = (lines: CartelaCompositionLine[] = []) =>
+    lines.filter((line) => line.percent > 0 && line.fiberName.trim());
+
+  const patchCompositionLine = (index: number, patch: Partial<CartelaCompositionLine>) => {
+    setForm((f) => ({
+      ...f,
+      composition_lines: (f.composition_lines ?? []).map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    }));
+  };
+  const addCompositionLine = () => {
+    setForm((f) => {
+      const lines = f.composition_lines ?? [];
+      return lines.length >= 5 ? f : { ...f, composition_lines: [...lines, emptyCompositionLine()] };
+    });
+  };
+  const removeCompositionLine = (index: number) => {
+    setForm((f) => {
+      const lines = f.composition_lines ?? [];
+      if (lines.length <= 1) return { ...f, composition_lines: [emptyCompositionLine()] };
+      return { ...f, composition_lines: lines.filter((_, i) => i !== index) };
+    });
+  };
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -76,25 +106,48 @@ function ItemsTab() {
 
   const openAdd = () => {
     setEditTarget(null);
-    setForm({ name: '', internal_code: '', supplier_code: '', fabric_type: '', unit: 'meter', notes: '', category_id: null, supplier_id: null });
+    setForm({
+      name: '', internal_code: '', supplier_code: '', fabric_type: '', unit: 'meter', notes: '',
+      category_id: null, supplier_id: null, design_code: '', design_no: '',
+      composition_lines: [emptyCompositionLine()],
+    });
     setSaveError(null); setIsOpen(true);
   };
-  const openEdit = (it: ApiFabricItem) => {
+  const openEdit = async (it: ApiFabricItem) => {
     setEditTarget(it);
     setForm({
       name: it.name, internal_code: it.internal_code, supplier_code: it.supplier_code,
       fabric_type: it.fabric_type, unit: it.unit, notes: it.notes,
       category_id: it.category_id, supplier_id: it.supplier_id,
+      design_code: it.design_code ?? '', design_no: it.design_no ?? '',
+      composition_lines: [emptyCompositionLine()],
     });
     setSaveError(null); setIsOpen(true);
+    setEditLoading(true);
+    try {
+      const full = await getFabricItem(it.id);
+      const lines = parseCompositionLines(full.composition_lines);
+      setForm((f) => ({
+        ...f,
+        design_code: full.design_code ?? '',
+        design_no: full.design_no ?? '',
+        composition_lines: lines.length ? lines : [emptyCompositionLine()],
+      }));
+    } catch { /* الحقول الأساسية بالأعلى تبقى كافية لو فشل الجلب */ }
+    finally { setEditLoading(false); }
   };
   const close = () => { setIsOpen(false); setEditTarget(null); };
 
   const save = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setSaveError(null);
+    e.preventDefault();
+    const active = activeCompositionLines(form.composition_lines);
+    const compositionError = validateCompositionLines(active);
+    if (compositionError) { setSaveError(compositionError); return; }
+    setSaving(true); setSaveError(null);
     try {
-      if (editTarget) await updateFabricItem(editTarget.id, form);
-      else await createFabricItem(form);
+      const payload = { ...form, composition_lines: active };
+      if (editTarget) await updateFabricItem(editTarget.id, payload);
+      else await createFabricItem(payload);
       close(); load();
     } catch (e) { setSaveError(e instanceof Error ? e.message : t('errors.saveFailed')); }
     finally { setSaving(false); }
@@ -241,6 +294,64 @@ function ItemsTab() {
                 <input type="text" value={form.supplier_code || ''} onChange={e => setForm(f => ({ ...f, supplier_code: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.designCodeLabel')}</label>
+                  <input type="text" value={form.design_code || ''} onChange={e => setForm(f => ({ ...f, design_code: e.target.value }))}
+                    placeholder={t('items.designCodePlaceholder')}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{t('items.designNoLabel')}</label>
+                  <input type="text" value={form.design_no || ''} onChange={e => setForm(f => ({ ...f, design_no: e.target.value }))}
+                    placeholder={t('items.designNoPlaceholder')}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-slate-700">{t('items.compositionLabel')}</span>
+                  {editLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                  ) : (
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      activeCompositionLines(form.composition_lines).length === 0
+                        ? 'bg-slate-200 text-slate-600'
+                        : compositionSum(activeCompositionLines(form.composition_lines)) === 100
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-rose-100 text-rose-700'
+                    }`}>
+                      {t('items.compositionTotal', { value: compositionSum(activeCompositionLines(form.composition_lines)) })}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {(form.composition_lines ?? []).map((line, index) => (
+                    <div key={index} className="grid grid-cols-[88px_1fr_auto] gap-2 items-center">
+                      <input type="number" min={0} max={100} value={line.percent || ''}
+                        onChange={e => patchCompositionLine(index, { percent: Number(e.target.value) || 0 })}
+                        placeholder="%"
+                        className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
+                      <input type="text" value={line.fiberName}
+                        onChange={e => patchCompositionLine(index, { fiberName: e.target.value })}
+                        placeholder={t('items.fiberNamePlaceholder')}
+                        className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" dir="ltr" />
+                      <button type="button" onClick={() => removeCompositionLine(index)}
+                        className="px-2 py-2 border border-rose-200 text-rose-600 rounded-lg text-xs font-bold hover:bg-rose-50">
+                        {t('items.removeLine')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {(form.composition_lines ?? []).length < 5 && (
+                  <button type="button" onClick={addCompositionLine}
+                    className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">
+                    <Plus className="w-3.5 h-3.5" />{t('items.addCompositionLine')}
+                  </button>
+                )}
+              </div>
+
               <div className="pt-2 flex justify-end gap-3">
                 <button type="button" onClick={close} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm">{t('common.cancel')}</button>
                 <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2 disabled:opacity-60">

@@ -6,6 +6,7 @@ import { ArabicErrors } from '../utils/arabicErrors.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { allocateCartelaSerialNo, resolveCartelaSerialNo, validateManualCartelaSerialNo } from '../services/cartelaSerialService.js';
 import { upsertFabricItemCartelaSpecs } from '../services/fabricItemCartelaSpecsService.js';
+import { ensureFabricVariantForColor } from '../services/fabricItemVariantLinkService.js';
 import {
   allocateNextColorNo,
   buildColorBarcodeCode,
@@ -52,6 +53,10 @@ const cartelaBody = z.object({
   // اختياري لإبقاء الواجهة القديمة (كارتيله نصية حرة) تعمل بلا كسر.
   fabricItemId: z.string().uuid().optional().nullable(),
   fabricVariantId: z.string().uuid().optional().nullable(),
+  // لون مختار من الأتواب الفعلية بالمستودع وقد لا يملك فاريانتاً مسجَّلاً
+  // بعد — يُنشأ/يُربَط فاريانت حقيقي له تلقائياً عند الإنشاء (بدل fabricVariantId
+  // المباشر، الذي يبقى صالحاً عندما يكون الفاريانت موجوداً مسبقاً بالفعل).
+  fabricColorId: z.string().uuid().optional().nullable(),
 });
 
 const fiberTypeBody = z.object({
@@ -266,6 +271,8 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       await client.query('BEGIN');
 
       let barcodeCode: string | null = null;
+      let resolvedVariantId: string | null = d.fabricVariantId ?? null;
+
       if (d.fabricItemId) {
         const itemRow = await client.query(
           `SELECT id FROM fabric_items WHERE id=$1 AND company_id=$2`,
@@ -275,7 +282,13 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           await client.query('ROLLBACK');
           return sendError(reply, 404, 'الخامة غير موجودة', 'NOT_FOUND');
         }
-        if (d.fabricVariantId) {
+
+        if (d.fabricColorId) {
+          // لون من الأتواب الفعلية بالمستودع — قد لا يملك فاريانتاً مسجَّلاً بعد؛
+          // يُنشأ/يُحدَّد الفاريانت الحقيقي تلقائياً وتُربَط به أتوابه غير المرتبطة.
+          const variant = await ensureFabricVariantForColor(client, companyId, d.fabricItemId, d.fabricColorId);
+          resolvedVariantId = variant.id;
+        } else if (d.fabricVariantId) {
           const variantRow = await client.query(
             `SELECT variant_code FROM fabric_item_variants WHERE id=$1 AND item_id=$2 AND company_id=$3`,
             [d.fabricVariantId, d.fabricItemId, companyId],
@@ -284,27 +297,30 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
             await client.query('ROLLBACK');
             return sendError(reply, 404, 'الفاريانت لا ينتمي لهذه الخامة', 'NOT_FOUND');
           }
+        }
+
+        if (resolvedVariantId) {
           const dup = await client.query(
             `SELECT id FROM cartela_labels WHERE fabric_variant_id=$1`,
-            [d.fabricVariantId],
+            [resolvedVariantId],
           );
           if (dup.rows.length) {
             await client.query('ROLLBACK');
             return sendError(reply, 409, 'يوجد كارتيله مرتبطة بهذا اللون/الفاريانت مسبقاً', 'DUPLICATE');
           }
         }
-      } else if (d.fabricVariantId) {
+      } else if (resolvedVariantId || d.fabricColorId) {
         await client.query('ROLLBACK');
-        return sendError(reply, 400, 'الفاريانت يتطلب اختيار الخامة أولاً', 'VALIDATION');
+        return sendError(reply, 400, 'اللون/الفاريانت يتطلب اختيار الخامة أولاً', 'VALIDATION');
       }
 
       const autoSerial = await allocateCartelaSerialNo(client, companyId);
       const serialNo = resolveCartelaSerialNo(d.serialNo, autoSerial);
 
-      if (d.fabricVariantId) {
+      if (resolvedVariantId) {
         const variantRow = await client.query<{ variant_code: string }>(
           `SELECT variant_code FROM fabric_item_variants WHERE id=$1`,
-          [d.fabricVariantId],
+          [resolvedVariantId],
         );
         barcodeCode = buildColorBarcodeCode(serialNo, variantRow.rows[0].variant_code);
       }
@@ -342,7 +358,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           d.showLogo,
           d.fontSizePt,
           d.fabricItemId ?? null,
-          d.fabricVariantId ?? null,
+          resolvedVariantId,
           barcodeCode,
           userId,
         ],
@@ -829,8 +845,12 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           await client.query('ROLLBACK');
           return sendError(reply, 404, 'الخامة غير موجودة', 'NOT_FOUND');
         }
-        if (d.fabricVariantId) {
-          const variantRow = await client.query<{ variant_code: string }>(
+        let targetVariantId: string | null = d.fabricVariantId ?? null;
+        if (d.fabricColorId) {
+          const variant = await ensureFabricVariantForColor(client, companyId, d.fabricItemId, d.fabricColorId);
+          targetVariantId = variant.id;
+        } else if (d.fabricVariantId) {
+          const variantRow = await client.query(
             `SELECT variant_code FROM fabric_item_variants WHERE id=$1 AND item_id=$2 AND company_id=$3`,
             [d.fabricVariantId, d.fabricItemId, companyId],
           );
@@ -838,18 +858,25 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
             await client.query('ROLLBACK');
             return sendError(reply, 404, 'الفاريانت لا ينتمي لهذه الخامة', 'NOT_FOUND');
           }
+        }
+
+        if (targetVariantId) {
           const dup = await client.query(
             `SELECT id FROM cartela_labels WHERE fabric_variant_id=$1 AND id <> $2`,
-            [d.fabricVariantId, id],
+            [targetVariantId, id],
           );
           if (dup.rows.length) {
             await client.query('ROLLBACK');
             return sendError(reply, 409, 'يوجد كارتيله مرتبطة بهذا اللون/الفاريانت مسبقاً', 'DUPLICATE');
           }
-          barcodeCode = buildColorBarcodeCode(nextSerial || prevSerial, variantRow.rows[0].variant_code);
+          const variantCodeRow = await client.query<{ variant_code: string }>(
+            `SELECT variant_code FROM fabric_item_variants WHERE id=$1`,
+            [targetVariantId],
+          );
+          barcodeCode = buildColorBarcodeCode(nextSerial || prevSerial, variantCodeRow.rows[0].variant_code);
         }
         fabricItemId = d.fabricItemId;
-        fabricVariantId = d.fabricVariantId ?? null;
+        fabricVariantId = targetVariantId;
       }
 
       const row = await client.query(

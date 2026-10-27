@@ -13,6 +13,10 @@ export interface ApiFabricItem {
   supplier_id: string | null;
   category_name?: string;
   supplier_name?: string;
+  /** كود التصميم ورقم التصميم الحقيقيان — مستقلان عن internal_code، مصدر
+   * ART CODE / DESIGN NO بالكارتيله المرتبطة بهذه الخامة. */
+  design_code?: string;
+  design_no?: string;
   /** مواصفات الكارتيله المحفوظة على الخامة نفسها — تُسحَب تلقائياً عند إنشاء
    * كارتيله لنفس الخامة بدل تكرار إدخالها يدوياً. موجودة فقط باستجابة GET /:id. */
   composition_lines?: unknown[];
@@ -38,6 +42,22 @@ export interface FabricItemPayload {
   notes?: string;
   category_id?: string | null;
   supplier_id?: string | null;
+  design_code?: string;
+  design_no?: string;
+  /** اختياري بالكامل — بدون هذا الحقل لا تتغيّر التركيبة الحالية المحفوظة. */
+  composition_lines?: Array<{ percent: number; fiberTypeId: string | null; fiberName: string }>;
+}
+
+export interface ApiFabricItemColorOption {
+  color_id: string;
+  name_ar: string;
+  name_tr: string;
+  color_code: string;
+  hex_color: string | null;
+  roll_count: number;
+  total_meters: string;
+  variant_id: string | null;
+  variant_code: string | null;
 }
 
 export interface FabricItemsListParams {
@@ -75,6 +95,13 @@ export async function listFabricItems(params: FabricItemsListParams = {}): Promi
 
 export async function getFabricItem(id: string): Promise<ApiFabricItem> {
   const res = await apiFetch<{ ok: boolean; data: ApiFabricItem }>(`/api/fabric/items/${id}`);
+  return res.data;
+}
+
+/** ألوان الخامة الفعلية — اتحاد الفاريانتات المسجّلة مع الألوان الموجودة على
+ * أتواب المستودع فعلياً، حتى لو لم تُسجَّل بعد كفاريانت. */
+export async function getFabricItemColors(id: string): Promise<ApiFabricItemColorOption[]> {
+  const res = await apiFetch<{ ok: boolean; data: ApiFabricItemColorOption[] }>(`/api/fabric/items/${id}/colors`);
   return res.data;
 }
 

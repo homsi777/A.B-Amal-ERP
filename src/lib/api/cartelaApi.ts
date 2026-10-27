@@ -70,6 +70,9 @@ export type CartelaLabelPayload = {
    * فقط عند الإنشاء من خامة موجودة، وليس عند التعديل اليدوي الحر. */
   fabricItemId?: string | null;
   fabricVariantId?: string | null;
+  /** لون من الأتواب الفعلية بالمستودع وقد لا يملك فاريانتاً مسجَّلاً بعد —
+   * يُنشأ/يُربَط فاريانت حقيقي له تلقائياً عند الإنشاء/الربط الرجعي. */
+  fabricColorId?: string | null;
 };
 
 export async function listCartelaFiberTypes(): Promise<CartelaFiberType[]> {
