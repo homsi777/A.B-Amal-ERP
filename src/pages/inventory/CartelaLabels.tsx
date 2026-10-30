@@ -287,17 +287,19 @@ export const CartelaLabels: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [itemQuery, selectedFabricItem]);
 
-  /** يسحب مواصفات الكارتيله من سجل الخامة نفسه فقط — لا تخمين ولا نسخ من
-   * كود الخامة الداخلي. ART CODE/DESIGN NO من design_code/design_no فقط،
-   * وتبقى فارغة بوضوح إن لم تكن مسجّلة — لا تُستبدل بكود الخامة أبداً. */
+  /** يسحب مواصفات الكارتيله من سجل الخامة نفسه. ART CODE من اسم الخامة
+   * المسجَّل بالمخزون، وDESIGN NO من كودها الداخلي (design_code/design_no
+   * الخاصان بالكارتيلة إن وُجدا بسجل الخامة لهما الأولوية، نادراً ما يُعبّآن) —
+   * بطلب المدير بشير مباشرة، كي لا تظهر الحقول فاضية لخامة مسجَّلة باسم وكود
+   * واضحين. تبقى الحقول قابلة للتعديل اليدوي بعد التعبئة كبقية نماذج المشروع. */
   const applyFabricItemSpecs = (item: ApiFabricItem) => {
     const lines = parseCompositionLines(item.composition_lines);
     setMissingCompositionNotice(lines.length === 0);
     setForm((current) => ({
       ...current,
       title: item.name || current.title,
-      artCode: item.design_code ?? '',
-      designNo: item.design_no ?? '',
+      artCode: item.design_code || item.name || '',
+      designNo: item.design_no || item.internal_code || '',
       compositionLines: lines.length ? lines : current.compositionLines,
       careSymbols: item.care_symbols?.length ? (item.care_symbols as CartelaCareSymbolId[]) : current.careSymbols,
       widthValue: item.width_value || current.widthValue,
