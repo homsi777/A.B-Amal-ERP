@@ -11,6 +11,7 @@ export interface ApiIntakeDispatchSlip {
   warehouse_name: string;
   supplier_name: string;
   order_no: string;
+  operation_status: 'DRAFT' | 'COMPLETED' | 'VOID';
   line_count: number;
   priced_line_count: number;
   created_at: string;
@@ -51,4 +52,9 @@ export async function updateIntakeDispatchSlipLinePrices(
     method: 'PATCH',
     body: JSON.stringify({ lines }),
   });
+}
+
+/** إلغاء ورقي بالكامل — الأتواب التي أُنشئت بهذه العملية تبقى بالمخزون كما هي. */
+export async function voidIntakeDispatchSlip(id: string): Promise<void> {
+  await apiFetch(`/api/intake-dispatch-slips/${id}/void`, { method: 'POST' });
 }

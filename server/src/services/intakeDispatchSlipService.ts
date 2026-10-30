@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { z } from 'zod';
 
 export type IntakeDispatchSlipRow = {
@@ -14,6 +14,7 @@ export type IntakeDispatchSlipRow = {
   warehouse_name?: string;
   supplier_name?: string;
   order_no?: string;
+  operation_status?: 'DRAFT' | 'COMPLETED' | 'VOID';
   line_count?: number;
   priced_line_count?: number;
 };
@@ -32,7 +33,7 @@ export type IntakeDispatchSlipLineRow = {
 
 export async function listDispatchSlips(pool: Pool, companyId: string): Promise<IntakeDispatchSlipRow[]> {
   const res = await pool.query<IntakeDispatchSlipRow>(
-    `SELECT s.*, w.name AS warehouse_name, sup.name AS supplier_name, io.order_no,
+    `SELECT s.*, w.name AS warehouse_name, sup.name AS supplier_name, io.order_no, io.status AS operation_status,
             (SELECT count(*) FROM intake_dispatch_slip_lines l WHERE l.slip_id = s.id) AS line_count,
             (SELECT count(*) FROM intake_dispatch_slip_lines l WHERE l.slip_id = s.id AND l.unit_price IS NOT NULL) AS priced_line_count
      FROM intake_dispatch_slips s
@@ -52,7 +53,7 @@ export async function getDispatchSlipWithLines(
   id: string,
 ): Promise<{ slip: IntakeDispatchSlipRow; lines: IntakeDispatchSlipLineRow[] } | null> {
   const slipRes = await pool.query<IntakeDispatchSlipRow>(
-    `SELECT s.*, w.name AS warehouse_name, sup.name AS supplier_name, io.order_no
+    `SELECT s.*, w.name AS warehouse_name, sup.name AS supplier_name, io.order_no, io.status AS operation_status
      FROM intake_dispatch_slips s
      JOIN warehouses w ON w.id = s.warehouse_id
      JOIN suppliers sup ON sup.id = s.supplier_id
@@ -105,4 +106,47 @@ export async function updateDispatchSlipLinePrices(
       [line.unitPrice, line.lineId, slipId],
     );
   }
+}
+
+/**
+ * إلغاء ورقي بالكامل — يُعلِّم عملية الإدخال (intake_operations) ملغاة
+ * فقط. الأتواب التي أُنشئت بهذه العملية كانت "متوفّرة" بالمستودع منذ
+ * لحظة إنشائها (الإرسالية مجرد سجل تسعير فوقها، لا تحجزها ولا تغيّر
+ * حالتها بأي شكل) — فلا حذف ولا تغيير حالة لأي توب هنا، خلافاً لإلغاء
+ * مهمة خارجية (voidExternalJob) حيث كانت الأتواب فعلاً بحالة محجوزة
+ * يلزم التراجع عنها.
+ */
+export async function voidIntakeDispatchSlip(
+  client: PoolClient,
+  companyId: string,
+  slipId: string,
+): Promise<void> {
+  const slipRow = await client.query<{ intake_operation_id: string }>(
+    `SELECT intake_operation_id FROM intake_dispatch_slips WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [slipId, companyId],
+  );
+  if (!slipRow.rows.length) throw Object.assign(new Error('الإرسالية غير موجودة'), { code: 'NOT_FOUND' });
+  const opId = slipRow.rows[0].intake_operation_id;
+
+  const opRow = await client.query<{ status: string }>(
+    `SELECT status FROM intake_operations WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [opId, companyId],
+  );
+  if (!opRow.rows.length) throw Object.assign(new Error('عملية الإدخال غير موجودة'), { code: 'NOT_FOUND' });
+  if (opRow.rows[0].status === 'VOID') {
+    throw Object.assign(new Error('الإرسالية ملغاة مسبقاً'), { code: 'INVALID_STATE' });
+  }
+
+  const pricedCheck = await client.query(
+    `SELECT 1 FROM intake_dispatch_slip_lines WHERE slip_id=$1 AND unit_price IS NOT NULL LIMIT 1`,
+    [slipId],
+  );
+  if (pricedCheck.rows.length) {
+    throw Object.assign(
+      new Error('بدأ تسعير أسطر هذه الإرسالية — لا يمكن إلغاؤها بعد بدء التسعير'),
+      { code: 'INVALID_STATE' },
+    );
+  }
+
+  await client.query(`UPDATE intake_operations SET status='VOID', updated_at=now() WHERE id=$1`, [opId]);
 }

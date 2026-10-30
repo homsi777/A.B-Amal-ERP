@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Tag } from 'lucide-react';
+import { Ban, Loader2, Printer, Tag } from 'lucide-react';
 import {
   getIntakeDispatchSlip,
   listIntakeDispatchSlips,
   updateIntakeDispatchSlipLinePrices,
+  voidIntakeDispatchSlip,
   type ApiIntakeDispatchSlip,
   type ApiIntakeDispatchSlipLine,
 } from '../../lib/api/intakeDispatchSlipsApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { useToast } from '../../components/NonBlockingToast';
+import { renderIntakeDispatchSlipA4Html } from '../../lib/printing/renderIntakeDispatchSlipA4';
+import { openDocumentPrintWindow } from '../../lib/printing/documentPrint';
+import i18n from '../../i18n/config';
 
 export const IntakeDispatchSlips: React.FC = () => {
   const { t } = useTranslation('intakeOperations');
@@ -21,6 +25,8 @@ export const IntakeDispatchSlips: React.FC = () => {
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+  const [voidingId, setVoidingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -75,6 +81,35 @@ export const IntakeDispatchSlips: React.FC = () => {
     }
   };
 
+  const handlePrint = async (slipId: string) => {
+    setPrintingId(slipId);
+    try {
+      const { slip, lines: ls } = await getIntakeDispatchSlip(slipId);
+      const lang: 'ar' | 'tr' = i18n.language === 'tr' ? 'tr' : 'ar';
+      const html = renderIntakeDispatchSlipA4Html({ slip, lines: ls, lang });
+      const ok = openDocumentPrintWindow(html, slip.slip_no);
+      if (!ok) showToast({ type: 'error', message: t('print.popupBlocked') });
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('loadFailed') });
+    } finally {
+      setPrintingId(null);
+    }
+  };
+
+  const handleVoid = async (row: ApiIntakeDispatchSlip) => {
+    if (!window.confirm(t('void.confirm', { slipNo: row.slip_no }))) return;
+    setVoidingId(row.id);
+    try {
+      await voidIntakeDispatchSlip(row.id);
+      showToast({ type: 'success', message: t('void.success') });
+      await load();
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('void.failed') });
+    } finally {
+      setVoidingId(null);
+    }
+  };
+
   return (
     <div className="p-4 space-y-4" dir="rtl">
       <div>
@@ -92,18 +127,21 @@ export const IntakeDispatchSlips: React.FC = () => {
               <th className="p-3 text-right font-bold">{t('colSupplier')}</th>
               <th className="p-3 text-right font-bold">{t('colWarehouse')}</th>
               <th className="p-3 text-right font-bold">{t('colPricing')}</th>
-              <th className="p-3 text-right font-bold w-28">{t('colActions')}</th>
+              <th className="p-3 text-right font-bold">{t('colStatus')}</th>
+              <th className="p-3 text-right font-bold w-56">{t('colActions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={7} className="p-6 text-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin inline ml-2" />{t('loading')}</td></tr>
+              <tr><td colSpan={8} className="p-6 text-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin inline ml-2" />{t('loading')}</td></tr>
             )}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={7} className="p-6 text-center text-slate-500">{t('noSlipsYet')}</td></tr>
+              <tr><td colSpan={8} className="p-6 text-center text-slate-500">{t('noSlipsYet')}</td></tr>
             )}
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+            {rows.map((row) => {
+              const isVoid = row.operation_status === 'VOID';
+              return (
+              <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/70 ${isVoid ? 'opacity-60' : ''}`}>
                 <td className="p-3 font-mono font-bold text-indigo-700" dir="ltr">{row.slip_no}</td>
                 <td className="p-3 font-mono text-slate-600" dir="ltr">{row.order_no}</td>
                 <td className="p-3">{row.slip_type === 'STOCK' ? t('actionStock') : t('actionPurchase')}</td>
@@ -111,17 +149,52 @@ export const IntakeDispatchSlips: React.FC = () => {
                 <td className="p-3 text-slate-700">{row.warehouse_name}</td>
                 <td className="p-3 text-slate-600">{row.priced_line_count}/{row.line_count}</td>
                 <td className="p-3">
-                  <button
-                    type="button"
-                    onClick={() => void openPricing(row.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white"
-                  >
-                    <Tag className="w-3.5 h-3.5" />
-                    {t('priceButton')}
-                  </button>
+                  {isVoid ? (
+                    <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700">
+                      {t('void.statusBadge')}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                      {t('void.statusActive')}
+                    </span>
+                  )}
+                </td>
+                <td className="p-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={isVoid}
+                      onClick={() => void openPricing(row.id)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white disabled:opacity-40"
+                    >
+                      <Tag className="w-3.5 h-3.5" />
+                      {t('priceButton')}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={printingId === row.id}
+                      onClick={() => void handlePrint(row.id)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-black disabled:opacity-50"
+                    >
+                      {printingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                      {t('print.button')}
+                    </button>
+                    {!isVoid && (
+                      <button
+                        type="button"
+                        disabled={voidingId === row.id}
+                        onClick={() => void handleVoid(row)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        {voidingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+                        {t('void.button')}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
