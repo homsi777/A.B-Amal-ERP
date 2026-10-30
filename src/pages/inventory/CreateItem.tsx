@@ -14,7 +14,7 @@ import {
   createItemEditFailureMessage,
   resolveFabricItemForCreateItemEdit,
 } from '../../lib/inventory/createItemEditIdentity';
-import { createFabricRoll } from '../../lib/api/fabricRollsApi';
+import { createFabricRoll, getNextRollBarcode } from '../../lib/api/fabricRollsApi';
 import { createFabricColor, listFabricColors, type ApiFabricColor } from '../../lib/api/fabricColorsApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { getCategoryTree, type ApiCategory } from '../../lib/api/fabricCategoriesApi';
@@ -223,8 +223,17 @@ export const CreateItem = () => {
       .slice(0, 8);
   }, [categoryApiTree, name]);
 
-  const generateBarcode = () => {
-    setBarcode(String(Math.floor(1000000 + Math.random() * 9000000)));
+  // باركود تسلسلي حقيقي (يبدأ من 0000001) من الخادم — معاينة فقط، لا حجز؛
+  // التوليد الفعلي النهائي يحصل بنفس المنطق عند الحفظ الحقيقي بالخادم. يبقى
+  // قابلاً للكتابة/المسح اليدوي بعد ذلك كما كان دائماً.
+  const generateBarcode = async () => {
+    try {
+      const barcode = await getNextRollBarcode();
+      setBarcode(barcode);
+    } catch {
+      // احتياطي صامت — الخانة تبقى كما هي؛ التوليد التسلسلي الحقيقي بالخادم
+      // يعمل بأي حال عند الحفظ لو تُركت فارغة.
+    }
   };
 
   // تُستدعى حالياً فقط بعد حفظ كل توب (resetEntryFieldsForNextRoll) — ما يترك
@@ -232,7 +241,7 @@ export const CreateItem = () => {
   // توليد أولي عند فتح الشاشة بوضع الإنشاء يغطي التوب الأول أيضاً، بلا أي
   // تأثير على إمكانية الكتابة/المسح اليدوي لاحقاً.
   useEffect(() => {
-    if (!isEditMode) generateBarcode();
+    if (!isEditMode) void generateBarcode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -658,7 +667,7 @@ export const CreateItem = () => {
       setWeight('');
       setLotNumber('');
       setBarcode('');
-      generateBarcode();
+      void generateBarcode();
     } else {
       setLength('');
       setWeight('');
@@ -669,7 +678,7 @@ export const CreateItem = () => {
       setCatL3Id('');
       setCatL4Id('');
       setName('');
-      generateBarcode();
+      void generateBarcode();
     }
     if (lengthInputRef.current) lengthInputRef.current.focus();
   };
@@ -1287,7 +1296,7 @@ export const CreateItem = () => {
                     />
                   </div>
                   <button 
-                    onClick={generateBarcode}
+                    onClick={() => void generateBarcode()}
                     type="button"
                     className="px-4 py-2 bg-slate-100 text-slate-700 font-bold border border-slate-300 rounded-lg hover:bg-slate-200 transition whitespace-nowrap shadow-sm text-sm"
                     title={t('form.generateBarcodeTitle')}

@@ -22,21 +22,27 @@ export function calcWeight(
 }
 
 /**
- * Generate a unique barcode per company.
+ * Generate a unique barcode per company — تسلسلي حقيقي يبدأ من 0000001، لا
+ * عشوائي. كل الباركودات القديمة (عشوائية، وُلِّدت دوماً بين 1000000 و
+ * 9999999 — انظر الاحتياطي بالأسفل) تبدأ بالضرورة برقم غير صفري بخانتها
+ * الأولى، فنطاق "0xxxxxx" الجديد لا يتقاطع معها إطلاقاً مهما كثرت — أي
+ * "مراعاة الأرقام الموجودة حالياً" مضمونة تلقائياً دون أي فحص تصادم إضافي
+ * على ذلك النطاق القديم. يُطبَّق على أي توب جديد بأي نوع عملية إدخال
+ * (مخزون/شراء/مرتجع/مصنعية) لأن كل الأنواع تمر بنفس مسار إنشاء التوب.
  * Format: 7 numeric digits, matching printed sticker and invoice scan policy.
  */
 export async function generateBarcode(db: DbQuery, companyId: string): Promise<string> {
-  const maxExisting = await db.query<{ max_barcode: string | null }>(
+  const maxSequential = await db.query<{ max_barcode: string | null }>(
     `SELECT MAX(barcode)::text AS max_barcode
        FROM fabric_rolls
       WHERE company_id=$1
-        AND barcode ~ '^[0-9]{7}$'`,
+        AND barcode ~ '^0[0-9]{6}$'`,
     [companyId],
   );
-  const current = Number(maxExisting.rows[0]?.max_barcode ?? 999999);
+  const current = Number(maxSequential.rows[0]?.max_barcode ?? 0);
   for (let offset = 1; offset <= 100; offset++) {
     const next = current + offset;
-    if (next > 9999999) break;
+    if (next > 999999) break; // النطاق التسلسلي الجديد (0000001–0999999) ممتلئ بالكامل — احتياطي أدناه
     const barcode = String(next).padStart(7, '0');
     const { rows } = await db.query<{ id: string }>(
       'SELECT id FROM fabric_rolls WHERE company_id=$1 AND barcode=$2',
@@ -45,6 +51,8 @@ export async function generateBarcode(db: DbQuery, companyId: string): Promise<s
     if (rows.length === 0) return barcode;
   }
 
+  // احتياطي نادر جداً (قرابة مليون توب لنفس الشركة) — نفس أسلوب التوليد
+  // العشوائي القديم ضمن النطاق الأعلى (1000000–9999999) فقط.
   for (let attempt = 0; attempt < 100; attempt++) {
     const barcode = String(Math.floor(1000000 + Math.random() * 9000000));
     const { rows } = await db.query<{ id: string }>(

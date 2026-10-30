@@ -415,6 +415,14 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
+  // معاينة الباركود التالي قبل الحفظ الفعلي — نفس دالة التوليد التسلسلي
+  // الحقيقية المستخدَمة عند إنشاء التوب فعلاً (POST /)، بلا أي حجز/كتابة.
+  app.get('/next-barcode', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const barcode = await generateBarcode(getPool(), companyId);
+    return reply.send({ ok: true, data: { barcode } });
+  });
+
   app.get('/bulk-pricing/groups', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const q = req.query as Record<string, string>;

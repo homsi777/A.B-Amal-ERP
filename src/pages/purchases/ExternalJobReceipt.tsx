@@ -9,6 +9,7 @@ import {
   type ExternalJobDetail, type ExternalJobLine, type ExternalJobReceiptDto,
 } from '../../lib/api/externalJobsApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
+import { getNextRollBarcode } from '../../lib/api/fabricRollsApi';
 import { SUPPORTED_CURRENCIES, getCurrencyName } from '../../lib/currency';
 import { useToast } from '../../components/NonBlockingToast';
 import { ApiRequestError } from '../../lib/api/client';
@@ -645,8 +646,14 @@ const ReceiptLineRow = ({
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const generateRandomBarcode = () => {
-    setNewBarcode(String(Math.floor(1000000 + Math.random() * 9000000)));
+  // باركود تسلسلي حقيقي (يبدأ من 0000001) من الخادم — بدل رقم عشوائي محلي.
+  const generateRandomBarcode = async () => {
+    try {
+      const barcode = await getNextRollBarcode();
+      setNewBarcode(barcode);
+    } catch {
+      // احتياطي صامت — الخانة تبقى كما هي، يمكن كتابة باركود يدوي بدلاً منه.
+    }
   };
 
   const handleReceive = async () => {
@@ -728,7 +735,7 @@ const ReceiptLineRow = ({
                 className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 dir="ltr"
               />
-              <button type="button" onClick={generateRandomBarcode} className="px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold hover:bg-slate-100">
+              <button type="button" onClick={() => void generateRandomBarcode()} className="px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold hover:bg-slate-100">
                 {t('receive.generateBarcode')}
               </button>
             </div>

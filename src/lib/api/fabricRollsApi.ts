@@ -327,6 +327,13 @@ export async function getFabricRoll(id: string): Promise<FabricRollDto & { movem
   return res.data;
 }
 
+/** معاينة الباركود التسلسلي التالي (يبدأ من 0000001) — نفس التوليد
+ * الحقيقي المستخدَم عند الحفظ، بلا حجز. */
+export async function getNextRollBarcode(): Promise<string> {
+  const res = await apiFetch<{ ok: boolean; data: { barcode: string } }>('/api/inventory/rolls/next-barcode');
+  return res.data.barcode;
+}
+
 export async function createFabricRoll(payload: FabricRollCreatePayload): Promise<FabricRollDto> {
   const res = await apiFetch<{ ok: boolean; data: FabricRollDto }>('/api/inventory/rolls', {
     method: 'POST',
