@@ -11,6 +11,8 @@ export interface CartelaColorSwatchDto {
   name_tr: string;
   notes: string | null;
   image_url: string | null;
+  /** ربط اختياري بلون حقيقي من كتالوج fabric_colors — بدل رابط الصورة الحر. */
+  fabric_color_id: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -21,7 +23,10 @@ export type CartelaColorSwatchPayload = {
   nameAr?: string;
   nameTr?: string;
   notes?: string | null;
+  /** تُرسَل فقط من شاشات/نماذج قديمة — نموذج الإضافة الحالي لا يرسلها إطلاقاً،
+   * فتبقى قيمة image_url القديمة بالسجل محفوظة دون تغيير عند التعديل. */
   imageUrl?: string | null;
+  fabricColorId?: string | null;
   colorNo?: number;
 };
 

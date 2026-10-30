@@ -75,6 +75,7 @@ export function mapCartelaColorRow(row: Record<string, unknown>) {
     name_tr: row.name_tr,
     notes: row.notes,
     image_url: row.image_url,
+    fabric_color_id: row.fabric_color_id ?? null,
     sort_order: row.sort_order,
     created_at: row.created_at,
     updated_at: row.updated_at,

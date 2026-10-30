@@ -70,6 +70,10 @@ const colorBody = z.object({
   notes: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   colorNo: z.number().int().positive().optional(),
+  // ربط اختياري بلون حقيقي من كتالوج fabric_colors — يحل محل حقل رابط الصورة
+  // بنموذج الإضافة/التعديل؛ النموذج الجديد لم يعد يرسل imageUrl، فتبقى
+  // image_url فارغة للسجلات الجديدة تلقائياً (السجلات القديمة تبقى كما هي).
+  fabricColorId: z.string().uuid().optional().nullable(),
 });
 
 /** رسالة خطأ تحقّق واضحة (الحقل + السبب) بدل رسالة عامة — تساعد على تشخيص
@@ -557,7 +561,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
 
       const rows = await getPool().query(
         `SELECT id, cartela_label_id, color_no, color_code, barcode_code, name_ar, name_tr, notes, image_url,
-                sort_order, created_at, updated_at
+                fabric_color_id, sort_order, created_at, updated_at
            FROM cartela_label_colors
           WHERE company_id = $1 AND cartela_label_id = $2
           ORDER BY color_no ASC, sort_order ASC`,
@@ -603,8 +607,8 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       const row = await client.query(
         `INSERT INTO cartela_label_colors (
            company_id, cartela_label_id, color_no, color_code, barcode_code,
-           name_ar, name_tr, notes, image_url, sort_order
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           name_ar, name_tr, notes, image_url, fabric_color_id, sort_order
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          RETURNING *`,
         [
           companyId,
@@ -616,6 +620,7 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           d.nameTr.trim(),
           d.notes ?? null,
           d.imageUrl?.trim() || null,
+          d.fabricColorId ?? null,
           colorNo,
         ],
       );
@@ -671,6 +676,8 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       const barcodeCode = buildColorBarcodeCode(serialNo, colorCode);
       const colorNo = d.colorNo ?? undefined;
 
+      // image_url لم يعد بنموذج الإضافة/التعديل — إن لم يُرسَل صراحةً تبقى قيمته
+      // القديمة كما هي (لا تُمسَح بيانات تاريخية بمجرد تعديل حقل آخر باللون).
       const row = await client.query(
         `UPDATE cartela_label_colors
             SET color_code = $3,
@@ -678,9 +685,10 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
                 name_ar = $5,
                 name_tr = $6,
                 notes = $7,
-                image_url = $8,
-                color_no = COALESCE($9, color_no),
-                sort_order = COALESCE($9, sort_order),
+                image_url = CASE WHEN $8::boolean THEN $9 ELSE image_url END,
+                fabric_color_id = $10,
+                color_no = COALESCE($11, color_no),
+                sort_order = COALESCE($11, sort_order),
                 updated_at = now()
           WHERE id = $1 AND company_id = $2
           RETURNING *`,
@@ -692,7 +700,9 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
           d.nameAr.trim(),
           d.nameTr.trim(),
           d.notes ?? null,
+          d.imageUrl !== undefined,
           d.imageUrl?.trim() || null,
+          d.fabricColorId ?? null,
           colorNo ?? null,
         ],
       );

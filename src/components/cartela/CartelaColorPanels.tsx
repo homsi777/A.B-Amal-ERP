@@ -11,7 +11,7 @@ import {
   type CartelaColorLookupResult,
   type CartelaColorSwatchDto,
 } from '../../lib/api/cartelaColorApi';
-import { listFabricColors } from '../../lib/api/fabricColorsApi';
+import { listFabricColors, type ApiFabricColor } from '../../lib/api/fabricColorsApi';
 import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { ApiRequestError } from '../../lib/api/client';
@@ -30,7 +30,6 @@ type ColorForm = {
   nameAr: string;
   nameTr: string;
   notes: string;
-  imageUrl: string;
 };
 
 const emptyColorForm = (): ColorForm => ({
@@ -38,7 +37,6 @@ const emptyColorForm = (): ColorForm => ({
   nameAr: '',
   nameTr: '',
   notes: '',
-  imageUrl: '',
 });
 
 type Props = {
@@ -507,6 +505,46 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchOpen, setBatchOpen] = useState(false);
 
+  // ربط اختياري بلون حقيقي من كتالوج fabric_colors — بدل رابط صورة نصي حر.
+  const [pickedFabricColorId, setPickedFabricColorId] = useState<string | null>(null);
+  const [colorQuery, setColorQuery] = useState('');
+  const [colorSearching, setColorSearching] = useState(false);
+  const [colorResults, setColorResults] = useState<ApiFabricColor[]>([]);
+
+  useEffect(() => {
+    const q = colorQuery.trim();
+    if (pickedFabricColorId || q.length < 2) {
+      setColorResults([]);
+      return;
+    }
+    setColorSearching(true);
+    const timer = window.setTimeout(() => {
+      listFabricColors({ search: q, status: 'active', pageSize: 20 })
+        .then((res) => setColorResults(res.data))
+        .catch(() => setColorResults([]))
+        .finally(() => setColorSearching(false));
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [colorQuery, pickedFabricColorId]);
+
+  const pickCatalogColor = (color: ApiFabricColor) => {
+    setPickedFabricColorId(color.id);
+    setColorQuery('');
+    setColorResults([]);
+    setForm((prev) => ({
+      ...prev,
+      colorCode: color.color_code || prev.colorCode,
+      nameAr: color.name_ar || prev.nameAr,
+      nameTr: color.name_tr || prev.nameTr,
+    }));
+  };
+
+  const clearCatalogColor = () => {
+    setPickedFabricColorId(null);
+    setColorQuery('');
+    setColorResults([]);
+  };
+
   const selectedColors = useMemo(
     () => rows.filter((row) => selectedIds.has(row.id)),
     [rows, selectedIds],
@@ -535,6 +573,7 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
   const openNew = () => {
     setEditId(null);
     setForm(emptyColorForm());
+    clearCatalogColor();
     setFormOpen(true);
   };
 
@@ -545,8 +584,10 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
       nameAr: row.name_ar,
       nameTr: row.name_tr,
       notes: row.notes || '',
-      imageUrl: row.image_url || '',
     });
+    setPickedFabricColorId(row.fabric_color_id);
+    setColorQuery('');
+    setColorResults([]);
     setFormOpen(true);
   };
 
@@ -557,12 +598,14 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
     }
     setSaving(true);
     try {
+      // imageUrl عمداً غير مُرسَل هنا — النموذج الحالي لا يحمله إطلاقاً، فتبقى
+      // قيمته القديمة بالسجل (إن وُجدت) محفوظة دون تغيير عند الخادم.
       const payload = {
         colorCode: form.colorCode.trim(),
         nameAr: form.nameAr.trim(),
         nameTr: form.nameTr.trim(),
         notes: form.notes.trim() || null,
-        imageUrl: form.imageUrl.trim() || null,
+        fabricColorId: pickedFabricColorId,
       };
       if (editId) await updateCartelaColor(editId, payload);
       else {
@@ -825,16 +868,57 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
               </label>
-              <label className="space-y-1 block sm:col-span-2">
-                <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.imageUrlLabel')}</span>
-                <input
-                  value={form.imageUrl}
-                  onChange={(e) => setForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-                  placeholder="https://..."
-                  dir="ltr"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                />
-              </label>
+              <div className="space-y-1.5 sm:col-span-2">
+                <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.pickFromCatalogLabel')}</span>
+                {pickedFabricColorId ? (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm">
+                    <span className="font-bold text-violet-800">{t('colorPanels.swatches.linkedToCatalogHint')}</span>
+                    <button
+                      type="button"
+                      onClick={clearCatalogColor}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                    >
+                      {t('colorPanels.swatches.clearCatalogLink')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      value={colorQuery}
+                      onChange={(e) => setColorQuery(e.target.value)}
+                      placeholder={t('colorPanels.swatches.catalogSearchPlaceholder')}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    />
+                    {colorSearching && (
+                      <Loader2 className="w-4 h-4 animate-spin text-violet-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                    )}
+                    {colorResults.length > 0 && (
+                      <div className="mt-1.5 max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white shadow-sm">
+                        {colorResults.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => pickCatalogColor(c)}
+                            className="w-full flex items-center gap-2 text-right px-3 py-2 text-sm hover:bg-violet-50 transition"
+                          >
+                            <span
+                              className="w-4 h-4 rounded-full border border-slate-200 shrink-0"
+                              style={{ backgroundColor: c.hex_color || '#e5e7eb' }}
+                            />
+                            <span className="flex-1">
+                              <span className="font-bold text-slate-900">{c.name_ar || c.color_code}</span>
+                              <span className="text-xs text-slate-500 mr-1.5" dir="ltr">({c.color_code})</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {!colorSearching && colorQuery.trim().length >= 2 && colorResults.length === 0 && (
+                      <p className="mt-1 text-xs text-slate-500">{t('colorPanels.swatches.catalogNoResults')}</p>
+                    )}
+                  </div>
+                )}
+              </div>
               <label className="space-y-1 block sm:col-span-2">
                 <span className="text-xs font-bold text-slate-600">{t('colorPanels.swatches.notesLabel')}</span>
                 <input
