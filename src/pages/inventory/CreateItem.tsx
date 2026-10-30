@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Save, FileText, ArrowRight, ScanLine, ImagePlus, Upload, X, Printer } from 'lucide-react';
 import { useStore } from '../../store/useStore';
@@ -226,9 +226,24 @@ export const CreateItem = () => {
   // باركود تسلسلي حقيقي (يبدأ من 0000001) من الخادم — معاينة فقط، لا حجز؛
   // التوليد الفعلي النهائي يحصل بنفس المنطق عند الحفظ الحقيقي بالخادم. يبقى
   // قابلاً للكتابة/المسح اليدوي بعد ذلك كما كان دائماً.
+  //
+  // أتواب وضع الإنشاء تبقى بمسودة محلية فقط (بلا أي سجل فعلي بقاعدة البيانات)
+  // حتى الضغط على "حفظ كل الأتواب" — فلو استعلمنا الخادم عن "التالي" بعد كل
+  // توب مضاف للمسودة، يعيد نفس الرقم مراراً لأن لا شيء أُنشئ فعلياً بعد (هذا
+  // كان سبب ظهور نفس الباركود لكل الأتواب المُدخلة). الحل: نستعلم الخادم مرة
+  // واحدة فقط (أول توب)، وبعدها نزيد الرقم محلياً +1 بكل توليد تالٍ — يبقى
+  // التحقق النهائي من التفرّد عند الحفظ الحقيقي بالخادم كضمان أخير بأي حال.
+  const nextBarcodeNumberRef = useRef<number | null>(null);
   const generateBarcode = async () => {
     try {
+      if (nextBarcodeNumberRef.current != null) {
+        const next = nextBarcodeNumberRef.current + 1;
+        nextBarcodeNumberRef.current = next;
+        setBarcode(String(next).padStart(7, '0'));
+        return;
+      }
       const barcode = await getNextRollBarcode();
+      nextBarcodeNumberRef.current = Number(barcode);
       setBarcode(barcode);
     } catch {
       // احتياطي صامت — الخانة تبقى كما هي؛ التوليد التسلسلي الحقيقي بالخادم
