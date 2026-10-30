@@ -65,5 +65,9 @@
   "detail.width": "Genişlik",
   "detail.weight": "Ağırlık",
   "detail.composition": "Kompozisyon",
-  "detail.notes": "Notlar"
+  "detail.notes": "Notlar",
+  "detail.showAllStockHint": "Bu kodun tüm renklerdeki tüm topları için tıklayın",
+  "detail.allStockLoading": "Tüm stok yükleniyor...",
+  "detail.allStockTitle": "Bu kodun tüm stoku — {{count}} top, {{meters}} m",
+  "detail.allStockEmpty": "Bu kod için şu anda stok yok."
 }

@@ -65,5 +65,9 @@
   "detail.width": "العرض",
   "detail.weight": "الوزن",
   "detail.composition": "التركيب",
-  "detail.notes": "ملاحظات"
+  "detail.notes": "ملاحظات",
+  "detail.showAllStockHint": "اضغط لعرض كل الأتواب بكل الألوان لهذا الكود",
+  "detail.allStockLoading": "جاري تحميل كل المخزون...",
+  "detail.allStockTitle": "كل المخزون لهذا الكود — {{count}} توب، {{meters}} م",
+  "detail.allStockEmpty": "لا يوجد مخزون متوفر حالياً لهذا الكود."
 }

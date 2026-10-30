@@ -62,11 +62,17 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
   const [detailItem, setDetailItem] = useState<ApiFabricItem | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
 
+  /** كل ألوان/أتواب كود الخامة — عند الضغط على الكود داخل لوحة البيانات،
+   * بعكس rolls الرئيسية التي تبقى مُقيَّدة بلون الكارتيلة الممسوحة فقط. */
+  const [allStockLoading, setAllStockLoading] = useState(false);
+  const [allStockRolls, setAllStockRolls] = useState<FabricRollDto[] | null>(null);
+
   const openItemDetail = async (fabricItemId: string) => {
     setDetailOpen(true);
     setDetailLoading(true);
     setDetailItem(null);
     setDetailError(null);
+    setAllStockRolls(null);
     try {
       const item = await getFabricItem(fabricItemId);
       setDetailItem(item);
@@ -74,6 +80,19 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
       setDetailError(e instanceof ApiRequestError ? e.message : t('detail.loadFailed'));
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const loadAllStockForItem = async (fabricItemId: string) => {
+    setAllStockLoading(true);
+    setAllStockRolls(null);
+    try {
+      const res = await listFabricRolls({ itemId: fabricItemId, onlyAvailable: true, pageSize: 500 });
+      setAllStockRolls(res.data);
+    } catch {
+      setAllStockRolls([]);
+    } finally {
+      setAllStockLoading(false);
     }
   };
 
@@ -156,6 +175,7 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
     setDetailOpen(false);
     setDetailItem(null);
     setDetailError(null);
+    setAllStockRolls(null);
   }, [open]);
 
   const materials = useMemo<MaterialGroup[]>(() => {
@@ -483,7 +503,20 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
               {!detailLoading && !detailError && detailItem && (
                 <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                   <DetailRow label={t('detail.name')} value={detailItem.name} />
-                  <DetailRow label={t('detail.internalCode')} value={detailItem.internal_code} mono />
+                  <div>
+                    <dt className="text-[11px] font-bold text-slate-500">{t('detail.internalCode')}</dt>
+                    <dd className="mt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => void loadAllStockForItem(detailItem.id)}
+                        className="font-mono font-bold text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-4 hover:text-indigo-900"
+                        dir="ltr"
+                        title={t('detail.showAllStockHint')}
+                      >
+                        {detailItem.internal_code}
+                      </button>
+                    </dd>
+                  </div>
                   <DetailRow label={t('detail.designCode')} value={detailItem.design_code || '—'} mono />
                   <DetailRow label={t('detail.designNo')} value={detailItem.design_no || '—'} mono />
                   <DetailRow label={t('detail.supplierCode')} value={detailItem.supplier_code || '—'} mono />
@@ -514,6 +547,36 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
                     full
                   />
                 </dl>
+              )}
+
+              {allStockLoading && (
+                <div className="mt-4 flex items-center justify-center gap-2 border-t border-slate-200 py-4 text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  {t('detail.allStockLoading')}
+                </div>
+              )}
+              {!allStockLoading && allStockRolls && (
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <p className="mb-2 text-xs font-black text-indigo-700">
+                    {t('detail.allStockTitle', {
+                      count: allStockRolls.length,
+                      meters: allStockRolls.reduce((sum, r) => sum + rollMeters(r), 0).toFixed(2),
+                    })}
+                  </p>
+                  {allStockRolls.length === 0 ? (
+                    <p className="text-sm text-slate-500">{t('detail.allStockEmpty')}</p>
+                  ) : (
+                    <BucketTable
+                      title={t('material.byColorTitle')}
+                      firstColLabel={t('material.colColor')}
+                      rollsLabel={t('material.colRolls')}
+                      metersLabel={t('material.colMeters')}
+                      buckets={buildBuckets(allStockRolls, (r) => (r.color_name_ar ?? '').trim() || t('material.noColor'))}
+                      activeValue={null}
+                      onPick={() => {}}
+                    />
+                  )}
+                </div>
               )}
             </div>
           </div>
