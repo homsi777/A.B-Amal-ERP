@@ -45,5 +45,25 @@
   "noStock.line": "{{name}} — كود: {{code}}",
 
   "print.popupBlocked": "تم حظر نافذة الطباعة من المتصفح — اسمح بالنوافذ المنبثقة لهذا الموقع وأعد المحاولة.",
-  "print.scopeLabel": "استعلام عن خامة"
+  "print.scopeLabel": "استعلام عن خامة",
+
+  "detail.title": "بيانات الخامة الكاملة",
+  "detail.loading": "جاري التحميل...",
+  "detail.loadFailed": "تعذّر تحميل بيانات الخامة — قد تكون محذوفة.",
+  "detail.name": "الاسم",
+  "detail.internalCode": "الكود الداخلي",
+  "detail.designCode": "كود التصميم (ART CODE)",
+  "detail.designNo": "رقم التصميم (DESIGN NO)",
+  "detail.supplierCode": "كود المورّد",
+  "detail.fabricType": "نوع الخامة",
+  "detail.category": "التصنيف",
+  "detail.supplier": "المورّد",
+  "detail.unit": "الوحدة",
+  "detail.status": "الحالة",
+  "detail.statusActive": "نشطة",
+  "detail.statusInactive": "غير نشطة",
+  "detail.width": "العرض",
+  "detail.weight": "الوزن",
+  "detail.composition": "التركيب",
+  "detail.notes": "ملاحظات"
 }

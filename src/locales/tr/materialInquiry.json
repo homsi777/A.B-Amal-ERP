@@ -45,5 +45,25 @@
   "noStock.line": "{{name}} — kod: {{code}}",
 
   "print.popupBlocked": "Tarayıcı yazdırma penceresini engelledi — bu site için açılır pencerelere izin verip tekrar deneyin.",
-  "print.scopeLabel": "Malzeme sorgulama"
+  "print.scopeLabel": "Malzeme sorgulama",
+
+  "detail.title": "Malzemenin Tüm Verileri",
+  "detail.loading": "Yükleniyor...",
+  "detail.loadFailed": "Malzeme verileri yüklenemedi — silinmiş olabilir.",
+  "detail.name": "Ad",
+  "detail.internalCode": "Dahili Kod",
+  "detail.designCode": "Tasarım Kodu (ART CODE)",
+  "detail.designNo": "Tasarım No (DESIGN NO)",
+  "detail.supplierCode": "Tedarikçi Kodu",
+  "detail.fabricType": "Kumaş Türü",
+  "detail.category": "Kategori",
+  "detail.supplier": "Tedarikçi",
+  "detail.unit": "Birim",
+  "detail.status": "Durum",
+  "detail.statusActive": "Aktif",
+  "detail.statusInactive": "Pasif",
+  "detail.width": "Genişlik",
+  "detail.weight": "Ağırlık",
+  "detail.composition": "Kompozisyon",
+  "detail.notes": "Notlar"
 }

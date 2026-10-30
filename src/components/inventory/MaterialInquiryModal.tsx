@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Loader2, Package, Palette, Printer, Search, X } from 'lucide-react';
 import { listFabricRolls, type FabricRollDto } from '../../lib/api/fabricRollsApi';
-import { listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
+import { getFabricItem, listFabricItems, type ApiFabricItem } from '../../lib/api/fabricItemsApi';
+import { ApiRequestError } from '../../lib/api/client';
 import { lookupCartelaScan, type CartelaColorLookupResult } from '../../lib/api/cartelaColorApi';
 import { renderInventoryRollsAuditA4Html } from '../../lib/printing/renderInventoryRollsAuditA4';
 import { openDocumentPrintWindow } from '../../lib/printing/documentPrint';
@@ -54,6 +55,27 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
   const [cartela, setCartela] = useState<CartelaColorLookupResult | null>(null);
   /** تصفية داخلية بنفس البطاقة (كود أو لون) — لا انتقال لأي شاشة. */
   const [focus, setFocus] = useState<{ kind: 'code' | 'color'; value: string } | null>(null);
+
+  /** لوحة بيانات الخامة الكاملة — تُفتح بالضغط على اسم الخامة بكارتيلة مرتبطة. */
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailItem, setDetailItem] = useState<ApiFabricItem | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const openItemDetail = async (fabricItemId: string) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailItem(null);
+    setDetailError(null);
+    try {
+      const item = await getFabricItem(fabricItemId);
+      setDetailItem(item);
+    } catch (e) {
+      setDetailError(e instanceof ApiRequestError ? e.message : t('detail.loadFailed'));
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   const runSearch = useCallback(async (raw: string) => {
     const value = raw.trim();
@@ -131,6 +153,9 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
     setCartela(null);
     setSearched(false);
     setFocus(null);
+    setDetailOpen(false);
+    setDetailItem(null);
+    setDetailError(null);
   }, [open]);
 
   const materials = useMemo<MaterialGroup[]>(() => {
@@ -287,7 +312,13 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
               {cartela.fabric_item_id ? (
                 <div className="mt-3 rounded-lg border border-fuchsia-200 bg-white p-3">
                   <p className="text-xs font-bold text-slate-600">{t('color.belongsTo')}</p>
-                  <p className="mt-1 text-base font-black text-slate-900">{cartela.title || cartela.art_code || '—'}</p>
+                  <button
+                    type="button"
+                    onClick={() => void openItemDetail(cartela.fabric_item_id!)}
+                    className="mt-1 text-base font-black text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-4 hover:text-indigo-900"
+                  >
+                    {cartela.title || cartela.art_code || '—'}
+                  </button>
                   <p className="mt-1 text-[11px] text-slate-500">
                     {cartelaMaterialHasStock ? t('color.belongsToHint') : t('color.noStockForMaterial')}
                   </p>
@@ -419,9 +450,106 @@ export const MaterialInquiryModal: React.FC<Props> = ({ open, onClose }) => {
           )}
         </div>
       </div>
+
+      {detailOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="my-6 w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-indigo-50 p-4">
+              <h4 className="text-base font-black text-slate-900">{t('detail.title')}</h4>
+              <button
+                type="button"
+                onClick={() => setDetailOpen(false)}
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-4">
+              {detailLoading && (
+                <div className="flex items-center justify-center gap-2 py-8 text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  {t('detail.loading')}
+                </div>
+              )}
+              {!detailLoading && detailError && (
+                <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">
+                  {detailError}
+                </p>
+              )}
+              {!detailLoading && !detailError && detailItem && (
+                <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  <DetailRow label={t('detail.name')} value={detailItem.name} />
+                  <DetailRow label={t('detail.internalCode')} value={detailItem.internal_code} mono />
+                  <DetailRow label={t('detail.designCode')} value={detailItem.design_code || '—'} mono />
+                  <DetailRow label={t('detail.designNo')} value={detailItem.design_no || '—'} mono />
+                  <DetailRow label={t('detail.supplierCode')} value={detailItem.supplier_code || '—'} mono />
+                  <DetailRow label={t('detail.fabricType')} value={detailItem.fabric_type || '—'} />
+                  <DetailRow label={t('detail.category')} value={detailItem.category_name || '—'} />
+                  <DetailRow label={t('detail.supplier')} value={detailItem.supplier_name || '—'} />
+                  <DetailRow label={t('detail.unit')} value={detailItem.unit} />
+                  <DetailRow
+                    label={t('detail.status')}
+                    value={detailItem.is_active ? t('detail.statusActive') : t('detail.statusInactive')}
+                  />
+                  <DetailRow
+                    label={t('detail.width')}
+                    value={detailItem.width_value ? `${detailItem.width_value} ${detailItem.width_unit || ''}` : '—'}
+                  />
+                  <DetailRow
+                    label={t('detail.weight')}
+                    value={detailItem.weight_value ? `${detailItem.weight_value} ${detailItem.weight_unit || ''}` : '—'}
+                  />
+                  <DetailRow
+                    label={t('detail.composition')}
+                    value={formatCompositionSummary(detailItem.composition_lines) || '—'}
+                    full
+                  />
+                  <DetailRow
+                    label={t('detail.notes')}
+                    value={detailItem.notes || '—'}
+                    full
+                  />
+                </dl>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+const DetailRow: React.FC<{ label: string; value: string; mono?: boolean; full?: boolean }> = ({
+  label,
+  value,
+  mono,
+  full,
+}) => (
+  <div className={full ? 'sm:col-span-2' : undefined}>
+    <dt className="text-[11px] font-bold text-slate-500">{label}</dt>
+    <dd className={`mt-0.5 font-bold text-slate-900 ${mono ? 'font-mono' : ''}`} dir={mono ? 'ltr' : undefined}>
+      {value}
+    </dd>
+  </div>
+);
+
+function formatCompositionSummary(lines: unknown): string {
+  if (!Array.isArray(lines)) return '';
+  return lines
+    .map((line) => {
+      const row = line as { percent?: number; fiberName?: string; fiber_name?: string };
+      const percent = Number(row.percent ?? 0);
+      const fiberName = String(row.fiberName ?? row.fiber_name ?? '').trim();
+      if (!percent || !fiberName) return '';
+      return `${percent}% ${fiberName}`;
+    })
+    .filter(Boolean)
+    .join('، ');
+}
 
 const BucketTable: React.FC<{
   title: string;
