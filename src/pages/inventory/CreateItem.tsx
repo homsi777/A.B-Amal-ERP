@@ -227,6 +227,15 @@ export const CreateItem = () => {
     setBarcode(String(Math.floor(1000000 + Math.random() * 9000000)));
   };
 
+  // تُستدعى حالياً فقط بعد حفظ كل توب (resetEntryFieldsForNextRoll) — ما يترك
+  // التوب الأول بلا باركود مولَّد (فارغ حتى يكتب/يمسح المستخدم شيئاً يدوياً).
+  // توليد أولي عند فتح الشاشة بوضع الإنشاء يغطي التوب الأول أيضاً، بلا أي
+  // تأثير على إمكانية الكتابة/المسح اليدوي لاحقاً.
+  useEffect(() => {
+    if (!isEditMode) generateBarcode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Legacy edit-mode fields (local catalog) */
   const [fabricCode, setFabricCode] = useState('');
   const [colorName, setColorName] = useState('');
@@ -1570,6 +1579,7 @@ export const CreateItem = () => {
         {!isEditMode && (
           <DraftRollsPanel
             draftRolls={draftRolls}
+            categoryApiTree={categoryApiTree}
             onEdit={handleEditDraft}
             onDelete={handleDeleteDraft}
             showForSale={intakeOperation?.action_type === 'STOCK'}
@@ -1582,8 +1592,11 @@ export const CreateItem = () => {
   );
 };
 
+type DraftSortMode = 'insertOrder' | 'newest' | 'material' | 'color';
+
 const DraftRollsPanel = ({
   draftRolls,
+  categoryApiTree,
   onEdit,
   onDelete,
   showForSale = false,
@@ -1591,6 +1604,7 @@ const DraftRollsPanel = ({
   onToggleAllForSale,
 }: {
   draftRolls: DraftRoll[];
+  categoryApiTree: ApiCategory[];
   onEdit: (localId: string) => void;
   onDelete: (localId: string) => void;
   showForSale?: boolean;
@@ -1599,11 +1613,53 @@ const DraftRollsPanel = ({
 }) => {
   const { t } = useTranslation('createItem');
   const allForSale = draftRolls.length > 0 && draftRolls.every((d) => d.forSale);
+  const [sortBy, setSortBy] = useState<DraftSortMode>('insertOrder');
+
+  const materialName = (draft: DraftRoll) => findCategoryById(categoryApiTree, draft.catL1Id)?.name ?? '';
+  const materialCode = (draft: DraftRoll) => findCategoryById(categoryApiTree, draft.catL2Id)?.code ?? '';
+  const colorName = (draft: DraftRoll) => findCategoryById(categoryApiTree, draft.catL3Id)?.name ?? '';
+
+  const displayedDraftRolls = useMemo(() => {
+    if (sortBy === 'newest') return [...draftRolls].reverse();
+    if (sortBy === 'material') {
+      return [...draftRolls].sort((a, b) => materialName(a).localeCompare(materialName(b), 'ar'));
+    }
+    if (sortBy === 'color') {
+      return [...draftRolls].sort((a, b) => colorName(a).localeCompare(colorName(b), 'ar'));
+    }
+    return draftRolls;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftRolls, sortBy, categoryApiTree]);
+
+  const sortButtonCls = (mode: DraftSortMode) =>
+    `px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+      sortBy === mode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+    }`;
+
   return (
     <div className="border-t border-slate-200 p-6 sm:p-8 bg-slate-50/60">
-      <h3 className="font-bold text-slate-800 text-base mb-4">
-        {t('draftList.title', { count: draftRolls.length })}
-      </h3>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h3 className="font-bold text-slate-800 text-base">
+          {t('draftList.title', { count: draftRolls.length })}
+        </h3>
+        {draftRolls.length > 1 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-500 ml-1">{t('draftList.sortLabel')}</span>
+            <button type="button" className={sortButtonCls('insertOrder')} onClick={() => setSortBy('insertOrder')}>
+              {t('draftList.sortDefault')}
+            </button>
+            <button type="button" className={sortButtonCls('newest')} onClick={() => setSortBy('newest')}>
+              {t('draftList.sortNewest')}
+            </button>
+            <button type="button" className={sortButtonCls('material')} onClick={() => setSortBy('material')}>
+              {t('draftList.sortByMaterial')}
+            </button>
+            <button type="button" className={sortButtonCls('color')} onClick={() => setSortBy('color')}>
+              {t('draftList.sortByColor')}
+            </button>
+          </div>
+        )}
+      </div>
       {draftRolls.length === 0 ? (
         <p className="text-sm text-slate-500">{t('draftList.empty')}</p>
       ) : (
@@ -1613,6 +1669,9 @@ const DraftRollsPanel = ({
               <tr className="bg-slate-100 text-slate-600 text-xs font-bold">
                 <th className="px-3 py-2 text-right">{t('draftList.colIndex')}</th>
                 <th className="px-3 py-2 text-right">{t('draftList.colBarcode')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colMaterialName')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colMaterialCode')}</th>
+                <th className="px-3 py-2 text-right">{t('draftList.colColor')}</th>
                 <th className="px-3 py-2 text-right">{t('draftList.colLength')}</th>
                 <th className="px-3 py-2 text-right">{t('draftList.colWeight')}</th>
                 <th className="px-3 py-2 text-right">{t('draftList.colLot')}</th>
@@ -1631,10 +1690,13 @@ const DraftRollsPanel = ({
               </tr>
             </thead>
             <tbody>
-              {draftRolls.map((draft, index) => (
+              {displayedDraftRolls.map((draft, index) => (
                 <tr key={draft.localId} className={`border-t border-slate-100 ${draft.forSale ? 'bg-emerald-50/50' : ''}`}>
                   <td className="px-3 py-2 text-slate-500 font-mono">{index + 1}</td>
                   <td className="px-3 py-2 font-mono text-left" dir="ltr">{draft.barcode || '—'}</td>
+                  <td className="px-3 py-2">{materialName(draft) || '—'}</td>
+                  <td className="px-3 py-2 font-mono text-left" dir="ltr">{materialCode(draft) || '—'}</td>
+                  <td className="px-3 py-2">{colorName(draft) || '—'}</td>
                   <td className="px-3 py-2 font-mono">
                     {draft.length} {draft.lengthType === 'yard' ? t('units.yard') : t('units.meter')}
                   </td>
