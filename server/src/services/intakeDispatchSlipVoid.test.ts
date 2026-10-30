@@ -31,9 +31,9 @@ function createFakeDb() {
     { id: OP_ALREADY_VOID, company_id: COMPANY_A, status: 'VOID' },
   ];
   const dispatchSlips: Row[] = [
-    { id: SLIP_1, company_id: COMPANY_A, intake_operation_id: OP_1 },
-    { id: SLIP_PRICED, company_id: COMPANY_A, intake_operation_id: OP_PRICED },
-    { id: SLIP_ALREADY_VOID, company_id: COMPANY_A, intake_operation_id: OP_ALREADY_VOID },
+    { id: SLIP_1, company_id: COMPANY_A, intake_operation_id: OP_1, purchase_invoice_id: null },
+    { id: SLIP_PRICED, company_id: COMPANY_A, intake_operation_id: OP_PRICED, purchase_invoice_id: null },
+    { id: SLIP_ALREADY_VOID, company_id: COMPANY_A, intake_operation_id: OP_ALREADY_VOID, purchase_invoice_id: null },
   ];
   const dispatchSlipLines: Row[] = [
     { id: 'line-1', slip_id: SLIP_1, unit_price: null },
@@ -43,7 +43,7 @@ function createFakeDb() {
   const query = async (text: string, params: unknown[] = []): Promise<{ rows: Row[] }> => {
     const sql = norm(text);
 
-    if (sql.includes('select intake_operation_id from intake_dispatch_slips')) {
+    if (sql.includes('select intake_operation_id, purchase_invoice_id from intake_dispatch_slips')) {
       const [id, companyId] = params as [string, string];
       const row = dispatchSlips.find((s) => s.id === id && s.company_id === companyId);
       return { rows: row ? [row] : [] };

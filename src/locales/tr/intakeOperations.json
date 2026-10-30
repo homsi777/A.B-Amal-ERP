@@ -45,6 +45,13 @@
   "colActions": "İşlemler",
   "noSlipsYet": "Henüz irsaliye yok",
 
+  "postInvoice.button": "Satın Alma Faturasına Aktar",
+  "postInvoice.confirm": "{{slipNo}} irsaliyesi gerçek bir satın alma faturasına aktarılsın mı? Sonrasında tedarikçi ekstresinde görünür ve buradan geri alınamaz.",
+  "postInvoice.success": "{{invoiceNo}} numaralı satın alma faturası oluşturuldu",
+  "postInvoice.failed": "Faturaya aktarılamadı",
+  "postInvoice.needsPricingFirst": "Faturaya aktarmadan önce tüm satırları fiyatlandırın",
+  "postInvoice.statusBadge": "Faturaya Aktarıldı",
+
   "void.button": "İrsaliyeyi İptal Et",
   "void.confirm": "{{slipNo}} irsaliyesi iptal edilsin mi? Yalnızca evrak iptali — toplar depoda olduğu gibi kalır.",
   "void.success": "İrsaliye iptal edildi",

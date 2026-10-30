@@ -12,6 +12,8 @@ export interface ApiIntakeDispatchSlip {
   supplier_name: string;
   order_no: string;
   operation_status: 'DRAFT' | 'COMPLETED' | 'VOID';
+  purchase_invoice_id: string | null;
+  purchase_invoice_no: string | null;
   line_count: number;
   priced_line_count: number;
   created_at: string;
@@ -57,4 +59,16 @@ export async function updateIntakeDispatchSlipLinePrices(
 /** إلغاء ورقي بالكامل — الأتواب التي أُنشئت بهذه العملية تبقى بالمخزون كما هي. */
 export async function voidIntakeDispatchSlip(id: string): Promise<void> {
   await apiFetch(`/api/intake-dispatch-slips/${id}/void`, { method: 'POST' });
+}
+
+/** يُرحِّل إرسالية شراء مُسعَّرة بالكامل إلى فاتورة شراء حقيقية مؤكَّدة —
+ * بعدها تظهر بكشف حساب المورّد. متاح فقط لإرساليات slip_type='PURCHASE'. */
+export async function createPurchaseInvoiceFromDispatchSlip(
+  id: string,
+): Promise<{ id: string; invoiceNo: string }> {
+  const res = await apiFetch<{ ok: boolean; data: { id: string; invoiceNo: string } }>(
+    `/api/intake-dispatch-slips/${id}/create-purchase-invoice`,
+    { method: 'POST' },
+  );
+  return res.data;
 }

@@ -3,6 +3,7 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import {
+  createPurchaseInvoiceFromDispatchSlip,
   getDispatchSlipWithLines,
   listDispatchSlips,
   updateDispatchSlipLinePrices,
@@ -54,6 +55,24 @@ export const intakeDispatchSlipRoutes: FastifyPluginAsync = async (app) => {
       await voidIntakeDispatchSlip(client, companyId, id);
       await client.query('COMMIT');
       return reply.send({ ok: true });
+    } catch (e: unknown) {
+      await client.query('ROLLBACK');
+      return handleServiceError(reply, e);
+    } finally {
+      client.release();
+    }
+  });
+
+  app.post('/:id/create-purchase-invoice', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const invoice = await createPurchaseInvoiceFromDispatchSlip(client, companyId, userId, id);
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: invoice });
     } catch (e: unknown) {
       await client.query('ROLLBACK');
       return handleServiceError(reply, e);

@@ -45,6 +45,13 @@
   "colActions": "إجراءات",
   "noSlipsYet": "لا توجد إرساليات بعد",
 
+  "postInvoice.button": "ترحيل لفاتورة شراء",
+  "postInvoice.confirm": "ترحيل الإرسالية {{slipNo}} إلى فاتورة شراء حقيقية؟ تظهر بعدها بكشف حساب المورّد ولا يمكن التراجع عنها من هنا.",
+  "postInvoice.success": "تم إنشاء فاتورة الشراء رقم {{invoiceNo}}",
+  "postInvoice.failed": "تعذر الترحيل لفاتورة شراء",
+  "postInvoice.needsPricingFirst": "سعّري كل الأسطر أولاً قبل الترحيل لفاتورة شراء",
+  "postInvoice.statusBadge": "مُرحَّلة لفاتورة",
+
   "void.button": "إلغاء الإرسالية",
   "void.confirm": "إلغاء الإرسالية {{slipNo}}؟ إلغاء ورقي فقط — الأتواب تبقى بالمخزون كما هي.",
   "void.success": "تم إلغاء الإرسالية",

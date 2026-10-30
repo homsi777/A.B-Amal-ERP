@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Ban, Loader2, Printer, Tag } from 'lucide-react';
+import { Ban, FileCheck2, Loader2, Printer, Tag } from 'lucide-react';
 import {
+  createPurchaseInvoiceFromDispatchSlip,
   getIntakeDispatchSlip,
   listIntakeDispatchSlips,
   updateIntakeDispatchSlipLinePrices,
@@ -27,6 +28,7 @@ export const IntakeDispatchSlips: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [voidingId, setVoidingId] = useState<string | null>(null);
+  const [postingId, setPostingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -110,6 +112,20 @@ export const IntakeDispatchSlips: React.FC = () => {
     }
   };
 
+  const handlePostPurchaseInvoice = async (row: ApiIntakeDispatchSlip) => {
+    if (!window.confirm(t('postInvoice.confirm', { slipNo: row.slip_no }))) return;
+    setPostingId(row.id);
+    try {
+      const invoice = await createPurchaseInvoiceFromDispatchSlip(row.id);
+      showToast({ type: 'success', message: t('postInvoice.success', { invoiceNo: invoice.invoiceNo }) });
+      await load();
+    } catch (e) {
+      showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('postInvoice.failed') });
+    } finally {
+      setPostingId(null);
+    }
+  };
+
   return (
     <div className="p-4 space-y-4" dir="rtl">
       <div>
@@ -140,6 +156,8 @@ export const IntakeDispatchSlips: React.FC = () => {
             )}
             {rows.map((row) => {
               const isVoid = row.operation_status === 'VOID';
+              const isPosted = Boolean(row.purchase_invoice_id);
+              const fullyPriced = row.line_count > 0 && row.priced_line_count === row.line_count;
               return (
               <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/70 ${isVoid ? 'opacity-60' : ''}`}>
                 <td className="p-3 font-mono font-bold text-indigo-700" dir="ltr">{row.slip_no}</td>
@@ -147,9 +165,20 @@ export const IntakeDispatchSlips: React.FC = () => {
                 <td className="p-3">{row.slip_type === 'STOCK' ? t('actionStock') : t('actionPurchase')}</td>
                 <td className="p-3 text-slate-700">{row.supplier_name}</td>
                 <td className="p-3 text-slate-700">{row.warehouse_name}</td>
-                <td className="p-3 text-slate-600">{row.priced_line_count}/{row.line_count}</td>
+                <td className="p-3 text-slate-600">
+                  {row.priced_line_count}/{row.line_count}
+                  {isPosted && (
+                    <div className="mt-0.5 font-mono text-[11px] font-bold text-emerald-700" dir="ltr">
+                      {row.purchase_invoice_no}
+                    </div>
+                  )}
+                </td>
                 <td className="p-3">
-                  {isVoid ? (
+                  {isPosted ? (
+                    <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700">
+                      {t('postInvoice.statusBadge')}
+                    </span>
+                  ) : isVoid ? (
                     <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700">
                       {t('void.statusBadge')}
                     </span>
@@ -163,7 +192,7 @@ export const IntakeDispatchSlips: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
-                      disabled={isVoid}
+                      disabled={isVoid || isPosted}
                       onClick={() => void openPricing(row.id)}
                       className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white disabled:opacity-40"
                     >
@@ -179,7 +208,19 @@ export const IntakeDispatchSlips: React.FC = () => {
                       {printingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
                       {t('print.button')}
                     </button>
-                    {!isVoid && (
+                    {row.slip_type === 'PURCHASE' && !isVoid && !isPosted && (
+                      <button
+                        type="button"
+                        disabled={!fullyPriced || postingId === row.id}
+                        title={!fullyPriced ? t('postInvoice.needsPricingFirst') : undefined}
+                        onClick={() => void handlePostPurchaseInvoice(row)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-40"
+                      >
+                        {postingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />}
+                        {t('postInvoice.button')}
+                      </button>
+                    )}
+                    {!isVoid && !isPosted && (
                       <button
                         type="button"
                         disabled={voidingId === row.id}
