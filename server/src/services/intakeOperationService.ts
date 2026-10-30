@@ -6,7 +6,9 @@ import { validateAndBuildReturnDraft, type CreateReturnBody } from './returnInvo
 import { createSalesInvoice } from './salesInvoiceService.js';
 
 const createIntakeOperationSchema = z.object({
-  supplierId: z.string().uuid('المورد مطلوب'),
+  // اختياري فقط عند actionType='RETURN' (الجهة الفعلية عميل لا مورّد) — يبقى
+  // إلزامياً لكل الإجراءات الأخرى، يُتحقَّق منه صراحة بالأسفل.
+  supplierId: z.string().uuid('المورد مطلوب').optional().nullable(),
   warehouseId: z.string().uuid('المستودع مطلوب'),
   actionType: z.enum(['PROCESSING', 'STOCK', 'RETURN', 'PURCHASE']),
   customerId: z.string().uuid().optional().nullable(),
@@ -29,7 +31,7 @@ export type IntakeOperationRow = {
   id: string;
   company_id: string;
   order_no: string;
-  supplier_id: string;
+  supplier_id: string | null;
   warehouse_id: string;
   action_type: 'PROCESSING' | 'STOCK' | 'RETURN' | 'PURCHASE';
   customer_id: string | null;
@@ -61,15 +63,22 @@ export async function createIntakeOperation(
       { code: 'VALIDATION' },
     );
   }
+  // "مرتجع": الجهة الفعلية عميل لا مورّد — المورّد غير مطلوب ولا يُتحقَّق منه
+  // إطلاقاً بهذه الحالة. كل الإجراءات الأخرى تبقى تتطلب مورّداً كما كانت.
+  if (input.actionType !== 'RETURN' && !input.supplierId) {
+    throw Object.assign(new Error('المورد مطلوب'), { code: 'VALIDATION' });
+  }
 
-  const supplierRow = await client.query<{ is_active: boolean; is_processing_party: boolean }>(
-    `SELECT is_active, is_processing_party FROM suppliers WHERE id=$1 AND company_id=$2`,
-    [input.supplierId, companyId],
-  );
-  if (!supplierRow.rows.length) throw Object.assign(new Error('المورد غير موجود'), { code: 'NOT_FOUND' });
-  if (!supplierRow.rows[0].is_active) throw Object.assign(new Error('المورد غير نشط'), { code: 'VALIDATION' });
-  if (input.actionType === 'PROCESSING' && !supplierRow.rows[0].is_processing_party) {
-    throw Object.assign(new Error('هذا المورد ليس جهة تجهيز (مصبغة/مطبعة)'), { code: 'VALIDATION' });
+  if (input.actionType !== 'RETURN') {
+    const supplierRow = await client.query<{ is_active: boolean; is_processing_party: boolean }>(
+      `SELECT is_active, is_processing_party FROM suppliers WHERE id=$1 AND company_id=$2`,
+      [input.supplierId, companyId],
+    );
+    if (!supplierRow.rows.length) throw Object.assign(new Error('المورد غير موجود'), { code: 'NOT_FOUND' });
+    if (!supplierRow.rows[0].is_active) throw Object.assign(new Error('المورد غير نشط'), { code: 'VALIDATION' });
+    if (input.actionType === 'PROCESSING' && !supplierRow.rows[0].is_processing_party) {
+      throw Object.assign(new Error('هذا المورد ليس جهة تجهيز (مصبغة/مطبعة)'), { code: 'VALIDATION' });
+    }
   }
 
   const whRow = await client.query<{ is_active: boolean; fabric_stage: string | null }>(
@@ -113,7 +122,8 @@ export async function createIntakeOperation(
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      RETURNING *`,
     [
-      companyId, orderNo, input.supplierId, input.warehouseId, input.actionType,
+      companyId, orderNo, input.actionType === 'RETURN' ? null : input.supplierId,
+      input.warehouseId, input.actionType,
       input.customerId ?? null, input.fabricStage ?? null, input.preparationTypeId ?? null, userId,
     ],
   );

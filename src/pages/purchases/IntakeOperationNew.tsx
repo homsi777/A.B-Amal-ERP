@@ -71,7 +71,12 @@ export const IntakeOperationNew: React.FC = () => {
   }, [suppliers, supplierSearch]);
 
   const submit = async () => {
-    if (!supplierId || !warehouseId) {
+    // "مرتجع": الجهة الفعلية عميل لا مورّد — المورّد غير مطلوب بهذه الحالة.
+    if (actionType !== 'RETURN' && !supplierId) {
+      showToast({ type: 'warning', message: t('requiredFields') });
+      return;
+    }
+    if (!warehouseId) {
       showToast({ type: 'warning', message: t('requiredFields') });
       return;
     }
@@ -86,7 +91,7 @@ export const IntakeOperationNew: React.FC = () => {
     setSaving(true);
     try {
       const op = await createIntakeOperation({
-        supplierId,
+        supplierId: actionType === 'RETURN' ? null : supplierId,
         warehouseId,
         actionType,
         customerId: actionType === 'RETURN' ? customerId : null,
@@ -119,29 +124,35 @@ export const IntakeOperationNew: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-        <label className="space-y-1 block">
-          <span className="text-xs font-bold text-slate-600">{t('supplierLabel')}</span>
-          <input
-            type="text"
-            value={supplierSearch}
-            onChange={(e) => setSupplierSearch(e.target.value)}
-            placeholder={t('supplierSearchPlaceholder')}
-            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs bg-slate-50 mb-1"
-          />
-          <select
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          >
-            <option value="">{t('chooseSupplier')}</option>
-            {filteredSuppliers.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-          {suppliers.length === 0 && (
-            <p className="text-xs text-amber-700">{t('noSuppliersAtAll')}</p>
-          )}
-        </label>
+        {actionType === 'RETURN' ? (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            {t('supplierNotApplicableForReturn')}
+          </p>
+        ) : (
+          <label className="space-y-1 block">
+            <span className="text-xs font-bold text-slate-600">{t('supplierLabel')}</span>
+            <input
+              type="text"
+              value={supplierSearch}
+              onChange={(e) => setSupplierSearch(e.target.value)}
+              placeholder={t('supplierSearchPlaceholder')}
+              className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs bg-slate-50 mb-1"
+            />
+            <select
+              value={supplierId}
+              onChange={(e) => setSupplierId(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            >
+              <option value="">{t('chooseSupplier')}</option>
+              {filteredSuppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            {suppliers.length === 0 && (
+              <p className="text-xs text-amber-700">{t('noSuppliersAtAll')}</p>
+            )}
+          </label>
+        )}
 
         <label className="space-y-1 block">
           <span className="text-xs font-bold text-slate-600">{t('warehouseLabel')}</span>

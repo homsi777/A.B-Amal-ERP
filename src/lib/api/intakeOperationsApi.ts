@@ -6,7 +6,8 @@ export interface ApiIntakeOperation {
   id: string;
   company_id: string;
   order_no: string;
-  supplier_id: string;
+  /** NULL فقط عند action_type='RETURN' — الجهة الفعلية عميل لا مورّد. */
+  supplier_id: string | null;
   warehouse_id: string;
   action_type: IntakeActionType;
   customer_id: string | null;
@@ -22,7 +23,8 @@ export interface ApiIntakeOperation {
 }
 
 export interface CreateIntakeOperationPayload {
-  supplierId: string;
+  /** اختياري فقط عند actionType='RETURN'. */
+  supplierId?: string | null;
   warehouseId: string;
   actionType: IntakeActionType;
   customerId?: string | null;
