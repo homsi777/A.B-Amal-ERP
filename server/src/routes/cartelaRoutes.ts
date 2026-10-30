@@ -325,6 +325,33 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
       } else if (resolvedVariantId || d.fabricColorId) {
         await client.query('ROLLBACK');
         return sendError(reply, 400, 'اللون/الفاريانت يتطلب اختيار الخامة أولاً', 'VALIDATION');
+      } else {
+        // كارتيله خارجية غير مرتبطة بخامة — لا يوجد قيد قاعدة بيانات يمنع
+        // تكرارها (كود التصميم حر نصياً)؛ نفس اسم الخامة/كود التصميم/اللون
+        // معاً يُعتبَر "نفس الكارتيله موجودة أصلاً" ويُمنَع تكرارها بتحذير
+        // واضح، لا إنشاء صامت لنسخة مكررة.
+        const art = d.artCode.trim();
+        const design = d.designNo.trim();
+        const colour = d.colour.trim();
+        if (art) {
+          const dupExternal = await client.query(
+            `SELECT id FROM cartela_labels
+              WHERE company_id=$1 AND fabric_item_id IS NULL
+                AND lower(trim(art_code))=lower($2)
+                AND lower(trim(design_no))=lower($3)
+                AND lower(trim(colour))=lower($4)`,
+            [companyId, art, design, colour],
+          );
+          if (dupExternal.rows.length) {
+            await client.query('ROLLBACK');
+            return sendError(
+              reply,
+              409,
+              'يوجد كارتيله بنفس كود التصميم ورقم الدسان واللون مسبقاً — عدّلي أحدها أو استخدمي الكارتيله الموجودة',
+              'DUPLICATE',
+            );
+          }
+        }
       }
 
       const autoSerial = await allocateCartelaSerialNo(client, companyId);
