@@ -365,6 +365,56 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  /**
+   * يُستدعى من خانة "الجهة" الموحّدة (عملاء+موردون) بفاتورة البيع عند اختيار
+   * مورّد لا يملك سجل عميل بعد — فاتورة البيع مرتبطة تقنياً بجدول العملاء
+   * فقط (customer_id)، فيُنشأ له سجل عميل تلقائياً بنفس بياناته ليُستخدَم
+   * بالفاتورة. مطابقة أولاً بالاسم (غير حسّاسة لحالة الأحرف/الفراغات)
+   * لتفادي تكرار نفس الجهة كعميل مرتين لو اختير نفس المورّد لاحقاً.
+   */
+  app.post('/from-supplier/:supplierId', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId, sub: userId } = req.user!;
+    const { supplierId } = req.params as { supplierId: string };
+    const pool = getPool();
+
+    const supplierRow = await pool.query<{ name: string; phone: string | null; email: string | null; address: string | null }>(
+      `SELECT name, phone, email, address FROM suppliers WHERE id=$1 AND company_id=$2`,
+      [supplierId, companyId],
+    );
+    if (!supplierRow.rows.length) return sendError(reply, 404, 'المورد غير موجود', 'NOT_FOUND');
+    const sup = supplierRow.rows[0];
+
+    const existing = await pool.query<{ id: string; code: string; name: string }>(
+      `SELECT id, code, name FROM customers WHERE company_id=$1 AND lower(trim(name))=lower(trim($2)) LIMIT 1`,
+      [companyId, sup.name],
+    );
+    if (existing.rows.length) {
+      return reply.send({ ok: true, data: { ...existing.rows[0], created: false } });
+    }
+
+    const code = genCode();
+    const row = await pool.query<{ id: string; code: string; name: string }>(
+      `INSERT INTO customers(company_id,code,name,phone,email,address,notes)
+       VALUES($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id,code,name`,
+      [companyId, code, sup.name, sup.phone, sup.email || null, sup.address, 'أُنشئ تلقائياً من سجل مورّد — نفس الجهة بقسم الموردين'],
+    );
+    try {
+      await insertPartyActivityLog(pool, {
+        companyId,
+        partyType: 'CUSTOMER',
+        partyId: row.rows[0].id,
+        partyName: row.rows[0].name,
+        activityType: 'CREATED',
+        description: 'إنشاء عميل تلقائي من مورّد (خانة الجهة)',
+        userId,
+      });
+    } catch {
+      /* لا نمنع إنشاء العميل إذا فشل السجل */
+    }
+    return reply.status(201).send({ ok: true, data: { ...row.rows[0], created: true } });
+  });
+
   app.post('/import-statement', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId, sub: userId } = req.user!;
     const parsed = importStatementBody.safeParse(req.body);

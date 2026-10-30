@@ -84,6 +84,18 @@ export async function createCustomer(payload: CustomerPayload): Promise<ApiCusto
   return res.data;
 }
 
+/** يجد/ينشئ سجل عميل مطابق لمورّد — لاستخدامه بفاتورة بيع عند اختيار مورّد
+ * من خانة "الجهة" الموحّدة لا يملك سجل عميل بعد. */
+export async function findOrCreateCustomerFromSupplier(
+  supplierId: string,
+): Promise<{ id: string; code: string; name: string; created: boolean }> {
+  const res = await apiFetch<{ ok: boolean; data: { id: string; code: string; name: string; created: boolean } }>(
+    `/api/customers/from-supplier/${supplierId}`,
+    { method: 'POST' },
+  );
+  return res.data;
+}
+
 export async function importCustomerStatement(payload: {
   fileName: string;
   customerName: string;

@@ -6,7 +6,7 @@ import { ArrowRight, Save, X, FileText, Plus, Trash2, QrCode, ChevronDown, Chevr
 import { format } from 'date-fns';
 import { calculateFabricInvoiceSummary, calculateFabricWeightKg } from '../../lib/fabricInvoiceSummary';
 import { sendTelegramInvoiceFromSavedInvoice } from '../../lib/telegramInvoice';
-import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
+import { listCustomers, findOrCreateCustomerFromSupplier, type ApiCustomer } from '../../lib/api/customersApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import {
   listFabricRolls,
@@ -1065,11 +1065,30 @@ export const InvoiceForm = () => {
     };
   }, [materialSuggest?.lineId]);
 
+  // خانة "الجهة" بفاتورة البيع تضم العملاء والموردين معاً — بعض الموردين
+  // يبيعهم المدير فعلياً (يصبحون عملاء عملياً) لكن لا سجل عميل لهم بعد.
+  // مورّد يحمل نفس اسم عميل موجود فعلاً يُخفى من هذه القائمة (نفس الجهة
+  // أصلاً ضمن قائمة العملاء) تفادياً لازدواج ظاهري بالاختيار.
+  const mergedSalesPartyOptions = useMemo(() => {
+    if (!isSales) return [];
+    const customerNames = new Set(
+      customerSource.map((c) => String(c.name ?? '').trim().toLocaleLowerCase()).filter(Boolean),
+    );
+    const taggedCustomers = customerSource.map((c) => ({ ...c, partyKind: 'customer' as const }));
+    const taggedSuppliers = supplierSource
+      .filter((s) => !customerNames.has(String(s.name ?? '').trim().toLocaleLowerCase()))
+      .map((s) => ({ ...s, name: `${s.name} (${t('party.supplierBadge')})`, partyKind: 'supplier' as const }));
+    return [...taggedCustomers, ...taggedSuppliers];
+  }, [isSales, customerSource, supplierSource]);
+
   const selectedParty = isSales
-    ? customerSource.find((customer) => customer.id === partyId)
+    ? mergedSalesPartyOptions.find((party) => party.id === partyId)
     : supplierSource.find((supplier) => supplier.id === partyId);
 
-  const partyOptions = useMemo(() => (isSales ? customerSource : supplierSource), [customerSource, supplierSource, isSales]);
+  const partyOptions = useMemo(
+    () => (isSales ? mergedSalesPartyOptions : supplierSource),
+    [isSales, mergedSalesPartyOptions, supplierSource],
+  );
 
   const partyBalance = isSales && partyStatementBalance != null
     ? partyStatementBalance
@@ -2523,6 +2542,23 @@ export const InvoiceForm = () => {
       return;
     }
 
+    // فاتورة بيع مرتبطة تقنياً بجدول العملاء فقط — إن كانت الجهة المختارة
+    // مورّداً (partyId يشير فعلياً لسجل مورّد) يُنشأ/يُطابَق له سجل عميل
+    // تلقائياً أولاً، فيصبح partyId معرّف العميل الفعلي المُستخدَم بالفاتورة.
+    let effectivePartyId = partyId;
+    if (isSales && selectedParty && (selectedParty as { partyKind?: string }).partyKind === 'supplier') {
+      try {
+        const matched = await findOrCreateCustomerFromSupplier(partyId);
+        effectivePartyId = matched.id;
+      } catch (e) {
+        showToast({
+          type: 'error',
+          message: e instanceof ApiRequestError ? e.message : t('party.resolveSupplierFailed'),
+        });
+        return;
+      }
+    }
+
     if (status === 'final' && paidAmount > 0) {
       const uuidReCash =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -2644,13 +2680,13 @@ export const InvoiceForm = () => {
     const salesPersistBodyCreate: SalesInvoiceCreatePayload = {
       invoiceNo: CREATE_INVOICE_API_NO_STUB,
       ...invoicePersistCommon,
-      customerId: partyId,
+      customerId: effectivePartyId,
       customerOrderId,
     };
 
     const salesPersistBodyUpdate: Partial<SalesInvoiceCreatePayload> = {
       ...invoicePersistCommon,
-      customerId: partyId,
+      customerId: effectivePartyId,
       customerOrderId,
       ...(isInvoiceNoUiPlaceholder || !trimmedInvoiceNo ? {} : { invoiceNo: trimmedInvoiceNo }),
     };
@@ -3094,14 +3130,14 @@ export const InvoiceForm = () => {
         {/* صف 1: العميل / المورد + نوع البيع (توب/متر أو كج) — الأول على الموبايل */}
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">{isSales ? t('party.customerLabel') : t('party.supplierLabel')}</label>
+            <label className="text-sm font-bold text-slate-700">{isSales ? t('party.partyLabel') : t('party.supplierLabel')}</label>
             <SmartPartySearch
               options={partyOptions}
               selectedId={partyId}
               onSelect={setPartyId}
               onEnterFallback={focusNextFormControl}
-              placeholder={isSales ? t('party.customerPlaceholder') : t('party.supplierPlaceholder')}
-              emptyLabel={isSales ? t('party.customerEmpty') : t('party.supplierEmpty')}
+              placeholder={isSales ? t('party.partyPlaceholder') : t('party.supplierPlaceholder')}
+              emptyLabel={isSales ? t('party.partyEmpty') : t('party.supplierEmpty')}
             />
             {partyId && selectedParty ? (
               <p className={`text-xs font-bold font-mono px-0.5 ${balanceColor}`}>
