@@ -3,7 +3,7 @@ import { getPool } from '../db/pool.js';
 /** تصنيف عملياتي مبسَّط لكل حركة — يُشتق من reference_type أولاً (الأدق)،
  * ثم movement_type كاحتياط. لا يغيّر أي بيانات، للعرض/الفلترة فقط. */
 export type MovementKind =
-  | 'PURCHASE' | 'SALE' | 'PROCESSING' | 'RETURN' | 'TRANSFER' | 'WASTE' | 'MANUAL' | 'OTHER';
+  | 'PURCHASE' | 'SALE' | 'PROCESSING' | 'RETURN' | 'TRANSFER' | 'WASTE' | 'MANUAL' | 'INTAKE' | 'OTHER';
 
 /** يُحسَب بالـSQL مباشرة (بدل جلب كل الصفوف وفلترتها بالتطبيق) — تصنيف
  * يطابق منطق القسم الموزَّع بالخدمات الأخرى حرفياً. */
@@ -15,6 +15,7 @@ const MOVEMENT_KIND_CASE_SQL = `
     WHEN im.reference_type IN ('RETURN_INVOICE', 'RETURN_INVOICE_REVERSAL') THEN 'RETURN'
     WHEN im.reference_type = 'INVENTORY_TRANSFER' THEN 'TRANSFER'
     WHEN im.reference_type = 'INVENTORY_WASTE' THEN 'WASTE'
+    WHEN im.reference_type = 'INTAKE_OPERATION' THEN 'INTAKE'
     WHEN im.movement_type = 'MANUAL_CREATE' THEN 'MANUAL'
     WHEN im.movement_type IN ('TRANSFER_OUT', 'TRANSFER_IN') THEN 'TRANSFER'
     WHEN im.movement_type = 'DAMAGE' THEN 'WASTE'
@@ -37,6 +38,7 @@ function resolveSourceLink(referenceType: string | null, referenceId: string | n
   }
   if (referenceType === 'RETURN_INVOICE' || referenceType === 'RETURN_INVOICE_REVERSAL') return '/invoices/returns';
   if (referenceType === 'INVENTORY_TRANSFER') return '/inventory/transfers';
+  if (referenceType === 'INTAKE_OPERATION') return '/inventory/intake-dispatch-slips';
   return `/inventory/rolls/${rollId}`;
 }
 
@@ -66,6 +68,10 @@ export type InventoryMovementsLogFilters = {
   search?: string;
   dateFrom?: string;
   dateTo?: string;
+  /** تصفية دقيقة لكل حركات مستند واحد فقط — تُستخدَم للدخول لتفاصيل مستند
+   * من الشاشة المجمَّعة بالمستندات (كل سطر = مستند، لا توب). */
+  referenceType?: string;
+  referenceId?: string;
   page?: number;
   pageSize?: number;
 };
@@ -104,6 +110,16 @@ export async function listInventoryMovementsLog(
   if (filters.dateTo) {
     conditions.push(`n.created_at::date <= $${p}::date`);
     params.push(filters.dateTo);
+    p++;
+  }
+  if (filters.referenceType) {
+    conditions.push(`n.reference_type = $${p}`);
+    params.push(filters.referenceType);
+    p++;
+  }
+  if (filters.referenceId) {
+    conditions.push(`n.reference_id = $${p}`);
+    params.push(filters.referenceId);
     p++;
   }
   if (filters.search) {

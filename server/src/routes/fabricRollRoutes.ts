@@ -1180,15 +1180,17 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Validate intake operation (must belong to company and still be open)
+    let intakeOrderNo: string | null = null;
     if (d.intakeOperationId) {
       const opCheck = await pool.query(
-        'SELECT id, status FROM intake_operations WHERE id=$1 AND company_id=$2',
+        'SELECT id, status, order_no FROM intake_operations WHERE id=$1 AND company_id=$2',
         [d.intakeOperationId, companyId],
       );
       if (!opCheck.rows.length) return sendError(reply, 404, 'عملية الإدخال غير موجودة', 'NOT_FOUND');
       if (opCheck.rows[0].status !== 'DRAFT') {
         return sendError(reply, 400, 'عملية الإدخال هذه مُنهاة مسبقاً', 'VALIDATION');
       }
+      intakeOrderNo = String(opCheck.rows[0].order_no);
     }
 
     // Validate currency
@@ -1239,12 +1241,20 @@ export const fabricRollRoutes: FastifyPluginAsync = async (app) => {
 
       const roll = rollRow.rows[0];
 
+      // reference_type/reference_id يُربطان هذه الحركة بعملية الإدخال عند
+      // وجودها — بدونهما كانت هذه الحركة الوحيدة بلا أي أثر يربطها بمستندها
+      // الأصلي ضمن جدول الحركات نفسه (الرابط الوحيد كان fabric_rolls.intake_operation_id).
       await client.query(
         `INSERT INTO inventory_movements
            (company_id, roll_id, movement_type, to_warehouse_id, to_location_id,
-            new_status, notes, created_by_user_id)
-         VALUES ($1,$2,'MANUAL_CREATE',$3,$4,'AVAILABLE',$5,$6)`,
-        [companyId, roll.id, d.warehouseId, d.locationId ?? null, d.notes ?? null, userId],
+            new_status, notes, created_by_user_id, reference_type, reference_id, reference_no)
+         VALUES ($1,$2,'MANUAL_CREATE',$3,$4,'AVAILABLE',$5,$6,$7,$8,$9)`,
+        [
+          companyId, roll.id, d.warehouseId, d.locationId ?? null, d.notes ?? null, userId,
+          d.intakeOperationId ? 'INTAKE_OPERATION' : null,
+          d.intakeOperationId ?? null,
+          intakeOrderNo,
+        ],
       );
 
       await client.query('COMMIT');
