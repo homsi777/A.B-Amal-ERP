@@ -89,6 +89,9 @@ export type AccountStatementDisplayRow = {
   credit: number;
   balance: number;
   isCustomerDiscount?: boolean;
+  /** يُمرَّر من صف المصدر الخام — يتيح فتح المستند الأصلي من الواجهة. */
+  sourceType?: string;
+  sourceId?: string;
 };
 
 function invoiceRowKey(row: AccountStatementSourceRow): string {
@@ -97,27 +100,35 @@ function invoiceRowKey(row: AccountStatementSourceRow): string {
   return `doc:${String(row.documentNo ?? '').trim()}`;
 }
 
-/** Flatten API rows (expand imported invoice lines) then sort chronologically and recompute balance. */
+/** Flatten API rows (expand imported invoice lines) then sort chronologically and recompute balance.
+ * `isInvoiceRow` يُحدِّد أي صفوف الكشف تُعتبَر "فاتورة" لها بنود تفصيلية
+ * تُدمَج — افتراضياً فواتير البيع (سلوك الدالة الأصلي بلا أي تغيير)، أو
+ * `isStatementPurchaseInvoiceRow` عند استدعائها لكشف حساب مورّد. */
 export function flattenAccountStatementDisplayRows(args: {
   rows: AccountStatementSourceRow[];
   openingBalance: number;
   saleInvoices?: Invoice[];
   invoiceDetailsBySourceId?: InvoiceDetailsBySourceId;
   invoiceDetailsByDocumentNo?: InvoiceDetailsByDocumentNo;
+  isInvoiceRow?: (row: AccountStatementSourceRow) => boolean;
+  defaultTypeLabel?: string;
 }): AccountStatementDisplayRow[] {
   const pending: Array<AccountStatementDisplayRow & { sortDate: string; sortKey: string }> = [];
   const seenSalesKeys = new Set<string>();
+  const isInvoiceRow = args.isInvoiceRow ?? isStatementSalesInvoiceRow;
+  const defaultTypeLabel = args.defaultTypeLabel ?? 'فاتورة بيع';
 
   for (const row of args.rows) {
-    if (isStatementSalesInvoiceRow(row)) {
+    if (isInvoiceRow(row)) {
       const key = invoiceRowKey(row);
       if (seenSalesKeys.has(key)) continue;
       seenSalesKeys.add(key);
 
-      const invoiceRows = args.rows.filter((r) => isStatementSalesInvoiceRow(r) && invoiceRowKey(r) === key);
+      const invoiceRows = args.rows.filter((r) => isInvoiceRow(r) && invoiceRowKey(r) === key);
       const lineGroups = resolveInvoiceDetailRowsForStatementRow(row, args.saleInvoices ?? [], {
         invoiceDetailsBySourceId: args.invoiceDetailsBySourceId,
         invoiceDetailsByDocumentNo: args.invoiceDetailsByDocumentNo,
+        isInvoiceRow,
       });
       const relatedInvoice = findSaleInvoiceForStatementRow(row, args.saleInvoices ?? []);
       const expandImportedLines = shouldExpandStatementImportLines(relatedInvoice, lineGroups);
@@ -143,11 +154,13 @@ export function flattenAccountStatementDisplayRows(args: {
       pending.push({
         date: row.date,
         documentNo: String(row.documentNo ?? ''),
-        typeLabel: row.typeLabel || row.description || 'فاتورة بيع',
+        typeLabel: row.typeLabel || row.description || defaultTypeLabel,
         fabric,
         debit: invoiceRows.reduce((sum, r) => sum + Number(r.debit || 0), 0),
         credit: invoiceRows.reduce((sum, r) => sum + Number(r.credit || 0), 0),
         balance: 0,
+        sourceType: row.sourceType,
+        sourceId: row.sourceId,
         sortDate: row.date,
         sortKey: String(row.documentNo ?? ''),
       });
@@ -165,6 +178,8 @@ export function flattenAccountStatementDisplayRows(args: {
       fabric: null,
       debit: Number(row.debit || 0),
       credit: Number(row.credit || 0),
+      sourceType: row.sourceType,
+      sourceId: row.sourceId,
       balance: 0,
       isCustomerDiscount: row.type === 'CUSTOMER_DISCOUNT',
       sortDate: row.date,
@@ -269,6 +284,21 @@ export function isStatementSalesInvoiceRow(row: {
   );
 }
 
+/** نفس المنطق أعلاه لكن لفواتير الشراء — يُستخدَم لإعادة استخدام كل آلية
+ * دمج تفاصيل الفاتورة (الخامة/عدد الأتواب/الكمية/السعر) لكشف حساب المورّد
+ * بنفس الطريقة المعتمدة أصلاً لكشف حساب العميل، بدل تكرارها من الصفر. */
+export function isStatementPurchaseInvoiceRow(row: {
+  sourceType?: string;
+  typeLabel?: string;
+  type?: string;
+}): boolean {
+  return (
+    row.sourceType === 'PURCHASE_INVOICE' ||
+    row.typeLabel === 'فاتورة شراء' ||
+    row.type === 'PURCHASE_INVOICE'
+  );
+}
+
 export function findSaleInvoiceForStatementRow(
   row: { sourceId?: string; documentNo?: string },
   invoices: Invoice[],
@@ -294,9 +324,11 @@ export function resolveInvoiceDetailRowsForStatementRow(
   maps?: {
     invoiceDetailsBySourceId?: InvoiceDetailsBySourceId;
     invoiceDetailsByDocumentNo?: InvoiceDetailsByDocumentNo;
+    isInvoiceRow?: (row: { sourceType?: string; typeLabel?: string; type?: string }) => boolean;
   },
 ): StatementFabricGroup[] {
-  if (!isStatementSalesInvoiceRow(row)) return [];
+  const isInvoiceRow = maps?.isInvoiceRow ?? isStatementSalesInvoiceRow;
+  if (!isInvoiceRow(row)) return [];
 
   const sourceId = String(row.sourceId ?? '').trim();
   const docNo = String(row.documentNo ?? '').trim();

@@ -76,6 +76,7 @@
   "statementTable.colBalanceUsd": "الرصيد (USD)",
   "statementTable.noMovements": "لا توجد حركات ضمن الفترة المحددة",
   "statementTable.openDocumentTitle": "فتح المستند",
+  "statementTable.meterAbbr": "م",
   "statementTable.debitCell": "مدين: {{amount}} {{currency}}",
   "statementTable.creditCell": "دائن: {{amount}} {{currency}}",
   "statementTable.openingBalance": "الرصيد الافتتاحي (USD): {{amount}}",

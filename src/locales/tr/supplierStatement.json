@@ -76,6 +76,7 @@
   "statementTable.colBalanceUsd": "Bakiye (USD)",
   "statementTable.noMovements": "Belirtilen dönemde hareket yok",
   "statementTable.openDocumentTitle": "Belgeyi Aç",
+  "statementTable.meterAbbr": "m",
   "statementTable.debitCell": "Borç: {{amount}} {{currency}}",
   "statementTable.creditCell": "Alacak: {{amount}} {{currency}}",
   "statementTable.openingBalance": "Açılış Bakiyesi (USD): {{amount}}",

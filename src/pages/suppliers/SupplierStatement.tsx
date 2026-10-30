@@ -19,6 +19,11 @@ import { DUES_REPORT_TABLE_HEAD_CSS, sanitizePartyNotesForExport } from '../../l
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { listPurchaseInvoices, getPurchaseInvoice } from '../../lib/api/purchaseInvoicesApi';
 import { mapPurchaseInvoiceDetailToInvoice } from '../../lib/invoiceDbMappers';
+import {
+  buildInvoiceDetailsMaps,
+  flattenAccountStatementDisplayRows,
+  isStatementPurchaseInvoiceRow,
+} from '../../lib/customerStatementInvoiceDetails';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import type { Invoice, Supplier } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
@@ -145,7 +150,7 @@ export const SupplierStatement = () => {
   const isUuid = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
-  const openAccountStatementSource = (row: NonNullable<PartyStatementData['rows']>[number]) => {
+  const openAccountStatementSource = (row: { sourceType?: string; sourceId?: string; documentNo: string }) => {
     if (row.sourceType === 'SALES_INVOICE' || row.sourceType === 'PURCHASE_INVOICE') {
       navigate(`/invoices/statement/${row.sourceId}`);
       return;
@@ -252,6 +257,24 @@ export const SupplierStatement = () => {
     () => [...dbPurchaseInvoicesFromApi, ...legacyLocalPurchaseInvoices],
     [dbPurchaseInvoicesFromApi, legacyLocalPurchaseInvoices],
   );
+
+  const { invoiceDetailsBySourceId, invoiceDetailsByDocumentNo } = useMemo(
+    () => buildInvoiceDetailsMaps(dbPurchaseInvoicesFromApi),
+    [dbPurchaseInvoicesFromApi],
+  );
+
+  const accountStatementDisplayRows = useMemo(() => {
+    if (!accountStatement?.rows?.length) return [];
+    return flattenAccountStatementDisplayRows({
+      rows: accountStatement.rows,
+      openingBalance: accountStatement.openingBalance,
+      saleInvoices: dbPurchaseInvoicesFromApi,
+      invoiceDetailsBySourceId,
+      invoiceDetailsByDocumentNo,
+      isInvoiceRow: isStatementPurchaseInvoiceRow,
+      defaultTypeLabel: 'فاتورة شراء',
+    });
+  }, [accountStatement, dbPurchaseInvoicesFromApi, invoiceDetailsBySourceId, invoiceDetailsByDocumentNo]);
 
   const actualFabricItems = useMemo<SupplierFabricItem[]>(() => {
     if (!selectedSupplierId) return [];
@@ -974,42 +997,60 @@ export const SupplierStatement = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {!accountStatement?.rows?.length ? (
+                {!accountStatementDisplayRows.length ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-slate-500 bg-white">
                       {t('statementTable.noMovements')}
                     </td>
                   </tr>
                 ) : (
-                  accountStatement.rows.map((row) => (
-                    <tr key={`${row.sourceType}-${row.sourceId}`} className="bg-white hover:bg-slate-50">
+                  accountStatementDisplayRows.map((row, idx) => (
+                    <tr key={`stmt-row-${idx}-${row.documentNo}-${row.date}`} className="bg-white hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-600">{row.date}</td>
                       <td className="px-4 py-3 text-slate-700">{row.typeLabel}</td>
                       <td className="px-4 py-3 font-mono text-xs">
-                        <button
-                          type="button"
-                          onClick={() => openAccountStatementSource(row)}
-                          className="text-indigo-700 hover:underline"
-                          title={t('statementTable.openDocumentTitle')}
-                        >
-                          {row.documentNo}
-                        </button>
+                        {row.sourceType && row.sourceId ? (
+                          <button
+                            type="button"
+                            onClick={() => openAccountStatementSource({ sourceType: row.sourceType, sourceId: row.sourceId, documentNo: row.documentNo })}
+                            className="text-indigo-700 hover:underline"
+                            title={t('statementTable.openDocumentTitle')}
+                          >
+                            {row.documentNo}
+                          </button>
+                        ) : (
+                          row.documentNo
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-slate-700 max-w-xl truncate" title={row.description}>
-                        {row.description}
+                      <td
+                        className="px-4 py-3 text-slate-700 max-w-xl truncate"
+                        title={row.fabric?.fabricName || row.detailText || row.typeLabel}
+                      >
+                        {row.fabric?.fabricName || row.detailText || row.typeLabel}
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-700">
-                        {row.debitOriginal && row.debitOriginal !== 0
-                          ? t('statementTable.debitCell', { amount: row.debitOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: row.currency })
-                          : row.creditOriginal && row.creditOriginal !== 0
-                            ? t('statementTable.creditCell', { amount: row.creditOriginal.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: row.currency })
-                            : `— ${row.currency}`}
+                        {row.fabric ? (
+                          <>
+                            {row.fabric.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            <span className="block text-xs text-slate-500">
+                              {row.fabric.rollsCount} {t('itemsTable.colRollsCount')} ·{' '}
+                              {row.fabric.totalQuantity.toLocaleString('ar')} {t('statementTable.meterAbbr')} ×{' '}
+                              {row.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                          </>
+                        ) : row.debit > 0 ? (
+                          t('statementTable.debitCell', { amount: row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: 'USD' })
+                        ) : row.credit > 0 ? (
+                          t('statementTable.creditCell', { amount: row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: 'USD' })
+                        ) : (
+                          '— USD'
+                        )}
                       </td>
                       <td className="px-4 py-3 font-mono text-blue-700">
-                        {row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {row.debit > 0 ? row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                       </td>
                       <td className="px-4 py-3 font-mono text-emerald-700">
-                        {row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {row.credit > 0 ? row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                       </td>
                       <td className="px-4 py-3 font-mono text-slate-900">
                         {row.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
