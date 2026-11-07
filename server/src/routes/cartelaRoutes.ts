@@ -601,6 +601,50 @@ export const cartelaRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  // اقتراحات ربط لون عند إضافة سطر لوحدة الألوان — مقيّدة بنفس كود الدسان
+  // (art_code) لهذه الكارتيلة فقط، لا كامل كتالوج ألوان الشركة: تجلب الألوان
+  // المرتبطة فعلاً بأي كارتيلة أخرى تحمل نفس كود الدسان (حتى لو كانت كارتيلة
+  // مختلفة بلون مختلف) — بطلب المدير بشير مباشرة، كي لا يُضطر لتصفح كل ألوان
+  // المستودع لتصميم محدد. كارتيلة بلا كود دسان (فارغ) ترجع قائمة فارغة — لا
+  // أساس للتقييد بلا كود، والواجهة تتولى حينها العرض غير المقيّد كما كان.
+  app.get('/:cartelaId/colors/catalog-options', { preHandler: authenticateRequest }, async (req, reply) => {
+    const { companyId } = req.user!;
+    const { cartelaId } = req.params as { cartelaId: string };
+    const search = String((req.query as Record<string, string>).search ?? '').trim();
+    try {
+      const parent = await getPool().query<{ art_code: string }>(
+        `SELECT art_code FROM cartela_labels WHERE id = $1 AND company_id = $2`,
+        [cartelaId, companyId],
+      );
+      if (!parent.rows.length) return sendError(reply, 404, 'الكارتيلا غير موجودة', 'NOT_FOUND');
+      const artCode = parent.rows[0].art_code.trim();
+      if (!artCode) return reply.send({ ok: true, data: [] });
+
+      const params: unknown[] = [companyId, artCode];
+      let searchClause = '';
+      if (search) {
+        params.push(`%${search}%`);
+        searchClause = ` AND (fc.name_ar ILIKE $3 OR fc.name_tr ILIKE $3 OR fc.color_code ILIKE $3)`;
+      }
+      const rows = await getPool().query(
+        `SELECT DISTINCT fc.id, fc.name_ar, fc.name_tr, fc.color_code, fc.supplier_color_code, fc.hex_color
+           FROM cartela_label_colors clc
+           JOIN cartela_labels cl ON cl.id = clc.cartela_label_id
+           JOIN fabric_colors fc ON fc.id = clc.fabric_color_id
+          WHERE cl.company_id = $1
+            AND lower(trim(cl.art_code)) = lower($2)
+            AND clc.fabric_color_id IS NOT NULL${searchClause}
+          ORDER BY fc.name_ar ASC
+          LIMIT 30`,
+        params,
+      );
+      return reply.send({ ok: true, data: rows.rows });
+    } catch (err) {
+      if (mapCartelaDbError(reply, err)) return reply;
+      throw err;
+    }
+  });
+
   app.post('/:cartelaId/colors', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
     const { cartelaId } = req.params as { cartelaId: string };

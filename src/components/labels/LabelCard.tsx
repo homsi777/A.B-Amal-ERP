@@ -72,7 +72,11 @@ function buildCode128Svg(value: string, height = 40): string {
       return bar;
     });
   }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${height}" viewBox="0 0 ${x} ${height}" preserveAspectRatio="none">${bars}</svg>`;
+  // preserveAspectRatio الافتراضي (xMidYMid meet) — لا "none": القالب كان يفرض
+  // عرضاً ثابتاً بالـCSS بغض النظر عن طول الرقم المُرمَّز، فيضغط الأرقام
+  // الطويلة (كالباركود التسلسلي الجديد 7 خانات) أفقياً ويُلصق الأعمدة ببعضها
+  // (مظهر مزدحم). الآن يتمدد الصندوق المحيط ليستوعب العرض الطبيعي بدل ضغطه.
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${height}" viewBox="0 0 ${x} ${height}" style="display:block;width:auto;height:100%">${bars}</svg>`;
 }
 
 // ─── Label config ────────────────────────────────────────────────────────────
@@ -380,7 +384,7 @@ export const LabelCard: React.FC<LabelCardProps> = ({
             dangerouslySetInnerHTML={{ __html: barcodeSvg }}
             style={{
               width: '100%',
-              maxWidth: '38mm',
+              maxWidth: '60mm',
               margin: '0 auto',
               height: '12.5mm',
               overflow: 'hidden',
@@ -875,7 +879,9 @@ ${lblBoxCss}
   padding: 0.35mm 0 0.55mm;
 }
 .footer-bc .bc-svg {
-  width: ${ultraCompactLabel ? '32mm' : compactLabel ? '34mm' : '38mm'};
+  /* صندوق أوسع من السابق (كان 38mm كحد أقصى بغض النظر عن طول الرقم) — يمنع
+     ضغط الأرقام الطويلة (كالباركود التسلسلي 7 خانات) أفقياً لتظهر مزدحمة. */
+  width: ${ultraCompactLabel ? '50mm' : compactLabel ? '55mm' : '60mm'};
   max-width: 100%;
   height: ${ultraCompactLabel ? '10mm' : compactLabel ? '11mm' : '12.5mm'};
   margin: 0 auto;
@@ -886,8 +892,10 @@ ${lblBoxCss}
   overflow: hidden;
 }
 .footer-bc .bc-svg svg {
-  width: ${ultraCompactLabel ? '30mm' : compactLabel ? '32mm' : '36mm'} !important;
-  max-width: ${ultraCompactLabel ? '30mm' : compactLabel ? '32mm' : '36mm'} !important;
+  /* العرض تلقائي يحافظ على نِسبة الباركود الطبيعية (بدل فرض عرض ثابت يُشوِّه
+     تباعد الأعمدة) — الارتفاع فقط مضبوط، والصندوق أعلاه يحدّ أقصى عرض ممكن. */
+  width: auto !important;
+  max-width: ${ultraCompactLabel ? '50mm' : compactLabel ? '55mm' : '60mm'} !important;
   height: ${ultraCompactLabel ? '10mm' : compactLabel ? '11mm' : '12.5mm'} !important;
   display: block;
 }

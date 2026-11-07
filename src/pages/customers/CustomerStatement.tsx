@@ -28,6 +28,7 @@ import {
   buildInvoiceDetailsMaps,
   flattenAccountStatementDisplayRows,
   loadCustomerSaleInvoiceDetails,
+  statementRowTintClass,
 } from '../../lib/customerStatementInvoiceDetails';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import { createCustomerDiscount } from '../../lib/api/customerDiscountsApi';
@@ -1362,14 +1363,12 @@ export const CustomerStatement = () => {
                   </tr>
                 ) : (
                   accountStatementDisplayRows.map((row, idx) => {
-                    const discountRow = row.isCustomerDiscount === true;
-                    const cellBase = discountRow
-                      ? 'px-4 py-3 font-bold text-red-700'
-                      : 'px-4 py-3 text-black';
+                    const tintClass = statementRowTintClass(row.type);
+                    const cellBase = 'px-4 py-3 text-black';
                     return (
                     <tr
                       key={`stmt-row-${idx}-${row.documentNo}-${row.date}`}
-                      className={discountRow ? 'bg-rose-50 hover:bg-rose-100/80' : 'bg-white hover:bg-slate-50'}
+                      className={tintClass ? `${tintClass} hover:brightness-95` : 'bg-white hover:bg-slate-50'}
                     >
                       <td className={cellBase}>{row.date}</td>
                       <td className={cellBase}>{row.typeLabel}</td>
@@ -1382,7 +1381,7 @@ export const CustomerStatement = () => {
                           ? (
                               <>
                                 {row.fabric.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {statementCurrency}
-                                <span className={`block text-xs ${discountRow ? 'text-red-600' : 'text-slate-600'}`}>
+                                <span className="block text-xs text-slate-600">
                                   {row.fabric.totalQuantity.toLocaleString('ar')} {t('statementTable.meterAbbr')} × {row.fabric.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </span>
                               </>
@@ -1393,13 +1392,13 @@ export const CustomerStatement = () => {
                               ? t('statementTable.creditCell', { amount: row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }), currency: statementCurrency })
                               : `— ${statementCurrency}`}
                       </td>
-                      <td className={`${cellBase} font-mono ${discountRow ? '' : 'text-blue-800'}`}>
+                      <td className={`${cellBase} font-mono text-blue-800`}>
                         {row.debit > 0 ? row.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                       </td>
-                      <td className={`${cellBase} font-mono ${discountRow ? '' : 'text-emerald-800'}`}>
+                      <td className={`${cellBase} font-mono text-emerald-800`}>
                         {row.credit > 0 ? row.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                       </td>
-                      <td className={`${cellBase} font-mono ${discountRow ? '' : 'font-semibold'}`}>
+                      <td className={`${cellBase} font-mono font-semibold`}>
                         {row.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     </tr>

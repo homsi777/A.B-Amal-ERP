@@ -23,6 +23,7 @@ import {
   buildInvoiceDetailsMaps,
   flattenAccountStatementDisplayRows,
   isStatementPurchaseInvoiceRow,
+  statementRowTintClass,
 } from '../../lib/customerStatementInvoiceDetails';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import type { Invoice, Supplier } from '../../types';
@@ -1004,8 +1005,13 @@ export const SupplierStatement = () => {
                     </td>
                   </tr>
                 ) : (
-                  accountStatementDisplayRows.map((row, idx) => (
-                    <tr key={`stmt-row-${idx}-${row.documentNo}-${row.date}`} className="bg-white hover:bg-slate-50">
+                  accountStatementDisplayRows.map((row, idx) => {
+                    const tintClass = statementRowTintClass(row.type);
+                    return (
+                    <tr
+                      key={`stmt-row-${idx}-${row.documentNo}-${row.date}`}
+                      className={tintClass ? `${tintClass} hover:brightness-95` : 'bg-white hover:bg-slate-50'}
+                    >
                       <td className="px-4 py-3 text-slate-600">{row.date}</td>
                       <td className="px-4 py-3 text-slate-700">{row.typeLabel}</td>
                       <td className="px-4 py-3 font-mono text-xs">
@@ -1056,7 +1062,8 @@ export const SupplierStatement = () => {
                         {row.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

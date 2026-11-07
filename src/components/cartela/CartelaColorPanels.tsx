@@ -5,6 +5,7 @@ import {
   cartelaColorDisplayName,
   createCartelaColor,
   deleteCartelaColor,
+  listCartelaColorCatalogOptions,
   listCartelaColors,
   lookupCartelaScan,
   updateCartelaColor,
@@ -519,13 +520,15 @@ export const CartelaColorSwatchesPanel: React.FC<SwatchPanelProps> = ({ cartelaI
     }
     setColorSearching(true);
     const timer = window.setTimeout(() => {
-      listFabricColors({ search: q, status: 'active', pageSize: 20 })
-        .then((res) => setColorResults(res.data))
+      // مقيّدة بنفس كود الدسان لهذه الكارتيلة — لا كامل كتالوج الشركة
+      // (بطلب المدير بشير)؛ ترجع فارغة لكارتيلة بلا كود دسان أصلاً.
+      listCartelaColorCatalogOptions(cartelaId, q)
+        .then(setColorResults)
         .catch(() => setColorResults([]))
         .finally(() => setColorSearching(false));
     }, 280);
     return () => window.clearTimeout(timer);
-  }, [colorQuery, pickedFabricColorId]);
+  }, [colorQuery, pickedFabricColorId, cartelaId]);
 
   const pickCatalogColor = (color: ApiFabricColor) => {
     setPickedFabricColorId(color.id);

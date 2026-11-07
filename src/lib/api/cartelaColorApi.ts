@@ -1,5 +1,6 @@
 import { apiFetch } from './client';
 import type { CartelaLabelDto } from './cartelaApi';
+import type { ApiFabricColor } from './fabricColorsApi';
 
 export interface CartelaColorSwatchDto {
   id: string;
@@ -66,6 +67,19 @@ export async function updateCartelaColor(
 
 export async function deleteCartelaColor(colorId: string): Promise<void> {
   await apiFetch(`/api/cartela/color-swatches/${encodeURIComponent(colorId)}`, { method: 'DELETE' });
+}
+
+/** اقتراحات ربط لون مقيّدة بنفس كود الدسان (art_code) لهذه الكارتيلة فقط —
+ * ألوان مرتبطة فعلاً بكارتيلات أخرى من نفس التصميم، لا كامل كتالوج الشركة. */
+export async function listCartelaColorCatalogOptions(
+  cartelaId: string,
+  search?: string,
+): Promise<ApiFabricColor[]> {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+  const res = await apiFetch<{ ok: boolean; data: ApiFabricColor[] }>(
+    `/api/cartela/${encodeURIComponent(cartelaId)}/colors/catalog-options${qs}`,
+  );
+  return res.data;
 }
 
 export async function lookupCartelaScan(scan: string): Promise<CartelaColorLookupResult> {

@@ -92,6 +92,9 @@ export type AccountStatementDisplayRow = {
   /** يُمرَّر من صف المصدر الخام — يتيح فتح المستند الأصلي من الواجهة. */
   sourceType?: string;
   sourceId?: string;
+  /** نوع الحركة الخام (RECEIPT_VOUCHER/PAYMENT_VOUCHER/SALES_RETURN/
+   * PURCHASE_RETURN/CUSTOMER_DISCOUNT/...) — لتمييز لون صف الكشف حسب النوع. */
+  type?: string;
 };
 
 function invoiceRowKey(row: AccountStatementSourceRow): string {
@@ -180,6 +183,7 @@ export function flattenAccountStatementDisplayRows(args: {
       credit: Number(row.credit || 0),
       sourceType: row.sourceType,
       sourceId: row.sourceId,
+      type: row.type,
       balance: 0,
       isCustomerDiscount: row.type === 'CUSTOMER_DISCOUNT',
       sortDate: row.date,
@@ -202,6 +206,25 @@ export function flattenAccountStatementDisplayRows(args: {
     const { sortDate: _sortDate, sortKey: _sortKey, ...display } = row;
     return { ...display, balance: running };
   });
+}
+
+/** تمييز لوني خفيف لصف كشف الحساب حسب نوع الحركة — خلفية خضراء فاتحة للدفعات،
+ * حمراء فاتحة للمرتجعات، بنفسجية فاتحة للحسميات. هادئ ولا يؤثر على قراءة
+ * الأرقام، ويُستبعد تلقائياً من الطباعة (class `no-print-tint`). نفس المنطق
+ * لكشف العميل والمورّد معاً — بطلب المدير بشير مباشرة. */
+export function statementRowTintClass(type?: string): string {
+  switch (type) {
+    case 'RECEIPT_VOUCHER':
+    case 'PAYMENT_VOUCHER':
+      return 'bg-emerald-50 print:bg-transparent';
+    case 'SALES_RETURN':
+    case 'PURCHASE_RETURN':
+      return 'bg-rose-50 print:bg-transparent';
+    case 'CUSTOMER_DISCOUNT':
+      return 'bg-violet-50 print:bg-transparent';
+    default:
+      return '';
+  }
 }
 
 export type InvoiceDetailsBySourceId = Record<string, StatementFabricGroup[]>;
