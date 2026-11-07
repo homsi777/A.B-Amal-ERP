@@ -84,10 +84,11 @@ async function triggerPrint(
   const qrSvgs = await generateQrSvgMap(rolls);
   const widthMm = opts.widthMm ?? 100;
   const heightMm = opts.heightMm ?? 80;
-  /** Wide roll rotation is for Electron silent print; browser must stay normal or multi-page breaks. */
-  const rollLayout =
-    opts.rollLayout ??
-    (isElectronRenderer() && widthMm > heightMm ? 'auto' : 'normal');
+  // التدوير التلقائي للصاقة العريضة كان مقتصراً على طباعة Electron الصامتة
+  // فقط (المتصفح كان يُبقي الوضع العادي خشية انقسامها على لصاقتين) — بعد
+  // إصلاح سبب الانقسام الفعلي (قصّ الفائض الدقيق بـCSS بدل تركه ظاهراً)
+  // أصبح التدوير آمناً لمسار المتصفح أيضاً، وهو الغالب عملياً الآن.
+  const rollLayout = opts.rollLayout ?? (widthMm > heightMm ? 'auto' : 'normal');
   const html = buildPrintDocument(rolls, { ...opts, widthMm, heightMm, qrSvgs, rollLayout });
   const adapter = getPrintAdapter();
   return adapter.print(html, {

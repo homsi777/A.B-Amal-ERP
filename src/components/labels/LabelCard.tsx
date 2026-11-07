@@ -670,7 +670,12 @@ export function buildPrintDocument(
         width: ${heightMm}mm;
         height: ${widthMm}mm;
         box-sizing: border-box;
-        overflow: visible;
+        /* hidden لا visible — أي فائض بكسري ضئيل بعد التدوير (فروق تقريب
+           المتصفح) كان يدفع محرك الطباعة لفتح صفحة/لصاقة إضافية لعرضه، وهذا
+           بالضبط سبب أخذ اللصاقة الواحدة حيّز لصاقتين عند الطباعة من المتصفح
+           مباشرة. القصّ هنا لا يحذف شيئاً حقيقياً — المحتوى الدوّار مطابق
+           لحجم هذا الصندوق تماماً أصلاً. */
+        overflow: hidden;
         page-break-after: always;
         break-after: page;
         page-break-inside: avoid;
