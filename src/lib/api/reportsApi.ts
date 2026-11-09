@@ -80,3 +80,30 @@ export async function fetchUnifiedReport(
   const qs = q.toString() ? `?${q}` : '';
   return apiFetch<{ ok: boolean; report: UnifiedReportPayload }>(`/api/reports${apiSubPath}${qs}`);
 }
+
+export interface CustomerItemColorSalesRow {
+  material_name: string;
+  material_code: string;
+  color_name: string;
+  color_code: string;
+  roll_count: number;
+  meters_sold: string;
+  net_sales_amount: string;
+  returned_meters: string;
+  returned_amount: string;
+  net_meters_after_returns: string;
+  net_amount_after_returns: string;
+  invoice_refs: Array<{ sourceId: string; documentNo: string }>;
+}
+
+/** العرض التفصيلي لكشف حساب العميل — مبيعات مجمَّعة حسب (الصنف، اللون) خلال
+ * نفس فترة الكشف، بما فيها صافي المرتجعات لكل مجموعة. */
+export async function listSalesByItemColorForCustomer(params: {
+  customerId: string;
+  dateFrom: string;
+  dateTo: string;
+}): Promise<CustomerItemColorSalesRow[]> {
+  const q = new URLSearchParams({ customerId: params.customerId, dateFrom: params.dateFrom, dateTo: params.dateTo });
+  const res = await apiFetch<{ ok: boolean; data: CustomerItemColorSalesRow[] }>(`/api/reports/sales/by-item-color?${q}`);
+  return res.data;
+}

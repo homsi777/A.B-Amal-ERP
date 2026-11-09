@@ -173,6 +173,98 @@ const SQL_LINE_DISCOUNT_USD = `
     4
   )::numeric`;
 
+export type CustomerItemColorSalesRow = {
+  material_name: string;
+  material_code: string;
+  color_name: string;
+  color_code: string;
+  roll_count: number;
+  meters_sold: string;
+  net_sales_amount: string;
+  returned_meters: string;
+  returned_amount: string;
+  net_meters_after_returns: string;
+  net_amount_after_returns: string;
+  invoice_refs: Array<{ sourceId: string; documentNo: string }>;
+};
+
+/** تجميع مبيعات عميل واحد خلال فترة حسب (الصنف، اللون) — لعرض كشف الحساب
+ * التفصيلي (شجرة صنف→لون). يعيد استخدام نفس بنية صافي المرتجعات بـCTE
+ * الموجودة فعلاً بـ`reportSalesByItem` (return_invoice_lines.
+ * original_sales_invoice_line_id)، مع إضافة JOIN فقط لـfabric_colors عبر
+ * الطوب الفعلي (fabric_rolls.color_id) وتجميع حسب اللون أيضاً لا الصنف فقط. */
+export async function reportSalesByItemColorForCustomer(
+  companyId: string,
+  customerId: string,
+  dateFrom: string,
+  dateTo: string,
+): Promise<CustomerItemColorSalesRow[]> {
+  const pool = getPool();
+  const sql = `
+    WITH return_agg AS (
+      SELECT ril.original_sales_invoice_line_id AS line_id,
+             SUM(CASE WHEN ril.unit = 'yard' THEN ril.quantity * 0.9144 ELSE ril.quantity END)::numeric AS returned_meters,
+             SUM(
+               ROUND(
+                 ril.line_total / NULLIF(
+                   CASE WHEN ri.currency_code = 'USD' THEN 1 ELSE ri.exchange_rate_to_usd END, 0
+                 ), 4
+               )
+             )::numeric AS returned_amount_usd
+      FROM return_invoice_lines ril
+      INNER JOIN return_invoices ri ON ri.id = ril.return_invoice_id AND ri.company_id = ril.company_id
+      WHERE ril.company_id = $1
+        AND ri.return_type = 'SALES_RETURN'
+        AND ri.status = 'CONFIRMED'
+        AND ril.original_sales_invoice_line_id IS NOT NULL
+      GROUP BY ril.original_sales_invoice_line_id
+    ),
+    sale_lines AS (
+      SELECT
+        sil.id AS line_id,
+        si.id AS invoice_id,
+        si.invoice_no,
+        COALESCE(fi.id::text, 'none') AS material_key,
+        COALESCE(NULLIF(fi.name, ''), 'بدون خامة') AS material_name,
+        COALESCE(fi.internal_code, '') AS material_code,
+        COALESCE(fc.id::text, 'none') AS color_key,
+        COALESCE(fc.name_ar, fc.name_tr, 'بدون لون') AS color_name,
+        COALESCE(fc.color_code, '') AS color_code,
+        (CASE WHEN sil.unit = 'yard' THEN sil.quantity * 0.9144 ELSE sil.quantity END)::numeric AS quantity_meters,
+        ${SQL_NET_LINE_REVENUE_USD} AS net_sales_usd
+      FROM sales_invoice_lines sil
+      INNER JOIN sales_invoices si ON si.id = sil.invoice_id AND si.company_id = sil.company_id
+      LEFT JOIN fabric_rolls fr ON fr.id = sil.fabric_roll_id AND fr.company_id = sil.company_id
+      LEFT JOIN fabric_items fi ON fi.id = COALESCE(sil.fabric_item_id, fr.item_id) AND fi.company_id = sil.company_id
+      LEFT JOIN fabric_colors fc ON fc.id = fr.color_id
+      WHERE si.company_id = $1
+        AND si.customer_id = $2
+        AND si.document_status = 'CONFIRMED'
+        AND si.invoice_date >= $3::date
+        AND si.invoice_date <= $4::date
+    )
+    SELECT
+      material_name,
+      material_code,
+      color_name,
+      color_code,
+      COUNT(*)::int AS roll_count,
+      ROUND(COALESCE(SUM(sl.quantity_meters), 0), 2)::text AS meters_sold,
+      ROUND(COALESCE(SUM(sl.net_sales_usd), 0), 2)::text AS net_sales_amount,
+      ROUND(COALESCE(SUM(ra.returned_meters), 0), 2)::text AS returned_meters,
+      ROUND(COALESCE(SUM(ra.returned_amount_usd), 0), 2)::text AS returned_amount,
+      ROUND(COALESCE(SUM(sl.quantity_meters), 0) - COALESCE(SUM(ra.returned_meters), 0), 2)::text AS net_meters_after_returns,
+      ROUND(COALESCE(SUM(sl.net_sales_usd), 0) - COALESCE(SUM(ra.returned_amount_usd), 0), 2)::text AS net_amount_after_returns,
+      JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('sourceId', sl.invoice_id::text, 'documentNo', sl.invoice_no)) AS invoice_refs
+    FROM sale_lines sl
+    LEFT JOIN return_agg ra ON ra.line_id = sl.line_id
+    GROUP BY material_key, material_name, material_code, color_key, color_name, color_code
+    ORDER BY material_name ASC, color_name ASC
+  `;
+  const result = await pool.query(sql, [companyId, customerId, dateFrom, dateTo]);
+  return result.rows as CustomerItemColorSalesRow[];
+}
+
 export async function reportSalesByItem(
   companyId: string,
   q: Record<string, string | undefined> = {},

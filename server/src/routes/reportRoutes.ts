@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
+import { sendError } from '../middleware/errorHandler.js';
 import {
   fetchExtendedDashboardSummary,
   reportCashboxMovements,
@@ -62,6 +63,7 @@ import {
   reportSalesByColor,
   reportSalesByCustomer,
   reportSalesByItem,
+  reportSalesByItemColorForCustomer,
   reportSalesDetails,
   reportSalesMargins,
   reportSalesSummary,
@@ -203,6 +205,15 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
   app.get('/sales/by-item', { preHandler: authenticateRequest }, async (req, reply) => {
     const report = await reportSalesByItem(req.user!.companyId, q(req));
     return reply.send({ ok: true, report });
+  });
+  app.get('/sales/by-item-color', { preHandler: authenticateRequest }, async (req, reply) => {
+    const query = q(req);
+    const customerId = query.customerId?.trim();
+    if (!customerId) return sendError(reply, 400, 'معرّف العميل مطلوب', 'VALIDATION');
+    const dateFrom = query.dateFrom?.trim() || query.fromDate?.trim() || '1970-01-01';
+    const dateTo = query.dateTo?.trim() || query.toDate?.trim() || '9999-12-31';
+    const rows = await reportSalesByItemColorForCustomer(req.user!.companyId, customerId, dateFrom, dateTo);
+    return reply.send({ ok: true, data: rows });
   });
   app.get('/sales/by-customer', { preHandler: authenticateRequest }, async (req, reply) => {
     const report = await reportSalesByCustomer(req.user!.companyId, q(req));

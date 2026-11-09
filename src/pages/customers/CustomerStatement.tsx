@@ -33,6 +33,7 @@ import {
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import { createCustomerDiscount } from '../../lib/api/customerDiscountsApi';
 import { listExchangeRates, type ExchangeRateDto } from '../../lib/api/exchangeRatesApi';
+import { listSalesByItemColorForCustomer, type CustomerItemColorSalesRow } from '../../lib/api/reportsApi';
 import { ApiRequestError } from '../../lib/api/client';
 import type { Customer, Invoice } from '../../types';
 import { useToast } from '../../components/NonBlockingToast';
@@ -54,6 +55,10 @@ export const CustomerStatement = () => {
   const [searchParams] = useSearchParams();
   const [apiCustomers, setApiCustomers] = useState<ApiCustomer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [statementViewMode, setStatementViewMode] = useState<'current' | 'detail'>('current');
+  const [itemColorRows, setItemColorRows] = useState<CustomerItemColorSalesRow[]>([]);
+  const [itemColorLoading, setItemColorLoading] = useState(false);
+  const [expandedMaterials, setExpandedMaterials] = useState<Set<string>>(new Set());
   const [preset, setPreset] = useState<StatementPreset>('manual');
   const [fabricPresetKey, setFabricPresetKey] = useState('');
   const [fromDate, setFromDate] = useState<string>(() => format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
@@ -199,7 +204,7 @@ export const CustomerStatement = () => {
   const isUuid = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
-  const openAccountStatementSource = (row: NonNullable<PartyStatementData['rows']>[number]) => {
+  const openAccountStatementSource = (row: { sourceType?: string; sourceId?: string; documentNo: string }) => {
     if (row.sourceType === 'SALES_INVOICE' || row.sourceType === 'PURCHASE_INVOICE') {
       navigate(`/invoices/statement/${row.sourceId}`);
       return;
@@ -277,6 +282,30 @@ export const CustomerStatement = () => {
       cancelled = true;
     };
   }, [selectedCustomerId, fromDate, toDate]);
+
+  // العرض التفصيلي (صنف/لون) — يُحمَّل فقط عند تفعيله فعلياً، بنفس فترة الكشف
+  // الحالية، لا يؤثر على حساب الرصيد أو العرض المالي الحالي إطلاقاً.
+  useEffect(() => {
+    if (statementViewMode !== 'detail' || !selectedCustomerId || !isUuid(selectedCustomerId)) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setItemColorLoading(true);
+      try {
+        const rows = await listSalesByItemColorForCustomer({ customerId: selectedCustomerId, dateFrom: fromDate, dateTo: toDate });
+        if (!cancelled) setItemColorRows(rows);
+      } catch (e) {
+        if (!cancelled) {
+          setItemColorRows([]);
+          showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('detailView.loadFailed') });
+        }
+      } finally {
+        if (!cancelled) setItemColorLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [statementViewMode, selectedCustomerId, fromDate, toDate]);
 
   useEffect(() => {
     if (!selectedCustomerId || !isUuid(selectedCustomerId)) {
@@ -1327,6 +1356,126 @@ export const CustomerStatement = () => {
           </>
         )}
 
+        <div className="border-t border-slate-200 bg-white px-4 py-3 flex items-center justify-end gap-2">
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-bold">
+            <button
+              type="button"
+              onClick={() => setStatementViewMode('current')}
+              className={`px-3 py-1.5 ${statementViewMode === 'current' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
+            >
+              {t('detailView.currentViewLabel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatementViewMode('detail')}
+              className={`px-3 py-1.5 ${statementViewMode === 'detail' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
+            >
+              {t('detailView.detailViewLabel')}
+            </button>
+          </div>
+        </div>
+
+        {statementViewMode === 'detail' ? (
+          <div className="border-t border-slate-200 bg-white">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+              <h4 className="text-sm font-bold text-slate-800">{t('detailView.title')}</h4>
+              <p className="text-[11px] text-slate-500 mt-1">{t('detailView.subtitle')}</p>
+            </div>
+            {itemColorLoading ? (
+              <div className="p-6 text-center text-slate-500 text-sm">{t('detailView.loading')}</div>
+            ) : itemColorRows.length === 0 ? (
+              <div className="p-6 text-center text-slate-500 text-sm">{t('detailView.empty')}</div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {Array.from(
+                  itemColorRows.reduce((map, row) => {
+                    const key = `${row.material_name}::${row.material_code}`;
+                    if (!map.has(key)) map.set(key, []);
+                    map.get(key)!.push(row);
+                    return map;
+                  }, new Map<string, CustomerItemColorSalesRow[]>()),
+                ).map(([materialKey, colorRows]) => {
+                  const isExpanded = expandedMaterials.has(materialKey);
+                  const materialTotals = colorRows.reduce(
+                    (acc, r) => ({
+                      rollCount: acc.rollCount + r.roll_count,
+                      meters: acc.meters + Number(r.net_meters_after_returns),
+                      amount: acc.amount + Number(r.net_amount_after_returns),
+                    }),
+                    { rollCount: 0, meters: 0, amount: 0 },
+                  );
+                  return (
+                    <div key={materialKey}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMaterials((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(materialKey)) next.delete(materialKey); else next.add(materialKey);
+                          return next;
+                        })}
+                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 text-right"
+                      >
+                        <span className="font-bold text-slate-900 flex items-center gap-2">
+                          <span className="text-slate-400">{isExpanded ? '▾' : '◂'}</span>
+                          {colorRows[0].material_name}
+                          <span className="text-xs text-slate-400 font-mono">{colorRows[0].material_code}</span>
+                        </span>
+                        <span className="text-xs text-slate-600 font-mono flex gap-3">
+                          <span>{t('detailView.colRolls')}: {materialTotals.rollCount}</span>
+                          <span>{t('detailView.colMeters')}: {materialTotals.meters.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="font-bold text-slate-900">{materialTotals.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {statementCurrency}</span>
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div className="bg-slate-50 px-4 pb-2">
+                          <table className="w-full text-xs">
+                            <thead className="text-slate-500">
+                              <tr>
+                                <th className="py-1.5 text-right font-bold">{t('detailView.colColor')}</th>
+                                <th className="py-1.5 text-right font-bold">{t('detailView.colRolls')}</th>
+                                <th className="py-1.5 text-right font-bold">{t('detailView.colMeters')}</th>
+                                <th className="py-1.5 text-right font-bold">{t('detailView.colAmount')}</th>
+                                <th className="py-1.5 text-right font-bold">{t('detailView.colReturned')}</th>
+                                <th className="py-1.5 text-right font-bold">{t('detailView.colInvoices')}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {colorRows.map((row) => (
+                                <tr key={`${row.color_name}-${row.color_code}`} className="border-t border-slate-200">
+                                  <td className="py-1.5 pr-2">{row.color_name} {row.color_code ? <span className="text-slate-400 font-mono">({row.color_code})</span> : null}</td>
+                                  <td className="py-1.5 font-mono">{row.roll_count}</td>
+                                  <td className="py-1.5 font-mono">{Number(row.net_meters_after_returns).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="py-1.5 font-mono font-bold">{Number(row.net_amount_after_returns).toLocaleString(undefined, { minimumFractionDigits: 2 })} {statementCurrency}</td>
+                                  <td className="py-1.5 font-mono text-rose-600">
+                                    {Number(row.returned_meters) > 0 ? `${Number(row.returned_meters).toLocaleString(undefined, { minimumFractionDigits: 2 })} (${Number(row.returned_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} ${statementCurrency})` : '—'}
+                                  </td>
+                                  <td className="py-1.5">
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {row.invoice_refs.map((ref) => (
+                                        <button
+                                          key={ref.sourceId}
+                                          type="button"
+                                          onClick={() => openAccountStatementSource({ sourceType: 'SALES_INVOICE', sourceId: ref.sourceId, documentNo: ref.documentNo })}
+                                          className="text-indigo-700 hover:underline font-mono"
+                                        >
+                                          {ref.documentNo}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="border-t border-slate-200 bg-white">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div>
@@ -1418,6 +1567,7 @@ export const CustomerStatement = () => {
             </div>
           )}
         </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
