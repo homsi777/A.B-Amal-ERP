@@ -63,5 +63,9 @@
   "form.dueDate": "Vade Tarihi",
   "form.incompleteWarning": "Çek no, banka, tutar ve vade tarihini tamamlayın",
   "form.addSuccess": "Çek başarıyla eklendi",
-  "form.addFailed": "Çek eklenemedi"
+  "form.addFailed": "Çek eklenemedi",
+  "print.title": "Çekleri Yazdır",
+  "print.selectedTitle": "Yazdırmak için {{count}} çek seçildi",
+  "print.clearSelection": "Seçimi Temizle",
+  "print.button": "Yazdır"
 }

@@ -63,5 +63,9 @@
   "form.dueDate": "تاريخ الاستحقاق",
   "form.incompleteWarning": "أكملي رقم الشيك والبنك والمبلغ وتاريخ الاستحقاق",
   "form.addSuccess": "تمت إضافة الشيك بنجاح",
-  "form.addFailed": "تعذرت إضافة الشيك"
+  "form.addFailed": "تعذرت إضافة الشيك",
+  "print.title": "طباعة شيكات",
+  "print.selectedTitle": "{{count}} شيك محدَّد للطباعة",
+  "print.clearSelection": "إلغاء التحديد",
+  "print.button": "طباعة"
 }

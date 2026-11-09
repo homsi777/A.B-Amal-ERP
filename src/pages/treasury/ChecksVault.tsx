@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Search, Loader2, AlertTriangle, Banknote, CheckCircle2, Undo2 } from 'lucide-react';
+import { Plus, Search, Loader2, AlertTriangle, Banknote, CheckCircle2, Undo2, Printer, ArrowUp, ArrowDown, X } from 'lucide-react';
 import {
   listChecks,
   createCheck,
@@ -16,6 +16,8 @@ import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { useToast } from '../../components/NonBlockingToast';
+import { renderChecksSheetA4Html } from '../../lib/printing/renderChecksSheetA4';
+import { openDocumentPrintWindow } from '../../lib/printing/documentPrint';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -30,7 +32,7 @@ const STATUS_BADGE: Record<CheckStatus, string> = {
 type PartyKind = 'CUSTOMER' | 'SUPPLIER' | 'OTHER';
 
 export const ChecksVault: React.FC = () => {
-  const { t } = useTranslation('checksVault');
+  const { t, i18n } = useTranslation('checksVault');
   const { showToast } = useToast();
 
   const [rows, setRows] = useState<CheckDto[]>([]);
@@ -48,6 +50,7 @@ export const ChecksVault: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [depositingId, setDepositingId] = useState<string | null>(null);
   const [depositBankId, setDepositBankId] = useState('');
+  const [selectedChecks, setSelectedChecks] = useState<CheckDto[]>([]);
 
   const [form, setForm] = useState({
     checkNo: '', bankName: '', accountHolderName: '',
@@ -180,6 +183,28 @@ export const ChecksVault: React.FC = () => {
     }
   };
 
+  const isSelected = (id: string) => selectedChecks.some((c) => c.id === id);
+  const toggleSelect = (check: CheckDto) => {
+    setSelectedChecks((prev) => (prev.some((c) => c.id === check.id) ? prev.filter((c) => c.id !== check.id) : [...prev, check]));
+  };
+  const removeSelected = (id: string) => setSelectedChecks((prev) => prev.filter((c) => c.id !== id));
+  const moveSelected = (id: string, dir: -1 | 1) => {
+    setSelectedChecks((prev) => {
+      const idx = prev.findIndex((c) => c.id === id);
+      const target = idx + dir;
+      if (idx < 0 || target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  };
+  const printSelected = () => {
+    if (selectedChecks.length === 0) return;
+    const lang = i18n.language === 'tr' ? 'tr' : 'ar';
+    const html = renderChecksSheetA4Html({ checks: selectedChecks, lang });
+    openDocumentPrintWindow(html, t('print.title'));
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6" dir="rtl">
       <div className="flex justify-between items-end flex-wrap gap-2">
@@ -233,11 +258,49 @@ export const ChecksVault: React.FC = () => {
         </div>
       </div>
 
+      {selectedChecks.length > 0 && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-bold text-indigo-900">{t('print.selectedTitle', { count: selectedChecks.length })}</h4>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setSelectedChecks([])} className="text-xs text-slate-500 hover:text-slate-700">
+                {t('print.clearSelection')}
+              </button>
+              <button
+                type="button"
+                onClick={printSelected}
+                className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm hover:bg-indigo-700"
+              >
+                <Printer className="w-4 h-4" /> {t('print.button')}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {selectedChecks.map((c, idx) => (
+              <div key={c.id} className="flex items-center gap-2 bg-white rounded-lg border border-indigo-100 px-3 py-1.5 text-sm">
+                <span className="font-mono text-slate-400 w-5">{idx + 1}</span>
+                <span className="font-mono font-bold text-slate-700 flex-1">{c.check_no} · {c.bank_name} · {Number(c.amount).toLocaleString()} {c.currency_code}</span>
+                <button type="button" disabled={idx === 0} onClick={() => moveSelected(c.id, -1)} className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30">
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button type="button" disabled={idx === selectedChecks.length - 1} onClick={() => moveSelected(c.id, 1)} className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30">
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+                <button type="button" onClick={() => removeSelected(c.id)} className="p-1 text-rose-400 hover:text-rose-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
+                <th className="p-3 w-8"></th>
                 <th className="p-3 text-right font-bold">{t('col.checkNo')}</th>
                 <th className="p-3 text-right font-bold">{t('col.bank')}</th>
                 <th className="p-3 text-right font-bold">{t('col.party')}</th>
@@ -250,13 +313,16 @@ export const ChecksVault: React.FC = () => {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={8} className="p-6 text-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin inline ml-2" />{t('loading')}</td></tr>
+                <tr><td colSpan={9} className="p-6 text-center text-slate-500"><Loader2 className="w-5 h-5 animate-spin inline ml-2" />{t('loading')}</td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={8} className="p-6 text-center text-slate-500">{t('emptyState')}</td></tr>
+                <tr><td colSpan={9} className="p-6 text-center text-slate-500">{t('emptyState')}</td></tr>
               )}
               {rows.map((c) => (
                 <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50">
+                  <td className="p-3">
+                    <input type="checkbox" checked={isSelected(c.id)} onChange={() => toggleSelect(c)} />
+                  </td>
                   <td className="p-3 font-mono font-bold text-slate-700">{c.check_no}</td>
                   <td className="p-3 text-slate-700">{c.bank_name}</td>
                   <td className="p-3 text-slate-700">{c.party_name || c.account_holder_name || '—'}</td>

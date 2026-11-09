@@ -68,6 +68,10 @@
     "sumMismatchWarning": "مجموع البنود ({{sum}}) لا يساوي إجمالي السند ({{total}})",
     "noLinesWarning": "أضيفي بنداً واحداً على الأقل عند التقسيم",
     "incompleteLineWarning": "أكملي الحساب والمبلغ لكل بند قبل الحفظ",
+    "payByCheckToggle": "دفع بشيك مستلَم",
+    "noChecksCashboxHint": "لا توجد خزينة شيكات بعد",
+    "chooseCheckPlaceholder": "— اختر الشيك —",
+    "chooseCheckWarning": "اختاري الشيك المناسب لكل بند دفع بشيك",
     "kind": {
       "CASH": "صندوق نقدي",
       "BANK": "بنك",

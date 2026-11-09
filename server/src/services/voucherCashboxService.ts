@@ -23,22 +23,26 @@ export async function loadVoucherConfirmationLines(
   voucherId: string,
 ): Promise<VoucherConfirmationLine[]> {
   const rows = await client.query<{
+    id: string;
     cashbox_id: string;
     amount: string;
     currency_code: string;
     exchange_rate_to_usd: string | null;
     amount_usd: string | null;
+    check_id: string | null;
   }>(
-    `SELECT cashbox_id, amount, currency_code, exchange_rate_to_usd, amount_usd
+    `SELECT id, cashbox_id, amount, currency_code, exchange_rate_to_usd, amount_usd, check_id
      FROM voucher_lines WHERE company_id=$1 AND voucher_id=$2 ORDER BY sort_order ASC, created_at ASC`,
     [companyId, voucherId],
   );
   return rows.rows.map((r) => ({
+    lineId: r.id,
     cashboxId: r.cashbox_id,
     amount: Number(r.amount),
     currencyCode: String(r.currency_code || 'USD').trim().toUpperCase(),
     exchangeRateToUsd: Number(r.exchange_rate_to_usd ?? 1) > 0 ? Number(r.exchange_rate_to_usd ?? 1) : 1,
     amountUsd: Number(r.amount_usd ?? 0) || computeUsd(Number(r.amount), Number(r.exchange_rate_to_usd ?? 1) || 1),
+    checkId: r.check_id,
   }));
 }
 
@@ -100,11 +104,15 @@ export async function insertDraftVoucher(
 }
 
 export type VoucherConfirmationLine = {
+  /** معرّف صف voucher_lines نفسه — فارغ لسند أحادي الخزينة القديم بلا بنود. */
+  lineId?: string;
   cashboxId: string;
   amount: number;
   currencyCode: string;
   exchangeRateToUsd: number;
   amountUsd: number;
+  /** دفع بشيك مستلَم سابقاً — المستدعي (route) يتولى تحديث حالة الشيك نفسه. */
+  checkId?: string | null;
 };
 
 /** تُسجِّل حركة خزينة واحدة + تحديث رصيد لحساب خزينة واحد — منطق مشترك بين

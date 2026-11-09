@@ -13,6 +13,8 @@ export interface VoucherLineInput {
   transactionRef?: string | null;
   transactionDate?: string | null;
   attachmentImage?: string | null;
+  /** دفع بشيك مستلَم سابقاً — سند دفع فقط. */
+  checkId?: string | null;
 }
 
 export interface VoucherLineRow {

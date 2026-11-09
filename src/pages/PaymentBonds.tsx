@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Printer, FileText, Search, CreditCard, Loader2, Plus, Trash2 } from 'lucide-react';
 import { createVoucher, confirmVoucher, getVoucher, type VoucherLineInput, type VoucherLinePaymentMethod, type VoucherRow } from '../lib/api/vouchersApi';
 import { listCashboxes, type CashboxAccountKind, type CashboxDto } from '../lib/api/cashboxesApi';
+import { listChecks, type CheckDto } from '../lib/api/checksApi';
 import { listCustomers, type ApiCustomer } from '../lib/api/customersApi';
 import { listSuppliers, type ApiSupplier } from '../lib/api/suppliersApi';
 import { ApiRequestError } from '../lib/api/client';
@@ -19,7 +20,15 @@ import {
 
 type PartyKind = 'CUSTOMER' | 'SUPPLIER' | 'OTHER';
 
-type SplitLine = { localId: string; cashboxId: string; amount: string; transactionRef: string; transactionDate: string };
+type SplitLine = {
+  localId: string;
+  cashboxId: string;
+  amount: string;
+  transactionRef: string;
+  transactionDate: string;
+  isCheck: boolean;
+  checkId: string;
+};
 
 let splitLineSeq = 0;
 const nextSplitLineId = () => `sl-${++splitLineSeq}`;
@@ -57,10 +66,12 @@ export const PaymentBonds = () => {
   const [exchangeRateToUsd, setExchangeRateToUsd] = useState('1');
   const [splitMode, setSplitMode] = useState(false);
   const [splitLines, setSplitLines] = useState<SplitLine[]>([]);
+  const [availableChecks, setAvailableChecks] = useState<CheckDto[]>([]);
 
-  /** حسابات غير خزينة الشيكات فقط ضمن هذه المرحلة — اختيار شيك فعلي للدفع يأتي
-   * من خزينة الشيكات (مرحلة لاحقة). */
+  /** حسابات غير خزينة الشيكات بقائمة الاختيار العادية — الدفع بشيك له مسار
+   * خاص (اختيار شيك محدَّد لا حساب) يُحدِّد الخزينة تلقائياً. */
   const splittableCashboxes = useMemo(() => cashboxes.filter((c) => c.account_kind !== 'CHECKS'), [cashboxes]);
+  const checksCashbox = useMemo(() => cashboxes.find((c) => c.account_kind === 'CHECKS') ?? null, [cashboxes]);
 
   const splitLinesSum = useMemo(
     () => round2(splitLines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0)),
@@ -71,7 +82,7 @@ export const PaymentBonds = () => {
   const addSplitLine = () => {
     setSplitLines((prev) => [
       ...prev,
-      { localId: nextSplitLineId(), cashboxId: splittableCashboxes[0]?.id || '', amount: '', transactionRef: '', transactionDate: '' },
+      { localId: nextSplitLineId(), cashboxId: splittableCashboxes[0]?.id || '', amount: '', transactionRef: '', transactionDate: '', isCheck: false, checkId: '' },
     ]);
   };
   const removeSplitLine = (localId: string) => {
@@ -81,9 +92,30 @@ export const PaymentBonds = () => {
     setSplitLines((prev) => prev.map((l) => (l.localId === localId ? { ...l, ...patch } : l)));
   };
 
+  const toggleSplitLineCheckMode = (localId: string, useCheck: boolean) => {
+    setSplitLines((prev) => prev.map((l) => {
+      if (l.localId !== localId) return l;
+      if (!useCheck) return { ...l, isCheck: false, checkId: '' };
+      return { ...l, isCheck: true, checkId: '', cashboxId: checksCashbox?.id || '', amount: '' };
+    }));
+  };
+
+  const pickSplitLineCheck = (localId: string, checkId: string) => {
+    const check = availableChecks.find((c) => c.id === checkId);
+    updateSplitLine(localId, { checkId, amount: check ? check.amount : '' });
+  };
+
   const buildSplitLinesPayload = (): VoucherLineInput[] | undefined =>
     splitMode
       ? splitLines.map((l) => {
+          if (l.isCheck) {
+            return {
+              cashboxId: l.cashboxId,
+              paymentMethod: 'CHECK' as VoucherLinePaymentMethod,
+              amount: Number(l.amount) || 0,
+              checkId: l.checkId || null,
+            };
+          }
           const box = cashboxes.find((c) => c.id === l.cashboxId);
           return {
             cashboxId: l.cashboxId,
@@ -98,7 +130,9 @@ export const PaymentBonds = () => {
   const validateSplitLines = (): string | null => {
     if (!splitMode) return null;
     if (splitLines.length === 0) return t('split.noLinesWarning');
-    if (splitLines.some((l) => !l.cashboxId || !(Number(l.amount) > 0))) return t('split.incompleteLineWarning');
+    if (splitLines.some((l) => l.isCheck ? !l.checkId : (!l.cashboxId || !(Number(l.amount) > 0)))) {
+      return splitLines.some((l) => l.isCheck && !l.checkId) ? t('split.chooseCheckWarning') : t('split.incompleteLineWarning');
+    }
     if (splitMismatch) return t('split.sumMismatchWarning', { sum: splitLinesSum, total: Number(amount) || 0 });
     return null;
   };
@@ -117,16 +151,18 @@ export const PaymentBonds = () => {
     void (async () => {
       setLoadingMeta(true);
       try {
-        const [c, s, cust, r] = await Promise.all([
+        const [c, s, cust, r, chk] = await Promise.all([
           listCashboxes({ active: true }),
           listSuppliers({ pageSize: 500 }),
           listCustomers({ pageSize: 500 }),
           listExchangeRates(),
+          listChecks({ status: 'RECEIVED', sortBy: 'dueDate', pageSize: 200 }),
         ]);
         setCashboxes(c.data);
         setSuppliers(s.data);
         setCustomers(cust.data);
         setExchangeRates(r.data);
+        setAvailableChecks(chk.rows);
         if (c.data.length && !cashboxId) setCashboxId(c.data[0].id);
       } catch {
         showToast({ type: 'error', message: t('errors.loadFailed') });
@@ -306,6 +342,12 @@ export const PaymentBonds = () => {
       setPurpose('INVOICE_PAYMENT');
       setSplitMode(false);
       setSplitLines([]);
+      try {
+        const refreshed = await listChecks({ status: 'RECEIVED', sortBy: 'dueDate', pageSize: 200 });
+        setAvailableChecks(refreshed.rows);
+      } catch {
+        // صامت — القائمة تُحدَّث عند إعادة تحميل الشاشة بأي حال
+      }
 
       try {
         await sendTelegramVoucherFromRow(voucherSnapshot);
@@ -457,45 +499,78 @@ export const PaymentBonds = () => {
                 ) : (
                   <div className="space-y-3">
                     {splitLines.map((line) => (
-                      <div key={line.localId} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center bg-slate-50 border border-slate-200 rounded-lg p-2">
-                        <select
-                          value={line.cashboxId}
-                          onChange={(e) => updateSplitLine(line.localId, { cashboxId: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"
-                        >
-                          <option value="">{t('fields.selectCashboxPlaceholder')}</option>
-                          {splittableCashboxes.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name} ({t(`split.kind.${c.account_kind}`)})
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          value={line.amount}
-                          onChange={(e) => updateSplitLine(line.localId, { amount: e.target.value })}
-                          placeholder={t('fields.amount')}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono"
-                        />
-                        <input
-                          value={line.transactionRef}
-                          onChange={(e) => updateSplitLine(line.localId, { transactionRef: e.target.value })}
-                          placeholder={t('split.transactionRefPlaceholder')}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"
-                        />
-                        <input
-                          type="date"
-                          value={line.transactionDate}
-                          onChange={(e) => updateSplitLine(line.localId, { transactionDate: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeSplitLine(line.localId)}
-                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg justify-self-center"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <div key={line.localId} className="space-y-1.5 bg-slate-50 border border-slate-200 rounded-lg p-2">
+                        <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={line.isCheck}
+                            disabled={!checksCashbox}
+                            onChange={(e) => toggleSplitLineCheckMode(line.localId, e.target.checked)}
+                          />
+                          {t('split.payByCheckToggle')}
+                          {!checksCashbox && <span className="text-slate-400">({t('split.noChecksCashboxHint')})</span>}
+                        </label>
+                        {line.isCheck ? (
+                          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-2 items-center">
+                            <select
+                              value={line.checkId}
+                              onChange={(e) => pickSplitLineCheck(line.localId, e.target.value)}
+                              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"
+                            >
+                              <option value="">{t('split.chooseCheckPlaceholder')}</option>
+                              {availableChecks.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.check_no} · {c.bank_name} · {Number(c.amount).toLocaleString()} {c.currency_code}
+                                </option>
+                              ))}
+                            </select>
+                            <input value={line.amount ? `${line.amount} ${currencyCode}` : ''} readOnly className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-mono" />
+                            <button type="button" onClick={() => removeSplitLine(line.localId)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg justify-self-center">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center">
+                            <select
+                              value={line.cashboxId}
+                              onChange={(e) => updateSplitLine(line.localId, { cashboxId: e.target.value })}
+                              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"
+                            >
+                              <option value="">{t('fields.selectCashboxPlaceholder')}</option>
+                              {splittableCashboxes.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name} ({t(`split.kind.${c.account_kind}`)})
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              value={line.amount}
+                              onChange={(e) => updateSplitLine(line.localId, { amount: e.target.value })}
+                              placeholder={t('fields.amount')}
+                              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono"
+                            />
+                            <input
+                              value={line.transactionRef}
+                              onChange={(e) => updateSplitLine(line.localId, { transactionRef: e.target.value })}
+                              placeholder={t('split.transactionRefPlaceholder')}
+                              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"
+                            />
+                            <input
+                              type="date"
+                              value={line.transactionDate}
+                              onChange={(e) => updateSplitLine(line.localId, { transactionDate: e.target.value })}
+                              className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeSplitLine(line.localId)}
+                              className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg justify-self-center"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                     <button

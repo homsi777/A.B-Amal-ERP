@@ -38,6 +38,10 @@ const voucherLineSchema = z.object({
   transactionRef: z.string().optional().nullable(),
   transactionDate: z.string().optional().nullable(),
   attachmentImage: z.string().optional().nullable(),
+  /** الدفع بشيك مستلَم سابقاً من خزينة الشيكات — سند دفع فقط. cashboxId يبقى
+   * خزينة الشيكات (account_kind='CHECKS') كأي بند آخر؛ هذا الحقل يربط الشيك
+   * الفعلي المُصروف به لتحديث حالته لاحقاً عند التأكيد. */
+  checkId: z.string().uuid().optional().nullable(),
 });
 
 const createBody = z.object({
@@ -88,11 +92,32 @@ async function replaceVoucherLines(
   let sortOrder = 0;
   for (const line of lines) {
     const amountUsd = computeUsd(line.amount, headerExchangeRateToUsd);
+
+    if (line.checkId) {
+      const checkRow = await client.query<{ id: string; status: string; amount: string; used_in_voucher_line_id: string | null }>(
+        `SELECT id, status, amount, used_in_voucher_line_id FROM checks WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+        [line.checkId, companyId],
+      );
+      if (!checkRow.rows.length) {
+        throw Object.assign(new Error('الشيك المحدَّد غير موجود'), { code: 'VALIDATION' });
+      }
+      const check = checkRow.rows[0];
+      if (check.status !== 'RECEIVED') {
+        throw Object.assign(new Error('لا يمكن الدفع إلا بشيك بحالة «مستلم وغير محصّل»'), { code: 'VALIDATION' });
+      }
+      if (check.used_in_voucher_line_id) {
+        throw Object.assign(new Error('هذا الشيك مُستخدَم بالفعل بسند دفع آخر'), { code: 'VALIDATION' });
+      }
+      if (Math.abs(Number(check.amount) - line.amount) > LINE_SUM_EPS) {
+        throw Object.assign(new Error('مبلغ البند يجب أن يساوي قيمة الشيك بالضبط'), { code: 'VALIDATION' });
+      }
+    }
+
     await client.query(
       `INSERT INTO voucher_lines (
          company_id, voucher_id, cashbox_id, payment_method, amount, currency_code,
-         exchange_rate_to_usd, amount_usd, transaction_ref, transaction_date, attachment_image, sort_order
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+         exchange_rate_to_usd, amount_usd, transaction_ref, transaction_date, attachment_image, check_id, sort_order
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         companyId,
         voucherId,
@@ -105,6 +130,7 @@ async function replaceVoucherLines(
         line.transactionRef?.trim() || null,
         line.transactionDate || null,
         line.attachmentImage || null,
+        line.checkId ?? null,
         sortOrder++,
       ],
     );
@@ -217,9 +243,11 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
 
     const lines = await pool.query(
       `SELECT vl.id, vl.cashbox_id, c.name AS cashbox_name, c.account_kind, vl.payment_method, vl.amount,
-              vl.currency_code, vl.transaction_ref, vl.transaction_date, vl.attachment_image, vl.sort_order
+              vl.currency_code, vl.transaction_ref, vl.transaction_date, vl.attachment_image, vl.sort_order,
+              vl.check_id, chk.check_no, chk.bank_name AS check_bank_name
        FROM voucher_lines vl
        JOIN cashboxes c ON c.id = vl.cashbox_id AND c.company_id = vl.company_id
+       LEFT JOIN checks chk ON chk.id = vl.check_id AND chk.company_id = vl.company_id
        WHERE vl.company_id=$1 AND vl.voucher_id=$2
        ORDER BY vl.sort_order ASC, vl.created_at ASC`,
       [companyId, id],
@@ -497,6 +525,29 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
         lines: confirmationLines,
       });
 
+      // دفع بشيك مستلَم سابقاً — علامة "مصروف" فقط عند تأكيد سند الدفع فعلياً،
+      // لا عند إضافته كبند بمسودة (قد تُحذف/تُعدَّل قبل التأكيد). إعادة التحقق
+      // من حالة "مستلم" هنا (لا الاكتفاء بفحص وقت الإضافة) تمنع استخدام نفس
+      // الشيك مرتين لو مرّ وقت بين إنشاء السند ومحاولات تأكيد متزامنة.
+      for (const line of confirmationLines) {
+        if (!line.checkId || !line.lineId) continue;
+        const marked = await client.query(
+          `UPDATE checks SET status='PAID_OUT', used_in_voucher_line_id=$3, updated_at=now()
+           WHERE id=$1 AND company_id=$2 AND status='RECEIVED'
+           RETURNING id`,
+          [line.checkId, companyId, line.lineId],
+        );
+        if (!marked.rows.length) {
+          await client.query('ROLLBACK');
+          return sendError(reply, 400, 'أحد الشيكات المُختارة لم يعد متاحاً للدفع به', 'VALIDATION');
+        }
+        await client.query(
+          `INSERT INTO check_status_history (check_id, from_status, to_status, note, changed_by_user_id)
+           VALUES ($1,'RECEIVED','PAID_OUT',$2,$3)`,
+          [line.checkId, `سند دفع ${row.voucher_no}`, userId],
+        );
+      }
+
       await client.query(
         `UPDATE vouchers SET status='CONFIRMED', confirmed_at=now(), updated_at=now() WHERE id=$1 AND company_id=$2`,
         [id, companyId],
@@ -583,6 +634,20 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
           userId,
           lines: cancellationLines,
         });
+
+        for (const line of cancellationLines) {
+          if (!line.checkId) continue;
+          await client.query(
+            `UPDATE checks SET status='RECEIVED', used_in_voucher_line_id=NULL, updated_at=now()
+             WHERE id=$1 AND company_id=$2 AND status='PAID_OUT'`,
+            [line.checkId, companyId],
+          );
+          await client.query(
+            `INSERT INTO check_status_history (check_id, from_status, to_status, note, changed_by_user_id)
+             VALUES ($1,'PAID_OUT','RECEIVED',$2,$3)`,
+            [line.checkId, `إلغاء سند دفع ${row.voucher_no}`, userId],
+          );
+        }
       }
 
       await client.query(

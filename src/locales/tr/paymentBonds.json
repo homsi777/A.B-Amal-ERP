@@ -68,6 +68,10 @@
     "sumMismatchWarning": "Kalemler toplamı ({{sum}}) fiş toplamına ({{total}}) eşit değil",
     "noLinesWarning": "Bölme için en az bir kalem ekleyin",
     "incompleteLineWarning": "Kaydetmeden önce her kalem için hesap ve tutarı tamamlayın",
+    "payByCheckToggle": "Alınan çekle öde",
+    "noChecksCashboxHint": "Henüz çek kasası yok",
+    "chooseCheckPlaceholder": "— Çek seçin —",
+    "chooseCheckWarning": "Çekle ödeme yapılan her kalem için uygun çeki seçin",
     "kind": {
       "CASH": "Nakit Kasa",
       "BANK": "Banka",
