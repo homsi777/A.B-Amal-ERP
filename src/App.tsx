@@ -202,6 +202,7 @@ import { InvoiceStatement } from './pages/invoices/InvoiceStatement';
 import { InvoiceForm } from './pages/invoices/InvoiceForm';
 import { Treasury } from './pages/Treasury';
 import { Safes } from './pages/treasury/Safes';
+import { ChecksVault } from './pages/treasury/ChecksVault';
 import { TreasuryLog } from './pages/treasury/TreasuryLog';
 import { TreasurySettings } from './pages/treasury/TreasurySettings';
 import { ProfitDetails } from './pages/treasury/ProfitDetails';
@@ -304,6 +305,7 @@ export default function App() {
 
             <Route path="treasury" element={<Safes />} />
             <Route path="treasury/safes" element={<Safes />} />
+            <Route path="treasury/checks-vault" element={<ChecksVault />} />
             <Route path="treasury/log" element={<TreasuryLog />} />
             <Route path="treasury/profit-details" element={<ProfitDetails />} />
             <Route path="treasury/settings" element={<TreasurySettings />} />

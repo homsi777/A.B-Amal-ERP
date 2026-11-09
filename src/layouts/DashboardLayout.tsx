@@ -154,6 +154,7 @@ const Topbar = () => {
       icon: Wallet,
       subItems: [
         { labelKey: 'treasury.safes', to: '/treasury/safes' },
+        { labelKey: 'treasury.checksVault', to: '/treasury/checks-vault' },
         { labelKey: 'treasury.log', to: '/treasury/log' },
         { labelKey: 'treasury.profitDetails', to: '/treasury/profit-details' },
         { labelKey: 'treasury.settings', to: '/treasury/settings' },

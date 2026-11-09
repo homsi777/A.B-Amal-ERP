@@ -170,6 +170,115 @@ export async function postVoucherToGl(
   });
 }
 
+/** إيداع شيك بالبنك — نقل من حساب الشيكات تحت التحصيل إلى الحساب البنكي
+ * المودَع به، وليس قبضاً جديداً بأي حال (بطلب المدير بشير حرفياً). */
+export async function postCheckDepositToGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    checkId: string;
+    checkNo: string;
+    depositDate: string;
+    amountUsd: number;
+    bankCashboxId: string;
+    userId: string | null;
+  },
+): Promise<void> {
+  await ensureCompanyGlCoa(client, input.companyId);
+
+  const dup = await client.query(
+    `SELECT id FROM journal_entries WHERE company_id=$1 AND source_type='CHECK_DEPOSIT' AND source_id=$2`,
+    [input.companyId, input.checkId],
+  );
+  if (dup.rows.length) return;
+
+  const amt = round2(input.amountUsd);
+  if (amt <= 0) return;
+
+  const checksId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.CHECKS_RECEIVABLE);
+  const bankKindRow = await client.query<{ account_kind: string }>(
+    `SELECT account_kind FROM cashboxes WHERE id=$1 AND company_id=$2`,
+    [input.bankCashboxId, input.companyId],
+  );
+  const bankGlId = await resolveCashboxGlAccountId(
+    client,
+    input.companyId,
+    bankKindRow.rows[0]?.account_kind ?? 'BANK',
+  );
+  const desc = `إيداع شيك ${input.checkNo}`;
+
+  await insertBalancedJournal(client, {
+    companyId: input.companyId,
+    entryDate: input.depositDate.slice(0, 10),
+    description: desc,
+    sourceType: 'CHECK_DEPOSIT',
+    sourceId: input.checkId,
+    userId: input.userId,
+    lines: [
+      { glAccountId: bankGlId, debit: amt, credit: 0, currencyCode: 'USD', description: desc, cashboxId: input.bankCashboxId },
+      { glAccountId: checksId, debit: 0, credit: amt, currencyCode: 'USD', description: desc },
+    ],
+  });
+}
+
+/** ارتجاع شيك — يعيد أثره على ذمة العميل (يزيد مديونيته مجدداً) ويُخرجه من
+ * حساب الشيكات تحت التحصيل، بنفس منطق مرتجع عادي على ذمم العميل. */
+export async function postCheckReturnToGl(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    checkId: string;
+    checkNo: string;
+    returnDate: string;
+    amountUsd: number;
+    partyType: string | null;
+    partyId: string | null;
+    userId: string | null;
+  },
+): Promise<void> {
+  await ensureCompanyGlCoa(client, input.companyId);
+
+  const dup = await client.query(
+    `SELECT id FROM journal_entries WHERE company_id=$1 AND source_type='CHECK_RETURN' AND source_id=$2`,
+    [input.companyId, input.checkId],
+  );
+  if (dup.rows.length) return;
+
+  const amt = round2(input.amountUsd);
+  if (amt <= 0) return;
+
+  const checksId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.CHECKS_RECEIVABLE);
+  const suspRec = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.SUSPENSE_RECEIPT);
+  const desc = `ارتجاع شيك ${input.checkNo}`;
+  const lines: Array<{
+    glAccountId: string;
+    debit: number;
+    credit: number;
+    currencyCode: string;
+    description: string;
+    partyType?: string | null;
+    partyId?: string | null;
+  }> = [];
+
+  if (input.partyType === 'CUSTOMER') {
+    const arId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.AR);
+    lines.push({ glAccountId: arId, debit: amt, credit: 0, currencyCode: 'USD', description: desc, partyType: 'CUSTOMER', partyId: input.partyId });
+  } else {
+    lines.push({ glAccountId: suspRec, debit: amt, credit: 0, currencyCode: 'USD', description: desc });
+  }
+  lines.push({ glAccountId: checksId, debit: 0, credit: amt, currencyCode: 'USD', description: desc });
+
+  await insertBalancedJournal(client, {
+    companyId: input.companyId,
+    entryDate: input.returnDate.slice(0, 10),
+    description: desc,
+    sourceType: 'CHECK_RETURN',
+    sourceId: input.checkId,
+    userId: input.userId,
+    lines,
+  });
+}
+
 export async function reverseVoucherGl(
   client: PoolClient,
   input: {
