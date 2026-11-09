@@ -4,6 +4,31 @@ import type { VoucherPurpose } from '../voucherPurpose';
 export type VoucherType = 'RECEIPT' | 'PAYMENT';
 export type VoucherStatus = 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
 
+export type VoucherLinePaymentMethod = 'CASH' | 'BANK' | 'WALLET' | 'CHECK';
+
+export interface VoucherLineInput {
+  cashboxId: string;
+  paymentMethod?: VoucherLinePaymentMethod;
+  amount: number;
+  transactionRef?: string | null;
+  transactionDate?: string | null;
+  attachmentImage?: string | null;
+}
+
+export interface VoucherLineRow {
+  id: string;
+  cashbox_id: string;
+  cashbox_name: string;
+  account_kind: string;
+  payment_method: VoucherLinePaymentMethod;
+  amount: string;
+  currency_code: string;
+  transaction_ref: string | null;
+  transaction_date: string | null;
+  attachment_image: string | null;
+  sort_order: number;
+}
+
 export interface VoucherRow {
   id: string;
   voucher_no: string;
@@ -29,6 +54,7 @@ export interface VoucherRow {
   confirmed_at: string | null;
   cancelled_at: string | null;
   created_at: string;
+  lines?: VoucherLineRow[];
 }
 
 export async function listVouchers(params: {
@@ -83,6 +109,9 @@ export async function createVoucher(payload: {
   notes?: string | null;
   referenceDocumentType?: string | null;
   referenceDocumentNo?: string | null;
+  /** تقسيم السند على أكثر من حساب/وسيلة — اختياري. عند إرسالها، يجب أن يساوي
+   * مجموع مبالغها amount تماماً وإلا يرفض الخادم الحفظ. */
+  lines?: VoucherLineInput[];
 }) {
   return apiFetch<{ ok: boolean; data: VoucherRow }>('/api/vouchers', {
     method: 'POST',
@@ -103,6 +132,7 @@ export async function createVoucher(payload: {
       notes: payload.notes ?? null,
       referenceDocumentType: payload.referenceDocumentType ?? null,
       referenceDocumentNo: payload.referenceDocumentNo ?? null,
+      lines: payload.lines && payload.lines.length > 0 ? payload.lines : undefined,
     }),
   });
 }

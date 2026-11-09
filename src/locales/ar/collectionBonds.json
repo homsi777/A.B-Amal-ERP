@@ -32,5 +32,18 @@
   "manualNamePlaceholder": "أو اسم يدوي إن لم يُختر من القائمة",
   "descriptionPlaceholder": "البيان (اختياري — يُدمج مع الغرض تلقائياً)",
   "advanceHint": "العربون يظهر رصيداً دائناً في كشف الطرف ويمكن رده لاحقاً بسند صرف بغرض «رد عربون».",
-  "saveButton": "حفظ وتسجيل في الصندوق"
+  "saveButton": "حفظ وتسجيل في الصندوق",
+  "split.enableToggle": "تقسيم على أكثر من حساب/وسيلة",
+  "split.addLineButton": "إضافة وسيلة",
+  "split.transactionRefPlaceholder": "رقم العملية (اختياري)",
+  "split.sumLabel": "مجموع البنود",
+  "split.totalLabel": "إجمالي السند",
+  "split.sumMismatchHint": "مجموع بنود الدفع يجب أن يساوي إجمالي السند تماماً قبل الحفظ.",
+  "split.sumMismatchWarning": "مجموع البنود ({{sum}}) لا يساوي إجمالي السند ({{total}})",
+  "split.noLinesWarning": "أضيفي بنداً واحداً على الأقل عند التقسيم",
+  "split.incompleteLineWarning": "أكملي الحساب والمبلغ لكل بند قبل الحفظ",
+  "split.kind.CASH": "صندوق نقدي",
+  "split.kind.BANK": "بنك",
+  "split.kind.WALLET": "محفظة إلكترونية",
+  "split.kind.CHECKS": "خزينة شيكات"
 }

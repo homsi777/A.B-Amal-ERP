@@ -15,11 +15,11 @@ export async function postVoucherToGl(
     voucherNo: string;
     voucherDate: string;
     voucherType: 'RECEIPT' | 'PAYMENT';
-    amount: number;
-    amountUsd: number;
+    /** بند خزينة واحد لكل حساب فعلياً استُخدم — سند قديم بلا تقسيم يُمرَّر هنا
+     * كمصفوفة من عنصر واحد (توافق خلفي كامل، نفس الناتج المحاسبي السابق
+     * بالضبط). المجموع هو إجمالي السند؛ لا تحقّق هنا — يحدث بالـroute. */
+    cashboxLines: Array<{ cashboxId: string; amountUsd: number }>;
     currencyCode: string;
-    exchangeRateToUsd: number;
-    cashboxId: string;
     partyType: string | null;
     partyId: string | null;
     description: string | null;
@@ -34,22 +34,9 @@ export async function postVoucherToGl(
   );
   if (dup.rows.length) return;
 
-  const amt = round2(input.amountUsd);
+  const amt = round2(input.cashboxLines.reduce((sum, l) => sum + l.amountUsd, 0));
   if (amt <= 0) return;
 
-  // يُرحَّل كل سند لحساب GL المطابق لنوع الخزينة الفعلي المختار (صندوق نقدي/بنك/
-  // محفظة/شيكات) بدل حساب GL_CASH الموحّد دائماً — صناديق CASH القديمة تحصل على
-  // نفس المعرّف كالسابق تماماً (لا تغيير بسلوكها)، وأي خزينة من نوع آخر تُرحَّل
-  // الآن لحسابها المستقل الصحيح.
-  const cashboxKindRow = await client.query<{ account_kind: string }>(
-    `SELECT account_kind FROM cashboxes WHERE id=$1 AND company_id=$2`,
-    [input.cashboxId, input.companyId],
-  );
-  const cashId = await resolveCashboxGlAccountId(
-    client,
-    input.companyId,
-    cashboxKindRow.rows[0]?.account_kind ?? 'CASH',
-  );
   const arId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.AR);
   const apId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.AP);
   const suspRec = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.SUSPENSE_RECEIPT);
@@ -72,15 +59,35 @@ export async function postVoucherToGl(
     partyId?: string | null;
   }> = [];
 
+  // سطر GL مستقل لكل حساب خزينة فعلياً دخل/خرج منه المبلغ (صندوق/بنك/محفظة/
+  // شيكات) — لا يزال الترحيل بأكمله استدعاءً واحداً للدالة لكل سند، فيستمر
+  // حارس التكرار أعلاه (source_type='VOUCHER') يعمل بلا أي تغيير.
+  const cashboxKindRows = await client.query<{ id: string; account_kind: string }>(
+    `SELECT id, account_kind FROM cashboxes WHERE company_id=$1 AND id = ANY($2::uuid[])`,
+    [input.companyId, input.cashboxLines.map((l) => l.cashboxId)],
+  );
+  const kindByCashboxId = new Map(cashboxKindRows.rows.map((r) => [r.id, r.account_kind]));
+  const treasuryLines: Array<{ cashboxId: string; amountUsd: number; glAccountId: string }> = [];
+  for (const l of input.cashboxLines) {
+    const glAccountId = await resolveCashboxGlAccountId(
+      client,
+      input.companyId,
+      kindByCashboxId.get(l.cashboxId) ?? 'CASH',
+    );
+    treasuryLines.push({ cashboxId: l.cashboxId, amountUsd: round2(l.amountUsd), glAccountId });
+  }
+
   if (input.voucherType === 'RECEIPT') {
-    lines.push({
-      glAccountId: cashId,
-      debit: amt,
-      credit: 0,
-      currencyCode: ccy,
-      description: desc,
-      cashboxId: input.cashboxId,
-    });
+    for (const tl of treasuryLines) {
+      lines.push({
+        glAccountId: tl.glAccountId,
+        debit: tl.amountUsd,
+        credit: 0,
+        currencyCode: ccy,
+        description: desc,
+        cashboxId: tl.cashboxId,
+      });
+    }
     if (pt === 'CUSTOMER') {
       lines.push({
         glAccountId: arId,
@@ -140,14 +147,16 @@ export async function postVoucherToGl(
         description: `صرف غير مصنف — ${input.voucherNo}`,
       });
     }
-    lines.push({
-      glAccountId: cashId,
-      debit: 0,
-      credit: amt,
-      currencyCode: ccy,
-      description: desc,
-      cashboxId: input.cashboxId,
-    });
+    for (const tl of treasuryLines) {
+      lines.push({
+        glAccountId: tl.glAccountId,
+        debit: 0,
+        credit: tl.amountUsd,
+        currencyCode: ccy,
+        description: desc,
+        cashboxId: tl.cashboxId,
+      });
+    }
   }
 
   await insertBalancedJournal(client, {

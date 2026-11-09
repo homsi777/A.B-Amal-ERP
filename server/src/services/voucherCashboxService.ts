@@ -14,6 +14,34 @@ function computeUsd(amountOriginal: number, exchangeRateToUsd: number): number {
   return round2(amountOriginal / exchangeRateToUsd);
 }
 
+/** يقرأ بنود السند المقسَّم (voucher_lines) إن وُجدت — مصفوفة فارغة لسند أحادي
+ * الخزينة القديم (لا صفوف له أصلاً)، فيعود applyVoucherConfirmation/Cancellation
+ * لسلوكهما الافتراضي بناءً على الحقول القديمة بالضبط. */
+export async function loadVoucherConfirmationLines(
+  client: PoolClient,
+  companyId: string,
+  voucherId: string,
+): Promise<VoucherConfirmationLine[]> {
+  const rows = await client.query<{
+    cashbox_id: string;
+    amount: string;
+    currency_code: string;
+    exchange_rate_to_usd: string | null;
+    amount_usd: string | null;
+  }>(
+    `SELECT cashbox_id, amount, currency_code, exchange_rate_to_usd, amount_usd
+     FROM voucher_lines WHERE company_id=$1 AND voucher_id=$2 ORDER BY sort_order ASC, created_at ASC`,
+    [companyId, voucherId],
+  );
+  return rows.rows.map((r) => ({
+    cashboxId: r.cashbox_id,
+    amount: Number(r.amount),
+    currencyCode: String(r.currency_code || 'USD').trim().toUpperCase(),
+    exchangeRateToUsd: Number(r.exchange_rate_to_usd ?? 1) > 0 ? Number(r.exchange_rate_to_usd ?? 1) : 1,
+    amountUsd: Number(r.amount_usd ?? 0) || computeUsd(Number(r.amount), Number(r.exchange_rate_to_usd ?? 1) || 1),
+  }));
+}
+
 export async function insertDraftVoucher(
   client: PoolClient,
   input: {
@@ -71,6 +99,81 @@ export async function insertDraftVoucher(
   return { id: row.rows[0].id, voucherNo: row.rows[0].voucher_no };
 }
 
+export type VoucherConfirmationLine = {
+  cashboxId: string;
+  amount: number;
+  currencyCode: string;
+  exchangeRateToUsd: number;
+  amountUsd: number;
+};
+
+/** تُسجِّل حركة خزينة واحدة + تحديث رصيد لحساب خزينة واحد — منطق مشترك بين
+ * السند القديم (بند واحد ضمني) والسند المقسَّم على عدة بنود (كل بند يستدعيها). */
+async function applyOneCashboxLine(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    voucherId: string;
+    voucherNo: string;
+    voucherType: 'RECEIPT' | 'PAYMENT';
+    line: VoucherConfirmationLine;
+    description: string | null;
+    userId: string | null;
+  },
+): Promise<void> {
+  const movementNo = generateDocumentNo('MOV');
+  const isReceipt = input.voucherType === 'RECEIPT';
+  const direction = isReceipt ? 'IN' : 'OUT';
+  const movementType = isReceipt ? 'RECEIPT' : 'PAYMENT';
+  const { cashboxId, amount, currencyCode, exchangeRateToUsd, amountUsd } = input.line;
+
+  const box = await client.query<{ current_balance: string; currency_code: string }>(
+    `SELECT current_balance, currency_code FROM cashboxes WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [cashboxId, input.companyId],
+  );
+  if (!box.rows.length) throw Object.assign(new Error('الصندوق غير موجود'), { code: 'NOT_FOUND' });
+  const boxCurrency = String(box.rows[0].currency_code || 'USD').trim().toUpperCase();
+  if (boxCurrency !== String(currencyCode || 'USD').trim().toUpperCase()) {
+    throw Object.assign(new Error('عملة السند يجب أن تطابق عملة الصندوق المحدد'), { code: 'VALIDATION' });
+  }
+
+  const prev = Number(box.rows[0].current_balance);
+  const next = isReceipt ? prev + amount : prev - amount;
+  if (!isReceipt && next < -EPS) {
+    throw Object.assign(new Error('الرصيد غير كافٍ في الصندوق'), { code: 'VALIDATION' });
+  }
+
+  await client.query(
+    `INSERT INTO cashbox_movements (
+       company_id, cashbox_id, movement_no, movement_type, direction, amount,
+       currency_code, exchange_rate_to_usd, amount_usd, balance_after,
+       source_type, source_id, source_no, description, created_by_user_id
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+    [
+      input.companyId,
+      cashboxId,
+      movementNo,
+      movementType,
+      direction,
+      amount,
+      currencyCode,
+      exchangeRateToUsd,
+      amountUsd,
+      next,
+      'VOUCHER',
+      input.voucherId,
+      input.voucherNo,
+      input.description ?? (isReceipt ? `قبض — ${input.voucherNo}` : `صرف — ${input.voucherNo}`),
+      input.userId,
+    ],
+  );
+
+  await client.query(
+    `UPDATE cashboxes SET current_balance=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
+    [cashboxId, input.companyId, next],
+  );
+}
+
 export async function applyVoucherConfirmation(
   client: PoolClient,
   input: {
@@ -89,59 +192,36 @@ export async function applyVoucherConfirmation(
     partyName: string;
     description: string | null;
     userId: string | null;
+    /** سند مقسَّم على أكثر من حساب/وسيلة — عند تمريرها، تُعتمَد بدل
+     * cashboxId/amount أعلاه (يبقيان لتوافق النداءات القديمة فقط). غير
+     * مُمرَّرة أو فارغة = بالضبط نفس سلوك السند أحادي الخزينة كما كان دائماً. */
+    lines?: VoucherConfirmationLine[];
   },
 ): Promise<void> {
-  const movementNo = generateDocumentNo('MOV');
-  const isReceipt = input.voucherType === 'RECEIPT';
-  const direction = isReceipt ? 'IN' : 'OUT';
-  const movementType = isReceipt ? 'RECEIPT' : 'PAYMENT';
+  const lines: VoucherConfirmationLine[] =
+    input.lines && input.lines.length > 0
+      ? input.lines
+      : [
+          {
+            cashboxId: input.cashboxId,
+            amount: input.amount,
+            currencyCode: input.currencyCode,
+            exchangeRateToUsd: input.exchangeRateToUsd,
+            amountUsd: input.amountUsd,
+          },
+        ];
 
-  const box = await client.query<{ current_balance: string; currency_code: string }>(
-    `SELECT current_balance, currency_code FROM cashboxes WHERE id=$1 AND company_id=$2 FOR UPDATE`,
-    [input.cashboxId, input.companyId],
-  );
-  if (!box.rows.length) throw Object.assign(new Error('الصندوق غير موجود'), { code: 'NOT_FOUND' });
-  const boxCurrency = String(box.rows[0].currency_code || 'USD').trim().toUpperCase();
-  if (boxCurrency !== String(input.currencyCode || 'USD').trim().toUpperCase()) {
-    throw Object.assign(new Error('عملة السند يجب أن تطابق عملة الصندوق المحدد'), { code: 'VALIDATION' });
+  for (const line of lines) {
+    await applyOneCashboxLine(client, {
+      companyId: input.companyId,
+      voucherId: input.voucherId,
+      voucherNo: input.voucherNo,
+      voucherType: input.voucherType,
+      line,
+      description: input.description,
+      userId: input.userId,
+    });
   }
-
-  const prev = Number(box.rows[0].current_balance);
-  const amt = input.amount;
-  const next = isReceipt ? prev + amt : prev - amt;
-  if (!isReceipt && next < -EPS) {
-    throw Object.assign(new Error('الرصيد غير كافٍ في الصندوق'), { code: 'VALIDATION' });
-  }
-
-  await client.query(
-    `INSERT INTO cashbox_movements (
-       company_id, cashbox_id, movement_no, movement_type, direction, amount,
-       currency_code, exchange_rate_to_usd, amount_usd, balance_after,
-       source_type, source_id, source_no, description, created_by_user_id
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-    [
-      input.companyId,
-      input.cashboxId,
-      movementNo,
-      movementType,
-      direction,
-      amt,
-      input.currencyCode,
-      input.exchangeRateToUsd,
-      input.amountUsd,
-      next,
-      'VOUCHER',
-      input.voucherId,
-      input.voucherNo,
-      input.description ?? (isReceipt ? `قبض — ${input.voucherNo}` : `صرف — ${input.voucherNo}`),
-      input.userId,
-    ],
-  );
-
-  await client.query(
-    `UPDATE cashboxes SET current_balance=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
-    [input.cashboxId, input.companyId, next],
-  );
 
   if (input.partyType === 'CUSTOMER' || input.partyType === 'SUPPLIER') {
     await insertPartyActivityLog(client, {
@@ -150,12 +230,12 @@ export async function applyVoucherConfirmation(
       partyId: input.partyId,
       partyName: input.partyName,
       activityType: 'PAYMENT',
-      description: `${isReceipt ? 'سند قبض' : 'سند صرف'} مؤكد ${input.voucherNo}`,
+      description: `${input.voucherType === 'RECEIPT' ? 'سند قبض' : 'سند صرف'} مؤكد ${input.voucherNo}`,
       userId: input.userId,
       referenceType: 'VOUCHER',
       referenceId: input.voucherId,
       referenceNo: input.voucherNo,
-      amount: amt,
+      amount: input.amount,
       currencyCode: input.currencyCode,
     });
   }
@@ -166,16 +246,72 @@ export async function applyVoucherConfirmation(
     voucherNo: input.voucherNo,
     voucherDate: input.voucherDate,
     voucherType: input.voucherType,
-    amount: amt,
-    amountUsd: input.amountUsd,
     currencyCode: input.currencyCode,
-    exchangeRateToUsd: input.exchangeRateToUsd,
-    cashboxId: input.cashboxId,
+    cashboxLines: lines.map((l) => ({ cashboxId: l.cashboxId, amountUsd: l.amountUsd })),
     partyType: input.partyType,
     partyId: input.partyId,
     description: input.description,
     userId: input.userId,
   });
+}
+
+async function reverseOneCashboxLine(
+  client: PoolClient,
+  input: {
+    companyId: string;
+    voucherId: string;
+    voucherNo: string;
+    voucherType: 'RECEIPT' | 'PAYMENT';
+    line: VoucherConfirmationLine;
+    userId: string | null;
+  },
+): Promise<void> {
+  const movementNo = generateDocumentNo('MOV');
+  const wasReceipt = input.voucherType === 'RECEIPT';
+  const reversalDirection = wasReceipt ? 'OUT' : 'IN';
+  const { cashboxId, amount, currencyCode, exchangeRateToUsd, amountUsd } = input.line;
+
+  const box = await client.query<{ current_balance: string; currency_code: string }>(
+    `SELECT current_balance, currency_code FROM cashboxes WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+    [cashboxId, input.companyId],
+  );
+  if (!box.rows.length) throw Object.assign(new Error('الصندوق غير موجود'), { code: 'NOT_FOUND' });
+  const boxCurrency = String(box.rows[0].currency_code || 'USD').trim().toUpperCase();
+  if (boxCurrency !== String(currencyCode || 'USD').trim().toUpperCase()) {
+    throw Object.assign(new Error('عملة السند يجب أن تطابق عملة الصندوق المحدد'), { code: 'VALIDATION' });
+  }
+
+  const prev = Number(box.rows[0].current_balance);
+  const next = wasReceipt ? prev - amount : prev + amount;
+
+  await client.query(
+    `INSERT INTO cashbox_movements (
+       company_id, cashbox_id, movement_no, movement_type, direction, amount,
+       currency_code, exchange_rate_to_usd, amount_usd, balance_after,
+       source_type, source_id, source_no, description, created_by_user_id
+     ) VALUES ($1,$2,$3,'ADJUSTMENT',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    [
+      input.companyId,
+      cashboxId,
+      movementNo,
+      reversalDirection,
+      amount,
+      currencyCode,
+      exchangeRateToUsd,
+      amountUsd,
+      next,
+      'VOUCHER_CANCEL',
+      input.voucherId,
+      input.voucherNo,
+      `عكس سند ملغى ${input.voucherNo}`,
+      input.userId,
+    ],
+  );
+
+  await client.query(
+    `UPDATE cashboxes SET current_balance=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
+    [cashboxId, input.companyId, next],
+  );
 }
 
 export async function applyVoucherCancellation(
@@ -191,6 +327,9 @@ export async function applyVoucherCancellation(
     amountUsd: number;
     cashboxId: string;
     userId: string | null;
+    /** نفس بنود التأكيد الأصلية — لعكس حركة كل حساب على حدة. غير مُمرَّرة =
+     * سند أحادي الخزينة كالسابق تماماً. */
+    lines?: VoucherConfirmationLine[];
   },
 ): Promise<void> {
   await reverseVoucherGl(client, {
@@ -200,52 +339,29 @@ export async function applyVoucherCancellation(
     userId: input.userId,
   });
 
-  const movementNo = generateDocumentNo('MOV');
-  const wasReceipt = input.voucherType === 'RECEIPT';
-  const reversalDirection = wasReceipt ? 'OUT' : 'IN';
+  const lines: VoucherConfirmationLine[] =
+    input.lines && input.lines.length > 0
+      ? input.lines
+      : [
+          {
+            cashboxId: input.cashboxId,
+            amount: input.amount,
+            currencyCode: input.currencyCode,
+            exchangeRateToUsd: input.exchangeRateToUsd,
+            amountUsd: input.amountUsd,
+          },
+        ];
 
-  const box = await client.query<{ current_balance: string; currency_code: string }>(
-    `SELECT current_balance, currency_code FROM cashboxes WHERE id=$1 AND company_id=$2 FOR UPDATE`,
-    [input.cashboxId, input.companyId],
-  );
-  if (!box.rows.length) throw Object.assign(new Error('الصندوق غير موجود'), { code: 'NOT_FOUND' });
-  const boxCurrency = String(box.rows[0].currency_code || 'USD').trim().toUpperCase();
-  if (boxCurrency !== String(input.currencyCode || 'USD').trim().toUpperCase()) {
-    throw Object.assign(new Error('عملة السند يجب أن تطابق عملة الصندوق المحدد'), { code: 'VALIDATION' });
+  for (const line of lines) {
+    await reverseOneCashboxLine(client, {
+      companyId: input.companyId,
+      voucherId: input.voucherId,
+      voucherNo: input.voucherNo,
+      voucherType: input.voucherType,
+      line,
+      userId: input.userId,
+    });
   }
-
-  const prev = Number(box.rows[0].current_balance);
-  const amt = input.amount;
-  const next = wasReceipt ? prev - amt : prev + amt;
-
-  await client.query(
-    `INSERT INTO cashbox_movements (
-       company_id, cashbox_id, movement_no, movement_type, direction, amount,
-       currency_code, exchange_rate_to_usd, amount_usd, balance_after,
-       source_type, source_id, source_no, description, created_by_user_id
-     ) VALUES ($1,$2,$3,'ADJUSTMENT',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-    [
-      input.companyId,
-      input.cashboxId,
-      movementNo,
-      reversalDirection,
-      amt,
-      input.currencyCode,
-      input.exchangeRateToUsd,
-      input.amountUsd,
-      next,
-      'VOUCHER_CANCEL',
-      input.voucherId,
-      input.voucherNo,
-      `عكس سند ملغى ${input.voucherNo}`,
-      input.userId,
-    ],
-  );
-
-  await client.query(
-    `UPDATE cashboxes SET current_balance=$3, updated_at=now() WHERE id=$1 AND company_id=$2`,
-    [input.cashboxId, input.companyId, next],
-  );
 }
 
 /** Cancel a confirmed voucher (GL + cashbox reversal) and mark it CANCELLED. No-op if already cancelled. */
@@ -266,6 +382,7 @@ export async function cancelConfirmedVoucher(
   if (row.status === 'CANCELLED') return;
 
   if (row.status === 'CONFIRMED' && row.cashbox_id) {
+    const existingLines = await loadVoucherConfirmationLines(client, input.companyId, input.voucherId);
     await applyVoucherCancellation(client, {
       companyId: input.companyId,
       voucherId: input.voucherId,
@@ -279,6 +396,7 @@ export async function cancelConfirmedVoucher(
         computeUsd(Number(row.amount), Number(row.exchange_rate_to_usd ?? 1) || 1),
       cashboxId: row.cashbox_id,
       userId: input.userId,
+      lines: existingLines,
     });
   }
 

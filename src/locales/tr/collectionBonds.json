@@ -32,5 +32,18 @@
   "manualNamePlaceholder": "Veya listeden seçilmediyse manuel ad",
   "descriptionPlaceholder": "Açıklama (isteğe bağlı — amaçla otomatik birleştirilir)",
   "advanceHint": "Kapora, tarafın hesap ekstresinde alacak bakiyesi olarak görünür ve daha sonra «kapora iadesi» amacıyla bir ödeme senedi ile geri verilebilir.",
-  "saveButton": "Kaydet ve Kasaya İşle"
+  "saveButton": "Kaydet ve Kasaya İşle",
+  "split.enableToggle": "Birden fazla hesaba/yönteme bölün",
+  "split.addLineButton": "Yöntem Ekle",
+  "split.transactionRefPlaceholder": "İşlem numarası (isteğe bağlı)",
+  "split.sumLabel": "Kalemler Toplamı",
+  "split.totalLabel": "Senet Toplamı",
+  "split.sumMismatchHint": "Ödeme kalemlerinin toplamı kaydetmeden önce senet toplamına tam olarak eşit olmalıdır.",
+  "split.sumMismatchWarning": "Kalemler toplamı ({{sum}}) senet toplamına ({{total}}) eşit değil",
+  "split.noLinesWarning": "Bölme için en az bir kalem ekleyin",
+  "split.incompleteLineWarning": "Kaydetmeden önce her kalem için hesap ve tutarı tamamlayın",
+  "split.kind.CASH": "Nakit Kasa",
+  "split.kind.BANK": "Banka",
+  "split.kind.WALLET": "Elektronik Cüzdan",
+  "split.kind.CHECKS": "Çek Kasası"
 }

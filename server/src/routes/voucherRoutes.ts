@@ -5,7 +5,11 @@ import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
 import { generateSequentialDocumentNo } from '../utils/documentNumbers.js';
-import { applyVoucherCancellation, applyVoucherConfirmation } from '../services/voucherCashboxService.js';
+import {
+  applyVoucherCancellation,
+  applyVoucherConfirmation,
+  loadVoucherConfirmationLines,
+} from '../services/voucherCashboxService.js';
 import {
   applyPurchaseInvoicePaymentOnVoucherConfirm,
   validatePurchaseInvoicePaymentVoucher,
@@ -25,6 +29,17 @@ const partyTypeSchema = z.enum(['CUSTOMER', 'SUPPLIER', 'EMPLOYEE', 'OTHER']).op
 const paymentMethodSchema = z.enum(['CASH', 'BANK', 'TRANSFER', 'OTHER']);
 const purposeSchema = z.enum(VOUCHER_PURPOSES).default('INVOICE_PAYMENT');
 
+/** بند تقسيم السند على أكثر من حساب/وسيلة — اختياري بالكامل. عند إرساله، يجب
+ * أن يساوي مجموع مبالغه إجمالي السند (amount) تماماً، وإلا يُرفَض الحفظ. */
+const voucherLineSchema = z.object({
+  cashboxId: z.string().uuid(),
+  paymentMethod: z.enum(['CASH', 'BANK', 'WALLET', 'CHECK']).default('CASH'),
+  amount: z.coerce.number().positive(),
+  transactionRef: z.string().optional().nullable(),
+  transactionDate: z.string().optional().nullable(),
+  attachmentImage: z.string().optional().nullable(),
+});
+
 const createBody = z.object({
   voucherType: z.enum(['RECEIPT', 'PAYMENT']),
   voucherDate: z.string().optional(),
@@ -42,9 +57,11 @@ const createBody = z.object({
   notes: z.string().optional().nullable(),
   referenceDocumentType: z.string().optional().nullable(),
   referenceDocumentNo: z.string().optional().nullable(),
+  lines: z.array(voucherLineSchema).optional(),
 });
 
 const updateBody = createBody;
+const LINE_SUM_EPS = 0.01;
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -53,6 +70,45 @@ function round2(n: number): number {
 function computeUsd(amountOriginal: number, exchangeRateToUsd: number): number {
   if (!Number.isFinite(amountOriginal) || !Number.isFinite(exchangeRateToUsd) || exchangeRateToUsd <= 0) return 0;
   return round2(amountOriginal / exchangeRateToUsd);
+}
+
+type ParsedVoucherLine = z.infer<typeof voucherLineSchema>;
+
+/** يستبدل بنود السند بالكامل (حذف ثم إعادة إدخال) — نمط نماذج البنود الفرعية
+ * الموجود أصلاً بالمشروع (سطور الفاتورة مثلاً)، بسيط وآمن لعدد بنود صغير كهذا. */
+async function replaceVoucherLines(
+  client: import('pg').PoolClient,
+  companyId: string,
+  voucherId: string,
+  lines: ParsedVoucherLine[],
+  headerCurrencyCode: string,
+  headerExchangeRateToUsd: number,
+): Promise<void> {
+  await client.query(`DELETE FROM voucher_lines WHERE company_id=$1 AND voucher_id=$2`, [companyId, voucherId]);
+  let sortOrder = 0;
+  for (const line of lines) {
+    const amountUsd = computeUsd(line.amount, headerExchangeRateToUsd);
+    await client.query(
+      `INSERT INTO voucher_lines (
+         company_id, voucher_id, cashbox_id, payment_method, amount, currency_code,
+         exchange_rate_to_usd, amount_usd, transaction_ref, transaction_date, attachment_image, sort_order
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        companyId,
+        voucherId,
+        line.cashboxId,
+        line.paymentMethod,
+        line.amount,
+        headerCurrencyCode,
+        headerExchangeRateToUsd,
+        amountUsd,
+        line.transactionRef?.trim() || null,
+        line.transactionDate || null,
+        line.attachmentImage || null,
+        sortOrder++,
+      ],
+    );
+  }
 }
 
 export const voucherRoutes: FastifyPluginAsync = async (app) => {
@@ -158,7 +214,18 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
       [id, companyId],
     );
     if (!row.rows.length) return sendError(reply, 404, 'السند غير موجود', 'NOT_FOUND');
-    return reply.send({ ok: true, data: row.rows[0] });
+
+    const lines = await pool.query(
+      `SELECT vl.id, vl.cashbox_id, c.name AS cashbox_name, c.account_kind, vl.payment_method, vl.amount,
+              vl.currency_code, vl.transaction_ref, vl.transaction_date, vl.attachment_image, vl.sort_order
+       FROM voucher_lines vl
+       JOIN cashboxes c ON c.id = vl.cashbox_id AND c.company_id = vl.company_id
+       WHERE vl.company_id=$1 AND vl.voucher_id=$2
+       ORDER BY vl.sort_order ASC, vl.created_at ASC`,
+      [companyId, id],
+    );
+
+    return reply.send({ ok: true, data: { ...row.rows[0], lines: lines.rows } });
   });
 
   app.post('/', { preHandler: authenticateRequest }, async (req, reply) => {
@@ -166,6 +233,17 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
     const parsed = createBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     const d = parsed.data;
+
+    if (d.lines && d.lines.length > 0) {
+      const linesSum = round2(d.lines.reduce((sum, l) => sum + l.amount, 0));
+      if (Math.abs(linesSum - round2(d.amount)) > LINE_SUM_EPS) {
+        return sendError(
+          reply, 400,
+          `مجموع بنود الدفع (${linesSum}) لا يساوي إجمالي السند (${round2(d.amount)})`,
+          'VALIDATION',
+        );
+      }
+    }
 
     const vd = d.voucherDate ? d.voucherDate : new Date().toISOString().slice(0, 10);
 
@@ -229,6 +307,11 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
           userId,
         ],
       );
+
+      if (d.lines && d.lines.length > 0) {
+        await replaceVoucherLines(client, companyId, ins.rows[0].id, d.lines, currencyCode, exchangeRateToUsd);
+      }
+
       await client.query('COMMIT');
       return reply.status(201).send({ ok: true, data: ins.rows[0] });
     } catch (error) {
@@ -248,6 +331,17 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
     const parsed = updateBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     const d = parsed.data;
+
+    if (d.lines && d.lines.length > 0) {
+      const linesSum = round2(d.lines.reduce((sum, l) => sum + l.amount, 0));
+      if (Math.abs(linesSum - round2(d.amount)) > LINE_SUM_EPS) {
+        return sendError(
+          reply, 400,
+          `مجموع بنود الدفع (${linesSum}) لا يساوي إجمالي السند (${round2(d.amount)})`,
+          'VALIDATION',
+        );
+      }
+    }
 
     const pool = getPool();
     const client = await pool.connect();
@@ -313,6 +407,11 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
           userId,
         ],
       );
+
+      // استبدال كامل للبنود دائماً عند التعديل (حتى لو أُرسلت فارغة — يعني
+      // رجوعاً لسند أحادي الخزينة) — السند لا يزال DRAFT هنا فقط، لا أثر مالي بعد.
+      await replaceVoucherLines(client, companyId, id, d.lines ?? [], currencyCode, exchangeRateToUsd);
+
       await client.query('COMMIT');
       return reply.send({ ok: true, data: row.rows[0] });
     } catch (error) {
@@ -352,9 +451,11 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
         await client.query('ROLLBACK');
         return sendError(reply, 400, 'لا يمكن التأكيد في هذه الحالة', 'INVALID_STATE');
       }
-      if (!row.cashbox_id) {
+
+      const confirmationLines = await loadVoucherConfirmationLines(client, companyId, id);
+      if (!row.cashbox_id && confirmationLines.length === 0) {
         await client.query('ROLLBACK');
-        return sendError(reply, 400, 'يجب اختيار صندوق قبل التأكيد', 'VALIDATION');
+        return sendError(reply, 400, 'يجب اختيار صندوق أو إضافة بند دفع واحد على الأقل قبل التأكيد', 'VALIDATION');
       }
 
       await validateSaleInvoiceReceiptVoucher(client, companyId, {
@@ -393,6 +494,7 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
         partyName: row.party_name,
         description: row.description,
         userId,
+        lines: confirmationLines,
       });
 
       await client.query(
@@ -466,7 +568,8 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
         return sendError(reply, 400, 'السند ملغى مسبقاً', 'INVALID_STATE');
       }
 
-      if (row.status === 'CONFIRMED' && row.cashbox_id) {
+      const cancellationLines = await loadVoucherConfirmationLines(client, companyId, id);
+      if (row.status === 'CONFIRMED' && (row.cashbox_id || cancellationLines.length > 0)) {
         await applyVoucherCancellation(client, {
           companyId,
           voucherId: id,
@@ -478,6 +581,7 @@ export const voucherRoutes: FastifyPluginAsync = async (app) => {
           amountUsd: Number(row.amount_usd ?? 0) || computeUsd(Number(row.amount), Number(row.exchange_rate_to_usd ?? 1) || 1),
           cashboxId: row.cashbox_id,
           userId,
+          lines: cancellationLines,
         });
       }
 

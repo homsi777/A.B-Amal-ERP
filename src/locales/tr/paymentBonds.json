@@ -57,5 +57,22 @@
   },
   "defaults": {
     "beneficiary": "Alıcı"
+  },
+  "split": {
+    "enableToggle": "Birden fazla hesaba/yönteme bölün",
+    "addLineButton": "Yöntem Ekle",
+    "transactionRefPlaceholder": "İşlem numarası (isteğe bağlı)",
+    "sumLabel": "Kalemler Toplamı",
+    "totalLabel": "Fiş Toplamı",
+    "sumMismatchHint": "Ödeme kalemlerinin toplamı kaydetmeden önce fiş toplamına tam olarak eşit olmalıdır.",
+    "sumMismatchWarning": "Kalemler toplamı ({{sum}}) fiş toplamına ({{total}}) eşit değil",
+    "noLinesWarning": "Bölme için en az bir kalem ekleyin",
+    "incompleteLineWarning": "Kaydetmeden önce her kalem için hesap ve tutarı tamamlayın",
+    "kind": {
+      "CASH": "Nakit Kasa",
+      "BANK": "Banka",
+      "WALLET": "Elektronik Cüzdan",
+      "CHECKS": "Çek Kasası"
+    }
   }
 }

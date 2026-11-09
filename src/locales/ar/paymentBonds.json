@@ -57,5 +57,22 @@
   },
   "defaults": {
     "beneficiary": "مستفيد"
+  },
+  "split": {
+    "enableToggle": "تقسيم على أكثر من حساب/وسيلة",
+    "addLineButton": "إضافة وسيلة",
+    "transactionRefPlaceholder": "رقم العملية (اختياري)",
+    "sumLabel": "مجموع البنود",
+    "totalLabel": "إجمالي السند",
+    "sumMismatchHint": "مجموع بنود الدفع يجب أن يساوي إجمالي السند تماماً قبل الحفظ.",
+    "sumMismatchWarning": "مجموع البنود ({{sum}}) لا يساوي إجمالي السند ({{total}})",
+    "noLinesWarning": "أضيفي بنداً واحداً على الأقل عند التقسيم",
+    "incompleteLineWarning": "أكملي الحساب والمبلغ لكل بند قبل الحفظ",
+    "kind": {
+      "CASH": "صندوق نقدي",
+      "BANK": "بنك",
+      "WALLET": "محفظة إلكترونية",
+      "CHECKS": "خزينة شيكات"
+    }
   }
 }
