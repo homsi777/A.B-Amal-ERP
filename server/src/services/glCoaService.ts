@@ -23,7 +23,23 @@ export const GL_KEYS = {
   OPERATING_EXPENSE_GENERAL: 'GL_OPERATING_EXPENSE_GENERAL',
   /** أجرة أعمال خارجية (صباغة/تجهيز) — تُرحّل كذمة على المورد عند استلام المهمة الخارجية */
   EXTERNAL_JOB_FEE_EXPENSE: 'GL_EXTERNAL_JOB_FEE_EXPENSE',
+  /** حسابات الخزينة متعددة الأنواع — بديل GL_CASH الموحّد لحسابات البنك/المحفظة/الشيكات. */
+  BANK: 'GL_BANK',
+  MOBILE_WALLET: 'GL_MOBILE_WALLET',
+  /** شيكات مستلمة غير محصّلة بعد — أصل منفصل عن النقدية، يُسوَّى عند الإيداع/التحصيل/الارتجاع. */
+  CHECKS_RECEIVABLE: 'GL_CHECKS_RECEIVABLE',
 } as const;
+
+/** يُحدِّد مفتاح GL المناسب حسب نوع حساب الخزينة — CASH يبقى على GL_CASH الموحّد
+ * (توافق خلفي كامل مع كل الصناديق الموجودة)، وبقية الأنواع تحصل على حساب مستقل. */
+export function glKeyForCashboxAccountKind(accountKind: string): string {
+  switch (accountKind) {
+    case 'BANK': return GL_KEYS.BANK;
+    case 'WALLET': return GL_KEYS.MOBILE_WALLET;
+    case 'CHECKS': return GL_KEYS.CHECKS_RECEIVABLE;
+    default: return GL_KEYS.CASH;
+  }
+}
 
 /**
  * Ensure default Arabic COA exists for company. Idempotent.
@@ -316,6 +332,40 @@ export async function ensureCompanyOperatingExpenseCoa(client: PoolClient, compa
       [companyId, cat.code, cat.name, glAccountId, cat.sort_order],
     );
   }
+}
+
+const TREASURY_GL_UPSERTS = [
+  { code: '1102', name: 'حسابات بنكية', system_key: GL_KEYS.BANK, sort_order: 32 },
+  { code: '1103', name: 'محافظ إلكترونية (فودافون كاش وما شابه)', system_key: GL_KEYS.MOBILE_WALLET, sort_order: 33 },
+  { code: '1104', name: 'شيكات تحت التحصيل', system_key: GL_KEYS.CHECKS_RECEIVABLE, sort_order: 34 },
+] as const;
+
+/** Ensures the bank/mobile-wallet/checks-receivable GL accounts exist (idempotent) —
+ * يسمح بحسابات خزينة من أنواع غير CASH (صناديق موجودة تبقى على GL_CASH كما هي). */
+export async function ensureCompanyTreasuryGlAccounts(client: PoolClient, companyId: string): Promise<void> {
+  await ensureCompanyGlCoa(client, companyId);
+
+  for (const u of TREASURY_GL_UPSERTS) {
+    await client.query(
+      `INSERT INTO gl_accounts (company_id, code, name, account_type, parent_id, is_posting, system_key, sort_order)
+       SELECT $1, $2, $3, 'ASSET',
+         (SELECT id FROM gl_accounts p WHERE p.company_id = $1 AND p.code = '11' LIMIT 1),
+         true, $4, $5
+       WHERE NOT EXISTS (SELECT 1 FROM gl_accounts g WHERE g.company_id = $1 AND g.system_key = $4)`,
+      [companyId, u.code, u.name, u.system_key, u.sort_order],
+    );
+  }
+}
+
+/** معرّف حساب GL المناسب لصندوق خزينة مُحدَّد حسب نوعه (account_kind) — يضمن
+ * تزويد حسابات البنك/المحفظة/الشيكات أولاً (idempotent) قبل البحث عن المفتاح. */
+export async function resolveCashboxGlAccountId(
+  client: PoolClient,
+  companyId: string,
+  accountKind: string,
+): Promise<string> {
+  await ensureCompanyTreasuryGlAccounts(client, companyId);
+  return getGlAccountIdByKey(client, companyId, glKeyForCashboxAccountKind(accountKind));
 }
 
 /** Ensures the external-job fee expense GL account exists (idempotent). */

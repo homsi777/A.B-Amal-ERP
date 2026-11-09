@@ -1,5 +1,7 @@
 import { apiFetch } from './client';
 
+export type CashboxAccountKind = 'CASH' | 'BANK' | 'WALLET' | 'CHECKS';
+
 export interface CashboxDto {
   id: string;
   code: string;
@@ -10,6 +12,8 @@ export interface CashboxDto {
   is_default: boolean;
   is_active: boolean;
   notes: string | null;
+  account_kind: CashboxAccountKind;
+  parent_cashbox_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -71,6 +75,8 @@ export async function createCashbox(payload: {
   openingBalance?: number;
   isDefault?: boolean;
   notes?: string | null;
+  accountKind?: CashboxAccountKind;
+  parentCashboxId?: string | null;
 }) {
   return apiFetch<{ ok: boolean; data: CashboxDto }>('/api/cashboxes', {
     method: 'POST',
@@ -81,6 +87,8 @@ export async function createCashbox(payload: {
       openingBalance: payload.openingBalance ?? 0,
       isDefault: payload.isDefault ?? false,
       notes: payload.notes ?? null,
+      accountKind: payload.accountKind ?? 'CASH',
+      parentCashboxId: payload.parentCashboxId ?? null,
     }),
   });
 }

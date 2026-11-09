@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Search, Wallet, ArrowUpRight, ArrowDownRight, Loader2, ArrowLeftRight } from 'lucide-react';
-import { listCashboxes, createCashbox, type CashboxDto } from '../../lib/api/cashboxesApi';
+import { listCashboxes, createCashbox, type CashboxDto, type CashboxAccountKind } from '../../lib/api/cashboxesApi';
 import { ApiRequestError } from '../../lib/api/client';
 import {
   confirmCashboxTransfer,
@@ -29,6 +29,8 @@ export const Safes = () => {
   const [name, setName] = useState('');
   const [opening, setOpening] = useState('0');
   const [currencyCode, setCurrencyCode] = useState<'USD' | 'SYP' | 'TRY' | 'EGP'>('USD');
+  const [accountKind, setAccountKind] = useState<CashboxAccountKind>('CASH');
+  const [parentCashboxId, setParentCashboxId] = useState('');
   const [saving, setSaving] = useState(false);
   const [transferSaving, setTransferSaving] = useState(false);
   const [transferDate, setTransferDate] = useState(today());
@@ -38,6 +40,28 @@ export const Safes = () => {
   const [transferNotes, setTransferNotes] = useState('');
 
   const activeSafes = useMemo(() => safes.filter((safe) => safe.is_active), [safes]);
+
+  /** للعرض فقط: كل حساب رئيسي يتبعه حساباته الفرعية مباشرة — لا يؤثر على أي
+   * حركة أو رصيد (كلاهما يبقى محسوباً للحساب الفعلي المختار دوماً). */
+  const groupedSafes = useMemo(() => {
+    const byParent = new Map<string, CashboxDto[]>();
+    for (const s of safes) {
+      const key = s.parent_cashbox_id ?? '';
+      if (!byParent.has(key)) byParent.set(key, []);
+      byParent.get(key)!.push(s);
+    }
+    const roots = byParent.get('') ?? [];
+    const ordered: Array<{ safe: CashboxDto; isChild: boolean }> = [];
+    for (const root of roots) {
+      ordered.push({ safe: root, isChild: false });
+      for (const child of byParent.get(root.id) ?? []) {
+        ordered.push({ safe: child, isChild: true });
+      }
+    }
+    return ordered;
+  }, [safes]);
+
+  const accountKindLabel = (kind: CashboxAccountKind) => t(`accountKind.${kind}`);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,11 +106,15 @@ export const Safes = () => {
         name: name.trim() || t('defaultBoxName'),
         openingBalance: Number(opening) || 0,
         currencyCode,
+        accountKind,
+        parentCashboxId: parentCashboxId || null,
       });
       setModalOpen(false);
       setCode('');
       setName('');
       setOpening('0');
+      setAccountKind('CASH');
+      setParentCashboxId('');
       showToast({ type: 'success', message: t('createSuccess') });
       await load();
     } catch (e) {
@@ -237,6 +265,32 @@ export const Safes = () => {
                 className="w-full border rounded-lg px-3 py-2"
               />
             </div>
+            <div className="space-y-1">
+              <label className="text-sm text-slate-700">{t('modal.accountKindLabel')}</label>
+              <select
+                value={accountKind}
+                onChange={(e) => setAccountKind(e.target.value as CashboxAccountKind)}
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+              >
+                <option value="CASH">{t('accountKind.CASH')}</option>
+                <option value="BANK">{t('accountKind.BANK')}</option>
+                <option value="WALLET">{t('accountKind.WALLET')}</option>
+                <option value="CHECKS">{t('accountKind.CHECKS')}</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm text-slate-700">{t('modal.parentBoxLabel')}</label>
+              <select
+                value={parentCashboxId}
+                onChange={(e) => setParentCashboxId(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+              >
+                <option value="">{t('modal.parentBoxNone')}</option>
+                {safes.filter((s) => !s.parent_cashbox_id).map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded-lg">
                 {t('cancel')}
@@ -321,18 +375,29 @@ export const Safes = () => {
         <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500">{t('noBoxesYet')}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {safes.map((safe) => (
-            <div key={safe.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+          {groupedSafes.map(({ safe, isChild }) => (
+            <div
+              key={safe.id}
+              className={`bg-white p-6 rounded-xl border shadow-sm relative overflow-hidden group ${isChild ? 'border-indigo-100 md:mr-4' : 'border-slate-200'}`}
+            >
               <div className="absolute top-0 right-0 p-4 opacity-10 transform translate-x-2 -translate-y-2 group-hover:scale-110 transition-transform">
                 <Wallet className="w-24 h-24 text-indigo-600" />
               </div>
               <div className="relative z-10">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">{safe.name}</h3>
+                <div className="flex justify-between items-center mb-2 gap-2">
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    {isChild && <span className="text-indigo-300 ml-1">↳</span>}
+                    {safe.name}
+                  </h3>
                   <span
-                    className={`px-2 py-1 text-xs rounded-full font-medium ${safe.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}
+                    className={`px-2 py-1 text-xs rounded-full font-medium whitespace-nowrap ${safe.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}
                   >
                     {safe.is_active ? t('active') : t('suspended')}
+                  </span>
+                </div>
+                <div className="mb-2">
+                  <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-700">
+                    {accountKindLabel(safe.account_kind)}
                   </span>
                 </div>
                 <div className="mb-6">

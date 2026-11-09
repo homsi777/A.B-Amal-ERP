@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { generateDocumentNo } from '../utils/documentNumbers.js';
-import { ensureCompanyGlCoa, ensureCompanyInvoiceGlAccounts, ensureCompanyOperatingExpenseCoa, ensureCompanyExternalJobCoa, getGlAccountIdByKey, GL_KEYS } from './glCoaService.js';
+import { ensureCompanyGlCoa, ensureCompanyInvoiceGlAccounts, ensureCompanyOperatingExpenseCoa, ensureCompanyExternalJobCoa, getGlAccountIdByKey, resolveCashboxGlAccountId, GL_KEYS } from './glCoaService.js';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -37,7 +37,19 @@ export async function postVoucherToGl(
   const amt = round2(input.amountUsd);
   if (amt <= 0) return;
 
-  const cashId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.CASH);
+  // يُرحَّل كل سند لحساب GL المطابق لنوع الخزينة الفعلي المختار (صندوق نقدي/بنك/
+  // محفظة/شيكات) بدل حساب GL_CASH الموحّد دائماً — صناديق CASH القديمة تحصل على
+  // نفس المعرّف كالسابق تماماً (لا تغيير بسلوكها)، وأي خزينة من نوع آخر تُرحَّل
+  // الآن لحسابها المستقل الصحيح.
+  const cashboxKindRow = await client.query<{ account_kind: string }>(
+    `SELECT account_kind FROM cashboxes WHERE id=$1 AND company_id=$2`,
+    [input.cashboxId, input.companyId],
+  );
+  const cashId = await resolveCashboxGlAccountId(
+    client,
+    input.companyId,
+    cashboxKindRow.rows[0]?.account_kind ?? 'CASH',
+  );
   const arId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.AR);
   const apId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.AP);
   const suspRec = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.SUSPENSE_RECEIPT);

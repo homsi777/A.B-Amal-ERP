@@ -10,6 +10,8 @@ import {
   CASHBOX_MOVEMENT_PARTY_SELECT,
 } from '../utils/cashboxMovementPartySql.js';
 
+const accountKindSchema = z.enum(['CASH', 'BANK', 'WALLET', 'CHECKS']).default('CASH');
+
 const createBody = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
@@ -17,12 +19,16 @@ const createBody = z.object({
   openingBalance: z.coerce.number().default(0),
   isDefault: z.boolean().optional().default(false),
   notes: z.string().optional().nullable(),
+  accountKind: accountKindSchema,
+  /** للتجميع بالعرض فقط — لا يؤثر على أي حركة أو رصيد. */
+  parentCashboxId: z.string().uuid().optional().nullable(),
 });
 
 const updateBody = z.object({
   name: z.string().min(1),
   notes: z.string().optional().nullable(),
   isDefault: z.boolean().optional(),
+  parentCashboxId: z.string().uuid().optional().nullable(),
 });
 
 const adjustmentBody = z.object({
@@ -60,7 +66,8 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
     const where = conditions.join(' AND ');
     const pool = getPool();
     const rows = await pool.query(
-      `SELECT id, code, name, currency_code, opening_balance, current_balance, is_default, is_active, notes, created_at, updated_at
+      `SELECT id, code, name, currency_code, opening_balance, current_balance, is_default, is_active, notes,
+              account_kind, parent_cashbox_id, created_at, updated_at
        FROM cashboxes WHERE ${where} ORDER BY is_default DESC, name ASC`,
       params,
     );
@@ -140,7 +147,8 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const pool = getPool();
     const row = await pool.query(
-      `SELECT id, code, name, currency_code, opening_balance, current_balance, is_default, is_active, notes, created_at, updated_at
+      `SELECT id, code, name, currency_code, opening_balance, current_balance, is_default, is_active, notes,
+              account_kind, parent_cashbox_id, created_at, updated_at
        FROM cashboxes WHERE id=$1 AND company_id=$2`,
       [id, companyId],
     );
@@ -159,6 +167,17 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
     try {
       await client.query('BEGIN');
 
+      if (d.parentCashboxId) {
+        const parent = await client.query(
+          `SELECT id FROM cashboxes WHERE id=$1 AND company_id=$2`,
+          [d.parentCashboxId, companyId],
+        );
+        if (!parent.rows.length) {
+          await client.query('ROLLBACK');
+          return sendError(reply, 400, 'الحساب الرئيسي المحدَّد غير موجود', 'VALIDATION');
+        }
+      }
+
       if (d.isDefault) {
         await client.query(`UPDATE cashboxes SET is_default=false, updated_at=now() WHERE company_id=$1`, [
           companyId,
@@ -168,9 +187,10 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
       const ins = await client.query(
         `INSERT INTO cashboxes (
            company_id, code, name, currency_code, opening_balance, current_balance,
-           is_default, is_active, notes, created_by_user_id
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9)
-         RETURNING id, code, name, currency_code, opening_balance, current_balance, is_default, is_active, created_at`,
+           is_default, is_active, notes, created_by_user_id, account_kind, parent_cashbox_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8,$9,$10,$11)
+         RETURNING id, code, name, currency_code, opening_balance, current_balance, is_default, is_active,
+                   account_kind, parent_cashbox_id, created_at`,
         [
           companyId,
           d.code.trim(),
@@ -181,6 +201,8 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
           d.isDefault,
           d.notes ?? null,
           userId,
+          d.accountKind,
+          d.parentCashboxId ?? null,
         ],
       );
 
@@ -230,6 +252,22 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      if (d.parentCashboxId) {
+        if (d.parentCashboxId === id) {
+          await client.query('ROLLBACK');
+          return sendError(reply, 400, 'لا يمكن ربط الحساب بنفسه', 'VALIDATION');
+        }
+        const parent = await client.query(
+          `SELECT id FROM cashboxes WHERE id=$1 AND company_id=$2`,
+          [d.parentCashboxId, companyId],
+        );
+        if (!parent.rows.length) {
+          await client.query('ROLLBACK');
+          return sendError(reply, 400, 'الحساب الرئيسي المحدَّد غير موجود', 'VALIDATION');
+        }
+      }
+
       if (d.isDefault === true) {
         await client.query(`UPDATE cashboxes SET is_default=false, updated_at=now() WHERE company_id=$1`, [
           companyId,
@@ -241,10 +279,12 @@ export const cashboxRoutes: FastifyPluginAsync = async (app) => {
            name = COALESCE($3, name),
            notes = $4,
            is_default = CASE WHEN $5::boolean IS NULL THEN is_default ELSE $5 END,
+           parent_cashbox_id = COALESCE($6, parent_cashbox_id),
            updated_at = now()
          WHERE id=$1 AND company_id=$2
-         RETURNING id, code, name, currency_code, opening_balance, current_balance, is_default, is_active, updated_at`,
-        [id, companyId, d.name, d.notes ?? null, d.isDefault ?? null],
+         RETURNING id, code, name, currency_code, opening_balance, current_balance, is_default, is_active,
+                   account_kind, parent_cashbox_id, updated_at`,
+        [id, companyId, d.name, d.notes ?? null, d.isDefault ?? null, d.parentCashboxId ?? null],
       );
       if (!row.rows.length) {
         await client.query('ROLLBACK');
