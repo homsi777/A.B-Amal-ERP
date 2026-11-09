@@ -138,6 +138,11 @@
   "payment.advancePaymentLabel": "Peşin Ödenen Tutar",
   "payment.materialsTotalLabel": "Malzeme Toplamı",
   "payment.discountLabel": "Verilen İndirim Tutarı",
+  "payment.taxLabel": "Vergi",
+  "payment.modeFixed": "Sabit Tutar",
+  "payment.modePercent": "Yüzde %",
+  "payment.discountComputed": "Hesaplanan indirim: {{amount}}",
+  "payment.taxComputed": "Hesaplanan vergi (indirimden sonra): {{amount}}",
   "payment.finalTotalLabel": "Nihai Alacak Toplamı",
 
   "toast.duplicateBarcodeOtherRoll": "Eklenmedi: «{{code}}» numarası, {{existingBarcode}} barkoduyla daha önce eklenmiş bir topa ait. Etiket barkodunu tarayın.",

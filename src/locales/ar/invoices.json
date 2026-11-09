@@ -138,6 +138,11 @@
   "payment.advancePaymentLabel": "الدفعة النقدية المقدمة",
   "payment.materialsTotalLabel": "إجمالي المواد",
   "payment.discountLabel": "قيمة الحسم الممنوح",
+  "payment.taxLabel": "الضريبة",
+  "payment.modeFixed": "قيمة ثابتة",
+  "payment.modePercent": "نسبة %",
+  "payment.discountComputed": "قيمة الخصم المحتسبة: {{amount}}",
+  "payment.taxComputed": "قيمة الضريبة المحتسبة (بعد الخصم): {{amount}}",
   "payment.finalTotalLabel": "الإجمالي النهائي للمطالبة",
 
   "toast.duplicateBarcodeOtherRoll": "لم تتم الإضافة: الرقم «{{code}}» يخص رولاً مضافاً مسبقاً بباركود {{existingBarcode}}. امسح باركود اللصاقة.",

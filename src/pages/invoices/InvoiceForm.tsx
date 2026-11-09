@@ -207,6 +207,24 @@ const CREATE_INVOICE_API_NO_STUB = '-';
 const numberValue = (value: string) => Number(value) || 0;
 const ROLL_PHYSICAL_EPS = 1e-6;
 
+/** يُحسَب الخصم أولاً (نسبة من الإجمالي الفرعي أو قيمة ثابتة)، ثم الضريبة على
+ * الصافي بعد الخصم — بهذا الترتيب بالضبط كما طلب المدير، فتبقى الضريبة مشمولة
+ * ضمن الإجمالي النهائي بلا إضافتها فوقه مرة ثانية (المعادلة أدناه بمكان
+ * الاستخدام تطرح الخصم ثم تضيف الضريبة كما كانت أصلاً، فقط القيمتان لم تعودا
+ * صفراً/مُدخَلة مباشرة بل محسوبتان من النسبة أو القيمة الثابتة). */
+function computeDiscountTotal(subtotal: number, mode: 'PERCENT' | 'FIXED', value: number): number {
+  if (!(value > 0)) return 0;
+  const raw = mode === 'PERCENT' ? subtotal * (value / 100) : value;
+  return Math.round(Math.max(0, Math.min(raw, subtotal)) * 100) / 100;
+}
+
+function computeTaxTotal(subtotal: number, discountTotal: number, mode: 'PERCENT' | 'FIXED', value: number): number {
+  if (!(value > 0)) return 0;
+  const netAfterDiscount = Math.max(0, subtotal - discountTotal);
+  const raw = mode === 'PERCENT' ? netAfterDiscount * (value / 100) : value;
+  return Math.round(Math.max(0, raw) * 100) / 100;
+}
+
 function printableShortBarcode(value: unknown): string {
   const raw = String(value ?? '').trim();
   const exact = raw.match(/^\d{6,7}$/);
@@ -591,6 +609,9 @@ export const InvoiceForm = () => {
   const [cashboxId, setCashboxId] = useState('');
   const [cashboxOptions, setCashboxOptions] = useState<{ id: string; name: string; code: string }[]>([]);
   const [discount, setDiscount] = useState('');
+  const [discountMode, setDiscountMode] = useState<'PERCENT' | 'FIXED'>('FIXED');
+  const [taxValue, setTaxValue] = useState('');
+  const [taxMode, setTaxMode] = useState<'PERCENT' | 'FIXED'>('PERCENT');
   const [headerNotes, setHeaderNotes] = useState('');
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState('');
   const [customerOrderId, setCustomerOrderId] = useState<string | null>(null);
@@ -691,7 +712,12 @@ export const InvoiceForm = () => {
         const ccy = String(h.currency_code ?? 'USD').trim().toUpperCase();
         const rateNum = Number(h.exchange_rate_to_usd);
         setExchangeRateToUsd(ccy === 'USD' || !Number.isFinite(rateNum) || rateNum <= 0 ? '1' : String(rateNum));
+        // يُحمَّل كقيمة ثابتة دائماً (لا نعرف النسبة الأصلية المُستخدَمة وقت
+        // الإنشاء إن وُجدت) — تبقى قابلة للتبديل لنسبة يدوياً بعد الفتح للتعديل.
+        setDiscountMode('FIXED');
         setDiscount(String(Number(h.discount_total ?? 0) || ''));
+        setTaxMode('FIXED');
+        setTaxValue(String(Number((h as { tax_total?: number }).tax_total ?? 0) || ''));
         setHeaderNotes(h.notes != null ? String(h.notes) : '');
         setSupplierInvoiceNo(!isSales && h.supplier_invoice_no != null ? String(h.supplier_invoice_no) : '');
         if (isSales && h.customer_order_id) {
@@ -2320,7 +2346,9 @@ export const InvoiceForm = () => {
   };
 
   const totalAmount = summary.totals.totalAmount;
-  const finalTotalAmount = Math.max(0, totalAmount - numberValue(discount));
+  const headerDiscountTotal = computeDiscountTotal(totalAmount, discountMode, numberValue(discount));
+  const headerTaxTotal = computeTaxTotal(totalAmount, headerDiscountTotal, taxMode, numberValue(taxValue));
+  const finalTotalAmount = Math.max(0, totalAmount - headerDiscountTotal + headerTaxTotal);
 
   const handleSave = async (status: 'draft' | 'final') => {
     if (editBlocked || draftLoading) return;
@@ -2530,7 +2558,9 @@ export const InvoiceForm = () => {
     const persistedSubtotal = lineRound2(
       apiLines.reduce((sum, ln) => sum + lineRound2(ln.quantity * ln.unitPrice), 0),
     );
-    const persistedFinalTotal = lineRound2(Math.max(0, persistedSubtotal - numberValue(discount)));
+    const persistedDiscountTotal = computeDiscountTotal(persistedSubtotal, discountMode, numberValue(discount));
+    const persistedTaxTotal = computeTaxTotal(persistedSubtotal, persistedDiscountTotal, taxMode, numberValue(taxValue));
+    const persistedFinalTotal = lineRound2(Math.max(0, persistedSubtotal - persistedDiscountTotal + persistedTaxTotal));
 
     const paidAmount = saleType === 'cash' ? persistedFinalTotal : numberValue(paymentAmount);
 
@@ -2597,8 +2627,8 @@ export const InvoiceForm = () => {
       return;
     }
     const subtotalUsd = round2(convertToUsd(persistedSubtotal, rate));
-    const discountUsd = round2(convertToUsd(numberValue(discount), rate));
-    const taxUsd = 0;
+    const discountUsd = round2(convertToUsd(persistedDiscountTotal, rate));
+    const taxUsd = round2(convertToUsd(persistedTaxTotal, rate));
     const totalUsd = round2(convertToUsd(persistedFinalTotal, rate));
     const paidUsd = round2(convertToUsd(paidAmount, rate));
     const remainingUsd = round2(convertToUsd(Math.max(0, persistedFinalTotal - paidAmount), rate));
@@ -2662,8 +2692,8 @@ export const InvoiceForm = () => {
       exchangeRateToUsd: rate,
       notes: notesPayload,
       subtotal: persistedSubtotal,
-      discountTotal: numberValue(discount),
-      taxTotal: 0,
+      discountTotal: persistedDiscountTotal,
+      taxTotal: persistedTaxTotal,
       totalAmount: persistedFinalTotal,
       paidAmount,
       remainingAmount: Math.max(0, persistedFinalTotal - paidAmount),
@@ -3738,8 +3768,36 @@ export const InvoiceForm = () => {
               <span className="font-bold font-mono">{money(totalAmount, currency)}</span>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500">{t('payment.discountLabel')}</label>
-              <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onKeyDown={focusNextFormControl} placeholder="0.00" className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-slate-900 focus:outline-none focus:border-indigo-500 text-left font-mono" dir="ltr" />
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-500">{t('payment.discountLabel')}</label>
+                <div className="flex rounded border border-slate-200 overflow-hidden text-[11px] font-bold">
+                  <button type="button" onClick={() => setDiscountMode('FIXED')} className={`px-2 py-0.5 ${discountMode === 'FIXED' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}>{t('payment.modeFixed')}</button>
+                  <button type="button" onClick={() => setDiscountMode('PERCENT')} className={`px-2 py-0.5 ${discountMode === 'PERCENT' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}>{t('payment.modePercent')}</button>
+                </div>
+              </div>
+              <div className="relative">
+                <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} onKeyDown={focusNextFormControl} placeholder="0.00" className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 pl-7 text-slate-900 focus:outline-none focus:border-indigo-500 text-left font-mono" dir="ltr" />
+                <span className="absolute left-2 top-1.5 text-slate-400 text-xs">{discountMode === 'PERCENT' ? '%' : currency}</span>
+              </div>
+              {headerDiscountTotal > 0 && (
+                <p className="text-[11px] text-slate-500">{t('payment.discountComputed', { amount: money(headerDiscountTotal, currency) })}</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-500">{t('payment.taxLabel')}</label>
+                <div className="flex rounded border border-slate-200 overflow-hidden text-[11px] font-bold">
+                  <button type="button" onClick={() => setTaxMode('FIXED')} className={`px-2 py-0.5 ${taxMode === 'FIXED' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}>{t('payment.modeFixed')}</button>
+                  <button type="button" onClick={() => setTaxMode('PERCENT')} className={`px-2 py-0.5 ${taxMode === 'PERCENT' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}>{t('payment.modePercent')}</button>
+                </div>
+              </div>
+              <div className="relative">
+                <input type="number" value={taxValue} onChange={(e) => setTaxValue(e.target.value)} onKeyDown={focusNextFormControl} placeholder="0.00" className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 pl-7 text-slate-900 focus:outline-none focus:border-indigo-500 text-left font-mono" dir="ltr" />
+                <span className="absolute left-2 top-1.5 text-slate-400 text-xs">{taxMode === 'PERCENT' ? '%' : currency}</span>
+              </div>
+              {headerTaxTotal > 0 && (
+                <p className="text-[11px] text-slate-500">{t('payment.taxComputed', { amount: money(headerTaxTotal, currency) })}</p>
+              )}
             </div>
             <div className="space-y-1 pt-3 border-t border-slate-100">
               <label className="text-xs font-bold text-indigo-700">{t('payment.finalTotalLabel')}</label>
