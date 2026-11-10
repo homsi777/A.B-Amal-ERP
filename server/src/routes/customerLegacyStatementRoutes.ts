@@ -10,6 +10,7 @@ import {
   getLegacyStatementBatchEntries,
   deleteLegacyStatementBatch,
 } from '../services/customerLegacyStatementService.js';
+import { postCustomerOpeningBalance } from '../services/customerOpeningBalanceService.js';
 
 const rowSchema = z.object({
   rowIndex: z.number().int().nonnegative(),
@@ -76,8 +77,38 @@ export const customerLegacyStatementRoutes: FastifyPluginAsync = async (app) => 
         totalCredit: d.totalCredit,
         rows: d.rows,
       });
+      // ترحيل الرصيد الافتتاحي الحقيقي تلقائياً من الرصيد الختامي بالملف — بنفس
+      // عملية الاستيراد دفعة واحدة، لا كخطوة ثانية منفصلة. محاولة مكررة (نفس
+      // المبلغ/الاتجاه بتاريخ اليوم) لا تُفشل الاستيراد، فقط تُعلَم كمُرحَّلة مسبقاً.
+      let openingBalancePosted = false;
+      let openingBalanceNote: string | null = null;
+      const debit = d.closingBalanceDebit ?? 0;
+      const credit = d.closingBalanceCredit ?? 0;
+      if (debit > 0 || credit > 0) {
+        const direction: 'DEBIT' | 'CREDIT' = debit >= credit ? 'DEBIT' : 'CREDIT';
+        const amount = direction === 'DEBIT' ? debit : credit;
+        try {
+          await postCustomerOpeningBalance(client, {
+            companyId,
+            userId,
+            customerId,
+            amount,
+            direction,
+            asOfDate: new Date().toISOString().slice(0, 10),
+            description: `رصيد افتتاحي من استيراد أرشيفي: ${d.fileName}`,
+          });
+          openingBalancePosted = true;
+        } catch (err) {
+          if ((err as { code?: string })?.code === 'DUPLICATE') {
+            openingBalanceNote = 'تم ترحيل هذا الرصيد الافتتاحي مسبقاً بنفس القيمة';
+          } else {
+            throw err;
+          }
+        }
+      }
+
       await client.query('COMMIT');
-      return reply.status(201).send({ ok: true, data: batch });
+      return reply.status(201).send({ ok: true, data: { ...batch, openingBalancePosted, openingBalanceNote } });
     } catch (error) {
       await client.query('ROLLBACK');
       const err = error as { code?: string; message?: string };

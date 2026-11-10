@@ -36,19 +36,5 @@
   "table.debit": "مدين",
   "table.credit": "دائن",
   "table.warehouse": "المخزن",
-  "openingBalance.toolbarButton": "ترحيل رصيد افتتاحي",
-  "openingBalance.archiveButton": "ترحيل كرصيد افتتاحي",
-  "openingBalance.modalTitle": "ترحيل رصيد افتتاحي للعميل",
-  "openingBalance.modalSubtitle": "قيد محاسبي حقيقي واحد يضبط بداية رصيد العميل الحي — لا يُنشئ فاتورة أو سنداً.",
-  "openingBalance.amountLabel": "المبلغ",
-  "openingBalance.directionLabel": "الاتجاه",
-  "openingBalance.directionDebit": "مدين (العميل يدين لنا)",
-  "openingBalance.directionCredit": "دائن (لنا دين عنده)",
-  "openingBalance.dateLabel": "تاريخ الرصيد",
-  "openingBalance.descriptionLabel": "وصف (اختياري)",
-  "openingBalance.confirm": "تأكيد الترحيل",
-  "openingBalance.posting": "جارٍ الترحيل...",
-  "openingBalance.success": "تم ترحيل الرصيد الافتتاحي بنجاح (سند رقم {{entryNo}})",
-  "openingBalance.failed": "فشل ترحيل الرصيد الافتتاحي",
-  "openingBalance.close": "إغلاق"
+  "modal.openingBalancePosted": "وتم أيضاً ترحيل رصيد العميل الافتتاحي الحي تلقائياً من الرصيد الختامي بالملف."
 }

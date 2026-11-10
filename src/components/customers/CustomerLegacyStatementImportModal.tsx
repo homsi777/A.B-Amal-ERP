@@ -59,7 +59,7 @@ export function CustomerLegacyStatementImportModal({ open, customerId, onClose, 
     setImporting(true);
     setError(null);
     try {
-      await importCustomerLegacyStatementBatch(customerId, {
+      const batch = await importCustomerLegacyStatementBatch(customerId, {
         fileName,
         sheetName: parsed.sheetName,
         openingBalanceDebit: parsed.openingBalanceDebit,
@@ -70,7 +70,13 @@ export function CustomerLegacyStatementImportModal({ open, customerId, onClose, 
         totalCredit: parsed.totalCredit,
         rows: parsed.rows,
       });
-      setMessage(t('modal.importSuccess', { count: parsed.rows.length }));
+      const baseMessage = t('modal.importSuccess', { count: parsed.rows.length });
+      const openingNote = batch.openingBalancePosted
+        ? t('modal.openingBalancePosted')
+        : batch.openingBalanceNote
+          ? batch.openingBalanceNote
+          : '';
+      setMessage(openingNote ? `${baseMessage} ${openingNote}` : baseMessage);
       setParsed(null);
       setFileName('');
       onImported();

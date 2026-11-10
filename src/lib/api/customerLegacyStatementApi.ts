@@ -13,6 +13,8 @@ export interface LegacyStatementBatchSummary {
   totalDebit: string;
   totalCredit: string;
   createdAt: string;
+  openingBalancePosted?: boolean;
+  openingBalanceNote?: string | null;
 }
 
 export interface LegacyStatementEntryRow {
