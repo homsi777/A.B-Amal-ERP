@@ -20,6 +20,7 @@ export interface PayrollEmployeeDto {
   payment_method: string | null;
   termination_date: string | null;
   status: 'ACTIVE' | 'TERMINATED' | 'SUSPENDED';
+  shift_type_id: string | null;
   created_at: string;
   updated_at: string;
   total_salary_paid?: string;
@@ -82,6 +83,7 @@ export interface PayrollEmployeeUpsertPayload {
   terminationDate?: string | null;
   status?: 'ACTIVE' | 'TERMINATED' | 'SUSPENDED';
   wageChangeNotes?: string | null;
+  shiftTypeId?: string | null;
 }
 
 export async function createPayrollEmployee(payload: PayrollEmployeeUpsertPayload) {

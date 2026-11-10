@@ -176,6 +176,7 @@ const Topbar = () => {
       subItems: [
         { labelKey: 'salaries.employeeProfiles', to: '/hr/employees' },
         { labelKey: 'salaries.attendance', to: '/hr/attendance' },
+        { labelKey: 'salaries.monthlyReview', to: '/hr/monthly-review' },
         { labelKey: 'salaries.employees', to: '/salaries' },
         { labelKey: 'salaries.log', to: '/salaries/log' },
       ],

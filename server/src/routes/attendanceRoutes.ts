@@ -4,7 +4,15 @@ import { getPool } from '../db/pool.js';
 import { authenticateRequest } from '../middleware/auth.js';
 import { sendError } from '../middleware/errorHandler.js';
 import { ArabicErrors } from '../utils/arabicErrors.js';
-import { importAttendanceRows, listAttendanceRecords, updateAttendanceRecordManual } from '../services/attendanceService.js';
+import {
+  importAttendanceRows,
+  listAttendanceRecords,
+  updateAttendanceRecordManual,
+  listShiftTypes,
+  createShiftType,
+  computeMonthlyAttendanceSummaries,
+  approveMonthlyAttendanceReview,
+} from '../services/attendanceService.js';
 
 function requirePermission(user: { role: string; permissions: string[] } | undefined, code: string): boolean {
   if (!user) return false;
@@ -25,6 +33,21 @@ const importRowSchema = z.object({
 const importBody = z.object({
   fileName: z.string().min(1),
   rows: z.array(importRowSchema).min(1),
+});
+
+const shiftTypeBody = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  startTime: z.string().regex(timeRegex),
+  endTime: z.string().regex(timeRegex),
+  crossesMidnight: z.boolean().optional().default(false),
+});
+
+const approveReviewBody = z.object({
+  employeeId: z.string().uuid(),
+  periodMonth: z.coerce.number().int().min(1).max(12),
+  periodYear: z.coerce.number().int().min(2000).max(2100),
+  notes: z.string().optional().nullable(),
 });
 
 const manualUpdateBody = z.object({
@@ -98,6 +121,77 @@ export const attendanceRoutes: FastifyPluginAsync = async (app) => {
       });
       await client.query('COMMIT');
       return reply.send({ ok: true, data: row });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      const err = error as { code?: string; message?: string };
+      if (err?.code === 'VALIDATION') return sendError(reply, 400, err.message || ArabicErrors.validation, 'VALIDATION');
+      if (err?.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
+      return sendError(reply, 500, ArabicErrors.server, 'SERVER');
+    } finally {
+      client.release();
+    }
+  });
+
+  app.get('/shift-types', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'attendance.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId } = req.user!;
+    const rows = await listShiftTypes(companyId);
+    return reply.send({ ok: true, data: rows });
+  });
+
+  app.post('/shift-types', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'attendance.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId } = req.user!;
+    const parsed = shiftTypeBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, parsed.error.issues[0]?.message || ArabicErrors.validation, 'VALIDATION');
+    const d = parsed.data;
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const row = await createShiftType(client, { companyId, ...d });
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: row });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if ((error as { code?: string }).code === '23505') return sendError(reply, 409, 'كود الشفت مستخدم مسبقاً', 'DUPLICATE');
+      return sendError(reply, 500, ArabicErrors.server, 'SERVER');
+    } finally {
+      client.release();
+    }
+  });
+
+  app.get('/monthly-review', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'attendance.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId } = req.user!;
+    const q = req.query as Record<string, string>;
+    const periodMonth = Number(q.periodMonth);
+    const periodYear = Number(q.periodYear);
+    if (!periodMonth || !periodYear) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
+    const rows = await computeMonthlyAttendanceSummaries(companyId, periodMonth, periodYear, q.employeeId || undefined);
+    return reply.send({ ok: true, data: rows });
+  });
+
+  app.post('/monthly-review/approve', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'attendance.approve')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId, sub: userId } = req.user!;
+    const parsed = approveReviewBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, parsed.error.issues[0]?.message || ArabicErrors.validation, 'VALIDATION');
+    const d = parsed.data;
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const row = await approveMonthlyAttendanceReview(client, {
+        companyId,
+        userId,
+        employeeId: d.employeeId,
+        periodMonth: d.periodMonth,
+        periodYear: d.periodYear,
+        notes: d.notes,
+      });
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: row });
     } catch (error) {
       await client.query('ROLLBACK');
       const err = error as { code?: string; message?: string };

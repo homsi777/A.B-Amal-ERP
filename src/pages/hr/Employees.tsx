@@ -11,6 +11,7 @@ import {
   type EmployeeWageHistoryDto,
 } from '../../lib/api/payrollApi';
 import { ApiRequestError } from '../../lib/api/client';
+import { listShiftTypes, type ShiftTypeDto } from '../../lib/api/attendanceApi';
 
 type EmployeeFormState = {
   employeeCode: string;
@@ -31,6 +32,7 @@ type EmployeeFormState = {
   salaryPeriod: 'weekly' | 'monthly';
   notes: string;
   wageChangeNotes: string;
+  shiftTypeId: string;
 };
 
 function genEmployeeCode(): string {
@@ -57,6 +59,7 @@ function emptyForm(): EmployeeFormState {
     salaryPeriod: 'monthly',
     notes: '',
     wageChangeNotes: '',
+    shiftTypeId: '',
   };
 }
 
@@ -80,6 +83,7 @@ function formFromEmployee(emp: PayrollEmployeeDto): EmployeeFormState {
     salaryPeriod: emp.salary_period,
     notes: emp.notes || '',
     wageChangeNotes: '',
+    shiftTypeId: emp.shift_type_id || '',
   };
 }
 
@@ -107,6 +111,11 @@ export function Employees() {
   const [historyEmployee, setHistoryEmployee] = useState<PayrollEmployeeDto | null>(null);
   const [history, setHistory] = useState<EmployeeWageHistoryDto[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [shiftTypes, setShiftTypes] = useState<ShiftTypeDto[]>([]);
+
+  useEffect(() => {
+    listShiftTypes().then((res) => setShiftTypes(res.data)).catch(() => setShiftTypes([]));
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -180,6 +189,7 @@ export function Employees() {
       salaryPeriod: form.salaryPeriod,
       notes: form.notes.trim() || null,
       wageChangeNotes: form.wageChangeNotes.trim() || null,
+      shiftTypeId: form.shiftTypeId || null,
     };
     try {
       if (editingId) {
@@ -363,6 +373,14 @@ export function Employees() {
                 </Field>
                 <Field label={t('modal.fields.wageChangeNotes')}>
                   <input value={form.wageChangeNotes} onChange={(e) => setForm({ ...form, wageChangeNotes: e.target.value })} className={inputCls} />
+                </Field>
+                <Field label={t('modal.fields.shiftType')}>
+                  <select value={form.shiftTypeId} onChange={(e) => setForm({ ...form, shiftTypeId: e.target.value })} className={`${inputCls} bg-white`}>
+                    <option value="">—</option>
+                    {shiftTypes.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.start_time.slice(0, 5)}-{s.end_time.slice(0, 5)})</option>
+                    ))}
+                  </select>
                 </Field>
                 <div className="md:col-span-3">
                   <Field label={t('modal.fields.notes')}>

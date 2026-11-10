@@ -43,6 +43,55 @@ export async function importAttendanceFile(fileName: string, rows: AttendancePar
   });
 }
 
+export interface ShiftTypeDto {
+  id: string;
+  code: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  crosses_midnight: boolean;
+}
+
+export async function listShiftTypes() {
+  return apiFetch<{ ok: boolean; data: ShiftTypeDto[] }>('/api/attendance/shift-types');
+}
+
+export async function createShiftType(payload: { code: string; name: string; startTime: string; endTime: string; crossesMidnight?: boolean }) {
+  return apiFetch<{ ok: boolean; data: ShiftTypeDto }>('/api/attendance/shift-types', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface MonthlyAttendanceSummaryDto {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  periodMonth: number;
+  periodYear: number;
+  status: 'DRAFT' | 'APPROVED';
+  daysPresent: number;
+  totalHours: number;
+  totalLateMinutes: number;
+  totalPermissionMinutes: number;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  notes: string | null;
+}
+
+export async function listMonthlyAttendanceSummaries(periodMonth: number, periodYear: number, employeeId?: string) {
+  const q = new URLSearchParams({ periodMonth: String(periodMonth), periodYear: String(periodYear) });
+  if (employeeId) q.set('employeeId', employeeId);
+  return apiFetch<{ ok: boolean; data: MonthlyAttendanceSummaryDto[] }>(`/api/attendance/monthly-review?${q}`);
+}
+
+export async function approveMonthlyAttendanceReview(payload: { employeeId: string; periodMonth: number; periodYear: number; notes?: string | null }) {
+  return apiFetch<{ ok: boolean; data: unknown }>('/api/attendance/monthly-review/approve', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateAttendanceRecord(
   id: string,
   payload: {

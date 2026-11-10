@@ -49,5 +49,22 @@
   "editModal.saving": "جارٍ الحفظ...",
   "editModal.cancel": "إلغاء",
   "errors.reasonRequired": "سبب التعديل مطلوب",
-  "errors.saveFailed": "فشل حفظ التعديل"
+  "errors.saveFailed": "فشل حفظ التعديل",
+  "monthlyReview.title": "كشف الانتظام الشهري",
+  "monthlyReview.subtitle": "مراجعة واعتماد الحضور الشهري لكل موظف قبل حساب الراتب — بعد الاعتماد يُجمَّد الكشف.",
+  "monthlyReview.month": "الشهر",
+  "monthlyReview.year": "السنة",
+  "monthlyReview.daysPresent": "أيام الحضور",
+  "monthlyReview.totalLate": "إجمالي التأخير (د)",
+  "monthlyReview.totalPermission": "إجمالي الإذن (د)",
+  "monthlyReview.status": "الحالة",
+  "monthlyReview.statusDRAFT": "مسودة",
+  "monthlyReview.statusAPPROVED": "مُعتمَد",
+  "monthlyReview.approve": "اعتماد",
+  "shiftTypes.title": "أنواع الشفتات",
+  "shiftTypes.empty": "لا توجد شفتات مُعرَّفة بعد.",
+  "shiftTypes.code": "كود الشفت",
+  "shiftTypes.name": "اسم الشفت",
+  "shiftTypes.crossesMidnight": "يعبر منتصف الليل",
+  "shiftTypes.add": "إضافة شفت"
 }

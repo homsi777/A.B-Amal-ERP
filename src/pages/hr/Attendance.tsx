@@ -5,8 +5,11 @@ import {
   listAttendanceRecords,
   importAttendanceFile,
   updateAttendanceRecord,
+  listShiftTypes,
+  createShiftType,
   type AttendanceRecordDto,
   type AttendanceImportResultDto,
+  type ShiftTypeDto,
 } from '../../lib/api/attendanceApi';
 import { listPayrollEmployees, type PayrollEmployeeDto } from '../../lib/api/payrollApi';
 import { parseAttendanceWorkbook } from '../../lib/hrAttendanceExcelParser';
@@ -280,6 +283,84 @@ function EditModal({
   );
 }
 
+function ShiftTypesPanel() {
+  const { t } = useTranslation('hrAttendance');
+  const [open, setOpen] = useState(false);
+  const [shiftTypes, setShiftTypes] = useState<ShiftTypeDto[]>([]);
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [startTime, setStartTime] = useState('08:00');
+  const [endTime, setEndTime] = useState('17:00');
+  const [crossesMidnight, setCrossesMidnight] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      const res = await listShiftTypes();
+      setShiftTypes(res.data);
+    } catch {
+      setShiftTypes([]);
+    }
+  }
+
+  useEffect(() => {
+    if (open) void load();
+  }, [open]);
+
+  async function handleCreate() {
+    if (!code.trim() || !name.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await createShiftType({ code: code.trim(), name: name.trim(), startTime, endTime, crossesMidnight });
+      setCode('');
+      setName('');
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('errors.saveFailed'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between p-4 text-start font-black text-slate-800 hover:bg-slate-50">
+        <span>{t('shiftTypes.title')}</span>
+        <span className="text-xs font-bold text-slate-400">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="border-t border-slate-200 p-4 space-y-3">
+          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>}
+          <ul className="space-y-1 text-sm">
+            {shiftTypes.map((s) => (
+              <li key={s.id} className="flex justify-between rounded-lg border border-slate-100 px-3 py-1.5">
+                <span className="font-bold">{s.name} ({s.code})</span>
+                <span className="text-slate-500" dir="ltr">{s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)}{s.crosses_midnight ? ' ↷' : ''}</span>
+              </li>
+            ))}
+            {shiftTypes.length === 0 && <li className="text-xs text-slate-400">{t('shiftTypes.empty')}</li>}
+          </ul>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('shiftTypes.code')} className={inputCls} />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('shiftTypes.name')} className={inputCls} />
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={inputCls} />
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={crossesMidnight} onChange={(e) => setCrossesMidnight(e.target.checked)} />
+              {t('shiftTypes.crossesMidnight')}
+            </label>
+          </div>
+          <button type="button" onClick={() => void handleCreate()} disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">
+            {t('shiftTypes.add')}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Attendance() {
   const { t } = useTranslation('hrAttendance');
   const [records, setRecords] = useState<AttendanceRecordDto[]>([]);
@@ -330,6 +411,8 @@ export function Attendance() {
           {t('toolbar.importFile')}
         </button>
       </div>
+
+      <ShiftTypesPanel />
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div>

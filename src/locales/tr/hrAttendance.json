@@ -49,5 +49,22 @@
   "editModal.saving": "Kaydediliyor...",
   "editModal.cancel": "İptal",
   "errors.reasonRequired": "Değişiklik nedeni gereklidir",
-  "errors.saveFailed": "Değişiklik kaydedilemedi"
+  "errors.saveFailed": "Değişiklik kaydedilemedi",
+  "monthlyReview.title": "Aylık Devam Değerlendirmesi",
+  "monthlyReview.subtitle": "Maaş hesaplamadan önce her çalışanın aylık devamını inceleyin ve onaylayın — onaydan sonra kayıt dondurulur.",
+  "monthlyReview.month": "Ay",
+  "monthlyReview.year": "Yıl",
+  "monthlyReview.daysPresent": "Gelinen Gün",
+  "monthlyReview.totalLate": "Toplam Gecikme (dk)",
+  "monthlyReview.totalPermission": "Toplam İzin (dk)",
+  "monthlyReview.status": "Durum",
+  "monthlyReview.statusDRAFT": "Taslak",
+  "monthlyReview.statusAPPROVED": "Onaylandı",
+  "monthlyReview.approve": "Onayla",
+  "shiftTypes.title": "Vardiya Türleri",
+  "shiftTypes.empty": "Henüz tanımlı vardiya yok.",
+  "shiftTypes.code": "Vardiya Kodu",
+  "shiftTypes.name": "Vardiya Adı",
+  "shiftTypes.crossesMidnight": "Gece yarısını geçer",
+  "shiftTypes.add": "Vardiya Ekle"
 }

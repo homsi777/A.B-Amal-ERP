@@ -38,6 +38,7 @@
   "modal.fields.salaryPeriod": "Ücret Dönemi",
   "modal.fields.notes": "Notlar",
   "modal.fields.wageChangeNotes": "Ücret değişikliği nedeni (değişiklik varsa)",
+  "modal.fields.shiftType": "Atanan Vardiya",
   "modal.salaryPeriod.weekly": "Haftalık",
   "modal.salaryPeriod.monthly": "Aylık",
   "modal.save": "Kaydet",

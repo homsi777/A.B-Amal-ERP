@@ -38,6 +38,7 @@
   "modal.fields.salaryPeriod": "فترة الأجر",
   "modal.fields.notes": "ملاحظات",
   "modal.fields.wageChangeNotes": "سبب تغيير الأجر (إن وُجد تغيير)",
+  "modal.fields.shiftType": "الشفت المُعيَّن",
   "modal.salaryPeriod.weekly": "أسبوعي",
   "modal.salaryPeriod.monthly": "شهري",
   "modal.save": "حفظ",

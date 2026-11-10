@@ -29,6 +29,7 @@ const employeeBody = z.object({
   terminationDate: z.string().optional().nullable(),
   status: z.enum(['ACTIVE', 'TERMINATED', 'SUSPENDED']).optional().default('ACTIVE'),
   wageChangeNotes: z.string().optional().nullable(),
+  shiftTypeId: z.string().uuid().optional().nullable(),
 });
 
 const lineInput = z.object({
@@ -150,8 +151,8 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         `INSERT INTO payroll_employees (
            company_id, employee_code, full_name, address, job_title, department, phone,
            base_salary, currency_code, salary_period, hire_date, notes,
-           fingerprint_code, factory, category, payment_method, termination_date, status
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::date,$12,$13,$14,$15,$16,$17::date,$18)
+           fingerprint_code, factory, category, payment_method, termination_date, status, shift_type_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::date,$12,$13,$14,$15,$16,$17::date,$18,$19)
          RETURNING *`,
         [
           companyId,
@@ -172,6 +173,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
           d.paymentMethod ?? null,
           d.terminationDate ?? null,
           d.status,
+          d.shiftTypeId ?? null,
         ],
       );
       await client.query(
@@ -218,7 +220,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
            employee_code=$3, full_name=$4, address=$5, job_title=$6, department=$7, phone=$8,
            base_salary=$9, currency_code=$10, salary_period=$11, hire_date=$12::date, notes=$13,
            fingerprint_code=$14, factory=$15, category=$16, payment_method=$17, termination_date=$18::date,
-           status=$19, updated_at=now()
+           status=$19, shift_type_id=$20, updated_at=now()
          WHERE id=$1 AND company_id=$2
          RETURNING *`,
         [
@@ -241,6 +243,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
           d.paymentMethod ?? null,
           d.terminationDate ?? null,
           d.status,
+          d.shiftTypeId ?? null,
         ],
       );
       if (baseSalaryChanged) {
