@@ -212,6 +212,7 @@ import { BondRecords } from './pages/BondRecords';
 import { BondDetails } from './pages/BondDetails';
 import { Salaries } from './pages/Salaries';
 import { Employees } from './pages/hr/Employees';
+import { Attendance } from './pages/hr/Attendance';
 import { PayrollSalaryLog } from './pages/PayrollSalaryLog';
 import { ReportsCenter } from './pages/reports/ReportsCenter';
 import { Customers } from './pages/Customers';
@@ -318,6 +319,7 @@ export default function App() {
 
             <Route path="salaries" element={<Salaries />} />
             <Route path="hr/employees" element={<Employees />} />
+            <Route path="hr/attendance" element={<Attendance />} />
             <Route path="salaries/log" element={<PayrollSalaryLog />} />
             <Route path="reports" element={<ReportsCenter />} />
 
