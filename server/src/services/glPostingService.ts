@@ -487,6 +487,10 @@ export async function postPayrollAccrualToGl(
     periodDate: string;
     totalNet: number;
     currencyCode: string;
+    /** سعر الصرف مقابل الدولار — افتراضياً 1 (دون تحويل، توافق خلفي كامل). كان
+     * هذا مفقوداً سابقاً فيُرحَّل مبلغ العملة الأصلية كما هو للـGL (المُقوَّم
+     * بالدولار) — نفس خطأ القيد الافتتاحي الذي صُحِّح لبركات. */
+    exchangeRateToUsd?: number;
     userId: string | null;
   },
 ): Promise<void> {
@@ -497,12 +501,17 @@ export async function postPayrollAccrualToGl(
   );
   if (dup.rows.length) return;
 
-  const amt = round2(input.totalNet);
+  const rate = input.exchangeRateToUsd && input.exchangeRateToUsd > 0 ? input.exchangeRateToUsd : 1;
+  const amt = round2(input.totalNet / rate);
   if (amt <= 0) return;
 
   const expId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.PAYROLL_EXPENSE);
   const payId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.PAYROLL_PAYABLE);
-  const ccy = input.currencyCode || 'USD';
+  // المبلغ المُرحَّل (amt) دائماً بالدولار بعد التحويل أعلاه — الوسم هنا دولار
+  // دوماً، لا عملة الملف الأصلية (وإلا يظهر رقم مُحوَّل بتسمية عملة خاطئة).
+  const originalNote = input.currencyCode && input.currencyCode.toUpperCase() !== 'USD'
+    ? ` (الأصل: ${round2(input.totalNet)} ${input.currencyCode} @ سعر الصرف ${rate})`
+    : '';
 
   await insertBalancedJournal(client, {
     companyId: input.companyId,
@@ -516,15 +525,15 @@ export async function postPayrollAccrualToGl(
         glAccountId: expId,
         debit: amt,
         credit: 0,
-        currencyCode: ccy,
-        description: `مصروف رواتب ${input.payrollNo}`,
+        currencyCode: 'USD',
+        description: `مصروف رواتب ${input.payrollNo}${originalNote}`,
       },
       {
         glAccountId: payId,
         debit: 0,
         credit: amt,
-        currencyCode: ccy,
-        description: `رواتب مستحقة ${input.payrollNo}`,
+        currencyCode: 'USD',
+        description: `رواتب مستحقة ${input.payrollNo}${originalNote}`,
       },
     ],
   });

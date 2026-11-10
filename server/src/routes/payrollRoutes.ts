@@ -8,6 +8,7 @@ import { generateDocumentNo } from '../utils/documentNumbers.js';
 import { postPayrollAccrualToGl, postPayrollPaymentToGl, reversePayrollAccrualGl } from '../services/glPostingService.js';
 import { applyPayrollCashOut } from '../services/payrollCashboxService.js';
 import { resolveCashboxOutAmount } from '../services/cashboxCrossCurrencyService.js';
+import { importDepartmentPayrollExcel } from '../services/hrPayrollImportService.js';
 import { applyVoucherConfirmation, insertDraftVoucher } from '../services/voucherCashboxService.js';
 
 const employeeBody = z.object({
@@ -70,6 +71,32 @@ const employeeAdvanceBody = z.object({
 });
 
 const runUpdateBody = runCreateBody;
+
+const payrollExcelRowSchema = z.object({
+  employeeCode: z.string().min(1),
+  fullName: z.string().min(1),
+  factory: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  jobTitle: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  paymentMethod: z.string().optional().nullable(),
+  hireDate: z.string().optional().nullable(),
+  baseSalary: z.coerce.number(),
+  totalEntitlements: z.coerce.number(),
+  totalDeductions: z.coerce.number(),
+  finalNet: z.coerce.number(),
+  rawDetail: z.unknown().optional(),
+});
+
+const importExcelBody = z.object({
+  departmentLabel: z.string().min(1),
+  periodMonth: z.coerce.number().int().min(1).max(12),
+  periodYear: z.coerce.number().int().min(2000).max(2100),
+  currencyCode: z.string().min(1),
+  exchangeRateToUsd: z.coerce.number().positive(),
+  fileName: z.string().min(1),
+  rows: z.array(payrollExcelRowSchema).min(1),
+});
 
 function sumRun(lines: { baseSalary: number; allowances: number; deductions: number; net: number }[]) {
   return {
@@ -335,13 +362,19 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         return sendError(reply, 400, 'قيمة التسليم يجب أن تكون أكبر من صفر', 'VALIDATION');
       }
 
+      const employeeRate = employee.currency_code.toUpperCase() === 'USD' ? 1 : d.exchangeRateToUsd;
+      if (!employeeRate || employeeRate <= 0) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 400, 'سعر الصرف مطلوب لعملة هذا الموظف', 'VALIDATION');
+      }
+
       const payrollNo = generateDocumentNo(`PR-EMP-${periodYear}-${periodMonth}`);
       const ins = await client.query<{ id: string; payroll_no: string }>(
         `INSERT INTO payroll_runs (
            company_id, payroll_no, period_month, period_year, status,
            total_base, total_allowances, total_deductions, total_net,
-           currency_code, notes, created_by_user_id
-         ) VALUES ($1,$2,$3,$4,'CONFIRMED',$5,0,0,$5,$6,$7,$8)
+           currency_code, exchange_rate_to_usd, notes, created_by_user_id
+         ) VALUES ($1,$2,$3,$4,'CONFIRMED',$5,0,0,$5,$6,$7,$8,$9)
          RETURNING id, payroll_no`,
         [
           companyId,
@@ -350,6 +383,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
           periodYear,
           amount,
           employee.currency_code,
+          employeeRate,
           d.notes || `تسليم راتب مباشر للموظف ${employee.full_name}`,
           userId,
         ],
@@ -369,6 +403,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         periodDate: `${periodYear}-${String(periodMonth).padStart(2, '0')}-01`,
         totalNet: amount,
         currencyCode: employee.currency_code,
+        exchangeRateToUsd: employeeRate,
         userId,
       });
 
@@ -722,7 +757,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     const pool = getPool();
     const rows = await pool.query(
       `SELECT id, payroll_no, period_month, period_year, status, total_base, total_allowances, total_deductions,
-              total_net, currency_code, notes, paid_cashbox_id, paid_at, created_at, updated_at
+              total_net, currency_code, department, notes, paid_cashbox_id, paid_at, created_at, updated_at
        FROM payroll_runs WHERE company_id=$1 ORDER BY period_year DESC, period_month DESC, created_at DESC`,
       [companyId],
     );
@@ -750,6 +785,41 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     );
 
     return reply.send({ ok: true, data: { ...run.rows[0], lines: lines.rows } });
+  });
+
+  app.post('/runs/import-excel', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId, sub: userId } = req.user!;
+    const parsed = importExcelBody.safeParse(req.body);
+    if (!parsed.success) return sendError(reply, 400, parsed.error.issues[0]?.message || ArabicErrors.validation, 'VALIDATION');
+    const d = parsed.data;
+
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await importDepartmentPayrollExcel(client, {
+        companyId,
+        userId,
+        departmentLabel: d.departmentLabel,
+        periodMonth: d.periodMonth,
+        periodYear: d.periodYear,
+        currencyCode: d.currencyCode,
+        exchangeRateToUsd: d.exchangeRateToUsd,
+        fileName: d.fileName,
+        rows: d.rows,
+      });
+      await client.query('COMMIT');
+      return reply.status(201).send({ ok: true, data: result });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      const err = error as { code?: string; message?: string };
+      if (err?.code === 'VALIDATION') return sendError(reply, 400, err.message || ArabicErrors.validation, 'VALIDATION');
+      if (err?.code === 'DUPLICATE') return sendError(reply, 409, err.message || 'مكرر', 'DUPLICATE');
+      return sendError(reply, 500, ArabicErrors.server, 'SERVER');
+    } finally {
+      client.release();
+    }
   });
 
   app.post('/runs', { preHandler: authenticateRequest }, async (req, reply) => {
@@ -936,10 +1006,11 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         period_month: number;
         total_net: string;
         currency_code: string;
+        exchange_rate_to_usd: string;
       }>(
         `UPDATE payroll_runs SET status='CONFIRMED', updated_at=now()
          WHERE id=$1 AND company_id=$2 AND status='DRAFT'
-         RETURNING id, status, payroll_no, period_year, period_month, total_net, currency_code`,
+         RETURNING id, status, payroll_no, period_year, period_month, total_net, currency_code, exchange_rate_to_usd`,
         [id, companyId],
       );
       if (!row.rows.length) {
@@ -952,6 +1023,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         companyId,
         payrollRunId: id,
         payrollNo: r.payroll_no,
+        exchangeRateToUsd: Number(r.exchange_rate_to_usd) || 1,
         periodDate,
         totalNet: Number(r.total_net),
         currencyCode: r.currency_code,

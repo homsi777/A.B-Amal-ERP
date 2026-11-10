@@ -35,7 +35,35 @@
   "runs": {
     "title": "Maaş Dönemleri",
     "net": "Net",
-    "payFromCashbox": "Kasadan Öde"
+    "payFromCashbox": "Kasadan Öde",
+    "confirm": "Onayla",
+    "confirmFailed": "Dönem onaylanamadı"
+  },
+  "buttons.importExcel": "Excel Maaş Bordrosu İçe Aktar",
+  "payrollImport": {
+    "title": "Excel'den Maaş Bordrosu İçe Aktar (\"الاجر\" Sayfası)",
+    "subtitle": "Her çalışan için gerçekten hesaplanmış son rakamları olduğu gibi içe aktarır — yeniden hesaplama yapılmaz. Onaydan önce incelenebilir bir taslak maaş dönemi oluşturulur.",
+    "chooseFile": "Excel Dosyası Seç",
+    "noFileChosen": "Henüz dosya seçilmedi",
+    "parseFailed": "Dosya analiz edilemedi",
+    "importFailed": "İçe aktarma başarısız",
+    "departmentLabel": "Departman Adı (dosyaları ayırt etmek için)",
+    "departmentPlaceholder": "Örnek: Dokuma Yönetimi",
+    "month": "Ay",
+    "year": "Yıl",
+    "currency": "Dosya Para Birimi",
+    "exchangeRate": "Dolar Kuru",
+    "exchangeRatePlaceholder": "Kuru girin",
+    "departmentRequired": "Departman adı gereklidir",
+    "exchangeRateRequired": "Bu para birimi için kur gereklidir",
+    "employeesInFile": "Dosyadaki Çalışan Sayısı",
+    "importSuccess": "{{payrollNo}} maaş dönemi başarıyla içe aktarıldı",
+    "employeesCreated": "Yeni Çalışanlar",
+    "employeesMatched": "Eşleşen Çalışanlar",
+    "totalNet": "Net Maaş Toplamı",
+    "importing": "İçe aktarılıyor...",
+    "confirmImport": "İçe Aktarmayı Onayla",
+    "close": "Kapat"
   },
   "search": {
     "placeholder": "Çalışan adı, telefon veya adrese göre ara..."

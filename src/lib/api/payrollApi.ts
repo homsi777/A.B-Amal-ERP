@@ -49,6 +49,7 @@ export interface PayrollRunDto {
   total_deductions: string;
   total_net: string;
   currency_code: string;
+  department?: string | null;
   notes: string | null;
   paid_cashbox_id?: string | null;
   paid_at?: string | null;
@@ -161,6 +162,33 @@ export async function createEmployeeAdvance(
 
 export async function listPayrollRuns() {
   return apiFetch<{ ok: boolean; data: PayrollRunDto[] }>('/api/payroll/runs');
+}
+
+export async function confirmPayrollRun(runId: string) {
+  return apiFetch<{ ok: boolean; data: unknown }>(`/api/payroll/runs/${runId}/confirm`, { method: 'PATCH' });
+}
+
+export interface ImportPayrollExcelResult {
+  payrollRunId: string;
+  payrollNo: string;
+  employeesCreated: number;
+  employeesMatched: number;
+  totalNet: number;
+}
+
+export async function importPayrollExcel(payload: {
+  departmentLabel: string;
+  periodMonth: number;
+  periodYear: number;
+  currencyCode: string;
+  exchangeRateToUsd: number;
+  fileName: string;
+  rows: unknown[];
+}) {
+  return apiFetch<{ ok: boolean; data: ImportPayrollExcelResult }>('/api/payroll/runs/import-excel', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export interface PayrollSalaryLogRow {

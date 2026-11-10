@@ -35,7 +35,35 @@
   "runs": {
     "title": "مسيرات الرواتب",
     "net": "صافي",
-    "payFromCashbox": "صرف من الخزينة"
+    "payFromCashbox": "صرف من الخزينة",
+    "confirm": "تأكيد",
+    "confirmFailed": "فشل تأكيد المسير"
+  },
+  "buttons.importExcel": "استيراد كشف رواتب Excel",
+  "payrollImport": {
+    "title": "استيراد كشف رواتب من Excel (شيت \"الاجر\")",
+    "subtitle": "يستورد الأرقام النهائية المحسوبة فعلاً لكل موظف كما هي — لا إعادة حساب. يُنشأ مسير رواتب كمسودة قابل للمراجعة قبل التأكيد.",
+    "chooseFile": "اختيار ملف Excel",
+    "noFileChosen": "لم يُختَر ملف بعد",
+    "parseFailed": "تعذر تحليل الملف",
+    "importFailed": "فشل الاستيراد",
+    "departmentLabel": "اسم القسم (للتمييز بين الملفات)",
+    "departmentPlaceholder": "مثال: إدارة النسيج",
+    "month": "الشهر",
+    "year": "السنة",
+    "currency": "عملة الملف",
+    "exchangeRate": "سعر الصرف مقابل الدولار",
+    "exchangeRatePlaceholder": "أدخلي سعر الصرف",
+    "departmentRequired": "اسم القسم مطلوب",
+    "exchangeRateRequired": "سعر الصرف مطلوب لهذه العملة",
+    "employeesInFile": "عدد الموظفين بالملف",
+    "importSuccess": "تم استيراد مسير الرواتب {{payrollNo}} بنجاح",
+    "employeesCreated": "موظفون جُدد",
+    "employeesMatched": "موظفون مطابَقون",
+    "totalNet": "صافي الرواتب",
+    "importing": "جارٍ الاستيراد...",
+    "confirmImport": "تأكيد الاستيراد",
+    "close": "إغلاق"
   },
   "search": {
     "placeholder": "بحث باسم الموظف أو الهاتف أو العنوان..."
