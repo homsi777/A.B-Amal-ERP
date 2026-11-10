@@ -20,6 +20,7 @@ import arExternalJobs from '../locales/ar/externalJobs.json';
 import arSuppliers from '../locales/ar/suppliers.json';
 import arPartiesLog from '../locales/ar/partiesLog.json';
 import arCustomerStatementImportModal from '../locales/ar/customerStatementImportModal.json';
+import arCustomerLegacyStatement from '../locales/ar/customerLegacyStatement.json';
 import arFabricMasterData from '../locales/ar/fabricMasterData.json';
 import arRollDetails from '../locales/ar/rollDetails.json';
 import arTransfers from '../locales/ar/transfers.json';
@@ -83,6 +84,7 @@ import trExternalJobs from '../locales/tr/externalJobs.json';
 import trSuppliers from '../locales/tr/suppliers.json';
 import trPartiesLog from '../locales/tr/partiesLog.json';
 import trCustomerStatementImportModal from '../locales/tr/customerStatementImportModal.json';
+import trCustomerLegacyStatement from '../locales/tr/customerLegacyStatement.json';
 import trFabricMasterData from '../locales/tr/fabricMasterData.json';
 import trRollDetails from '../locales/tr/rollDetails.json';
 import trTransfers from '../locales/tr/transfers.json';
@@ -154,6 +156,7 @@ void i18n.use(initReactI18next).init({
       suppliers: arSuppliers,
       partiesLog: arPartiesLog,
       customerStatementImportModal: arCustomerStatementImportModal,
+      customerLegacyStatement: arCustomerLegacyStatement,
       fabricMasterData: arFabricMasterData,
       rollDetails: arRollDetails,
       transfers: arTransfers,
@@ -219,6 +222,7 @@ void i18n.use(initReactI18next).init({
       suppliers: trSuppliers,
       partiesLog: trPartiesLog,
       customerStatementImportModal: trCustomerStatementImportModal,
+      customerLegacyStatement: trCustomerLegacyStatement,
       fabricMasterData: trFabricMasterData,
       rollDetails: trRollDetails,
       transfers: trTransfers,
@@ -267,7 +271,7 @@ void i18n.use(initReactI18next).init({
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: 'common',
-  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'checksVault', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames', 'labelCard', 'materialInquiry', 'intakeOperations', 'inventoryMovementsLog', 'externalJobMatching'],
+  ns: ['common', 'dashboard', 'login', 'nav', 'invoices', 'terminology', 'inventory', 'settings', 'customers', 'createItem', 'returns', 'customerStatement', 'supplierStatement', 'purchaseImport', 'stockImport', 'stickerPrinting', 'externalJobs', 'suppliers', 'partiesLog', 'customerStatementImportModal', 'customerLegacyStatement', 'fabricMasterData', 'rollDetails', 'transfers', 'inventorySettings', 'warehouses', 'printJobs', 'yarnManagement', 'categories', 'createRoll', 'customStickerPrinting', 'depreciation', 'bulkPricing', 'cartelaLabels', 'exchangeInvoices', 'invoiceStatement', 'customerOrdersPage', 'orderFormModal', 'treasuryMain', 'treasurySettings', 'paymentBonds', 'collectionBonds', 'safes', 'checksVault', 'treasuryLog', 'bondRecords', 'bondDetails', 'expenses', 'profitDetails', 'payrollSalaryLog', 'salaries', 'reportsMain', 'reportsCenter', 'journal', 'accounting', 'partners', 'manufacturing', 'importBatches', 'documentFileNames', 'labelCard', 'materialInquiry', 'intakeOperations', 'inventoryMovementsLog', 'externalJobMatching'],
   interpolation: {
     escapeValue: false,
   },

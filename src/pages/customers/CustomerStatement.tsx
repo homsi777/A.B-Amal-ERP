@@ -11,6 +11,8 @@ import { DUES_REPORT_TABLE_HEAD_CSS, sanitizePartyNotesForExport } from '../../l
 import { buildCustomerStatementFileName } from '../../lib/printing/documentFileNames';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
+import { CustomerLegacyStatementImportModal } from '../../components/customers/CustomerLegacyStatementImportModal';
+import { CustomerLegacyStatementArchivePanel } from '../../components/customers/CustomerLegacyStatementArchivePanel';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import { BRAND } from '../../branding';
 import { arAccountingCreditSide, arAccountingDebitSide } from '../../lib/i18n/arTerminology';
@@ -49,6 +51,7 @@ function displayDebitCredit(value: 'مدين' | 'دائن'): string {
 
 export const CustomerStatement = () => {
   const { t } = useTranslation('customerStatement');
+  const tLegacy = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'customerLegacyStatement', ...options });
   const { showToast } = useToast();
   const { customers, invoices, inventory, transactions } = useStore();
   const navigate = useNavigate();
@@ -81,6 +84,9 @@ export const CustomerStatement = () => {
   const [voucherRefreshTick, setVoucherRefreshTick] = useState(0);
   const [payNote, setPayNote] = useState('');
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
+  const [legacyImportModalOpen, setLegacyImportModalOpen] = useState(false);
+  const [legacyArchiveOpen, setLegacyArchiveOpen] = useState(false);
+  const [legacyArchiveRefreshKey, setLegacyArchiveRefreshKey] = useState(0);
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountDate, setDiscountDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [discountCurrency, setDiscountCurrency] = useState('USD');
@@ -1128,8 +1134,35 @@ export const CustomerStatement = () => {
              <Percent className="w-4 h-4" />
              <span>{t('toolbar.customerDiscount')}</span>
            </button>
+           <button
+             type="button"
+             onClick={() => setLegacyImportModalOpen(true)}
+             disabled={!selectedCustomerId}
+             className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm font-medium disabled:opacity-40"
+           >
+             <FileText className="w-4 h-4" />
+             <span>{tLegacy('toolbar.importLegacyStatement')}</span>
+           </button>
          </div>
        </div>
+
+      {selectedCustomerId && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setLegacyArchiveOpen((v) => !v)}
+            className="w-full flex items-center justify-between p-4 text-start font-black text-slate-800 hover:bg-slate-50"
+          >
+            <span>{tLegacy('archive.title')}</span>
+            <span className="text-xs font-bold text-slate-400">{legacyArchiveOpen ? '▲' : '▼'}</span>
+          </button>
+          {legacyArchiveOpen && (
+            <div className="border-t border-slate-200 p-4">
+              <CustomerLegacyStatementArchivePanel customerId={selectedCustomerId} refreshKey={legacyArchiveRefreshKey} />
+            </div>
+          )}
+        </div>
+      )}
 
 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
          <div className="p-4 border-b border-slate-200 bg-slate-50">
@@ -1792,6 +1825,18 @@ export const CustomerStatement = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {legacyImportModalOpen && selectedCustomerId && (
+        <CustomerLegacyStatementImportModal
+          open={legacyImportModalOpen}
+          customerId={selectedCustomerId}
+          onClose={() => setLegacyImportModalOpen(false)}
+          onImported={() => {
+            setLegacyArchiveOpen(true);
+            setLegacyArchiveRefreshKey((k) => k + 1);
+          }}
+        />
       )}
 
       {discountModalOpen && (
