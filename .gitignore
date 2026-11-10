@@ -52,3 +52,10 @@ server/_test_phase3_apis.py
 server/src/config/vps-connection.json
 **/vps-connection.json
 !**/vps-connection.example.json
+
+# سكريبتات تحقّق/تصحيح مؤقتة لمرة واحدة (غالباً تحتوي سلسلة اتصال قاعدة
+# البيانات الحقيقية مباشرة) — لا تُرفع أبداً، يُفترض حذفها محلياً بعد الاستخدام.
+*.tmp.cjs
+*.tmp.mjs
+*.tmp.json
+*.tmp
