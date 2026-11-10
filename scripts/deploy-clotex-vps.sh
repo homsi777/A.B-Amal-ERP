@@ -6,8 +6,8 @@
 # sudo بشكل طبيعي — لا يستخدم sudo -S ولا يمرّر كلمة السر بأي شكل.
 #
 #   ssh -t ubuntu@<host> -p <port>
-#   cd ~/ab-amal-erp && ./scripts/deploy-clotex-vps.sh           # تنفيذ فعلي
-#   cd ~/ab-amal-erp && ./scripts/deploy-clotex-vps.sh --dry-run # عرض فقط، بلا تنفيذ
+#   cd ~/clotexerp && ./scripts/deploy-clotex-vps.sh           # تنفيذ فعلي
+#   cd ~/clotexerp && ./scripts/deploy-clotex-vps.sh --dry-run # عرض فقط، بلا تنفيذ
 #
 # لا يحذف أي شيء إطلاقاً (لا rm، لا rsync --delete، لا find -delete). كل نشر
 # ينسخ إلى مجلد إصدار جديد بختم زمني، ثم يبدّل رمزاً (symlink) بشكل ذرّي.
@@ -22,7 +22,7 @@ if [[ "${1:-}" == "--dry-run" ]]; then
 fi
 
 # ── إعدادات ثابتة (لا تُبنى من متغيرات بيئة قابلة للتفريغ) ──────────────────
-readonly APP_ROOT="/home/ubuntu/ab-amal-erp"
+readonly APP_ROOT="/home/ubuntu/clotexerp"
 readonly RELEASES_ROOT="/var/www/clotexerp/releases"
 readonly CURRENT_LINK="/var/www/clotexerp/current"
 readonly PM2_NAME="clotexerp-server"
