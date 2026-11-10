@@ -28,6 +28,8 @@ export const GL_KEYS = {
   MOBILE_WALLET: 'GL_MOBILE_WALLET',
   /** شيكات مستلمة غير محصّلة بعد — أصل منفصل عن النقدية، يُسوَّى عند الإيداع/التحصيل/الارتجاع. */
   CHECKS_RECEIVABLE: 'GL_CHECKS_RECEIVABLE',
+  /** الطرف المقابل لقيود ترحيل الرصيد الافتتاحي اليدوي لعميل/مورّد (حقوق ملكية). */
+  OPENING_BALANCE_EQUITY: 'GL_OPENING_BALANCE_EQUITY',
 } as const;
 
 /** يُحدِّد مفتاح GL المناسب حسب نوع حساب الخزينة — CASH يبقى على GL_CASH الموحّد
@@ -379,5 +381,28 @@ export async function ensureCompanyExternalJobCoa(client: PoolClient, companyId:
        true, $2, 155
      WHERE NOT EXISTS (SELECT 1 FROM gl_accounts g WHERE g.company_id = $1 AND g.system_key = $2)`,
     [companyId, GL_KEYS.EXTERNAL_JOB_FEE_EXPENSE],
+  );
+}
+
+/** يُنشئ قسم "حقوق الملكية" الرئيسي (كود '3') إن لم يوجد، ثم حساب "فروقات أرصدة
+ * افتتاحية" الفرعي تحته — الطرف المقابل لقيود ترحيل الرصيد الافتتاحي اليدوي
+ * لعميل/مورّد. Idempotent. */
+export async function ensureCompanyOpeningBalanceGlAccount(client: PoolClient, companyId: string): Promise<void> {
+  await ensureCompanyGlCoa(client, companyId);
+
+  await client.query(
+    `INSERT INTO gl_accounts (company_id, code, name, account_type, parent_id, is_posting, sort_order)
+     SELECT $1, '3', 'حقوق الملكية', 'EQUITY', NULL, false, 115
+     WHERE NOT EXISTS (SELECT 1 FROM gl_accounts g WHERE g.company_id = $1 AND g.code = '3')`,
+    [companyId],
+  );
+
+  await client.query(
+    `INSERT INTO gl_accounts (company_id, code, name, account_type, parent_id, is_posting, system_key, sort_order)
+     SELECT $1, '3001', 'فروقات أرصدة افتتاحية', 'EQUITY',
+       (SELECT id FROM gl_accounts p WHERE p.company_id = $1 AND p.code = '3' LIMIT 1),
+       true, $2, 116
+     WHERE NOT EXISTS (SELECT 1 FROM gl_accounts g WHERE g.company_id = $1 AND g.system_key = $2)`,
+    [companyId, GL_KEYS.OPENING_BALANCE_EQUITY],
   );
 }

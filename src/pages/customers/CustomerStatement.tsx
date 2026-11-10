@@ -13,6 +13,7 @@ import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../..
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
 import { CustomerLegacyStatementImportModal } from '../../components/customers/CustomerLegacyStatementImportModal';
 import { CustomerLegacyStatementArchivePanel } from '../../components/customers/CustomerLegacyStatementArchivePanel';
+import { CustomerOpeningBalanceModal } from '../../components/customers/CustomerOpeningBalanceModal';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import { BRAND } from '../../branding';
 import { arAccountingCreditSide, arAccountingDebitSide } from '../../lib/i18n/arTerminology';
@@ -87,6 +88,8 @@ export const CustomerStatement = () => {
   const [legacyImportModalOpen, setLegacyImportModalOpen] = useState(false);
   const [legacyArchiveOpen, setLegacyArchiveOpen] = useState(false);
   const [legacyArchiveRefreshKey, setLegacyArchiveRefreshKey] = useState(0);
+  const [openingBalanceModalOpen, setOpeningBalanceModalOpen] = useState(false);
+  const [openingBalancePrefill, setOpeningBalancePrefill] = useState<{ amount?: number; direction?: 'DEBIT' | 'CREDIT' }>({});
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountDate, setDiscountDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [discountCurrency, setDiscountCurrency] = useState('USD');
@@ -1143,6 +1146,18 @@ export const CustomerStatement = () => {
              <FileText className="w-4 h-4" />
              <span>{tLegacy('toolbar.importLegacyStatement')}</span>
            </button>
+           <button
+             type="button"
+             onClick={() => {
+               setOpeningBalancePrefill({});
+               setOpeningBalanceModalOpen(true);
+             }}
+             disabled={!selectedCustomerId}
+             className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-50 transition shadow-sm font-medium disabled:opacity-40"
+           >
+             <Banknote className="w-4 h-4" />
+             <span>{tLegacy('openingBalance.toolbarButton')}</span>
+           </button>
          </div>
        </div>
 
@@ -1158,7 +1173,14 @@ export const CustomerStatement = () => {
           </button>
           {legacyArchiveOpen && (
             <div className="border-t border-slate-200 p-4">
-              <CustomerLegacyStatementArchivePanel customerId={selectedCustomerId} refreshKey={legacyArchiveRefreshKey} />
+              <CustomerLegacyStatementArchivePanel
+                customerId={selectedCustomerId}
+                refreshKey={legacyArchiveRefreshKey}
+                onPostOpeningBalance={(prefill) => {
+                  setOpeningBalancePrefill(prefill);
+                  setOpeningBalanceModalOpen(true);
+                }}
+              />
             </div>
           )}
         </div>
@@ -1825,6 +1847,17 @@ export const CustomerStatement = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {openingBalanceModalOpen && selectedCustomerId && (
+        <CustomerOpeningBalanceModal
+          open={openingBalanceModalOpen}
+          customerId={selectedCustomerId}
+          initialAmount={openingBalancePrefill.amount}
+          initialDirection={openingBalancePrefill.direction}
+          onClose={() => setOpeningBalanceModalOpen(false)}
+          onPosted={() => setVoucherRefreshTick((v) => v + 1)}
+        />
       )}
 
       {legacyImportModalOpen && selectedCustomerId && (

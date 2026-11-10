@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, ChevronLeft, Loader2, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Landmark, Loader2, Trash2 } from 'lucide-react';
 import {
   deleteCustomerLegacyStatementBatch,
   getCustomerLegacyStatementBatchEntries,
@@ -14,6 +14,7 @@ const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 
 interface Props {
   customerId: string;
   refreshKey: number;
+  onPostOpeningBalance?: (prefill: { amount: number; direction: 'DEBIT' | 'CREDIT' }) => void;
 }
 
 function money(value: string | number | null | undefined): string {
@@ -38,7 +39,7 @@ function groupEntries(entries: LegacyStatementEntryRow[]): EntryGroup[] {
   return order.map((key) => byHeader.get(key)!);
 }
 
-export function CustomerLegacyStatementArchivePanel({ customerId, refreshKey }: Props) {
+export function CustomerLegacyStatementArchivePanel({ customerId, refreshKey, onPostOpeningBalance }: Props) {
   const [batches, setBatches] = useState<LegacyStatementBatchSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
@@ -201,6 +202,22 @@ export function CustomerLegacyStatementArchivePanel({ customerId, refreshKey }: 
                   <button type="button" onClick={() => void openBatch(batch.id)} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700">
                     {t('archive.view')}
                   </button>
+                  {onPostOpeningBalance && (Number(batch.closingBalanceDebit) > 0 || Number(batch.closingBalanceCredit) > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const debit = Number(batch.closingBalanceDebit);
+                        const credit = Number(batch.closingBalanceCredit);
+                        onPostOpeningBalance(
+                          debit >= credit ? { amount: debit, direction: 'DEBIT' } : { amount: credit, direction: 'CREDIT' },
+                        );
+                      }}
+                      className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 flex items-center gap-1"
+                    >
+                      <Landmark className="h-3.5 w-3.5" />
+                      {t('openingBalance.archiveButton')}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => void handleDelete(batch.id)}

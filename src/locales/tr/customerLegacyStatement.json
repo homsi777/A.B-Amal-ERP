@@ -35,5 +35,20 @@
   "table.lineTotal": "Toplam",
   "table.debit": "Borç",
   "table.credit": "Alacak",
-  "table.warehouse": "Depo"
+  "table.warehouse": "Depo",
+  "openingBalance.toolbarButton": "Açılış Bakiyesi Aktar",
+  "openingBalance.archiveButton": "Açılış Bakiyesi Olarak Aktar",
+  "openingBalance.modalTitle": "Müşteri Açılış Bakiyesi Aktarımı",
+  "openingBalance.modalSubtitle": "Müşterinin canlı bakiyesinin başlangıcını ayarlayan tek gerçek muhasebe kaydı — fatura veya fiş oluşturmaz.",
+  "openingBalance.amountLabel": "Tutar",
+  "openingBalance.directionLabel": "Yön",
+  "openingBalance.directionDebit": "Borç (müşteri bize borçlu)",
+  "openingBalance.directionCredit": "Alacak (biz ona borçluyuz)",
+  "openingBalance.dateLabel": "Bakiye Tarihi",
+  "openingBalance.descriptionLabel": "Açıklama (isteğe bağlı)",
+  "openingBalance.confirm": "Aktarımı Onayla",
+  "openingBalance.posting": "Aktarılıyor...",
+  "openingBalance.success": "Açılış bakiyesi başarıyla aktarıldı (fiş no {{entryNo}})",
+  "openingBalance.failed": "Açılış bakiyesi aktarılamadı",
+  "openingBalance.close": "Kapat"
 }
