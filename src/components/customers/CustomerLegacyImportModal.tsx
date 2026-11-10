@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
 import { parseLegacyStatementWorkbook, type ParsedLegacyStatement } from '../../lib/customerLegacyStatementExcelParser';
-import { importCustomerLegacyStatementBatch } from '../../lib/api/customerLegacyStatementApi';
+import { importCustomerLegacyStatement, type LegacyImportResult } from '../../lib/api/customerLegacyImportApi';
+import { listExchangeRates, type ExchangeRateDto } from '../../lib/api/exchangeRatesApi';
 import i18n from '../../i18n/config';
 
 const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: 'customerLegacyStatement', ...options });
@@ -22,14 +23,24 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function CustomerLegacyStatementImportModal({ open, customerId, onClose, onImported }: Props) {
+export function CustomerLegacyImportModal({ open, customerId, onClose, onImported }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string>('');
   const [parsed, setParsed] = useState<ParsedLegacyStatement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [result, setResult] = useState<LegacyImportResult | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [currencies, setCurrencies] = useState<ExchangeRateDto[]>([]);
+  const [currencyCode, setCurrencyCode] = useState('USD');
+  const [exchangeRateToUsd, setExchangeRateToUsd] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    listExchangeRates()
+      .then((res) => setCurrencies(res.data))
+      .catch(() => setCurrencies([]));
+  }, [open]);
 
   if (!open) return null;
 
@@ -39,13 +50,13 @@ export function CustomerLegacyStatementImportModal({ open, customerId, onClose, 
     const file = event.target.files?.[0];
     if (!file) return;
     setError(null);
-    setMessage(null);
+    setResult(null);
     setParsed(null);
     setFileName(file.name);
     setLoadingFile(true);
     try {
-      const result = await parseLegacyStatementWorkbook(file);
-      setParsed(result);
+      const parsedResult = await parseLegacyStatementWorkbook(file);
+      setParsed(parsedResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('modal.parseFailed'));
     } finally {
@@ -56,29 +67,23 @@ export function CustomerLegacyStatementImportModal({ open, customerId, onClose, 
 
   async function handleConfirm() {
     if (!parsed) return;
+    const rate = currencyCode === 'USD' ? 1 : Number(exchangeRateToUsd);
+    if (currencyCode !== 'USD' && !(rate > 0)) {
+      setError(t('modal.exchangeRateRequired'));
+      return;
+    }
     setImporting(true);
     setError(null);
     try {
-      const batch = await importCustomerLegacyStatementBatch(customerId, {
+      const res = await importCustomerLegacyStatement(customerId, {
         fileName,
-        sheetName: parsed.sheetName,
+        currencyCode,
+        exchangeRateToUsd: rate,
         openingBalanceDebit: parsed.openingBalanceDebit,
         openingBalanceCredit: parsed.openingBalanceCredit,
-        closingBalanceDebit: parsed.closingBalanceDebit,
-        closingBalanceCredit: parsed.closingBalanceCredit,
-        totalDebit: parsed.totalDebit,
-        totalCredit: parsed.totalCredit,
         rows: parsed.rows,
       });
-      const baseMessage = t('modal.importSuccess', { count: parsed.rows.length });
-      const openingNote = batch.openingBalancePosted
-        ? t('modal.openingBalancePosted')
-        : batch.openingBalanceNote
-          ? batch.openingBalanceNote
-          : '';
-      setMessage(openingNote ? `${baseMessage} ${openingNote}` : baseMessage);
-      setParsed(null);
-      setFileName('');
+      setResult(res);
       onImported();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('modal.importFailed'));
@@ -124,21 +129,33 @@ export function CustomerLegacyStatementImportModal({ open, customerId, onClose, 
               {error}
             </div>
           )}
-          {message && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
-              <CheckCircle2 className="h-4 w-4" />
-              {message}
+
+          {result && (
+            <div className="mt-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                {t('modal.importSuccess', { invoices: result.invoicesCreated, journals: result.journalEntriesCreated })}
+              </div>
+              {result.openingBalancePosted && <div>{t('modal.openingBalancePosted')}</div>}
+              {result.skipped.length > 0 && (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-normal text-amber-800">
+                  <div className="font-bold">{t('modal.skippedTitle', { count: result.skipped.length })}</div>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5">
+                    {result.skipped.slice(0, 20).map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
-          {parsed && (
+          {parsed && !result && (
             <div className="mt-5 space-y-4">
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 <SummaryCard label={t('summary.rowCount')} value={parsed.rows.length.toLocaleString()} />
                 <SummaryCard label={t('summary.openingBalance')} value={`${money(parsed.openingBalanceDebit)} / ${money(parsed.openingBalanceCredit)}`} />
                 <SummaryCard label={t('summary.closingBalance')} value={`${money(parsed.closingBalanceDebit)} / ${money(parsed.closingBalanceCredit)}`} />
-                <SummaryCard label={t('summary.totalDebit')} value={money(parsed.totalDebit)} />
-                <SummaryCard label={t('summary.totalCredit')} value={money(parsed.totalCredit)} />
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-white p-3">
@@ -150,6 +167,38 @@ export function CustomerLegacyStatementImportModal({ open, customerId, onClose, 
                     </span>
                   ))}
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 md:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600">{t('modal.currencyLabel')}</label>
+                  <select
+                    value={currencyCode}
+                    onChange={(e) => setCurrencyCode(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="USD">USD</option>
+                    {currencies.filter((c) => c.currency_code !== 'USD').map((c) => (
+                      <option key={c.currency_code} value={c.currency_code}>
+                        {c.currency_code} — {c.currency_name_ar}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {currencyCode !== 'USD' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600">{t('modal.exchangeRateLabel')}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      value={exchangeRateToUsd}
+                      onChange={(e) => setExchangeRateToUsd(e.target.value)}
+                      placeholder={t('modal.exchangeRatePlaceholder')}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2">
@@ -166,6 +215,14 @@ export function CustomerLegacyStatementImportModal({ open, customerId, onClose, 
                   {importing ? t('modal.importing') : t('modal.confirmImport')}
                 </button>
               </div>
+            </div>
+          )}
+
+          {result && (
+            <div className="mt-4 flex justify-end">
+              <button type="button" onClick={onClose} className="rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700">
+                {t('modal.close')}
+              </button>
             </div>
           )}
         </div>

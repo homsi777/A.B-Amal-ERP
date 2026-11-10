@@ -11,8 +11,7 @@ import { DUES_REPORT_TABLE_HEAD_CSS, sanitizePartyNotesForExport } from '../../l
 import { buildCustomerStatementFileName } from '../../lib/printing/documentFileNames';
 import { sendTelegramAccountStatementPdf, sendTelegramStatementPdf } from '../../lib/telegramStatement';
 import { BatchStatementExportModal } from '../../components/statements/BatchStatementExportModal';
-import { CustomerLegacyStatementImportModal } from '../../components/customers/CustomerLegacyStatementImportModal';
-import { CustomerLegacyStatementArchivePanel } from '../../components/customers/CustomerLegacyStatementArchivePanel';
+import { CustomerLegacyImportModal } from '../../components/customers/CustomerLegacyImportModal';
 import { A4PreviewModal } from '../../components/printing/A4PreviewModal';
 import { BRAND } from '../../branding';
 import { arAccountingCreditSide, arAccountingDebitSide } from '../../lib/i18n/arTerminology';
@@ -85,8 +84,6 @@ export const CustomerStatement = () => {
   const [payNote, setPayNote] = useState('');
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
   const [legacyImportModalOpen, setLegacyImportModalOpen] = useState(false);
-  const [legacyArchiveOpen, setLegacyArchiveOpen] = useState(false);
-  const [legacyArchiveRefreshKey, setLegacyArchiveRefreshKey] = useState(0);
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountDate, setDiscountDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [discountCurrency, setDiscountCurrency] = useState('USD');
@@ -1146,24 +1143,6 @@ export const CustomerStatement = () => {
          </div>
        </div>
 
-      {selectedCustomerId && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setLegacyArchiveOpen((v) => !v)}
-            className="w-full flex items-center justify-between p-4 text-start font-black text-slate-800 hover:bg-slate-50"
-          >
-            <span>{tLegacy('archive.title')}</span>
-            <span className="text-xs font-bold text-slate-400">{legacyArchiveOpen ? '▲' : '▼'}</span>
-          </button>
-          {legacyArchiveOpen && (
-            <div className="border-t border-slate-200 p-4">
-              <CustomerLegacyStatementArchivePanel customerId={selectedCustomerId} refreshKey={legacyArchiveRefreshKey} />
-            </div>
-          )}
-        </div>
-      )}
-
 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
          <div className="p-4 border-b border-slate-200 bg-slate-50">
            <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
@@ -1828,13 +1807,11 @@ export const CustomerStatement = () => {
       )}
 
       {legacyImportModalOpen && selectedCustomerId && (
-        <CustomerLegacyStatementImportModal
+        <CustomerLegacyImportModal
           open={legacyImportModalOpen}
           customerId={selectedCustomerId}
           onClose={() => setLegacyImportModalOpen(false)}
           onImported={() => {
-            setLegacyArchiveOpen(true);
-            setLegacyArchiveRefreshKey((k) => k + 1);
             setVoucherRefreshTick((v) => v + 1);
           }}
         />

@@ -24,10 +24,15 @@ export type PostCustomerOpeningBalanceInput = {
   companyId: string;
   userId: string | null;
   customerId: string;
+  /** المبلغ بالعملة الأصلية (`currencyCode`) — يُحوَّل تلقائياً للدولار قبل الترحيل. */
   amount: number;
   direction: OpeningBalanceDirection;
   asOfDate: string;
   description?: string | null;
+  /** عملة `amount` الأصلية — افتراضياً دولار (بلا تحويل، توافق خلفي كامل). */
+  currencyCode?: string;
+  /** سعر الصرف مقابل الدولار — إلزامي إن كانت `currencyCode` غير USD. */
+  exchangeRateToUsd?: number;
 };
 
 export type PostCustomerOpeningBalanceResult = {
@@ -42,10 +47,15 @@ export async function postCustomerOpeningBalance(
   client: PoolClient,
   input: PostCustomerOpeningBalanceInput,
 ): Promise<PostCustomerOpeningBalanceResult> {
-  const amount = round2(input.amount);
-  if (!(amount > 0)) fail('المبلغ يجب أن يكون أكبر من صفر', 'VALIDATION');
+  const originalAmount = round2(input.amount);
+  if (!(originalAmount > 0)) fail('المبلغ يجب أن يكون أكبر من صفر', 'VALIDATION');
   if (input.direction !== 'DEBIT' && input.direction !== 'CREDIT') fail('اتجاه غير صالح', 'VALIDATION');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.asOfDate)) fail('تاريخ غير صالح', 'VALIDATION');
+
+  const currencyCode = (input.currencyCode?.trim() || 'USD').toUpperCase();
+  const exchangeRateToUsd = currencyCode === 'USD' ? 1 : input.exchangeRateToUsd;
+  if (!exchangeRateToUsd || !(exchangeRateToUsd > 0)) fail('سعر الصرف يجب أن يكون أكبر من صفر', 'VALIDATION');
+  const amount = round2(originalAmount / exchangeRateToUsd);
 
   const customerRow = await client.query(`SELECT id, name FROM customers WHERE id = $1 AND company_id = $2`, [
     input.customerId,
@@ -54,7 +64,7 @@ export async function postCustomerOpeningBalance(
   if (!customerRow.rows.length) fail('العميل غير موجود', 'NOT_FOUND');
   const customerName: string = customerRow.rows[0].name;
 
-  const sourceSeed = `${input.customerId}:OPENING_BALANCE_MANUAL:${input.asOfDate}:${amount}:${input.direction}`;
+  const sourceSeed = `${input.customerId}:OPENING_BALANCE_MANUAL:${input.asOfDate}:${originalAmount}:${currencyCode}:${input.direction}`;
   const sourceId = stableUuid(sourceSeed);
 
   const exists = await client.query(
@@ -68,7 +78,9 @@ export async function postCustomerOpeningBalance(
   const equityId = await getGlAccountIdByKey(client, input.companyId, GL_KEYS.OPENING_BALANCE_EQUITY);
   const entryNo = await generateSequentialDocumentNo(client, input.companyId, 'ACCOUNT_STATEMENT');
 
-  const description = input.description?.trim() || `رصيد افتتاحي للعميل ${customerName}`;
+  const baseDescription = input.description?.trim() || `رصيد افتتاحي للعميل ${customerName}`;
+  const description =
+    currencyCode === 'USD' ? baseDescription : `${baseDescription} (الأصل: ${originalAmount} ${currencyCode} @ سعر الصرف ${exchangeRateToUsd})`;
   const arDebit = input.direction === 'DEBIT' ? amount : 0;
   const arCredit = input.direction === 'CREDIT' ? amount : 0;
   const equityDebit = input.direction === 'CREDIT' ? amount : 0;

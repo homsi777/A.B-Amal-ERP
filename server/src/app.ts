@@ -8,7 +8,7 @@ import { authRoutes } from './routes/authRoutes.js';
 import { activationRoutes } from './routes/activationRoutes.js';
 import { companyRoutes } from './routes/companyRoutes.js';
 import { customerRoutes } from './routes/customerRoutes.js';
-import { customerLegacyStatementRoutes } from './routes/customerLegacyStatementRoutes.js';
+import { customerLegacyImportRoutes } from './routes/customerLegacyImportRoutes.js';
 import { fabricCategoryRoutes } from './routes/fabricCategoryRoutes.js';
 import { fabricColorRoutes } from './routes/fabricColorRoutes.js';
 import { fabricItemRoutes } from './routes/fabricItemRoutes.js';
@@ -124,7 +124,7 @@ export async function buildApp() {
   // Master data routes
   await app.register(supplierRoutes, { prefix: '/api/suppliers' });
   await app.register(customerRoutes, { prefix: '/api/customers' });
-  await app.register(customerLegacyStatementRoutes, { prefix: '/api/customers' });
+  await app.register(customerLegacyImportRoutes, { prefix: '/api/customers' });
   await app.register(warehouseRoutes, { prefix: '/api/warehouses' });
   await app.register(warehouseLocationRoutes, { prefix: '/api/warehouse-locations' });
   await app.register(fabricCategoryRoutes, { prefix: '/api/fabric/categories' });
