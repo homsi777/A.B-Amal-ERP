@@ -82,6 +82,25 @@ function str(v: unknown): string | null {
   return s ? s : null;
 }
 
+const EXCEL_EPOCH_1900 = Date.UTC(1899, 11, 30);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** يحوّل تاريخ Excel التسلسلي الخام (مثل 46266) إلى نص ISO قابل للعرض — وإلا
+ * يُعاد النص الأصلي كما هو (مثل تاريخ مكتوب يدوياً بصيغة أخرى). */
+function parseDocumentDate(v: unknown): string | null {
+  const s = str(v);
+  if (!s) return null;
+  const n = Number(s);
+  if (Number.isFinite(n) && n > 0 && n < 80000 && /^\d+(\.\d+)?$/.test(s)) {
+    const date = new Date(EXCEL_EPOCH_1900 + Math.floor(n) * DAY_MS);
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return s;
+}
+
 export async function parseLegacyStatementWorkbook(file: File): Promise<ParsedLegacyStatement> {
   const buf = await file.arrayBuffer();
   const workbook = XLSX.read(buf, { cellDates: false, cellNF: true, cellStyles: true });
@@ -174,7 +193,7 @@ export async function parseLegacyStatementWorkbook(file: File): Promise<ParsedLe
       headerRowIndex: lastHeaderRowIndex,
       documentType,
       documentNo: str(r[idx.documentNo]),
-      documentDate: str(r[idx.documentDate]),
+      documentDate: parseDocumentDate(r[idx.documentDate]),
       documentRef: str(r[idx.documentRef]),
       description,
       unitPrice: num(r[idx.unitPrice]),
