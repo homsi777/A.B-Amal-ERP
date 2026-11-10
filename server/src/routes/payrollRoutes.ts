@@ -22,6 +22,13 @@ const employeeBody = z.object({
   salaryPeriod: z.enum(['weekly', 'monthly']).optional().default('monthly'),
   hireDate: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  fingerprintCode: z.string().optional().nullable(),
+  factory: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  paymentMethod: z.string().optional().nullable(),
+  terminationDate: z.string().optional().nullable(),
+  status: z.enum(['ACTIVE', 'TERMINATED', 'SUSPENDED']).optional().default('ACTIVE'),
+  wageChangeNotes: z.string().optional().nullable(),
 });
 
 const lineInput = z.object({
@@ -130,18 +137,21 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/employees', { preHandler: authenticateRequest }, async (req, reply) => {
     if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
-    const { companyId } = req.user!;
+    const { companyId, sub: userId } = req.user!;
     const parsed = employeeBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     const d = parsed.data;
 
     const pool = getPool();
+    const client = await pool.connect();
     try {
-      const row = await pool.query(
+      await client.query('BEGIN');
+      const row = await client.query(
         `INSERT INTO payroll_employees (
            company_id, employee_code, full_name, address, job_title, department, phone,
-           base_salary, currency_code, salary_period, hire_date, notes
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::date,$12)
+           base_salary, currency_code, salary_period, hire_date, notes,
+           fingerprint_code, factory, category, payment_method, termination_date, status
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::date,$12,$13,$14,$15,$16,$17::date,$18)
          RETURNING *`,
         [
           companyId,
@@ -156,30 +166,59 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
           d.salaryPeriod,
           d.hireDate ?? null,
           d.notes ?? null,
+          d.fingerprintCode?.trim() || null,
+          d.factory ?? null,
+          d.category ?? null,
+          d.paymentMethod ?? null,
+          d.terminationDate ?? null,
+          d.status,
         ],
       );
+      await client.query(
+        `INSERT INTO employee_wage_rule_history (company_id, employee_id, effective_from, base_salary, notes, created_by_user_id)
+         VALUES ($1,$2,COALESCE($3::date, current_date),$4,$5,$6)`,
+        [companyId, row.rows[0].id, d.hireDate ?? null, d.baseSalary, d.wageChangeNotes ?? null, userId],
+      );
+      await client.query('COMMIT');
       return reply.status(201).send({ ok: true, data: row.rows[0] });
     } catch (e: unknown) {
+      await client.query('ROLLBACK');
       if ((e as { code?: string }).code === '23505')
-        return sendError(reply, 409, 'رمز الموظف مستخدم مسبقاً', 'DUPLICATE');
+        return sendError(reply, 409, 'رمز الموظف أو رقم البصمة مستخدم مسبقاً', 'DUPLICATE');
       throw e;
+    } finally {
+      client.release();
     }
   });
 
   app.put('/employees/:id', { preHandler: authenticateRequest }, async (req, reply) => {
     if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
-    const { companyId } = req.user!;
+    const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = employeeBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
     const d = parsed.data;
 
     const pool = getPool();
+    const client = await pool.connect();
     try {
-      const row = await pool.query(
+      await client.query('BEGIN');
+      const prior = await client.query<{ base_salary: string }>(
+        `SELECT base_salary FROM payroll_employees WHERE id=$1 AND company_id=$2 FOR UPDATE`,
+        [id, companyId],
+      );
+      if (!prior.rows.length) {
+        await client.query('ROLLBACK');
+        return sendError(reply, 404, 'الموظف غير موجود', 'NOT_FOUND');
+      }
+      const baseSalaryChanged = Number(prior.rows[0].base_salary) !== d.baseSalary;
+
+      const row = await client.query(
         `UPDATE payroll_employees SET
            employee_code=$3, full_name=$4, address=$5, job_title=$6, department=$7, phone=$8,
-           base_salary=$9, currency_code=$10, salary_period=$11, hire_date=$12::date, notes=$13, updated_at=now()
+           base_salary=$9, currency_code=$10, salary_period=$11, hire_date=$12::date, notes=$13,
+           fingerprint_code=$14, factory=$15, category=$16, payment_method=$17, termination_date=$18::date,
+           status=$19, updated_at=now()
          WHERE id=$1 AND company_id=$2
          RETURNING *`,
         [
@@ -196,14 +235,30 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
           d.salaryPeriod,
           d.hireDate ?? null,
           d.notes ?? null,
+          d.fingerprintCode?.trim() || null,
+          d.factory ?? null,
+          d.category ?? null,
+          d.paymentMethod ?? null,
+          d.terminationDate ?? null,
+          d.status,
         ],
       );
-      if (!row.rows.length) return sendError(reply, 404, 'الموظف غير موجود', 'NOT_FOUND');
+      if (baseSalaryChanged) {
+        await client.query(
+          `INSERT INTO employee_wage_rule_history (company_id, employee_id, effective_from, base_salary, notes, created_by_user_id)
+           VALUES ($1,$2,current_date,$3,$4,$5)`,
+          [companyId, id, d.baseSalary, d.wageChangeNotes ?? null, userId],
+        );
+      }
+      await client.query('COMMIT');
       return reply.send({ ok: true, data: row.rows[0] });
     } catch (e: unknown) {
+      await client.query('ROLLBACK');
       if ((e as { code?: string }).code === '23505')
-        return sendError(reply, 409, 'رمز الموظف مستخدم مسبقاً', 'DUPLICATE');
+        return sendError(reply, 409, 'رمز الموظف أو رقم البصمة مستخدم مسبقاً', 'DUPLICATE');
       throw e;
+    } finally {
+      client.release();
     }
   });
 
@@ -219,6 +274,22 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     );
     if (!row.rows.length) return sendError(reply, 404, 'الموظف غير موجود', 'NOT_FOUND');
     return reply.send({ ok: true, data: row.rows[0] });
+  });
+
+  app.get('/employees/:id/wage-history', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.view')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const rows = await pool.query(
+      `SELECT h.id, h.effective_from, h.base_salary, h.allowances, h.notes, h.created_at, u.username AS created_by
+       FROM employee_wage_rule_history h
+       LEFT JOIN users u ON u.id = h.created_by_user_id
+       WHERE h.company_id=$1 AND h.employee_id=$2
+       ORDER BY h.effective_from DESC, h.created_at DESC`,
+      [companyId, id],
+    );
+    return reply.send({ ok: true, data: rows.rows });
   });
 
   app.post('/employees/:id/pay-salary', { preHandler: authenticateRequest }, async (req, reply) => {

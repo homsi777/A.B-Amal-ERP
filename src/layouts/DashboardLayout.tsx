@@ -174,6 +174,7 @@ const Topbar = () => {
       labelKey: 'salaries',
       icon: Briefcase,
       subItems: [
+        { labelKey: 'salaries.employeeProfiles', to: '/hr/employees' },
         { labelKey: 'salaries.employees', to: '/salaries' },
         { labelKey: 'salaries.log', to: '/salaries/log' },
       ],

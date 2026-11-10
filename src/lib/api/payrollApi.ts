@@ -14,11 +14,27 @@ export interface PayrollEmployeeDto {
   hire_date: string | null;
   is_active: boolean;
   notes: string | null;
+  fingerprint_code: string | null;
+  factory: string | null;
+  category: string | null;
+  payment_method: string | null;
+  termination_date: string | null;
+  status: 'ACTIVE' | 'TERMINATED' | 'SUSPENDED';
   created_at: string;
   updated_at: string;
   total_salary_paid?: string;
   total_advances?: string;
   payment_count?: number;
+}
+
+export interface EmployeeWageHistoryDto {
+  id: string;
+  effective_from: string;
+  base_salary: string;
+  allowances: Record<string, unknown>;
+  notes: string | null;
+  created_at: string;
+  created_by: string | null;
 }
 
 export interface PayrollRunDto {
@@ -47,7 +63,7 @@ export async function listPayrollEmployees(params: { search?: string; active?: b
   return apiFetch<{ ok: boolean; data: PayrollEmployeeDto[] }>(`/api/payroll/employees${qs}`);
 }
 
-export async function createPayrollEmployee(payload: {
+export interface PayrollEmployeeUpsertPayload {
   employeeCode: string;
   fullName: string;
   address?: string | null;
@@ -59,11 +75,31 @@ export async function createPayrollEmployee(payload: {
   salaryPeriod?: 'weekly' | 'monthly';
   hireDate?: string | null;
   notes?: string | null;
-}) {
+  fingerprintCode?: string | null;
+  factory?: string | null;
+  category?: string | null;
+  paymentMethod?: string | null;
+  terminationDate?: string | null;
+  status?: 'ACTIVE' | 'TERMINATED' | 'SUSPENDED';
+  wageChangeNotes?: string | null;
+}
+
+export async function createPayrollEmployee(payload: PayrollEmployeeUpsertPayload) {
   return apiFetch<{ ok: boolean; data: PayrollEmployeeDto }>('/api/payroll/employees', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function updatePayrollEmployee(employeeId: string, payload: PayrollEmployeeUpsertPayload) {
+  return apiFetch<{ ok: boolean; data: PayrollEmployeeDto }>(`/api/payroll/employees/${employeeId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listEmployeeWageHistory(employeeId: string) {
+  return apiFetch<{ ok: boolean; data: EmployeeWageHistoryDto[] }>(`/api/payroll/employees/${employeeId}/wage-history`);
 }
 
 export async function payEmployeeSalary(
