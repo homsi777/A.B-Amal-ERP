@@ -76,8 +76,14 @@ function round2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
+function requirePermission(user: { role: string; permissions: string[] } | undefined, code: string): boolean {
+  if (!user) return false;
+  return user.role === 'admin' || user.permissions.includes(code);
+}
+
 export const payrollRoutes: FastifyPluginAsync = async (app) => {
   app.get('/employees', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.view')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId } = req.user!;
     const q = req.query as Record<string, string>;
     const search = q.search?.trim() || '';
@@ -123,6 +129,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/employees', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId } = req.user!;
     const parsed = employeeBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
@@ -160,6 +167,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.put('/employees/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = employeeBody.safeParse(req.body);
@@ -200,6 +208,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch('/employees/:id/toggle-status', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId } = req.user!;
     const { id } = req.params as { id: string };
     const pool = getPool();
@@ -213,6 +222,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/employees/:id/pay-salary', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.disburse')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = employeeSalaryPaymentBody.safeParse(req.body ?? {});
@@ -341,6 +351,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/employees/:id/advance', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'advances.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = employeeAdvanceBody.safeParse(req.body ?? {});
@@ -475,6 +486,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/salary-log', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.view')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId } = req.user!;
     const q = req.query as Record<string, string>;
     const search = q.search?.trim() || '';
@@ -631,6 +643,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/runs', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.view')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId } = req.user!;
     const pool = getPool();
     const rows = await pool.query(
@@ -643,6 +656,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/runs/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.view')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId } = req.user!;
     const { id } = req.params as { id: string };
     const pool = getPool();
@@ -665,6 +679,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/runs', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId, sub: userId } = req.user!;
     const parsed = runCreateBody.safeParse(req.body);
     if (!parsed.success) return sendError(reply, 400, ArabicErrors.validation, 'VALIDATION');
@@ -746,6 +761,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.put('/runs/:id', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = runUpdateBody.safeParse(req.body);
@@ -831,6 +847,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch('/runs/:id/confirm', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.approve')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const pool = getPool();
@@ -881,6 +898,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch('/runs/:id/mark-paid', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.disburse')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const parsed = markPaidBody.safeParse(req.body ?? {});
@@ -968,6 +986,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch('/runs/:id/cancel', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.approve')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
     const { companyId, sub: userId } = req.user!;
     const { id } = req.params as { id: string };
     const pool = getPool();
