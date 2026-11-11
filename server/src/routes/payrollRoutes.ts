@@ -68,6 +68,9 @@ const employeeAdvanceBody = z.object({
   amount: z.coerce.number().positive(),
   notes: z.string().optional().nullable(),
   exchangeRateToUsd: z.coerce.number().positive().optional(),
+  installmentCount: z.coerce.number().int().min(1).max(60).optional(),
+  installmentStartMonth: z.coerce.number().int().min(1).max(12).optional(),
+  installmentStartYear: z.coerce.number().int().min(2000).max(2100).optional(),
 });
 
 const runUpdateBody = runCreateBody;
@@ -552,11 +555,12 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         voucher.id,
       ]);
 
+      const installmentCount = d.installmentCount && d.installmentCount > 1 ? d.installmentCount : null;
       const ins = await client.query(
         `INSERT INTO payroll_employee_advances (
            company_id, employee_id, voucher_id, cashbox_id, advance_no, advance_date,
-           amount, currency_code, notes, created_by_user_id
-         ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10)
+           amount, currency_code, notes, created_by_user_id, installment_count
+         ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11)
          RETURNING id, advance_no, advance_date, amount, currency_code, created_at`,
         [
           companyId,
@@ -569,8 +573,32 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
           employee.currency_code,
           d.notes ?? null,
           userId,
+          installmentCount,
         ],
       );
+
+      if (installmentCount) {
+        const advanceStart = new Date(`${advanceDate}T00:00:00`);
+        let startMonth = d.installmentStartMonth ?? advanceStart.getMonth() + 1;
+        let startYear = d.installmentStartYear ?? advanceStart.getFullYear();
+        const baseInstallment = Math.floor((amount / installmentCount) * 100) / 100;
+        let allocated = 0;
+        for (let n = 1; n <= installmentCount; n++) {
+          const isLast = n === installmentCount;
+          const installmentAmount = isLast ? round2(amount - allocated) : baseInstallment;
+          allocated = round2(allocated + installmentAmount);
+          await client.query(
+            `INSERT INTO advance_installments (company_id, advance_id, employee_id, installment_no, due_month, due_year, amount)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [companyId, ins.rows[0].id, employee.id, n, startMonth, startYear, installmentAmount],
+          );
+          startMonth++;
+          if (startMonth > 12) {
+            startMonth = 1;
+            startYear++;
+          }
+        }
+      }
 
       await client.query('COMMIT');
       return reply.status(201).send({
@@ -592,6 +620,54 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     } finally {
       client.release();
     }
+  });
+
+  app.get('/advance-installments', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'advances.manage')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId } = req.user!;
+    const q = req.query as Record<string, string>;
+    const conditions = ['ai.company_id = $1'];
+    const params: unknown[] = [companyId];
+    if (q.employeeId) {
+      params.push(q.employeeId);
+      conditions.push(`ai.employee_id = $${params.length}`);
+    }
+    if (q.periodMonth) {
+      params.push(Number(q.periodMonth));
+      conditions.push(`ai.due_month = $${params.length}`);
+    }
+    if (q.periodYear) {
+      params.push(Number(q.periodYear));
+      conditions.push(`ai.due_year = $${params.length}`);
+    }
+    const pool = getPool();
+    const rows = await pool.query(
+      `SELECT ai.id, ai.advance_id, ai.employee_id, e.employee_code, e.full_name, ai.installment_no,
+              ai.due_month, ai.due_year, ai.amount, ai.paid_amount, ai.status, ai.paid_at,
+              a.advance_no, a.currency_code, a.installment_count
+       FROM advance_installments ai
+       JOIN payroll_employees e ON e.id = ai.employee_id
+       JOIN payroll_employee_advances a ON a.id = ai.advance_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY ai.due_year, ai.due_month, e.full_name`,
+      params,
+    );
+    return reply.send({ ok: true, data: rows.rows });
+  });
+
+  app.patch('/advance-installments/:id/mark-paid', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'advances.approve')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId, sub: userId } = req.user!;
+    const { id } = req.params as { id: string };
+    const pool = getPool();
+    const row = await pool.query(
+      `UPDATE advance_installments SET status='PAID', paid_amount=amount, paid_at=now(), paid_by_user_id=$3
+       WHERE id=$1 AND company_id=$2 AND status='PENDING'
+       RETURNING *`,
+      [id, companyId, userId],
+    );
+    if (!row.rows.length) return sendError(reply, 400, 'لا يمكن تحديث هذا القسط', 'INVALID_STATE');
+    return reply.send({ ok: true, data: row.rows[0] });
   });
 
   app.get('/salary-log', { preHandler: authenticateRequest }, async (req, reply) => {

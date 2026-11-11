@@ -32,6 +32,12 @@
   "totals": {
     "totalByCurrency": "Toplam {{currency}} Maaşları"
   },
+  "installments": {
+    "title": "Vadesi Gelen Taksitler (Taksitli Avanslar)",
+    "empty": "Şu anda vadesi gelen taksit yok.",
+    "installmentOf": "{{total}} taksitten {{no}}.",
+    "markPaid": "Ödendi Olarak İşaretle"
+  },
   "runs": {
     "title": "Maaş Dönemleri",
     "net": "Net",
@@ -120,6 +126,8 @@
     "titleDeliver": "Çalışan Maaşı Teslim Et",
     "titleRun": "Maaş Dönemini Öde",
     "advanceAmountLabel": "Avans Tutarı",
+    "installmentCountLabel": "Taksit Sayısı",
+    "installmentCountHint": "1 = Peşin avans (taksitsiz). 1'den fazla ise tutar gelecek aylara eşit olarak bölünür.",
     "deliveryAmountLabel": "Teslimat Tutarı",
     "amountInCurrency": "Maaş para biriminde tutar: {{currency}}",
     "equivalent": "— eşdeğeri {{amount}}",

@@ -25,8 +25,11 @@ import {
   markPayrollRunPaid,
   confirmPayrollRun,
   payEmployeeSalary,
+  listAdvanceInstallments,
+  markAdvanceInstallmentPaid,
   type PayrollEmployeeDto,
   type PayrollRunDto,
+  type AdvanceInstallmentDto,
 } from '../lib/api/payrollApi';
 import { PayrollExcelImportModal } from '../components/hr/PayrollExcelImportModal';
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
@@ -86,12 +89,45 @@ export const Salaries = () => {
   const [payRun, setPayRun] = useState<PayrollRunDto | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [confirmingRunId, setConfirmingRunId] = useState<string | null>(null);
+  const [installmentsOpen, setInstallmentsOpen] = useState(false);
+  const [pendingInstallments, setPendingInstallments] = useState<AdvanceInstallmentDto[]>([]);
+  const [installmentsLoading, setInstallmentsLoading] = useState(false);
+  const [payingInstallmentId, setPayingInstallmentId] = useState<string | null>(null);
+
+  const loadPendingInstallments = useCallback(async () => {
+    setInstallmentsLoading(true);
+    try {
+      const res = await listAdvanceInstallments();
+      setPendingInstallments(res.data.filter((i) => i.status === 'PENDING'));
+    } catch {
+      setPendingInstallments([]);
+    } finally {
+      setInstallmentsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (installmentsOpen) void loadPendingInstallments();
+  }, [installmentsOpen, loadPendingInstallments]);
+
+  async function handleMarkInstallmentPaid(id: string) {
+    setPayingInstallmentId(id);
+    try {
+      await markAdvanceInstallmentPaid(id);
+      void loadPendingInstallments();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('errors.loadFailed'));
+    } finally {
+      setPayingInstallmentId(null);
+    }
+  }
   const [payEmployee, setPayEmployee] = useState<PayrollEmployeeDto | null>(null);
   const [advanceEmployee, setAdvanceEmployee] = useState<PayrollEmployeeDto | null>(null);
   const [payCashboxes, setPayCashboxes] = useState<CashboxDto[]>([]);
   const [payCashboxId, setPayCashboxId] = useState('');
   const [payDate, setPayDate] = useState(todayIso());
   const [payAmount, setPayAmount] = useState('');
+  const [installmentCount, setInstallmentCount] = useState('1');
   const [payModalLoading, setPayModalLoading] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRateDto[]>([]);
@@ -264,6 +300,7 @@ export const Salaries = () => {
     setPayErr(null);
     setPayDate(todayIso());
     setPayAmount('');
+    setInstallmentCount('1');
     setPayModalLoading(true);
     try {
       await loadPayModalData(employee.currency_code);
@@ -308,11 +345,13 @@ export const Salaries = () => {
           setPayErr(t('errors.advanceAmountInvalid'));
           return;
         }
+        const installments = Number(installmentCount) || 1;
         await createEmployeeAdvance(advanceEmployee.id, {
           cashboxId: payCashboxId,
           advanceDate: payDate,
           amount,
           notes: t('notes.advance', { name: advanceEmployee.full_name }),
+          ...(installments > 1 ? { installmentCount: installments } : {}),
           ...exchangePayload,
         });
       } else if (payEmployee) {
@@ -554,6 +593,46 @@ export const Salaries = () => {
         </div>
       )}
 
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <button type="button" onClick={() => setInstallmentsOpen((v) => !v)} className="w-full flex items-center justify-between p-4 text-start font-bold text-slate-900">
+          <span>{t('installments.title')}</span>
+          <span className="text-xs font-bold text-slate-400">{installmentsOpen ? '▲' : '▼'}</span>
+        </button>
+        {installmentsOpen && (
+          <div className="border-t border-slate-200 p-4">
+            {installmentsLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+            ) : pendingInstallments.length === 0 ? (
+              <p className="text-sm text-slate-400">{t('installments.empty')}</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {pendingInstallments.map((inst) => (
+                  <li key={inst.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2">
+                    <div>
+                      <span className="font-bold text-slate-800">{inst.full_name}</span>
+                      <span className="text-xs text-slate-500">
+                        {' '}
+                        — {t('installments.installmentOf', { no: inst.installment_no, total: inst.installment_count })} —{' '}
+                        {inst.due_month}/{inst.due_year} — {money(inst.amount, inst.currency_code)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleMarkInstallmentPaid(inst.id)}
+                      disabled={payingInstallmentId === inst.id}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {payingInstallmentId === inst.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                      {t('installments.markPaid')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex flex-wrap gap-4 items-center justify-between bg-slate-50">
           <div className="relative flex-1 max-w-md">
@@ -723,6 +802,21 @@ export const Salaries = () => {
                   ) : null}
                 </p>
               </div>
+              {advanceEmployee && (
+                <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm">
+                  <p className="text-slate-500 text-xs mb-1">{t('payModal.installmentCountLabel')}</p>
+                  <input
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={installmentCount}
+                    onChange={(e) => setInstallmentCount(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono"
+                    dir="ltr"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">{t('payModal.installmentCountHint')}</p>
+                </div>
+              )}
               {payTargetCurrency !== 'USD' ? (
                 <Field label={t('payModal.exchangeRateLabel', { currency: payTargetCurrency })}>
                   <input

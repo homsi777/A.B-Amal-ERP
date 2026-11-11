@@ -32,6 +32,12 @@
   "totals": {
     "totalByCurrency": "إجمالي رواتب {{currency}}"
   },
+  "installments": {
+    "title": "الأقساط المستحقة (السلف المقسّطة)",
+    "empty": "لا توجد أقساط مستحقة حالياً.",
+    "installmentOf": "قسط {{no}} من {{total}}",
+    "markPaid": "تحديد كمدفوع"
+  },
   "runs": {
     "title": "مسيرات الرواتب",
     "net": "صافي",
@@ -120,6 +126,8 @@
     "titleDeliver": "تسليم راتب موظف",
     "titleRun": "صرف مسير الرواتب",
     "advanceAmountLabel": "قيمة السلفة",
+    "installmentCountLabel": "عدد الأقساط",
+    "installmentCountHint": "1 = سلفة فورية (بلا تقسيط). أكثر من 1 يُقسِّم المبلغ بالتساوي على عدد الأشهر القادمة.",
     "deliveryAmountLabel": "قيمة التسليم",
     "amountInCurrency": "المبلغ بعملة الراتب: {{currency}}",
     "equivalent": "— يعادل {{amount}}",

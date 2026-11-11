@@ -139,6 +139,9 @@ export async function createEmployeeAdvance(
     amount: number;
     notes?: string | null;
     exchangeRateToUsd?: number;
+    installmentCount?: number;
+    installmentStartMonth?: number;
+    installmentStartYear?: number;
   },
 ) {
   return apiFetch<{
@@ -256,5 +259,38 @@ export async function markPayrollRunPaid(
       paymentDate: payload.paymentDate ?? undefined,
       exchangeRateToUsd: payload.exchangeRateToUsd,
     }),
+  });
+}
+
+export interface AdvanceInstallmentDto {
+  id: string;
+  advance_id: string;
+  employee_id: string;
+  employee_code: string;
+  full_name: string;
+  installment_no: number;
+  due_month: number;
+  due_year: number;
+  amount: string;
+  paid_amount: string;
+  status: 'PENDING' | 'PAID';
+  paid_at: string | null;
+  advance_no: string;
+  currency_code: string;
+  installment_count: number;
+}
+
+export async function listAdvanceInstallments(params: { employeeId?: string; periodMonth?: number; periodYear?: number } = {}) {
+  const q = new URLSearchParams();
+  if (params.employeeId) q.set('employeeId', params.employeeId);
+  if (params.periodMonth) q.set('periodMonth', String(params.periodMonth));
+  if (params.periodYear) q.set('periodYear', String(params.periodYear));
+  const qs = q.toString() ? `?${q}` : '';
+  return apiFetch<{ ok: boolean; data: AdvanceInstallmentDto[] }>(`/api/payroll/advance-installments${qs}`);
+}
+
+export async function markAdvanceInstallmentPaid(installmentId: string) {
+  return apiFetch<{ ok: boolean; data: AdvanceInstallmentDto }>(`/api/payroll/advance-installments/${installmentId}/mark-paid`, {
+    method: 'PATCH',
   });
 }
