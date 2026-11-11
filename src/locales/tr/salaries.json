@@ -43,7 +43,11 @@
     "net": "Net",
     "payFromCashbox": "Kasadan Öde",
     "confirm": "Onayla",
-    "confirmFailed": "Dönem onaylanamadı"
+    "confirmFailed": "Dönem onaylanamadı",
+    "printSlips": "Bordroları Yazdır",
+    "printModalTitle": "{{payrollNo}} Dönemi Bordrolarını Yazdır",
+    "printSignatureSheet": "Tüm İmza Listesini Yazdır",
+    "printPayslip": "Bireysel Bordro Yazdır"
   },
   "buttons.importExcel": "Excel Maaş Bordrosu İçe Aktar",
   "payrollImport": {

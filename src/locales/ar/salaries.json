@@ -43,7 +43,11 @@
     "net": "صافي",
     "payFromCashbox": "صرف من الخزينة",
     "confirm": "تأكيد",
-    "confirmFailed": "فشل تأكيد المسير"
+    "confirmFailed": "فشل تأكيد المسير",
+    "printSlips": "طباعة الكشوف",
+    "printModalTitle": "طباعة كشوف مسير {{payrollNo}}",
+    "printSignatureSheet": "طباعة كشف توقيع كامل",
+    "printPayslip": "طباعة كشف فردي"
   },
   "buttons.importExcel": "استيراد كشف رواتب Excel",
   "payrollImport": {

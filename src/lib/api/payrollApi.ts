@@ -167,6 +167,26 @@ export async function listPayrollRuns() {
   return apiFetch<{ ok: boolean; data: PayrollRunDto[] }>('/api/payroll/runs');
 }
 
+export interface PayrollRunLineDto {
+  id: string;
+  employee_id: string;
+  employee_code: string;
+  employee_name: string;
+  job_title: string | null;
+  department: string | null;
+  factory: string | null;
+  base_salary: string;
+  allowances: string;
+  deductions: string;
+  net_salary: string;
+  excel_detail: Record<string, unknown> | null;
+  notes: string | null;
+}
+
+export async function getPayrollRunDetail(runId: string) {
+  return apiFetch<{ ok: boolean; data: PayrollRunDto & { lines: PayrollRunLineDto[] } }>(`/api/payroll/runs/${runId}`);
+}
+
 export async function confirmPayrollRun(runId: string) {
   return apiFetch<{ ok: boolean; data: unknown }>(`/api/payroll/runs/${runId}/confirm`, { method: 'PATCH' });
 }

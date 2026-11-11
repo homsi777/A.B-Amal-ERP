@@ -27,11 +27,16 @@ import {
   payEmployeeSalary,
   listAdvanceInstallments,
   markAdvanceInstallmentPaid,
+  getPayrollRunDetail,
   type PayrollEmployeeDto,
   type PayrollRunDto,
   type AdvanceInstallmentDto,
+  type PayrollRunLineDto,
 } from '../lib/api/payrollApi';
 import { PayrollExcelImportModal } from '../components/hr/PayrollExcelImportModal';
+import { renderPayslipA4Html } from '../lib/printing/renderPayslipA4';
+import { renderPayrollSignatureSheetA4Html } from '../lib/printing/renderPayrollSignatureSheetA4';
+import { openDocumentPrintWindow } from '../lib/printing/documentPrint';
 import { listCashboxes, type CashboxDto } from '../lib/api/cashboxesApi';
 import { ApiRequestError } from '../lib/api/client';
 import type { ExchangeRateDto } from '../lib/api/exchangeRatesApi';
@@ -93,6 +98,54 @@ export const Salaries = () => {
   const [pendingInstallments, setPendingInstallments] = useState<AdvanceInstallmentDto[]>([]);
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
   const [payingInstallmentId, setPayingInstallmentId] = useState<string | null>(null);
+  const [printRun, setPrintRun] = useState<PayrollRunDto | null>(null);
+  const [printRunLines, setPrintRunLines] = useState<PayrollRunLineDto[]>([]);
+  const [printRunLoading, setPrintRunLoading] = useState(false);
+
+  async function openPrintRunModal(run: PayrollRunDto) {
+    setPrintRun(run);
+    setPrintRunLoading(true);
+    try {
+      const res = await getPayrollRunDetail(run.id);
+      setPrintRunLines(res.data.lines);
+    } catch {
+      setPrintRunLines([]);
+    } finally {
+      setPrintRunLoading(false);
+    }
+  }
+
+  function printIndividualPayslip(run: PayrollRunDto, line: PayrollRunLineDto) {
+    const html = renderPayslipA4Html({
+      payrollNo: run.payroll_no,
+      periodMonth: run.period_month,
+      periodYear: run.period_year,
+      employeeCode: line.employee_code,
+      fullName: line.employee_name,
+      jobTitle: line.job_title,
+      department: line.department,
+      factory: line.factory,
+      baseSalary: Number(line.base_salary),
+      allowances: Number(line.allowances),
+      deductions: Number(line.deductions),
+      netSalary: Number(line.net_salary),
+      currencyCode: run.currency_code,
+      detail: line.excel_detail,
+    });
+    openDocumentPrintWindow(html, `كشف راتب - ${line.employee_name}`);
+  }
+
+  function printSignatureSheet(run: PayrollRunDto, lines: PayrollRunLineDto[]) {
+    const html = renderPayrollSignatureSheetA4Html({
+      payrollNo: run.payroll_no,
+      periodMonth: run.period_month,
+      periodYear: run.period_year,
+      department: run.department,
+      currencyCode: run.currency_code,
+      lines: lines.map((l) => ({ employeeCode: l.employee_code, fullName: l.employee_name, netSalary: Number(l.net_salary) })),
+    });
+    openDocumentPrintWindow(html, `كشف قبض رواتب - ${run.payroll_no}`);
+  }
 
   const loadPendingInstallments = useCallback(async () => {
     setInstallmentsLoading(true);
@@ -586,6 +639,10 @@ export const Salaries = () => {
                       {t('runs.payFromCashbox')}
                     </button>
                   )}
+                  <button type="button" onClick={() => void openPrintRunModal(run)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    <Printer className="w-3.5 h-3.5" />
+                    {t('runs.printSlips')}
+                  </button>
                 </div>
               </li>
             ))}
@@ -864,6 +921,50 @@ export const Salaries = () => {
       )}
 
       <PayrollExcelImportModal open={importModalOpen} onClose={() => setImportModalOpen(false)} onImported={() => void load()} />
+
+      {printRun && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <h3 className="text-base font-black text-slate-900">{t('runs.printModalTitle', { payrollNo: printRun.payroll_no })}</h3>
+              <button type="button" onClick={() => setPrintRun(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              <button
+                type="button"
+                onClick={() => printSignatureSheet(printRun, printRunLines)}
+                disabled={printRunLoading || !printRunLines.length}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                <Printer className="h-4 w-4" />
+                {t('runs.printSignatureSheet')}
+              </button>
+              {printRunLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              ) : (
+                <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+                  {printRunLines.map((line) => (
+                    <li key={line.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                      <span>
+                        <span className="font-mono text-xs text-slate-500">{line.employee_code}</span>{' '}
+                        <span className="font-bold text-slate-800">{line.employee_name}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => printIndividualPayslip(printRun, line)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        {t('runs.printPayslip')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -852,7 +852,7 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
     if (!run.rows.length) return sendError(reply, 404, 'مسير الرواتب غير موجود', 'NOT_FOUND');
 
     const lines = await pool.query(
-      `SELECT l.*, e.full_name AS employee_name, e.employee_code
+      `SELECT l.*, e.full_name AS employee_name, e.employee_code, e.job_title, e.department, e.factory
        FROM payroll_run_lines l
        JOIN payroll_employees e ON e.id = l.employee_id AND e.company_id = l.company_id
        WHERE l.payroll_run_id=$1 AND l.company_id=$2
