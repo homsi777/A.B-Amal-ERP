@@ -36,7 +36,9 @@
     "title": "Vadesi Gelen Taksitler (Taksitli Avanslar)",
     "empty": "Şu anda vadesi gelen taksit yok.",
     "installmentOf": "{{total}} taksitten {{no}}.",
-    "markPaid": "Ödendi Olarak İşaretle"
+    "markPaid": "Ödendi Olarak İşaretle",
+    "showAll": "Tüm taksitleri göster (ödenenler dahil, tam rapor)",
+    "paidLabel": "Ödendi"
   },
   "runs": {
     "title": "Maaş Dönemleri",
@@ -47,7 +49,14 @@
     "printSlips": "Bordroları Yazdır",
     "printModalTitle": "{{payrollNo}} Dönemi Bordrolarını Yazdır",
     "printSignatureSheet": "Tüm İmza Listesini Yazdır",
-    "printPayslip": "Bireysel Bordro Yazdır"
+    "printPayslip": "Bireysel Bordro Yazdır",
+    "groupTotalsTitle": "Toplam Bazında",
+    "groupByDepartment": "Departman",
+    "groupByFactory": "Fabrika",
+    "groupByCategory": "Kategori",
+    "groupName": "Ad",
+    "groupCount": "Çalışan Sayısı",
+    "groupNet": "Net Maaş Toplamı"
   },
   "buttons.importExcel": "Excel Maaş Bordrosu İçe Aktar",
   "payrollImport": {

@@ -97,10 +97,12 @@ export const Salaries = () => {
   const [installmentsOpen, setInstallmentsOpen] = useState(false);
   const [pendingInstallments, setPendingInstallments] = useState<AdvanceInstallmentDto[]>([]);
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
+  const [showAllInstallments, setShowAllInstallments] = useState(false);
   const [payingInstallmentId, setPayingInstallmentId] = useState<string | null>(null);
   const [printRun, setPrintRun] = useState<PayrollRunDto | null>(null);
   const [printRunLines, setPrintRunLines] = useState<PayrollRunLineDto[]>([]);
   const [printRunLoading, setPrintRunLoading] = useState(false);
+  const [groupByField, setGroupByField] = useState<'department' | 'factory' | 'category'>('department');
 
   async function openPrintRunModal(run: PayrollRunDto) {
     setPrintRun(run);
@@ -151,13 +153,13 @@ export const Salaries = () => {
     setInstallmentsLoading(true);
     try {
       const res = await listAdvanceInstallments();
-      setPendingInstallments(res.data.filter((i) => i.status === 'PENDING'));
+      setPendingInstallments(showAllInstallments ? res.data : res.data.filter((i) => i.status === 'PENDING'));
     } catch {
       setPendingInstallments([]);
     } finally {
       setInstallmentsLoading(false);
     }
-  }, []);
+  }, [showAllInstallments]);
 
   useEffect(() => {
     if (installmentsOpen) void loadPendingInstallments();
@@ -657,6 +659,14 @@ export const Salaries = () => {
         </button>
         {installmentsOpen && (
           <div className="border-t border-slate-200 p-4">
+            <label className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={showAllInstallments}
+                onChange={(e) => setShowAllInstallments(e.target.checked)}
+              />
+              {t('installments.showAll')}
+            </label>
             {installmentsLoading ? (
               <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
             ) : pendingInstallments.length === 0 ? (
@@ -671,17 +681,20 @@ export const Salaries = () => {
                         {' '}
                         — {t('installments.installmentOf', { no: inst.installment_no, total: inst.installment_count })} —{' '}
                         {inst.due_month}/{inst.due_year} — {money(inst.amount, inst.currency_code)}
+                        {inst.status === 'PAID' ? ` — ${t('installments.paidLabel')}` : ''}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleMarkInstallmentPaid(inst.id)}
-                      disabled={payingInstallmentId === inst.id}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                    >
-                      {payingInstallmentId === inst.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                      {t('installments.markPaid')}
-                    </button>
+                    {inst.status === 'PENDING' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleMarkInstallmentPaid(inst.id)}
+                        disabled={payingInstallmentId === inst.id}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {payingInstallmentId === inst.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        {t('installments.markPaid')}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -939,6 +952,36 @@ export const Salaries = () => {
                 <Printer className="h-4 w-4" />
                 {t('runs.printSignatureSheet')}
               </button>
+              {!printRunLoading && printRunLines.length > 0 && (
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">{t('runs.groupTotalsTitle')}</span>
+                    <select value={groupByField} onChange={(e) => setGroupByField(e.target.value as typeof groupByField)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
+                      <option value="department">{t('runs.groupByDepartment')}</option>
+                      <option value="factory">{t('runs.groupByFactory')}</option>
+                      <option value="category">{t('runs.groupByCategory')}</option>
+                    </select>
+                  </div>
+                  <table className="w-full text-xs rounded-lg border border-slate-200 overflow-hidden mb-3">
+                    <thead className="bg-slate-50 font-bold">
+                      <tr>
+                        <td className="px-3 py-1.5">{t('runs.groupName')}</td>
+                        <td className="px-3 py-1.5 text-end">{t('runs.groupCount')}</td>
+                        <td className="px-3 py-1.5 text-end">{t('runs.groupNet')}</td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupTotals(printRunLines, groupByField).map((g) => (
+                        <tr key={g.key} className="border-t border-slate-100">
+                          <td className="px-3 py-1.5">{g.key}</td>
+                          <td className="px-3 py-1.5 text-end">{g.count}</td>
+                          <td className="px-3 py-1.5 text-end font-bold">{g.net.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {printRunLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
               ) : (
@@ -968,6 +1011,18 @@ export const Salaries = () => {
     </div>
   );
 };
+
+function groupTotals(lines: PayrollRunLineDto[], field: 'department' | 'factory' | 'category') {
+  const map = new Map<string, { key: string; count: number; net: number }>();
+  for (const line of lines) {
+    const key = line[field] || '—';
+    const existing = map.get(key) ?? { key, count: 0, net: 0 };
+    existing.count += 1;
+    existing.net += Number(line.net_salary) || 0;
+    map.set(key, existing);
+  }
+  return Array.from(map.values()).sort((a, b) => b.net - a.net);
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

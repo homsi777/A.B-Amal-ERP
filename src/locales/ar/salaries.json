@@ -36,7 +36,9 @@
     "title": "الأقساط المستحقة (السلف المقسّطة)",
     "empty": "لا توجد أقساط مستحقة حالياً.",
     "installmentOf": "قسط {{no}} من {{total}}",
-    "markPaid": "تحديد كمدفوع"
+    "markPaid": "تحديد كمدفوع",
+    "showAll": "عرض كل الأقساط (تقرير كامل، شاملاً المدفوعة)",
+    "paidLabel": "مدفوع"
   },
   "runs": {
     "title": "مسيرات الرواتب",
@@ -47,7 +49,14 @@
     "printSlips": "طباعة الكشوف",
     "printModalTitle": "طباعة كشوف مسير {{payrollNo}}",
     "printSignatureSheet": "طباعة كشف توقيع كامل",
-    "printPayslip": "طباعة كشف فردي"
+    "printPayslip": "طباعة كشف فردي",
+    "groupTotalsTitle": "إجمالي حسب",
+    "groupByDepartment": "القسم",
+    "groupByFactory": "المصنع",
+    "groupByCategory": "الفئة",
+    "groupName": "الاسم",
+    "groupCount": "عدد الموظفين",
+    "groupNet": "صافي الرواتب"
   },
   "buttons.importExcel": "استيراد كشف رواتب Excel",
   "payrollImport": {

@@ -175,6 +175,7 @@ export interface PayrollRunLineDto {
   job_title: string | null;
   department: string | null;
   factory: string | null;
+  category: string | null;
   base_salary: string;
   allowances: string;
   deductions: string;
