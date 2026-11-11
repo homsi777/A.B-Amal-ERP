@@ -27,6 +27,7 @@ export type StockImportLayout =
   | 'aleppo_movement'
   | 'aleppo_balance'
   | 'supplier_invoice'
+  | 'flat_item_color_qty'
   | 'unknown';
 
 export interface StockExcelRow {
@@ -205,7 +206,7 @@ export function stockRowColorLabel(row: Pick<StockExcelRow, 'colorName' | 'color
   return row.colorName || row.colorNameTr || '';
 }
 
-function detectSheetKind(sheetName: string, headers: string[]): StockSheetKind {
+function detectSheetKind(sheetName: string, headers: string[], cols: Record<keyof typeof HEADER_MAP, number>): StockSheetKind {
   const n = normalize(sheetName);
   if (n.includes('وارد') || n === 'incoming' || n === 'in') return 'incoming';
   if (n.includes('صادر') || n === 'outgoing' || n === 'out') return 'outgoing';
@@ -216,6 +217,11 @@ function detectSheetKind(sheetName: string, headers: string[]): StockSheetKind {
   const hasOut = headers.some((h) => normalize(h) === 'الصادر');
   const hasStock = headers.some((h) => normalize(h) === 'المخزن');
   if (hasIn && hasOut && hasStock) return 'balance';
+  // Last resort: a flat sheet with no date/balance hints but the three core
+  // columns (item name + color + quantity) detected via HEADER_MAP is a plain
+  // stock list (e.g. ready-made "خامة/كود الخامة/اللون/الكمية" files sent by
+  // a branch) — treat it as an importable "incoming" sheet.
+  if (cols.itemName >= 0 && cols.quantity >= 0 && cols.colorName >= 0) return 'incoming';
   return 'unknown';
 }
 
@@ -228,7 +234,11 @@ function headerHas(headers: string[], ...keys: string[]): boolean {
  * Aleppo warehouse workbooks use different column semantics per sheet.
  * «وارد» often has: اسم الصنف | رمز الصنف (weave type) | اللون | الكمية — no date/unit.
  */
-export function detectImportLayout(kind: StockSheetKind, headers: string[]): StockImportLayout {
+export function detectImportLayout(
+  kind: StockSheetKind,
+  headers: string[],
+  cols?: Record<keyof typeof HEADER_MAP, number>,
+): StockImportLayout {
   if (kind === 'balance') return 'aleppo_balance';
   if (isSupplierPurchaseInvoiceHeaders(headers)) return 'supplier_invoice';
   if (
@@ -248,6 +258,19 @@ export function detectImportLayout(kind: StockSheetKind, headers: string[]): Sto
     && headerHas(headers, 'التاريخ')
   ) {
     return 'aleppo_movement';
+  }
+  // Generic flat sheet: item + color + quantity detected via HEADER_MAP
+  // (whatever the actual header text is), no date column — e.g. a
+  // ready-made per-roll stock list sent by a branch.
+  if (
+    kind === 'incoming'
+    && cols
+    && cols.itemName >= 0
+    && cols.quantity >= 0
+    && cols.colorName >= 0
+    && cols.date < 0
+  ) {
+    return 'flat_item_color_qty';
   }
   return 'unknown';
 }
@@ -362,8 +385,8 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
   const headerRowIndex = findHeaderRow(aoa);
   const rawHeaders = (aoa[headerRowIndex] || []).map((c) => String(c ?? '').trim());
   const cols = detectColumnIndices(rawHeaders);
-  const kind = detectSheetKind(sheetName, rawHeaders);
-  const importLayout = detectImportLayout(kind, rawHeaders);
+  const kind = detectSheetKind(sheetName, rawHeaders, cols);
+  const importLayout = detectImportLayout(kind, rawHeaders, cols);
   const stockQuantityIndex = findHeaderIndex(rawHeaders, ['المخزن', 'الرصيد', 'المتوفر', 'stock', 'balance']);
 
   if (kind === 'balance') {
@@ -399,7 +422,7 @@ function parseSheet(sheetName: string, ws: XLSX.WorkSheet): StockSheetPreview {
       colorCode = '';
     }
 
-    const useColumnShiftHeuristics = importLayout !== 'aleppo_incoming_minimal';
+    const useColumnShiftHeuristics = importLayout !== 'aleppo_incoming_minimal' && importLayout !== 'flat_item_color_qty';
     if (useColumnShiftHeuristics) {
       // Some Aleppo sheets have shifted columns: the color name appears under
       // "unit", and the actual color code appears under "color".
