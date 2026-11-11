@@ -56,7 +56,20 @@
     "groupByCategory": "الفئة",
     "groupName": "الاسم",
     "groupCount": "عدد الموظفين",
-    "groupNet": "صافي الرواتب"
+    "groupNet": "صافي الرواتب",
+    "compareTwoRuns": "مقارنة مسيرين",
+    "compareRunA": "المسير الأول",
+    "compareRunB": "المسير الثاني",
+    "compareRun": "مقارنة",
+    "compareEmployee": "الموظف",
+    "compareNetA": "صافي المسير الأول",
+    "compareNetB": "صافي المسير الثاني",
+    "compareDiff": "الفرق",
+    "compareStatus": "الحالة",
+    "compareStatusADDED": "جديد",
+    "compareStatusREMOVED": "غير موجود بالمسير الثاني",
+    "compareStatusCHANGED": "تغيّر",
+    "compareStatusSAME": "بلا تغيير"
   },
   "buttons.importExcel": "استيراد كشف رواتب Excel",
   "payrollImport": {

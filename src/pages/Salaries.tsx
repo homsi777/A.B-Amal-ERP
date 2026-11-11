@@ -103,6 +103,50 @@ export const Salaries = () => {
   const [printRunLines, setPrintRunLines] = useState<PayrollRunLineDto[]>([]);
   const [printRunLoading, setPrintRunLoading] = useState(false);
   const [groupByField, setGroupByField] = useState<'department' | 'factory' | 'category'>('department');
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareRunAId, setCompareRunAId] = useState('');
+  const [compareRunBId, setCompareRunBId] = useState('');
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  const [compareRows, setCompareRows] = useState<
+    Array<{ employeeId: string; employeeCode: string; employeeName: string; netA: number; netB: number; diff: number; status: 'ADDED' | 'REMOVED' | 'CHANGED' | 'SAME' }>
+  >([]);
+
+  async function runCompare() {
+    if (!compareRunAId || !compareRunBId) return;
+    setCompareLoading(true);
+    setCompareError(null);
+    try {
+      const [resA, resB] = await Promise.all([getPayrollRunDetail(compareRunAId), getPayrollRunDetail(compareRunBId)]);
+      const mapA = new Map(resA.data.lines.map((l) => [l.employee_id, l]));
+      const mapB = new Map(resB.data.lines.map((l) => [l.employee_id, l]));
+      const employeeIds = new Set([...mapA.keys(), ...mapB.keys()]);
+      const rows = Array.from(employeeIds).map((employeeId) => {
+        const lineA = mapA.get(employeeId);
+        const lineB = mapB.get(employeeId);
+        const netA = lineA ? Number(lineA.net_salary) : 0;
+        const netB = lineB ? Number(lineB.net_salary) : 0;
+        const diff = netB - netA;
+        const status: 'ADDED' | 'REMOVED' | 'CHANGED' | 'SAME' = !lineA ? 'ADDED' : !lineB ? 'REMOVED' : diff !== 0 ? 'CHANGED' : 'SAME';
+        return {
+          employeeId,
+          employeeCode: (lineB ?? lineA)!.employee_code,
+          employeeName: (lineB ?? lineA)!.employee_name,
+          netA,
+          netB,
+          diff,
+          status,
+        };
+      });
+      rows.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+      setCompareRows(rows);
+    } catch (e) {
+      setCompareError(e instanceof Error ? e.message : t('errors.loadFailed'));
+      setCompareRows([]);
+    } finally {
+      setCompareLoading(false);
+    }
+  }
 
   async function openPrintRunModal(run: PayrollRunDto) {
     setPrintRun(run);
@@ -607,10 +651,25 @@ export const Salaries = () => {
 
       {runs.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-            <ReceiptText className="w-5 h-5 text-indigo-600" />
-            {t('runs.title')}
-          </h3>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2">
+              <ReceiptText className="w-5 h-5 text-indigo-600" />
+              {t('runs.title')}
+            </h3>
+            {runs.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCompareOpen(true);
+                  setCompareRows([]);
+                  setCompareError(null);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                {t('runs.compareTwoRuns')}
+              </button>
+            )}
+          </div>
           <ul className="text-sm space-y-2">
             {runs.slice(0, 5).map((run) => (
               <li key={run.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-3 last:border-0">
@@ -1003,6 +1062,80 @@ export const Salaries = () => {
                     </li>
                   ))}
                 </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {compareOpen && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <h3 className="text-base font-black text-slate-900">{t('runs.compareTwoRuns')}</h3>
+              <button type="button" onClick={() => setCompareOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100">✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label={t('runs.compareRunA')}>
+                  <select value={compareRunAId} onChange={(e) => setCompareRunAId(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <option value="">—</option>
+                    {runs.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.payroll_no} ({r.period_month}/{r.period_year})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={t('runs.compareRunB')}>
+                  <select value={compareRunBId} onChange={(e) => setCompareRunBId(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <option value="">—</option>
+                    {runs.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.payroll_no} ({r.period_month}/{r.period_year})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <button
+                type="button"
+                onClick={() => void runCompare()}
+                disabled={!compareRunAId || !compareRunBId || compareLoading}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {compareLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {t('runs.compareRun')}
+              </button>
+              {compareError && <p className="text-sm text-rose-600">{compareError}</p>}
+              {compareRows.length > 0 && (
+                <table className="w-full text-xs rounded-lg border border-slate-200 overflow-hidden">
+                  <thead className="bg-slate-50 font-bold">
+                    <tr>
+                      <td className="px-3 py-1.5">{t('runs.compareEmployee')}</td>
+                      <td className="px-3 py-1.5 text-end">{t('runs.compareNetA')}</td>
+                      <td className="px-3 py-1.5 text-end">{t('runs.compareNetB')}</td>
+                      <td className="px-3 py-1.5 text-end">{t('runs.compareDiff')}</td>
+                      <td className="px-3 py-1.5 text-end">{t('runs.compareStatus')}</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compareRows.map((row) => (
+                      <tr key={row.employeeId} className={`border-t border-slate-100 ${row.status !== 'SAME' ? 'bg-amber-50' : ''}`}>
+                        <td className="px-3 py-1.5">
+                          <span className="font-mono text-slate-500">{row.employeeCode}</span> {row.employeeName}
+                        </td>
+                        <td className="px-3 py-1.5 text-end">{row.netA.toLocaleString()}</td>
+                        <td className="px-3 py-1.5 text-end">{row.netB.toLocaleString()}</td>
+                        <td className={`px-3 py-1.5 text-end font-bold ${row.diff > 0 ? 'text-emerald-700' : row.diff < 0 ? 'text-rose-700' : ''}`}>
+                          {row.diff > 0 ? '+' : ''}
+                          {row.diff.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-1.5 text-end">{t(`runs.compareStatus${row.status}`)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>

@@ -56,7 +56,20 @@
     "groupByCategory": "Kategori",
     "groupName": "Ad",
     "groupCount": "Çalışan Sayısı",
-    "groupNet": "Net Maaş Toplamı"
+    "groupNet": "Net Maaş Toplamı",
+    "compareTwoRuns": "İki Dönemi Karşılaştır",
+    "compareRunA": "Birinci Dönem",
+    "compareRunB": "İkinci Dönem",
+    "compareRun": "Karşılaştır",
+    "compareEmployee": "Çalışan",
+    "compareNetA": "Birinci Dönem Net",
+    "compareNetB": "İkinci Dönem Net",
+    "compareDiff": "Fark",
+    "compareStatus": "Durum",
+    "compareStatusADDED": "Yeni",
+    "compareStatusREMOVED": "İkinci Dönemde Yok",
+    "compareStatusCHANGED": "Değişti",
+    "compareStatusSAME": "Değişmedi"
   },
   "buttons.importExcel": "Excel Maaş Bordrosu İçe Aktar",
   "payrollImport": {
