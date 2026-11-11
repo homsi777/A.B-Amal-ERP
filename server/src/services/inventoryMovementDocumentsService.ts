@@ -80,7 +80,7 @@ export async function listInventoryMovementDocuments(
         MIN(im.created_at) AS doc_date,
         COUNT(DISTINCT im.roll_id)::int AS roll_count,
         COALESCE(SUM(fr.length_m), 0) AS total_length_m,
-        MAX(COALESCE(im.to_warehouse_id, im.from_warehouse_id)) AS warehouse_id
+        MAX(COALESCE(im.to_warehouse_id, im.from_warehouse_id)::text)::uuid AS warehouse_id
       FROM inventory_movements im
       JOIN fabric_rolls fr ON fr.id = im.roll_id AND fr.company_id = im.company_id
       WHERE im.company_id = $1 AND im.reference_type IN ('INTAKE_OPERATION', 'SALES_INVOICE')

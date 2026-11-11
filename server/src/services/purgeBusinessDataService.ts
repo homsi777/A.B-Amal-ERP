@@ -18,7 +18,8 @@ async function deleteByCompany(
 }
 
 /**
- * حذف انتقائي لبيانات الأعمال مع الإبقاء على المستخدمين والمستودعات والإعدادات والرواتب.
+ * حذف انتقائي لبيانات الأعمال (مبيعات/مشتريات/مخزون/خزينة/HR ورواتب) مع الإبقاء
+ * على المستخدمين والمستودعات وشجرة الحسابات وإعدادات الشركة.
  */
 export async function purgeBusinessData(
   companyId: string,
@@ -90,8 +91,64 @@ export async function purgeBusinessData(
     await deleteByCompany(
       client,
       companyId,
+      `DELETE FROM advance_installments WHERE company_id = $1`,
+      'advance_installments',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
       `DELETE FROM payroll_employee_advances WHERE company_id = $1`,
       'payroll_employee_advances',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM employee_wage_rule_history WHERE company_id = $1`,
+      'employee_wage_rule_history',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM payroll_run_lines WHERE company_id = $1`,
+      'payroll_run_lines',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM payroll_runs WHERE company_id = $1`,
+      'payroll_runs',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM monthly_attendance_reviews WHERE company_id = $1`,
+      'monthly_attendance_reviews',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM attendance_daily_records WHERE company_id = $1`,
+      'attendance_daily_records',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM attendance_shift_types WHERE company_id = $1`,
+      'attendance_shift_types',
+      summary,
+    );
+    await deleteByCompany(
+      client,
+      companyId,
+      `DELETE FROM payroll_employees WHERE company_id = $1`,
+      'payroll_employees',
       summary,
     );
     await deleteByCompany(
