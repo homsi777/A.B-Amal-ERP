@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/payrollApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { listShiftTypes, type ShiftTypeDto } from '../../lib/api/attendanceApi';
+import { usePermissions } from '../../hooks/usePermissions';
 
 type EmployeeFormState = {
   employeeCode: string;
@@ -100,6 +101,8 @@ const inputCls = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm fo
 
 export function Employees() {
   const { t } = useTranslation('hrEmployees');
+  const { has: hasPermission } = usePermissions();
+  const canManage = hasPermission('payroll.manage');
   const [employees, setEmployees] = useState<PayrollEmployeeDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -217,14 +220,16 @@ export function Employees() {
           <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
           <p className="mt-1 text-slate-500">{t('page.subtitle')}</p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700"
-        >
-          <Plus className="h-4 w-4" />
-          {t('toolbar.addEmployee')}
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700"
+          >
+            <Plus className="h-4 w-4" />
+            {t('toolbar.addEmployee')}
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-md">
@@ -284,9 +289,11 @@ export function Employees() {
                   </td>
                   <td className="p-3">
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => openEdit(emp)} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50" title={t('actions.edit')}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
+                      {canManage && (
+                        <button type="button" onClick={() => openEdit(emp)} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50" title={t('actions.edit')}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button type="button" onClick={() => void openHistory(emp)} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50" title={t('actions.wageHistory')}>
                         <History className="h-3.5 w-3.5" />
                       </button>

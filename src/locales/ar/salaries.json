@@ -32,6 +32,19 @@
   "totals": {
     "totalByCurrency": "إجمالي رواتب {{currency}}"
   },
+  "auditLog": {
+    "title": "سجل التدقيق",
+    "empty": "لا توجد عمليات مسجّلة حالياً.",
+    "actions": {
+      "PAYROLL_EMPLOYEE_WAGE_CHANGED": "تعديل راتب موظف",
+      "PAYROLL_ADVANCE_CREATED": "إنشاء سلفة",
+      "PAYROLL_INSTALLMENT_MARKED_PAID": "تحديد قسط كمدفوع",
+      "PAYROLL_RUN_CONFIRMED": "تأكيد مسير رواتب",
+      "PAYROLL_RUN_PAID": "صرف مسير رواتب",
+      "ATTENDANCE_RECORD_MANUALLY_EDITED": "تعديل حضور يدوي",
+      "ATTENDANCE_MONTHLY_REVIEW_APPROVED": "اعتماد كشف انتظام شهري"
+    }
+  },
   "installments": {
     "title": "الأقساط المستحقة (السلف المقسّطة)",
     "empty": "لا توجد أقساط مستحقة حالياً.",

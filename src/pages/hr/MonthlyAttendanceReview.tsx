@@ -6,6 +6,7 @@ import {
   approveMonthlyAttendanceReview,
   type MonthlyAttendanceSummaryDto,
 } from '../../lib/api/attendanceApi';
+import { usePermissions } from '../../hooks/usePermissions';
 
 function currentMonth(): number {
   return new Date().getMonth() + 1;
@@ -16,6 +17,8 @@ function currentYear(): number {
 
 export function MonthlyAttendanceReview() {
   const { t } = useTranslation('hrAttendance');
+  const { has: hasPermission } = usePermissions();
+  const canApprove = hasPermission('attendance.approve');
   const [periodMonth, setPeriodMonth] = useState(currentMonth());
   const [periodYear, setPeriodYear] = useState(currentYear());
   const [rows, setRows] = useState<MonthlyAttendanceSummaryDto[]>([]);
@@ -121,7 +124,7 @@ export function MonthlyAttendanceReview() {
                     </span>
                   </td>
                   <td className="p-3">
-                    {r.status === 'DRAFT' && (
+                    {r.status === 'DRAFT' && canApprove && (
                       <button
                         type="button"
                         onClick={() => void handleApprove(r)}

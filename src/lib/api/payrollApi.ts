@@ -315,3 +315,17 @@ export async function markAdvanceInstallmentPaid(installmentId: string) {
     method: 'PATCH',
   });
 }
+
+export interface PayrollAuditLogEntry {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+  user_name: string | null;
+}
+
+export async function listPayrollAuditLog(limit = 100) {
+  return apiFetch<{ ok: boolean; data: PayrollAuditLogEntry[] }>(`/api/payroll/audit-log?limit=${limit}`);
+}

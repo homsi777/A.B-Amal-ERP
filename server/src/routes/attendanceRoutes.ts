@@ -13,6 +13,7 @@ import {
   computeMonthlyAttendanceSummaries,
   approveMonthlyAttendanceReview,
 } from '../services/attendanceService.js';
+import { insertAuditLog } from '../services/auditLogService.js';
 
 function requirePermission(user: { role: string; permissions: string[] } | undefined, code: string): boolean {
   if (!user) return false;
@@ -119,6 +120,14 @@ export const attendanceRoutes: FastifyPluginAsync = async (app) => {
         dayType: d.dayType,
         reason: d.reason,
       });
+      await insertAuditLog(client, {
+        companyId,
+        userId,
+        action: 'ATTENDANCE_RECORD_MANUALLY_EDITED',
+        entityType: 'attendance_daily_record',
+        entityId: id,
+        details: { reason: d.reason, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, lateMinutes: d.lateMinutes, permissionMinutes: d.permissionMinutes, dayType: d.dayType },
+      });
       await client.query('COMMIT');
       return reply.send({ ok: true, data: row });
     } catch (error) {
@@ -189,6 +198,14 @@ export const attendanceRoutes: FastifyPluginAsync = async (app) => {
         periodMonth: d.periodMonth,
         periodYear: d.periodYear,
         notes: d.notes,
+      });
+      await insertAuditLog(client, {
+        companyId,
+        userId,
+        action: 'ATTENDANCE_MONTHLY_REVIEW_APPROVED',
+        entityType: 'monthly_attendance_review',
+        entityId: (row as { id?: string }).id ?? null,
+        details: { employeeId: d.employeeId, periodMonth: d.periodMonth, periodYear: d.periodYear, notes: d.notes ?? null },
       });
       await client.query('COMMIT');
       return reply.status(201).send({ ok: true, data: row });

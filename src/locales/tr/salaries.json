@@ -32,6 +32,19 @@
   "totals": {
     "totalByCurrency": "Toplam {{currency}} Maaşları"
   },
+  "auditLog": {
+    "title": "Denetim Günlüğü",
+    "empty": "Şu anda kayıtlı işlem yok.",
+    "actions": {
+      "PAYROLL_EMPLOYEE_WAGE_CHANGED": "Çalışan Maaşı Değiştirildi",
+      "PAYROLL_ADVANCE_CREATED": "Avans Oluşturuldu",
+      "PAYROLL_INSTALLMENT_MARKED_PAID": "Taksit Ödendi Olarak İşaretlendi",
+      "PAYROLL_RUN_CONFIRMED": "Maaş Dönemi Onaylandı",
+      "PAYROLL_RUN_PAID": "Maaş Dönemi Ödendi",
+      "ATTENDANCE_RECORD_MANUALLY_EDITED": "Manuel Devam Düzenlemesi",
+      "ATTENDANCE_MONTHLY_REVIEW_APPROVED": "Aylık Devam İncelemesi Onaylandı"
+    }
+  },
   "installments": {
     "title": "Vadesi Gelen Taksitler (Taksitli Avanslar)",
     "empty": "Şu anda vadesi gelen taksit yok.",

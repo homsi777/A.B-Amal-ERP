@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/attendanceApi';
 import { listPayrollEmployees, type PayrollEmployeeDto } from '../../lib/api/payrollApi';
 import { parseAttendanceWorkbook } from '../../lib/hrAttendanceExcelParser';
+import { usePermissions } from '../../hooks/usePermissions';
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -363,6 +364,8 @@ function ShiftTypesPanel() {
 
 export function Attendance() {
   const { t } = useTranslation('hrAttendance');
+  const { has: hasPermission } = usePermissions();
+  const canManage = hasPermission('attendance.manage');
   const [records, setRecords] = useState<AttendanceRecordDto[]>([]);
   const [employees, setEmployees] = useState<PayrollEmployeeDto[]>([]);
   const [employeeId, setEmployeeId] = useState('');
@@ -402,17 +405,19 @@ export function Attendance() {
           <h2 className="text-2xl font-bold text-slate-900">{t('page.title')}</h2>
           <p className="mt-1 text-slate-500">{t('page.subtitle')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setImportOpen(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700"
-        >
-          <Upload className="h-4 w-4" />
-          {t('toolbar.importFile')}
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700"
+          >
+            <Upload className="h-4 w-4" />
+            {t('toolbar.importFile')}
+          </button>
+        )}
       </div>
 
-      <ShiftTypesPanel />
+      {canManage && <ShiftTypesPanel />}
 
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div>
@@ -476,9 +481,11 @@ export function Attendance() {
                     </span>
                   </td>
                   <td className="p-3">
-                    <button type="button" onClick={() => setEditingRecord(r)} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50" title={t('actions.edit')}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
+                    {canManage && (
+                      <button type="button" onClick={() => setEditingRecord(r)} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50" title={t('actions.edit')}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

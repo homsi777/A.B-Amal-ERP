@@ -10,6 +10,7 @@ import { applyPayrollCashOut } from '../services/payrollCashboxService.js';
 import { resolveCashboxOutAmount } from '../services/cashboxCrossCurrencyService.js';
 import { importDepartmentPayrollExcel } from '../services/hrPayrollImportService.js';
 import { applyVoucherConfirmation, insertDraftVoucher } from '../services/voucherCashboxService.js';
+import { insertAuditLog } from '../services/auditLogService.js';
 
 const employeeBody = z.object({
   employeeCode: z.string().min(1),
@@ -282,6 +283,14 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
            VALUES ($1,$2,current_date,$3,$4,$5)`,
           [companyId, id, d.baseSalary, d.wageChangeNotes ?? null, userId],
         );
+        await insertAuditLog(client, {
+          companyId,
+          userId,
+          action: 'PAYROLL_EMPLOYEE_WAGE_CHANGED',
+          entityType: 'payroll_employee',
+          entityId: id,
+          details: { previousBaseSalary: prior.rows[0].base_salary, newBaseSalary: d.baseSalary, notes: d.wageChangeNotes ?? null },
+        });
       }
       await client.query('COMMIT');
       return reply.send({ ok: true, data: row.rows[0] });
@@ -600,6 +609,14 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
+      await insertAuditLog(client, {
+        companyId,
+        userId,
+        action: 'PAYROLL_ADVANCE_CREATED',
+        entityType: 'payroll_employee_advance',
+        entityId: ins.rows[0].id,
+        details: { employeeId: employee.id, employeeCode: employee.employee_code, amount, currencyCode: employee.currency_code, installmentCount },
+      });
       await client.query('COMMIT');
       return reply.status(201).send({
         ok: true,
@@ -667,6 +684,14 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
       [id, companyId, userId],
     );
     if (!row.rows.length) return sendError(reply, 400, 'لا يمكن تحديث هذا القسط', 'INVALID_STATE');
+    await insertAuditLog(pool, {
+      companyId,
+      userId,
+      action: 'PAYROLL_INSTALLMENT_MARKED_PAID',
+      entityType: 'advance_installment',
+      entityId: id,
+      details: { amount: row.rows[0].amount, employeeId: row.rows[0].employee_id },
+    });
     return reply.send({ ok: true, data: row.rows[0] });
   });
 
@@ -825,6 +850,34 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
       pageSize,
       totalsByCurrency,
     });
+  });
+
+  const HR_AUDIT_ENTITY_TYPES = [
+    'payroll_run',
+    'payroll_employee',
+    'payroll_employee_advance',
+    'advance_installment',
+    'attendance_daily_record',
+    'monthly_attendance_review',
+  ];
+
+  app.get('/audit-log', { preHandler: authenticateRequest }, async (req, reply) => {
+    if (!requirePermission(req.user, 'payroll.view')) return sendError(reply, 403, ArabicErrors.forbidden, 'FORBIDDEN');
+    const { companyId } = req.user!;
+    const q = req.query as Record<string, string>;
+    const limit = Math.min(200, Math.max(1, parseInt(q.limit || '100', 10) || 100));
+    const pool = getPool();
+    const rows = await pool.query(
+      `SELECT al.id, al.action, al.entity_type, al.entity_id, al.details, al.created_at,
+              u.full_name AS user_name
+       FROM audit_logs al
+       LEFT JOIN users u ON u.id = al.user_id
+       WHERE al.company_id=$1 AND al.entity_type = ANY($2::text[])
+       ORDER BY al.created_at DESC
+       LIMIT $3`,
+      [companyId, HR_AUDIT_ENTITY_TYPES, limit],
+    );
+    return reply.send({ ok: true, data: rows.rows });
   });
 
   app.get('/runs', { preHandler: authenticateRequest }, async (req, reply) => {
@@ -1105,6 +1158,14 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         currencyCode: r.currency_code,
         userId,
       });
+      await insertAuditLog(client, {
+        companyId,
+        userId,
+        action: 'PAYROLL_RUN_CONFIRMED',
+        entityType: 'payroll_run',
+        entityId: id,
+        details: { payrollNo: r.payroll_no, periodMonth: r.period_month, periodYear: r.period_year, totalNet: r.total_net, currencyCode: r.currency_code },
+      });
       await client.query('COMMIT');
       return reply.send({
         ok: true,
@@ -1188,6 +1249,14 @@ export const payrollRoutes: FastifyPluginAsync = async (app) => {
         currencyCode: r.currency_code,
         cashboxId,
         userId,
+      });
+      await insertAuditLog(client, {
+        companyId,
+        userId,
+        action: 'PAYROLL_RUN_PAID',
+        entityType: 'payroll_run',
+        entityId: id,
+        details: { payrollNo: r.payroll_no, totalNet, currencyCode: r.currency_code, cashboxId, paymentDate },
       });
       await client.query('COMMIT');
       return reply.send({
