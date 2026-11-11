@@ -1167,16 +1167,14 @@ return (
                   {t('main.bulkBarcodeButton')}
                 </button>
               )}
-              {false && (
-                <button
-                  type="button"
-                  onClick={() => setExcelImportOpen(true)}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition font-bold text-sm shadow-sm"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  {t('main.importExcelButton')}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setExcelImportOpen(true)}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 transition font-bold text-sm shadow-sm"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                {t('main.importExcelButton')}
+              </button>
         </div>
       </div>
 
@@ -1534,7 +1532,7 @@ return (
                          ? t('main.emptyHintFiltered')
                          : t('main.emptyHintDefault')}
                      </p>
-                      {false && !search && !filterWarehouseId && inventoryScope === 'available' && (
+                      {!search && !filterWarehouseId && inventoryScope === 'available' && (
                         <button
                           type="button"
                           onClick={() => setExcelImportOpen(true)}
