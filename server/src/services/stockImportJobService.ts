@@ -313,7 +313,13 @@ function prepareRow(row: StockImportJobRow, rowNo: number, importLayout: StockIm
     itemCode: String(row.itemCode || '').trim(),
     colorCode: String(row.colorCode || '').trim(),
   };
-  sanitizeStockImportRow(rowForCodes);
+  // في الشيتات ذات الأعمدة الصريحة (flat_item_color_qty) لا نُعيد تفسير كود
+  // الخامة كـ"كود لون محتمل" — ملف حقيقي (601/608 لنفس اسم الخامة "POL
+  // OXFORD") أثبت أن هذه الشرائح العددية القصيرة هي كود خامة فعلي، لا كود
+  // لون، فتحويلها كان يُفرِغ كود الخامة ويضعه خطأً بعمود كود اللون.
+  if (importLayout !== 'flat_item_color_qty') {
+    sanitizeStockImportRow(rowForCodes);
+  }
 
   const itemCodes = resolveStockImportItemCodes(materialName, rowForCodes.itemCode, importLayout);
   let colorName = String(row.colorName || '').trim();
