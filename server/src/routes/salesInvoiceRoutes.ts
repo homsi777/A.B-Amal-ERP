@@ -15,6 +15,22 @@ import {
   voidSalesInvoice,
 } from '../services/salesInvoiceService.js';
 
+/** PostgreSQL foreign_key_violation (23503) على yarn_lot_id/fabric_roll_id —
+ * يحدث إن أرسلت الواجهة معرّفاً لا ينتمي فعلياً للجدول المتوقَّع (مثال واقعي:
+ * مسح باركود توب على سطر "بيع بالوزن" كان يُرسِل معرّف التوب كـ yarnLotId).
+ * يُترجَم لرسالة عربية واضحة 400 بدل تسريبه كخطأ خادم 500 خام. */
+function foreignKeyViolationMessage(e: unknown): string | null {
+  const err = e as { code?: string; constraint?: string };
+  if (err?.code !== '23503') return null;
+  if (err.constraint?.includes('yarn_lot_id')) {
+    return 'دفعة الخيط المرتبطة بهذا السطر غير موجودة بالمخزون — أعد مسح/اختيار الدفعة.';
+  }
+  if (err.constraint?.includes('fabric_roll_id')) {
+    return 'التوب المرتبط بهذا السطر غير موجود بالمخزون — أعد مسح/اختيار التوب.';
+  }
+  return 'أحد السطور مرتبط بعنصر مخزون غير موجود.';
+}
+
 export const salesInvoiceRoutes: FastifyPluginAsync = async (app) => {
   app.get('/', { preHandler: authenticateRequest }, async (req, reply) => {
     const { companyId } = req.user!;
@@ -57,6 +73,8 @@ export const salesInvoiceRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'VALIDATION') return sendError(reply, 400, err.message || ArabicErrors.validation, 'VALIDATION');
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
       if (err.code === 'INVALID_STOCK') return sendError(reply, 400, err.message || 'مخزون', 'INVALID_STOCK');
+      const fkMessage = foreignKeyViolationMessage(e);
+      if (fkMessage) return sendError(reply, 400, fkMessage, 'INVALID_STOCK');
       throw e;
     } finally {
       client.release();
@@ -97,6 +115,8 @@ export const salesInvoiceRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
       if (err.code === 'VALIDATION') return sendError(reply, 400, err.message || '', 'VALIDATION');
       if (err.code === 'INVALID_STOCK') return sendError(reply, 400, err.message || '', 'INVALID_STOCK');
+      const fkMessage = foreignKeyViolationMessage(e);
+      if (fkMessage) return sendError(reply, 400, fkMessage, 'INVALID_STOCK');
       throw e;
     } finally {
       client.release();
@@ -119,6 +139,8 @@ export const salesInvoiceRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'NOT_FOUND') return sendError(reply, 404, err.message || 'غير موجود', 'NOT_FOUND');
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
       if (err.code === 'DUPLICATE') return sendError(reply, 409, err.message || '', 'DUPLICATE');
+      const fkMessage = foreignKeyViolationMessage(e);
+      if (fkMessage) return sendError(reply, 400, fkMessage, 'INVALID_STOCK');
       throw e;
     } finally {
       client.release();
@@ -167,6 +189,8 @@ export const salesInvoiceRoutes: FastifyPluginAsync = async (app) => {
       if (err.code === 'INVALID_STATE') return sendError(reply, 400, err.message || '', 'INVALID_STATE');
       if (err.code === 'VALIDATION') return sendError(reply, 400, err.message || '', 'VALIDATION');
       if (err.code === 'INVALID_STOCK') return sendError(reply, 400, err.message || '', 'INVALID_STOCK');
+      const fkMessage = foreignKeyViolationMessage(e);
+      if (fkMessage) return sendError(reply, 400, fkMessage, 'INVALID_STOCK');
       throw e;
     } finally {
       client.release();

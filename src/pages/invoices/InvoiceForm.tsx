@@ -1420,6 +1420,38 @@ export const InvoiceForm = () => {
     return requestPromise;
   };
 
+  /**
+   * موازٍ لـ lookupStockFromAnywhere لكن لدفعات الخيط (unit==='kg') — يبحث في
+   * apiYarnLots المحمَّلة مسبقاً، ثم بنداء خادم إن لم يجد تطابقاً محلياً. بدون
+   * هذا، مسح باركود على سطر بالوزن كان يُعاد توجيهه خطأً لبحث fabric_rolls
+   * (lookupStockFromAnywhere)، فيُرجَع معرّف توب حقيقي لكنه لا يطابق أي دفعة
+   * خيط — فيفشل الحفظ بخطأ قيد مفتاح أجنبي (yarn_lot_id) غير معروف للخادم.
+   */
+  const lookupYarnLotFromAnywhere = async (value: string): Promise<YarnLotDto | null> => {
+    const query = value.trim();
+    if (!query) return null;
+    const lc = query.toLowerCase();
+    const matchesQuery = (lot: YarnLotDto) =>
+      [lot.barcode, lot.lot_no, lot.id]
+        .filter(Boolean)
+        .map((v) => String(v).trim().toLowerCase())
+        .includes(lc);
+
+    const local = apiYarnLots.find(matchesQuery);
+    if (local) return local;
+
+    try {
+      const remote = await listYarnLots({ search: query, pageSize: 10, onlyAvailable: isSales });
+      const match = remote.data.find(matchesQuery) ?? null;
+      if (match) {
+        setApiYarnLots((prev) => (prev.some((l) => l.id === match.id) ? prev : [match, ...prev]));
+      }
+      return match;
+    } catch {
+      return null;
+    }
+  };
+
   const notifySalesBarcodeLookupMiss = (raw: string) => {
     showToast({
       type: 'warning',
@@ -1789,7 +1821,8 @@ export const InvoiceForm = () => {
     }
 
     if (isLikelyIdentityBarcodePayload(raw)) {
-      const stock = await lookupStockFromAnywhere(raw);
+      const isYarnLine = items.find((l) => l.id === lineId)?.unit === 'kg';
+      const stock = isYarnLine ? await lookupYarnLotFromAnywhere(raw) : await lookupStockFromAnywhere(raw);
       if (stock ? rejectDuplicateStockScan(lineId, stock, raw) : rejectDuplicateInvoiceScan({ ...emptyItem(), id: lineId, supplierBarcode: raw, rawBarcodePayload: raw }, lineId)) {
         return false;
       }
@@ -1804,7 +1837,10 @@ export const InvoiceForm = () => {
             : sanitizeInvoiceFormItemBarcode(line),
         ),
       );
-      if (stock) applyStockToLine(lineId, stock);
+      if (stock) {
+        if (isYarnLine) applyYarnStockToLine(lineId, stock as YarnLotDto);
+        else applyStockToLine(lineId, stock as FabricRollDto);
+      }
       ensureTrailingEmptyLine(lineId);
       setLatestScannedLineId(lineId);
       if (stagedRoll) {
@@ -1910,8 +1946,13 @@ export const InvoiceForm = () => {
       return;
     }
 
+    const lineUnitForScan = items.find((l) => l.id === lineId)?.unit;
+    const isYarnLine = lineUnitForScan === 'kg';
+
     if (isLikelyIdentityBarcodePayload(raw)) {
-      const stock = await lookupStockFromAnywhere(raw, { barcodeColumnOnly: true });
+      const stock = isYarnLine
+        ? await lookupYarnLotFromAnywhere(raw)
+        : await lookupStockFromAnywhere(raw, { barcodeColumnOnly: true });
       if (stock ? rejectDuplicateStockScan(lineId, stock, raw) : rejectDuplicateInvoiceScan({ ...emptyItem(), id: lineId, supplierBarcode: raw, rawBarcodePayload: raw }, lineId)) {
         return;
       }
@@ -1926,7 +1967,10 @@ export const InvoiceForm = () => {
             : sanitizeInvoiceFormItemBarcode(line),
         ),
       );
-      if (stock) applyStockToLine(lineId, stock);
+      if (stock) {
+        if (isYarnLine) applyYarnStockToLine(lineId, stock as YarnLotDto);
+        else applyStockToLine(lineId, stock as FabricRollDto);
+      }
       setLatestScannedLineId(lineId);
       ensureTrailingEmptyLine(lineId);
       window.setTimeout(() => focusNextRowFirstField(rowEl || null), 60);
@@ -1937,10 +1981,13 @@ export const InvoiceForm = () => {
     // "likely barcode" payload, try a server lookup anyway. This protects
     // against shorter scanner outputs (e.g. 4-digit internal codes) that
     // `isLikelyIdentityBarcodePayload` may otherwise reject.
-    const fallback = await lookupStockFromAnywhere(raw, { barcodeColumnOnly: true });
+    const fallback = isYarnLine
+      ? await lookupYarnLotFromAnywhere(raw)
+      : await lookupStockFromAnywhere(raw, { barcodeColumnOnly: true });
     if (fallback) {
       if (rejectDuplicateStockScan(lineId, fallback, raw)) return;
-      applyStockToLine(lineId, fallback);
+      if (isYarnLine) applyYarnStockToLine(lineId, fallback as YarnLotDto);
+      else applyStockToLine(lineId, fallback as FabricRollDto);
       setLatestScannedLineId(lineId);
       ensureTrailingEmptyLine(lineId);
       window.setTimeout(() => focusNextRowFirstField(rowEl || null), 60);
@@ -2511,9 +2558,20 @@ export const InvoiceForm = () => {
         return uuidRe.test(rollRaw) ? rollRaw : null;
       })();
       const yarnLotId = isYarnLine && isSales
-        ? (() => {
+        ? await (async () => {
             const raw = String(item.internalRollId || '').trim();
-            return uuidRe.test(raw) ? raw : null;
+            if (!uuidRe.test(raw)) return null;
+            // لا نرسل internalRollId كـ yarnLotId بثقة عمياء — قد يكون فعلياً
+            // معرّف توب (fabric_rolls.id) إن أخطأ مسار مسح الباركود (الحالة
+            // التي أدّت فعلاً لفشل الحفظ بقيد مفتاح أجنبي). نتحقّق أنه ينتمي
+            // فعلاً لدفعة خيط قبل إرساله.
+            if (apiYarnLots.some((lot) => lot.id === raw)) return raw;
+            try {
+              const lot = await getYarnLot(raw);
+              return lot?.id === raw ? raw : null;
+            } catch {
+              return null;
+            }
           })()
         : null;
       const quantity = numberValue(item.length);
