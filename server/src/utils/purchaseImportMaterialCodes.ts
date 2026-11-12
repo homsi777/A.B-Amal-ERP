@@ -378,10 +378,19 @@ export async function ensureFabricCategoryChainFromImport(
   client: PoolClient,
   companyId: string,
   nd: NormalizedRowData,
+  trustedDesignCode?: string,
 ): Promise<number> {
   const materialName = cleanString(nd.materialName);
-  const rawDesignCode = resolveImportMaterialCode(nd);
-  const designCode = rawDesignCode && looksLikeUniqueDesignSku(rawDesignCode) ? rawDesignCode : '';
+  // في الشيتات ذات الأعمدة الصريحة، الكود مُحدَّد ومُتحقَّق منه مسبقاً بالخادم
+  // (مثال حقيقي: 601/608 لنفس الاسم "POL OXFORD") — لا نُعيد تخمين "هل هو
+  // كود لون محتمل" هنا، وإلا يُفقَد مستوى كود الخامة بالكامل من شجرة
+  // التصنيف وتصبح الألوان أبناءً مباشرين لاسم الخامة (الخلل المُشاهَد فعلياً).
+  const designCode = trustedDesignCode
+    ? cleanString(trustedDesignCode)
+    : (() => {
+        const rawDesignCode = resolveImportMaterialCode(nd);
+        return rawDesignCode && looksLikeUniqueDesignSku(rawDesignCode) ? rawDesignCode : '';
+      })();
   const colorName = cleanString(nd.colorName) || cleanString(nd.colorNameTr);
   const colorCode = cleanString(nd.colorCode) || cleanString(nd.supplierColorCode);
 

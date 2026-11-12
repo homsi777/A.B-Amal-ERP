@@ -549,7 +549,8 @@ export async function advanceStockImportBatch(
           colorCode: prepared.colorCode,
         };
         await applyPurchaseImportMaterialCodes(client, companyId, item.id, importNd);
-        createdCategories += await ensureFabricCategoryChainFromImport(client, companyId, importNd);
+        const trustedDesignCode = importLayout === 'flat_item_color_qty' ? prepared.resolvedInternalCode : undefined;
+        createdCategories += await ensureFabricCategoryChainFromImport(client, companyId, importNd, trustedDesignCode);
 
         const color = await resolveFabricColorForImport(
           client,
