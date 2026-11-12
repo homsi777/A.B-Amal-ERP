@@ -26,6 +26,7 @@
   "stageFinished": "جاهز",
   "preparationTypeLabel": "نوع التجهيز",
   "choosePrepType": "— اختر نوع التجهيز —",
+  "managePrepTypes": "إدارة أنواع التجهيز",
   "processingFieldsRequired": "إجراء المصنعية يتطلب مرحلة الخامة ونوع التجهيز",
   "requiredFields": "يرجى تعبئة الجهة المورّدة والمستودع والبيع الجماعي",
   "saving": "جاري الحفظ...",

@@ -26,6 +26,7 @@
   "stageFinished": "Mamul",
   "preparationTypeLabel": "Hazırlama Türü",
   "choosePrepType": "— Hazırlama türü seçin —",
+  "managePrepTypes": "Hazırlama Türlerini Yönet",
   "processingFieldsRequired": "Fason işlemi için kumaş aşaması ve hazırlama türü gerekli",
   "requiredFields": "Lütfen tedarikçi, depo ve toplu satışı doldurun",
   "saving": "Kaydediliyor...",

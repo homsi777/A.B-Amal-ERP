@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Settings } from 'lucide-react';
 import { listSuppliers, type ApiSupplier } from '../../lib/api/suppliersApi';
 import { listWarehouses, type ApiWarehouse } from '../../lib/api/warehousesApi';
 import { listCustomers, type ApiCustomer } from '../../lib/api/customersApi';
@@ -9,6 +9,7 @@ import { listPreparationTypes, type PreparationType } from '../../lib/api/extern
 import { createIntakeOperation, type IntakeActionType } from '../../lib/api/intakeOperationsApi';
 import { ApiRequestError } from '../../lib/api/client';
 import { useToast } from '../../components/NonBlockingToast';
+import { PreparationTypesModal } from '../../components/purchases/PreparationTypesModal';
 
 const ACTION_TYPES: { value: IntakeActionType; labelKey: string }[] = [
   { value: 'PROCESSING', labelKey: 'actionProcessing' },
@@ -26,6 +27,7 @@ export const IntakeOperationNew: React.FC = () => {
   const [warehouses, setWarehouses] = useState<ApiWarehouse[]>([]);
   const [customers, setCustomers] = useState<ApiCustomer[]>([]);
   const [prepTypes, setPrepTypes] = useState<PreparationType[]>([]);
+  const [prepManageOpen, setPrepManageOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -37,24 +39,36 @@ export const IntakeOperationNew: React.FC = () => {
   const [fabricStage, setFabricStage] = useState<'RAW' | 'FINISHED' | ''>('');
   const [preparationTypeId, setPreparationTypeId] = useState('');
 
+  const loadPrepTypes = async () => {
+    try {
+      const prepRes = await listPreparationTypes();
+      setPrepTypes(prepRes.data);
+    } catch {
+      setPrepTypes([]);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
-    try {
-      const [supRes, whRes, custRes, prepRes] = await Promise.all([
-        listSuppliers({ status: 'active', pageSize: 500 }),
-        listWarehouses({ status: 'active' }),
-        listCustomers({ status: 'active', pageSize: 500 }),
-        listPreparationTypes(),
-      ]);
-      setSuppliers(supRes.data);
-      setWarehouses(whRes);
-      setCustomers(custRes.data);
-      setPrepTypes(prepRes.data);
-    } catch (e) {
+    // كل نداء معزول بمحاولته الخاصة — فشل أحدها (مثال: المستودعات) لم يعد
+    // يُفرغ قائمة "نوع التجهيز" الأخرى معه بسبب Promise.all المشترك سابقاً.
+    const results = await Promise.allSettled([
+      listSuppliers({ status: 'active', pageSize: 500 }),
+      listWarehouses({ status: 'active' }),
+      listCustomers({ status: 'active', pageSize: 500 }),
+      listPreparationTypes(),
+    ]);
+    const [supRes, whRes, custRes, prepRes] = results;
+    if (supRes.status === 'fulfilled') setSuppliers(supRes.value.data);
+    if (whRes.status === 'fulfilled') setWarehouses(whRes.value);
+    if (custRes.status === 'fulfilled') setCustomers(custRes.value.data);
+    if (prepRes.status === 'fulfilled') setPrepTypes(prepRes.value.data);
+    const firstFailure = results.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
+    if (firstFailure) {
+      const e = firstFailure.reason;
       showToast({ type: 'error', message: e instanceof ApiRequestError ? e.message : t('loadFailed') });
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -239,7 +253,17 @@ export const IntakeOperationNew: React.FC = () => {
               </div>
             </label>
             <label className="space-y-1 block">
-              <span className="text-xs font-bold text-slate-600">{t('preparationTypeLabel')}</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-600">{t('preparationTypeLabel')}</span>
+                <button
+                  type="button"
+                  onClick={() => setPrepManageOpen(true)}
+                  className="text-slate-400 hover:text-emerald-600"
+                  title={t('managePrepTypes')}
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              </div>
               <select
                 value={preparationTypeId}
                 onChange={(e) => setPreparationTypeId(e.target.value)}
@@ -265,6 +289,14 @@ export const IntakeOperationNew: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {prepManageOpen && (
+        <PreparationTypesModal
+          types={prepTypes}
+          onClose={() => setPrepManageOpen(false)}
+          onChanged={() => void loadPrepTypes()}
+        />
+      )}
     </div>
   );
 };
